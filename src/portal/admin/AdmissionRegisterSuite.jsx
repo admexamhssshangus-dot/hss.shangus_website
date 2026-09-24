@@ -36,21 +36,21 @@ export const LAYOUT_STORAGE_KEY = 'hss_admission_register_layout_v2';
 
 export const DEFAULT_COLUMN_WIDTHS = {
   // PART 1
-  sno: 26,
+  sno: 32,
   photo: 40,
-  rollNo: 34,
-  formNo: 48,
+  rollNo: 42,
+  formNo: 62,
   onlineStatus: 48,
-  admDate: 48,
+  admDate: 50,
   admNo: 56,
-  class: 32,
+  class: 46,
   boardReg: 96,
   name: 112,
   father: 90,
   mother: 90,
   dobFigures: 56,
   dobWords: 96,
-  gender: 36,
+  gender: 42,
   village: 64,
   block: 54,
   tehsil: 54,
@@ -59,13 +59,13 @@ export const DEFAULT_COLUMN_WIDTHS = {
   parentMobile: 66,
 
   // PART 2
-  p2_stream: 48,
+  p2_stream: 52,
   p2_subs: 96,
   p2_aadhar: 80,
-  p2_cat: 32,
-  p2_socio: 32,
-  p2_blood: 32,
-  p2_account: 80,
+  p2_cat: 38,
+  p2_socio: 46,
+  p2_blood: 42,
+  p2_account: 86,
   p2_ifsc: 64,
   p2_prevSchool: 86,
   p2_prevRoll: 48,
@@ -167,6 +167,7 @@ function ResizableTh({
   const isLeftAlign = className.includes('text-left');
 
   const isDarkHeader = className.includes('text-white') || (colKey && colKey.startsWith('st_'));
+  const isNarrow = Boolean(width && width < 54);
 
   const handleClick = (e) => {
     if (sortKey && onSort) {
@@ -188,16 +189,24 @@ function ResizableTh({
       title={sortKey && onSort ? `Click to sort by this column (${isSorted ? (isAsc ? 'ascending → descending' : 'descending → default') : 'ascending'})` : undefined}
       {...rest}
     >
-      <div className={`flex items-center ${isLeftAlign ? 'justify-between' : 'justify-center'} gap-0.5 w-full h-full`}>
-        <div className="flex-1 min-w-0">{children}</div>
+      <div className={`flex items-center ${isLeftAlign ? 'justify-between' : 'justify-center'} gap-0.5 w-full h-full relative`}>
+        <div
+          className="flex-1 min-w-0 text-center leading-[1.12]"
+          style={{ wordBreak: 'keep-all', overflowWrap: 'normal', hyphens: 'none' }}
+        >
+          {children}
+        </div>
         {sortKey && onSort && (
-          <span className="sort-indicator-icon inline-flex items-center shrink-0 print:hidden select-none ml-0.5" aria-hidden="true">
+          <span
+            className={`sort-indicator-icon ${isNarrow ? 'absolute top-0 right-0 pointer-events-none' : 'inline-flex items-center shrink-0 ml-0.5'} print:hidden select-none`}
+            aria-hidden="true"
+          >
             {isAsc ? (
-              <ChevronUp size={11} className={isDarkHeader ? "text-amber-300 font-black drop-shadow-2xs" : "text-indigo-700 dark:text-indigo-400 font-black"} />
+              <ChevronUp size={isNarrow ? 9 : 11} className={isDarkHeader ? "text-amber-300 font-black drop-shadow-2xs" : "text-indigo-700 dark:text-indigo-400 font-black"} />
             ) : isDesc ? (
-              <ChevronDown size={11} className={isDarkHeader ? "text-amber-300 font-black drop-shadow-2xs" : "text-indigo-700 dark:text-indigo-400 font-black"} />
+              <ChevronDown size={isNarrow ? 9 : 11} className={isDarkHeader ? "text-amber-300 font-black drop-shadow-2xs" : "text-indigo-700 dark:text-indigo-400 font-black"} />
             ) : (
-              <ArrowUpDown size={8.5} className={isDarkHeader ? "text-white/60 group-hover/th:text-white transition-opacity" : "text-slate-500 group-hover/th:text-slate-900 dark:text-slate-400 transition-opacity"} />
+              <ArrowUpDown size={isNarrow ? 7 : 8.5} className={`${isNarrow ? 'opacity-0 group-hover/th:opacity-75' : ''} ${isDarkHeader ? "text-white/60 group-hover/th:text-white transition-opacity" : "text-slate-500 group-hover/th:text-slate-900 dark:text-slate-400 transition-opacity"}`} />
             )}
           </span>
         )}
@@ -1149,6 +1158,15 @@ export default function AdmissionRegisterSuite({
           return {
             ...DEFAULT_COLUMN_WIDTHS,
             ...parsed.columnWidths,
+            sno: Math.max(DEFAULT_COLUMN_WIDTHS.sno, parsed.columnWidths.sno || 0),
+            rollNo: Math.max(DEFAULT_COLUMN_WIDTHS.rollNo, parsed.columnWidths.rollNo || 0),
+            class: Math.max(DEFAULT_COLUMN_WIDTHS.class, parsed.columnWidths.class || 0),
+            gender: Math.max(DEFAULT_COLUMN_WIDTHS.gender, parsed.columnWidths.gender || 0),
+            p2_stream: Math.max(DEFAULT_COLUMN_WIDTHS.p2_stream, parsed.columnWidths.p2_stream || 0),
+            p2_cat: Math.max(DEFAULT_COLUMN_WIDTHS.p2_cat, parsed.columnWidths.p2_cat || 0),
+            p2_socio: Math.max(DEFAULT_COLUMN_WIDTHS.p2_socio, parsed.columnWidths.p2_socio || 0),
+            p2_blood: Math.max(DEFAULT_COLUMN_WIDTHS.p2_blood, parsed.columnWidths.p2_blood || 0),
+            p2_account: Math.max(DEFAULT_COLUMN_WIDTHS.p2_account, parsed.columnWidths.p2_account || 0),
             st_boardReg: regWidth,
             st_name: Math.max(DEFAULT_COLUMN_WIDTHS.st_name, parsed.columnWidths.st_name || 0),
             st_subs: Math.min(DEFAULT_COLUMN_WIDTHS.st_subs, parsed.columnWidths.st_subs || DEFAULT_COLUMN_WIDTHS.st_subs),
@@ -4572,7 +4590,14 @@ export default function AdmissionRegisterSuite({
 
         .admission-spread-table thead th {
           color: #0f172a !important;
-          font-weight: 900 !important;
+          font-weight: 800 !important;
+          word-break: keep-all !important;
+          overflow-wrap: normal !important;
+          white-space: normal !important;
+          line-height: 1.15 !important;
+          vertical-align: middle !important;
+          text-align: center !important;
+          padding: 2px 1px !important;
         }
 
         .register-ledger-page {
@@ -4621,12 +4646,19 @@ export default function AdmissionRegisterSuite({
           flex-shrink: 0;
         }
 
-        /* ─── PURE HIGH-CONTRAST POPOVER DIALOG STYLING (OVERRIDES ANY THEME CASCADE) ─── */
+        /* ─── PURE HIGH-CONTRAST POPOVER DIALOG STYLING (THEME-AWARE) ─── */
         .register-popover-panel {
-          background-color: #ffffff !important;
-          color: #0f172a !important;
-          border: 1px solid #cbd5e1 !important;
-          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+          background-color: #ffffff;
+          color: #0f172a;
+          border: 1.5px solid #cbd5e1;
+          box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+        }
+
+        .dark .register-popover-panel {
+          background-color: #0f172a !important;
+          color: #f8fafc !important;
+          border-color: #334155 !important;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
         }
 
         .register-popover-panel label,
@@ -4635,12 +4667,24 @@ export default function AdmissionRegisterSuite({
           font-weight: 800 !important;
         }
 
+        .dark .register-popover-panel label,
+        .dark .register-popover-panel .popover-label {
+          color: #f8fafc !important;
+        }
+
         .register-popover-panel select,
         .register-popover-panel .popover-select {
-          background-color: #f8fafc !important;
+          background-color: #ffffff !important;
           color: #0f172a !important;
           border: 1.5px solid #94a3b8 !important;
           font-weight: 700 !important;
+        }
+
+        .dark .register-popover-panel select,
+        .dark .register-popover-panel .popover-select {
+          background-color: #1e293b !important;
+          color: #f8fafc !important;
+          border-color: #475569 !important;
         }
 
         .register-popover-panel select option {
@@ -4649,16 +4693,34 @@ export default function AdmissionRegisterSuite({
           font-weight: 700 !important;
         }
 
+        .dark .register-popover-panel select option {
+          background-color: #1e293b !important;
+          color: #f8fafc !important;
+        }
+
         .register-popover-panel .popover-btn-inactive {
-          background-color: #f1f5f9 !important;
-          color: #1e293b !important;
-          border: 1px solid #cbd5e1 !important;
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          border: 1.5px solid #cbd5e1 !important;
           font-weight: 700 !important;
         }
 
         .register-popover-panel .popover-btn-inactive:hover {
-          background-color: #e2e8f0 !important;
-          color: #0f172a !important;
+          background-color: #f8fafc !important;
+          color: #000000 !important;
+          border-color: #6366f1 !important;
+        }
+
+        .dark .register-popover-panel .popover-btn-inactive {
+          background-color: #1e293b !important;
+          color: #f8fafc !important;
+          border-color: #334155 !important;
+        }
+
+        .dark .register-popover-panel .popover-btn-inactive:hover {
+          background-color: #334155 !important;
+          color: #ffffff !important;
+          border-color: #818cf8 !important;
         }
 
         .register-popover-panel .popover-badge {
@@ -4668,9 +4730,20 @@ export default function AdmissionRegisterSuite({
           font-weight: 800 !important;
         }
 
+        .dark .register-popover-panel .popover-badge {
+          background-color: #1e1b4b !important;
+          color: #c7d2fe !important;
+          border-color: #4338ca !important;
+        }
+
         .register-popover-panel .popover-zoom-box {
-          background-color: #f1f5f9 !important;
-          border: 1px solid #cbd5e1 !important;
+          background-color: #f8fafc !important;
+          border: 1.5px solid #cbd5e1 !important;
+        }
+
+        .dark .register-popover-panel .popover-zoom-box {
+          background-color: #1e293b !important;
+          border-color: #334155 !important;
         }
 
         /* ─── PREMIUM TYPOGRAPHY SYSTEM ─── */
@@ -4976,23 +5049,23 @@ export default function AdmissionRegisterSuite({
 
                   {/* View Popover Dropdown Panel */}
                   {showViewPopover && (
-                    <div className="register-popover-panel absolute right-0 top-full mt-2 w-[540px] sm:w-[600px] max-w-[95vw] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-slate-900 dark:text-slate-100">
+                    <div className="register-popover-panel absolute right-0 top-full mt-2 w-[760px] sm:w-[860px] md:w-[940px] lg:w-[1000px] max-w-[96vw] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-slate-300 dark:border-slate-800 z-[100] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-slate-900 dark:text-slate-100">
                       {/* 1. Header (Sticky Top) */}
-                      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 backdrop-blur-sm shrink-0">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
-                            <SlidersHorizontal size={15} />
+                      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 backdrop-blur-sm shrink-0">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-500/25">
+                            <SlidersHorizontal size={17} />
                           </div>
                           <div>
-                            <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2 leading-none">
+                            <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2 leading-tight">
                               Display & Print Layout
                               {isLayoutModified && (
-                                <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded-full">
+                                <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded-full">
                                   Modified
                                 </span>
                               )}
                             </div>
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                            <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
                               Customise table density, margins & printing options
                             </div>
                           </div>
@@ -5000,25 +5073,25 @@ export default function AdmissionRegisterSuite({
                         <button
                           type="button"
                           onClick={() => setShowViewPopover(false)}
-                          className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer transition-colors"
+                          className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 cursor-pointer transition-colors"
                           title="Close"
                         >
-                          <X size={16} />
+                          <X size={18} />
                         </button>
                       </div>
 
                       {/* 2. Segmented Navigation Tabs */}
-                      <div className="flex items-center gap-1.5 p-1.5 bg-slate-100/90 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 shrink-0 text-xs font-bold">
+                      <div className="flex items-center gap-2 p-2 bg-slate-150 bg-slate-100 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 shrink-0 text-xs font-bold">
                         <button
                           type="button"
                           onClick={() => setPopoverActiveTab('layout')}
-                          className={`flex-1 py-1.5 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                          className={`flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
                             popoverActiveTab === 'layout'
-                              ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs font-black border border-slate-200/80 dark:border-slate-700'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white/60 dark:hover:bg-slate-900/40'
+                              ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
+                              : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
                           }`}
                         >
-                          <Printer size={13} />
+                          <Printer size={14} />
                           <span>Layout & Print</span>
                         </button>
 
@@ -5026,15 +5099,15 @@ export default function AdmissionRegisterSuite({
                           <button
                             type="button"
                             onClick={() => setPopoverActiveTab('columns')}
-                            className={`flex-1 py-1.5 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                            className={`flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
                               popoverActiveTab === 'columns'
-                                ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs font-black border border-slate-200/80 dark:border-slate-700'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white/60 dark:hover:bg-slate-900/40'
+                                ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
+                                : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
                             }`}
                           >
-                            <Columns size={13} />
+                            <Columns size={14} />
                             <span>Columns</span>
-                            <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                               {ALL_SENTUP_COLS.filter(c => isSentupColVisible(c.key)).length}/{ALL_SENTUP_COLS.length}
                             </span>
                           </button>
@@ -5043,15 +5116,15 @@ export default function AdmissionRegisterSuite({
                         <button
                           type="button"
                           onClick={() => setPopoverActiveTab('subjects')}
-                          className={`flex-1 py-1.5 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                          className={`flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
                             popoverActiveTab === 'subjects'
-                              ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs font-black border border-slate-200/80 dark:border-slate-700'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white/60 dark:hover:bg-slate-900/40'
+                              ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
+                              : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
                           }`}
                         >
-                          <BookOpen size={13} />
+                          <BookOpen size={14} />
                           <span>Subject Key</span>
-                          <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600">
                             {sentupSubjectAbbreviations.length}
                           </span>
                         </button>
@@ -5063,22 +5136,22 @@ export default function AdmissionRegisterSuite({
                         {popoverActiveTab === 'layout' && (
                           <div className="space-y-4">
                             {/* 1. Paper Size Selector (JKBOSE 13.7"x8.5" Default, Legal 14"x8.5", A4) */}
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
-                              <div className="flex items-center justify-between mb-2">
+                            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
+                              <div className="flex items-center justify-between mb-3">
                                 <div>
-                                  <span className="text-xs font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                                    <FileText size={13} className="text-indigo-600 dark:text-indigo-400" />
+                                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                    <FileText size={15} className="text-indigo-600 dark:text-indigo-400" />
                                     <span>Paper Size & Physical Ledger Format</span>
                                   </span>
-                                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
                                     Matches actual physical register & roll sheet paper used for printing
                                   </p>
                                 </div>
-                                <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-mono font-bold text-[10.5px] text-slate-700 dark:text-slate-300">
+                                <span className="px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
                                   {paperSize === 'indian_legal' ? '348 × 216 mm' : paperSize === 'legal' ? '356 × 216 mm' : '297 × 210 mm'}
                                 </span>
                               </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {[
                                   {
                                     id: 'indian_legal',
@@ -5106,20 +5179,20 @@ export default function AdmissionRegisterSuite({
                                       key={p.id}
                                       type="button"
                                       onClick={() => handlePaperSizeChange(p.id)}
-                                      className={`p-2 rounded-xl text-left cursor-pointer transition-all border ${
+                                      className={`p-3 rounded-xl text-left cursor-pointer transition-all border-2 ${
                                         isActive
-                                          ? 'border-indigo-600 bg-indigo-600 text-white shadow-xs'
-                                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-750'
+                                          ? 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs'
                                       }`}
                                     >
-                                      <div className="font-black text-xs flex items-center justify-between">
+                                      <div className="font-black text-xs sm:text-[13px] flex items-center justify-between">
                                         <span>{p.title}</span>
-                                        {isActive && <Check size={12} className="shrink-0" />}
+                                        {isActive && <Check size={14} className="shrink-0 text-white" />}
                                       </div>
-                                      <div className={`text-[10px] font-bold ${isActive ? 'text-indigo-100' : 'text-slate-600 dark:text-slate-300'}`}>
+                                      <div className={`text-[11px] font-bold mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-700 dark:text-slate-300'}`}>
                                         {p.subtitle}
                                       </div>
-                                      <div className={`text-[9px] mt-0.5 ${isActive ? 'text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}>
+                                      <div className={`text-[10px] font-medium mt-0.5 ${isActive ? 'text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}>
                                         {p.note}
                                       </div>
                                     </button>
@@ -5129,24 +5202,24 @@ export default function AdmissionRegisterSuite({
                             </div>
 
                             {/* 2. Students Per Sheet Selector (Tab-Aware: Sentup vs Register) */}
-                            <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
-                              <div className="flex items-center justify-between mb-1.5">
+                            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
+                              <div className="flex items-center justify-between mb-2">
                                 <div>
-                                  <span className="text-xs font-black text-slate-900 dark:text-slate-100">
+                                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100">
                                     {activeTab === 'sentup' ? 'Sentup Candidates Per Sheet (Page Density)' : 'Admission Register Rows Per Sheet (Page Density)'}
                                   </span>
-                                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
                                     {activeTab === 'sentup'
                                       ? 'Default is 10 candidates per sheet. Allows higher densities without page overflow.'
                                       : 'Rows dynamically stretch to fill page height without bottom gaps.'}
                                   </p>
                                 </div>
-                                <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 font-mono font-black text-[11px] text-indigo-700 dark:text-indigo-300">
+                                <span className="px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-800 font-mono font-black text-xs text-indigo-700 dark:text-indigo-300 shadow-2xs">
                                   {pageChunks.length} Sheet{pageChunks.length === 1 ? '' : 's'} Total
                                 </span>
                               </div>
                               {activeTab === 'sentup' ? (
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-2">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-2.5">
                                   {[
                                     { val: 10, label: '10 Rows', note: 'Standard ★ (Default)' },
                                     { val: 12, label: '12 Rows', note: 'Comfortable' },
@@ -5163,17 +5236,17 @@ export default function AdmissionRegisterSuite({
                                         key={val}
                                         type="button"
                                         onClick={() => handleSentupStudentsPerPageChange(val)}
-                                        className={`p-2 rounded-xl text-left cursor-pointer transition-all border ${
+                                        className={`p-2.5 rounded-xl text-left cursor-pointer transition-all border-2 ${
                                           isActive
-                                            ? 'border-indigo-600 bg-indigo-600 text-white shadow-xs'
-                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750'
+                                            ? 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs'
                                         }`}
                                       >
-                                        <div className="font-black text-xs flex items-center justify-between">
+                                        <div className="font-black text-xs sm:text-[13px] flex items-center justify-between">
                                           <span>{label}</span>
-                                          {isActive && <Check size={12} className="shrink-0" />}
+                                          {isActive && <Check size={14} className="shrink-0 text-white" />}
                                         </div>
-                                        <div className={`text-[9.5px] font-semibold ${isActive ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                                        <div className={`text-[10px] font-bold mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-600 dark:text-slate-300'}`}>
                                           {note}
                                         </div>
                                       </button>
@@ -5181,7 +5254,7 @@ export default function AdmissionRegisterSuite({
                                   })}
                                 </div>
                               ) : (
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-2">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-2.5">
                                   {[
                                     { val: 10, label: '10 Rows', note: 'Spacious / Large' },
                                     { val: 12, label: '12 Rows', note: 'Balanced' },
@@ -5198,17 +5271,17 @@ export default function AdmissionRegisterSuite({
                                         key={val}
                                         type="button"
                                         onClick={() => handleStudentsPerPageChange(val)}
-                                        className={`p-2 rounded-xl text-left cursor-pointer transition-all border ${
+                                        className={`p-2.5 rounded-xl text-left cursor-pointer transition-all border-2 ${
                                           isActive
-                                            ? 'border-indigo-600 bg-indigo-600 text-white shadow-xs'
-                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750'
+                                            ? 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs'
                                         }`}
                                       >
-                                        <div className="font-black text-xs flex items-center justify-between">
+                                        <div className="font-black text-xs sm:text-[13px] flex items-center justify-between">
                                           <span>{label}</span>
-                                          {isActive && <Check size={12} className="shrink-0" />}
+                                          {isActive && <Check size={14} className="shrink-0 text-white" />}
                                         </div>
-                                        <div className={`text-[9.5px] font-semibold ${isActive ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                                        <div className={`text-[10px] font-bold mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-600 dark:text-slate-300'}`}>
                                           {note}
                                         </div>
                                       </button>
@@ -5219,13 +5292,14 @@ export default function AdmissionRegisterSuite({
                             </div>
 
                             {/* Row Height & Print Margins Grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            {/* Row Height & Print Margins Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               {/* Row Height */}
-                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between">
+                              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between shadow-2xs">
                                 <div>
-                                  <div className="flex items-center justify-between text-xs font-black text-slate-900 dark:text-slate-100 mb-1">
+                                  <div className="flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
                                     <span>Row Height:</span>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1.5">
                                       <input
                                         type="number"
                                         min={MIN_REGISTER_ROW_HEIGHT}
@@ -5252,10 +5326,10 @@ export default function AdmissionRegisterSuite({
                                             setRowHeightInput(String(val));
                                           }
                                         }}
-                                        className="w-12 text-center py-0.5 px-1 rounded-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-mono font-black text-[11px] text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                        className="w-14 text-center py-1 px-1.5 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                                         title="Enter custom row height (30-100px)"
                                       />
-                                      <span className="text-[10px] font-bold text-slate-500">px</span>
+                                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">px</span>
                                     </div>
                                   </div>
                                   <input
@@ -5265,10 +5339,10 @@ export default function AdmissionRegisterSuite({
                                     step="1"
                                     value={rowHeight}
                                     onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
-                                    className="w-full cursor-pointer accent-indigo-600 my-1.5"
+                                    className="w-full cursor-pointer accent-indigo-600 my-2"
                                   />
                                 </div>
-                                <div className="grid grid-cols-3 gap-1 mt-1">
+                                <div className="grid grid-cols-3 gap-1.5 mt-1.5">
                                   {[
                                     { label: 'Compact', val: 40 },
                                     { label: 'Default', val: 56, star: true },
@@ -5278,10 +5352,10 @@ export default function AdmissionRegisterSuite({
                                       key={val}
                                       type="button"
                                       onClick={() => handleRowHeightChange(val)}
-                                      className={`py-1 rounded-lg text-[10px] font-black cursor-pointer transition-all text-center border ${
+                                      className={`py-1.5 rounded-lg text-[11px] font-black cursor-pointer transition-all text-center border-2 ${
                                         rowHeight === val
-                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                          : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-700 hover:border-indigo-400 hover:bg-slate-50 shadow-2xs'
                                       }`}
                                     >
                                       {label} {star ? '★' : ''}
@@ -5291,11 +5365,11 @@ export default function AdmissionRegisterSuite({
                               </div>
 
                               {/* Print Margins */}
-                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between">
+                              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between shadow-2xs">
                                 <div>
-                                  <div className="flex items-center justify-between text-xs font-black text-slate-900 dark:text-slate-100 mb-1">
+                                  <div className="flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
                                     <span>Print Margin:</span>
-                                    <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-mono font-black text-[11px] text-slate-800 dark:text-slate-200">
+                                    <span className="px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
                                       {printMargin}" ({Math.round(printMargin * 25.4)}mm)
                                     </span>
                                   </div>
@@ -5306,10 +5380,10 @@ export default function AdmissionRegisterSuite({
                                     step="0.05"
                                     value={printMargin}
                                     onChange={(e) => handlePrintMarginChange(parseFloat(e.target.value))}
-                                    className="w-full cursor-pointer accent-indigo-600 my-1.5"
+                                    className="w-full cursor-pointer accent-indigo-600 my-2"
                                   />
                                 </div>
-                                <div className="grid grid-cols-4 gap-1 mt-1">
+                                <div className="grid grid-cols-4 gap-1.5 mt-1.5">
                                   {[
                                     { m: 0.2, label: '0.2"' },
                                     { m: 0.3, label: '0.3" ★' },
@@ -5320,10 +5394,10 @@ export default function AdmissionRegisterSuite({
                                       key={m}
                                       type="button"
                                       onClick={() => handlePrintMarginChange(m)}
-                                      className={`py-1 rounded-lg text-[10px] font-black cursor-pointer transition-all text-center border ${
+                                      className={`py-1.5 rounded-lg text-[11px] font-black cursor-pointer transition-all text-center border-2 ${
                                         Math.abs(printMargin - m) < 0.02
-                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                          : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-700 hover:border-indigo-400 hover:bg-slate-50 shadow-2xs'
                                       }`}
                                     >
                                       {label}
@@ -5335,15 +5409,15 @@ export default function AdmissionRegisterSuite({
 
                             {/* Section to Display & View Layout */}
                             {activeTab === 'adm_register' && (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
                                 <div>
-                                  <label className="block text-xs font-black text-slate-800 dark:text-slate-200 mb-1.5">
+                                  <label className="block text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
                                     Section to Display:
                                   </label>
                                   <select
                                     value={registerViewSection}
                                     onChange={(e) => setRegisterViewSection(e.target.value)}
-                                    className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-600 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                    className="w-full py-2 px-3 text-xs rounded-xl font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                                   >
                                     <option value="all">📑 All Spreads (Full Register)</option>
                                     <option value="cover">📜 Cover Page Only</option>
@@ -5353,32 +5427,32 @@ export default function AdmissionRegisterSuite({
                                   </select>
                                 </div>
                                 <div>
-                                  <label className="block text-xs font-black text-slate-800 dark:text-slate-200 mb-1.5">
+                                  <label className="block text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
                                     Book Layout:
                                   </label>
-                                  <div className="grid grid-cols-2 gap-1.5 p-0.5 bg-slate-200 dark:bg-slate-700 rounded-xl">
+                                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200 dark:bg-slate-700 rounded-xl border border-slate-300 dark:border-slate-600">
                                     <button
                                       type="button"
                                       onClick={() => setSpreadLayoutMode('side_by_side')}
-                                      className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                      className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                                         spreadLayoutMode === 'side_by_side'
-                                          ? 'bg-indigo-600 text-white shadow-xs'
-                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                          ? 'bg-indigo-600 text-white shadow-sm'
+                                          : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-50'
                                       }`}
                                     >
-                                      <Columns size={12} />
+                                      <Columns size={13} />
                                       <span>Side-by-Side</span>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => setSpreadLayoutMode('stacked')}
-                                      className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                      className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                                         spreadLayoutMode === 'stacked'
-                                          ? 'bg-indigo-600 text-white shadow-xs'
-                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                          ? 'bg-indigo-600 text-white shadow-sm'
+                                          : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-50'
                                       }`}
                                     >
-                                      <LayoutGrid size={12} />
+                                      <LayoutGrid size={13} />
                                       <span>Stacked</span>
                                     </button>
                                   </div>
@@ -5687,36 +5761,36 @@ export default function AdmissionRegisterSuite({
                       </div>
 
                       {/* 4. Sticky Footer Actions (Always Accessible) */}
-                      <div className="border-t border-slate-200 dark:border-slate-800 p-3 bg-slate-50/90 dark:bg-slate-800/80 backdrop-blur-xs space-y-2 shrink-0">
+                      <div className="border-t-2 border-slate-300 dark:border-slate-800 p-3.5 bg-slate-50 dark:bg-slate-900 space-y-2.5 shrink-0 shadow-lg">
                         {isLayoutModified && (
-                          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-bold">
-                            <span className="flex items-center gap-1.5">
-                              <AlertCircle size={12} className="text-amber-600 shrink-0" />
+                          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold">
+                            <span className="flex items-center gap-2">
+                              <AlertCircle size={14} className="text-amber-600 shrink-0" />
                               <span>Layout customized. Save to update cloud defaults.</span>
                             </span>
-                            <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-700 dark:text-amber-300 bg-amber-200/80 dark:bg-amber-900/80 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] uppercase tracking-wider font-black text-amber-800 dark:text-amber-300 bg-amber-200/90 dark:bg-amber-900/80 px-2 py-0.5 rounded-full border border-amber-300">
                               Modified
                             </span>
                           </div>
                         )}
-                        <div className="grid grid-cols-5 gap-2">
+                        <div className="grid grid-cols-5 gap-2.5">
                           <button
                             type="button"
                             onClick={handleSaveLayoutToFirebase}
                             disabled={savingLayout}
-                            className="col-span-3 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50"
+                            className="col-span-3 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-[13px] flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-600/25 transition-all active:scale-95 disabled:opacity-50"
                             title="Save custom column widths, row height, margin and candidates per sheet to Firebase"
                           >
-                            {savingLayout ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                            {savingLayout ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                             <span className="truncate">Set as Default (Firebase)</span>
                           </button>
                           <button
                             type="button"
                             onClick={handleResetLayoutToOriginal}
-                            className="col-span-2 py-2 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                            className="col-span-2 py-2.5 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-black text-xs sm:text-[13px] flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shadow-2xs"
                             title="Reset columns, density, margins and row heights to original factory format"
                           >
-                            <RotateCcw size={13} />
+                            <RotateCcw size={15} />
                             <span>Reset Defaults</span>
                           </button>
                         </div>
@@ -6176,20 +6250,20 @@ export default function AdmissionRegisterSuite({
                         <div className="overflow-x-auto">
                           <table className="admission-spread-table w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <colgroup>
-                              <col style={{ width: `${columnWidths.sno || 26}px` }} />
+                              <col style={{ width: `${columnWidths.sno || 32}px` }} />
                               <col style={{ width: `${columnWidths.photo || 40}px` }} />
-                              <col style={{ width: `${columnWidths.rollNo || 34}px` }} />
+                              <col style={{ width: `${columnWidths.rollNo || 42}px` }} />
                               <col style={{ width: `${columnWidths.formNo || 62}px` }} />
-                              <col style={{ width: `${columnWidths.admDate || 48}px` }} />
+                              <col style={{ width: `${columnWidths.admDate || 50}px` }} />
                               <col style={{ width: `${columnWidths.admNo || 56}px` }} />
-                              <col style={{ width: `${columnWidths.class || 32}px` }} />
+                              <col style={{ width: `${columnWidths.class || 46}px` }} />
                               <col style={{ width: `${columnWidths.boardReg || 96}px` }} />
                               <col style={{ width: `${columnWidths.name || 112}px` }} />
                               <col style={{ width: `${columnWidths.father || 90}px` }} />
                               <col style={{ width: `${columnWidths.mother || 90}px` }} />
                               <col style={{ width: `${columnWidths.dobFigures || 56}px` }} />
                               <col style={{ width: `${columnWidths.dobWords || 96}px` }} />
-                              <col style={{ width: `${columnWidths.gender || 36}px` }} />
+                              <col style={{ width: `${columnWidths.gender || 42}px` }} />
                               <col style={{ width: `${columnWidths.village || 64}px` }} />
                               <col style={{ width: `${columnWidths.block || 54}px` }} />
                               <col style={{ width: `${columnWidths.tehsil || 54}px` }} />
@@ -6199,18 +6273,18 @@ export default function AdmissionRegisterSuite({
                             </colgroup>
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                                <ResizableTh colKey="sno" sortKey="sno" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">S.NO.</ResizableTh>
-                                <ResizableTh colKey="photo" width={columnWidths.photo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PHOTO</ResizableTh>
-                                <ResizableTh colKey="rollNo" sortKey="rollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.rollNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS R.NO.</ResizableTh>
-                                <ResizableTh colKey="formNo" sortKey="formNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.formNo || 62} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">FORM NO. & ONLINE SUBM.</ResizableTh>
-                                <ResizableTh colKey="admDate" sortKey="admDate" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.admDate} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. DATE</ResizableTh>
-                                <ResizableTh colKey="admNo" sortKey="admNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.admNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. NO.</ResizableTh>
-                                <ResizableTh colKey="class" sortKey="class" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.class} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS ADM. TO</ResizableTh>
-                                <ResizableTh colKey="boardReg" sortKey="boardReg" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.boardReg} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">BOARD REG. NO.</ResizableTh>
+                                <ResizableTh colKey="sno" sortKey="sno" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">S. NO.</span></ResizableTh>
+                                <ResizableTh colKey="photo" width={columnWidths.photo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">PHOTO</span></ResizableTh>
+                                <ResizableTh colKey="rollNo" sortKey="rollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.rollNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">CLASS</span><span className="block whitespace-nowrap leading-tight mt-0.5">R. NO.</span></ResizableTh>
+                                <ResizableTh colKey="formNo" sortKey="formNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.formNo || 62} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">FORM NO. &amp;</span><span className="block whitespace-nowrap leading-tight text-[7px] mt-0.5">ONLINE SUBM.</span></ResizableTh>
+                                <ResizableTh colKey="admDate" sortKey="admDate" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.admDate} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">ADM.</span><span className="block whitespace-nowrap leading-tight mt-0.5">DATE</span></ResizableTh>
+                                <ResizableTh colKey="admNo" sortKey="admNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.admNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">ADM.</span><span className="block whitespace-nowrap leading-tight mt-0.5">NO.</span></ResizableTh>
+                                <ResizableTh colKey="class" sortKey="class" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.class} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">CLASS</span><span className="block whitespace-nowrap leading-tight mt-0.5">ADM. TO</span></ResizableTh>
+                                <ResizableTh colKey="boardReg" sortKey="boardReg" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.boardReg} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">BOARD REG.</span><span className="block whitespace-nowrap leading-tight mt-0.5">NO.</span></ResizableTh>
                                 <ResizableTh colKey="name" sortKey="name" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.name} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-left pl-2 h-grey">STUDENT'S NAME</ResizableTh>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">PARENTAGE</th>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">DATE OF BIRTH</th>
-                                <ResizableTh colKey="gender" sortKey="gender" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.gender} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">GENDER</ResizableTh>
+                                <ResizableTh colKey="gender" sortKey="gender" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.gender} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">GENDER</span></ResizableTh>
                                 <th colSpan="4" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">RESIDENCE</th>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">CONTACT</th>
                               </tr>
@@ -6350,12 +6424,12 @@ export default function AdmissionRegisterSuite({
                         <div className="overflow-x-auto">
                           <table className="admission-spread-table w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <colgroup>
-                              <col style={{ width: `${columnWidths.p2_stream || 48}px` }} />
+                              <col style={{ width: `${columnWidths.p2_stream || 52}px` }} />
                               <col style={{ width: `${columnWidths.p2_subs || 96}px` }} />
                               <col style={{ width: `${columnWidths.p2_aadhar || 80}px` }} />
-                              <col style={{ width: `${columnWidths.p2_cat || 32}px` }} />
-                              <col style={{ width: `${columnWidths.p2_socio || 32}px` }} />
-                              <col style={{ width: `${columnWidths.p2_blood || 32}px` }} />
+                              <col style={{ width: `${columnWidths.p2_cat || 38}px` }} />
+                              <col style={{ width: `${columnWidths.p2_socio || 46}px` }} />
+                              <col style={{ width: `${columnWidths.p2_blood || 42}px` }} />
                               <col style={{ width: `${columnWidths.p2_account || 86}px` }} />
                               <col style={{ width: `${columnWidths.p2_prevSchool || 86}px` }} />
                               <col style={{ width: `${columnWidths.p2_prevRoll || 48}px` }} />
@@ -6369,15 +6443,15 @@ export default function AdmissionRegisterSuite({
                             </colgroup>
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                                <ResizableTh colKey="p2_stream" sortKey="stream" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">STREAM</ResizableTh>
-                                <ResizableTh colKey="p2_subs" sortKey="subs" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_subs} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">SUBS</ResizableTh>
-                                <ResizableTh colKey="p2_aadhar" sortKey="aadhar" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_aadhar} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">AADHAR NO.</ResizableTh>
-                                <ResizableTh colKey="p2_cat" sortKey="category" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_cat} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOC. CAT.</ResizableTh>
-                                <ResizableTh colKey="p2_socio" sortKey="socioEcon" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_socio} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOCIO-ECON CAT.</ResizableTh>
-                                <ResizableTh colKey="p2_blood" sortKey="blood" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_blood} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">BLOOD GRP</ResizableTh>
-                                <ResizableTh colKey="p2_account" sortKey="account" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_account || 86} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">A/C NO. & IFSC</ResizableTh>
+                                <ResizableTh colKey="p2_stream" sortKey="stream" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">STREAM</span></ResizableTh>
+                                <ResizableTh colKey="p2_subs" sortKey="subs" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_subs} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">SUBS</span></ResizableTh>
+                                <ResizableTh colKey="p2_aadhar" sortKey="aadhar" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_aadhar} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow"><span className="block whitespace-nowrap leading-tight">AADHAR</span><span className="block whitespace-nowrap leading-tight mt-0.5">NO.</span></ResizableTh>
+                                <ResizableTh colKey="p2_cat" sortKey="category" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_cat} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow"><span className="block whitespace-nowrap leading-tight">SOC.</span><span className="block whitespace-nowrap leading-tight mt-0.5">CAT.</span></ResizableTh>
+                                <ResizableTh colKey="p2_socio" sortKey="socioEcon" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_socio} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow"><span className="block whitespace-nowrap leading-tight">SOCIO-</span><span className="block whitespace-nowrap leading-tight mt-0.5">ECON CAT.</span></ResizableTh>
+                                <ResizableTh colKey="p2_blood" sortKey="blood" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_blood} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow"><span className="block whitespace-nowrap leading-tight">BLOOD</span><span className="block whitespace-nowrap leading-tight mt-0.5">GRP</span></ResizableTh>
+                                <ResizableTh colKey="p2_account" sortKey="account" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_account || 86} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow"><span className="block whitespace-nowrap leading-tight">A/C NO. &amp;</span><span className="block whitespace-nowrap leading-tight mt-0.5">IFSC</span></ResizableTh>
                                 <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center h-grey">PREVIOUS ACADEMIC DETAILS</th>
-                                <ResizableTh colKey="p2_pen" sortKey="pen" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_pen} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PEN (UDISE)</ResizableTh>
+                                <ResizableTh colKey="p2_pen" sortKey="pen" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_pen} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">PEN</span><span className="block whitespace-nowrap leading-tight text-[7px] mt-0.5">(UDISE)</span></ResizableTh>
                                 <ResizableTh colKey="p2_prevCC" sortKey="prevCC" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-emerald-900 bg-emerald-100 h-green">ADMTD. VIDE DC/CC<br />(No.; Date)</ResizableTh>
                                 <ResizableTh colKey="p2_withdrawal" sortKey="withdrawal" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_withdrawal} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-100 h-red">RESULT /<br />WITHDRAWAL DT.</ResizableTh>
                                 <ResizableTh colKey="p2_issuedCC" sortKey="issuedCC" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_issuedCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">ISSUED DC/CC</ResizableTh>
@@ -6386,8 +6460,8 @@ export default function AdmissionRegisterSuite({
                               </tr>
                               <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[7.5px]">
                                 <ResizableTh colKey="p2_prevSchool" sortKey="prevSchool" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevSchool} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREVIOUS SCHOOL</ResizableTh>
-                                <ResizableTh colKey="p2_prevRoll" sortKey="prevRoll" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREV R.NO.</ResizableTh>
-                                <ResizableTh colKey="p2_prevResult" sortKey="prevResult" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevResult} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREV RESULT</ResizableTh>
+                                <ResizableTh colKey="p2_prevRoll" sortKey="prevRoll" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey"><span className="block whitespace-nowrap leading-tight">PREV</span><span className="block whitespace-nowrap leading-tight mt-0.5">R.NO.</span></ResizableTh>
+                                <ResizableTh colKey="p2_prevResult" sortKey="prevResult" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevResult} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey"><span className="block whitespace-nowrap leading-tight">PREV</span><span className="block whitespace-nowrap leading-tight mt-0.5">RESULT</span></ResizableTh>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
