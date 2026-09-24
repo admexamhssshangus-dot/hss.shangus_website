@@ -344,7 +344,7 @@ export default function Footer() {
         >
           {/* Glassmorphic Popup Box */}
           <div
-            className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-2xl sm:rounded-3xl border border-teal-500/20 dark:border-teal-500/30 shadow-[0_25px_70px_-15px_rgba(13,148,136,0.35)] max-w-2xl w-full relative animate-in zoom-in-95 duration-250 max-h-[88vh] sm:max-h-[85vh] flex flex-col overflow-hidden"
+            className={`bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-2xl sm:rounded-3xl border border-teal-500/20 dark:border-teal-500/30 shadow-[0_25px_70px_-15px_rgba(13,148,136,0.35)] ${activeModal === 'companyInfo' ? 'max-w-4xl' : 'max-w-2xl'} w-full relative animate-in zoom-in-95 duration-250 max-h-[88vh] sm:max-h-[85vh] flex flex-col overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Ambient Background Glows */}
