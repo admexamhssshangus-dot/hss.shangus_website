@@ -126,7 +126,21 @@ function MultiSelectDropdown({ label, options = [], selected = [], onChange, ali
   );
 }
 
-export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) {
+const CANONICAL_ACADEMIC_SESSIONS = [
+  '2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2024-25', '2023-24', '2022-23', '2021-22',
+  '2020-21', '2019-20', '2018-19', '2017-18', '2016-17',
+  '2015-16', '2014-15', '2013-14', '2012-13', '2011-12',
+  '2010-11', '2009-10', '2008-09', '2007-08', '2006-07'
+];
+
+export default function AnalyticsSuiteModal({
+  isOpen,
+  onClose,
+  students = [],
+  historicalRecords = [],
+  allKnownSessions = [],
+  isLoadingHistory = false
+}) {
   // Filter States matching the user's reference layout
   const [analysisMode, setAnalysisMode] = useState('enrollment'); // Default: 'enrollment' (Class Enrollment Summary)
   const [selectedSessions, setSelectedSessions] = useState([]); // Default: All sessions
@@ -135,6 +149,74 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [selectedStatuses, setSelectedStatuses] = useState([]); // Default: All statuses
+
+  // Dynamic fallback seed data for offline / instantaneous historical analytics
+  const [internalSeedRecords, setInternalSeedRecords] = useState([]);
+  const [isLoadingSeed, setIsLoadingSeed] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Check if historical data is already supplied via props or global window cache
+    const hasHistoryInProps = (historicalRecords && historicalRecords.length > 0) || (students && students.length > 1000);
+    const hasWindowCache = typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0;
+
+    if (!hasHistoryInProps && !hasWindowCache && internalSeedRecords.length === 0) {
+      setIsLoadingSeed(true);
+      import('../../data/masterSeedData.json')
+        .then((mod) => {
+          const raw = mod.default?.source_data || mod.source_data || [];
+          if (Array.isArray(raw) && raw.length > 0) {
+            setInternalSeedRecords(raw);
+          }
+        })
+        .catch((err) => {
+          console.warn('[AnalyticsSuite] Master seed fallback note:', err);
+        })
+        .finally(() => {
+          setIsLoadingSeed(false);
+        });
+    }
+  }, [isOpen, historicalRecords, students, internalSeedRecords.length]);
+
+  // Combine live active admissions + historical registers + seed fallback
+  const combinedRawStudents = useMemo(() => {
+    // 1. If students prop already contains full multi-year history (> 1000 records), use directly
+    if (Array.isArray(students) && students.length > 1000) {
+      return students;
+    }
+
+    const activeList = Array.isArray(students) ? students : [];
+
+    // 2. If parent provided masterHistoricalRecords separately, combine with active admissions
+    if (Array.isArray(historicalRecords) && historicalRecords.length > 0) {
+      return [...activeList, ...historicalRecords];
+    }
+
+    // 3. If in-memory cache exists on window, unroll and combine
+    if (typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
+      const flat = [];
+      window._hssMasterRegistersCache.forEach((item) => {
+        if (!item) return;
+        const chunk = item.items || item.students || item.records || item.data;
+        if (Array.isArray(chunk)) {
+          flat.push(...chunk);
+        } else {
+          flat.push(item);
+        }
+      });
+      if (flat.length > 0) {
+        return [...activeList, ...flat];
+      }
+    }
+
+    // 4. Instant offline fallback: master seed data (6,105 authentic past session records)
+    if (Array.isArray(internalSeedRecords) && internalSeedRecords.length > 0) {
+      return [...activeList, ...internalSeedRecords];
+    }
+
+    return activeList;
+  }, [students, historicalRecords, internalSeedRecords]);
 
   // Batch Report Generation States
   const [showBatchMenu, setShowBatchMenu] = useState(false);
@@ -166,7 +248,6 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
   const streamGenderColsCount = 2 + (showMaleCol ? 1 : 0) + (showFemaleCol ? 1 : 0) + 2;
   const subjectColsCount = 3 + (showMaleCol ? 1 : 0) + (showFemaleCol ? 1 : 0) + 2;
 
-  // Helper to test if a field value is a valid unique identifier (excluding placeholders like '0', '1', 'n/a', 'none')
   // Helper to extract assigned Class Roll No cell value across all possible database keys
   const getAssignedRollNo = (s) => {
     return getAssignedClassRollNumber(s);
@@ -193,22 +274,25 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
 
   // Deduplicate raw students list to prevent counting duplicate records from currentAdmissions + masterRecords
   const deduplicatedStudents = useMemo(() => {
-    if (!Array.isArray(students) || students.length === 0) return [];
+    if (!Array.isArray(combinedRawStudents) || combinedRawStudents.length === 0) return [];
     const map = new Map();
 
     // Helper: detect bogus/dummy reg numbers (e.g. 2301000000000000 or 230101e15)
     const isValidRegNoA = (reg) => {
       if (!reg || reg.length < 6) return false;
-      if (/[eE]/.test(reg)) return false; // reject scientific notation (e.g. 230101e15, 2301e15)
+      if (/[eE]/.test(reg)) return false; // reject scientific notation
       if (/0{5,}$/.test(reg)) return false; // ends in 5+ zeros
       const zeros = (reg.match(/0/g) || []).length;
       if (zeros / reg.length >= 0.75) return false; // 75%+ zeros = dummy
       return true;
     };
 
-    // Sort: directly-approved (has roll no on document) FIRST, then newest form number
-    // This guarantees the admin-approved form wins when a student submitted multiple forms
-    const sorted = [...students].sort((x, y) => {
+    // Sort: active current scope first, then directly-approved (has roll no), then newest form number
+    const sorted = [...combinedRawStudents].sort((x, y) => {
+      const xCurrent = x._isCurrentScope === true ? 1 : 0;
+      const yCurrent = y._isCurrentScope === true ? 1 : 0;
+      if (xCurrent !== yCurrent) return yCurrent - xCurrent;
+
       const hasRollX = isValidUniqueVal(getAssignedRollNo(x));
       const hasRollY = isValidUniqueVal(getAssignedRollNo(y));
       if (hasRollX && !hasRollY) return -1;
@@ -218,30 +302,38 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       return fB - fA;
     });
 
-    // Multi-key seen map: tracks identity signals (key -> { roll, name, formNo })
-    const seenMap = new Map();
+    const seenCurrentSessionKeys = new Set();
 
     sorted.forEach((s, idx) => {
       const formNo = String(s['Form No'] || s['Form Number'] || s['Form No.'] || s.formNo || s['F.NO.'] || '').trim();
       const regNoRaw = String(s['Board Registration Number'] || s['Board Registration No. (Class 11th)'] || s['Board Registration No. (Class 10th)'] || s['Board Registration No. (Class 9th)'] || s['DIET Registration No.'] || s['DIET/Board Reg. No.'] || s['DIET Reg. No.'] || s['Board Reg. No.'] || s.boardRegNo || s.regNo || s['Registration No. (allotted by JKBOSE)'] || s['Registration No. (allotted by DIET)'] || s['REG. NO.'] || '').trim();
       const regNo = isValidRegNoA(regNoRaw.replace(/[^a-z0-9]/gi, '').toLowerCase()) ? regNoRaw : '';
-      const rollNo = getAssignedRollNo(s);
       const sClass = normalizeClassVal(s.class || s.Class || s['Class'] || s['Admission sought for class']);
       const sSession = normalizeSessionVal(s.Session || s.session || s['Session']);
       const docId = String(s.id || s.docId || '').trim();
 
-      const sName = String(s['Candidate Name'] || s.name || s.studentName || s["Student's Name (as per school records)"] || s['STUDENT\'S NAME'] || s.Name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-      const fName = String(s['Father Name'] || s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s['FATHER\'S NAME'] || s.FatherName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const sName = String(s['Candidate Name'] || s.name || s.studentName || s["Student's Name (as per school records)"] || s["Student's Name"] || s['STUDENT\'S NAME'] || s.Name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const fName = String(s['Father Name'] || s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s['FATHER\'S NAME'] || s.FatherName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
       const scope = `${sSession}_${sClass}`;
-      let isDuplicate = false;
 
-      const primaryKey = `item_${docId || formNo || sName || Math.random()}_${idx}`;
+      // Prevent historical/seed duplicates against active 2025-26 living workspace
+      if (sSession.includes('2025-26') && !s._isCurrentScope) {
+        if (regNo && seenCurrentSessionKeys.has(`reg_${scope}_${regNo}`)) return;
+        if (formNo && seenCurrentSessionKeys.has(`fno_${scope}_${formNo}`)) return;
+        if (sName && seenCurrentSessionKeys.has(`name_${scope}_${sName}_${fName.slice(0, 8)}`)) return;
+      }
+
+      if (regNo) seenCurrentSessionKeys.add(`reg_${scope}_${regNo}`);
+      if (formNo) seenCurrentSessionKeys.add(`fno_${scope}_${formNo}`);
+      if (sName) seenCurrentSessionKeys.add(`name_${scope}_${sName}_${fName.slice(0, 8)}`);
+
+      const primaryKey = `item_${docId || regNo || formNo || sName || Math.random()}_${idx}`;
       map.set(primaryKey, s);
     });
 
     return Array.from(map.values());
-  }, [students]);
+  }, [combinedRawStudents]);
 
   // Helper to determine effective status (Approved = Class Roll No assigned in student roll no cell)
   const getEffectiveStatus = (s) => {
@@ -467,7 +559,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
   // Robust helper to extract & normalize array of subjects from any student record format (string/array, +, &, comma, slash, etc.)
   const extractSubjectList = (s) => {
     const stClass = s.class || s.Class || s['Class'] || s['Admission sought for class'] || '';
-    const raw = s.subjects || s['Subjects'] || s.subject_combination || s['Subject Combination'] || s.Subject || s.subs || '';
+    const raw = s.subjects || s['Subjects'] || s.subject_combination || s['Subject Combination'] || s.Subject || s.subs || s.Subs || '';
     let parts = [];
 
     if (Array.isArray(raw)) {
@@ -478,6 +570,17 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
         .replace(/\bIT\s*(?:&|and|\/|\+)\s*ITe?S\b/gi, '###IT_AND_ITES###')
         .replace(/\bITeS\b/gi, '###IT_AND_ITES###');
       parts = protectedRaw.split(/[,•\n/+&]+/).map((p) => p.replace(/###IT_AND_ITES###/g, 'IT and ITES'));
+    }
+
+    // Support individual subject fields: Subjects1..Subject6 / subjects1..subjects6
+    if (parts.length === 0) {
+      const indiv = [
+        s.Subjects1, s.Subjects2, s.Subjects3, s.Subjects4, s.Subjects5, s.Subject6,
+        s.subjects1, s.subjects2, s.subjects3, s.subjects4, s.subjects5, s.subjects6
+      ].filter(Boolean);
+      if (indiv.length > 0) {
+        parts = indiv;
+      }
     }
 
     const list = [];
@@ -513,21 +616,33 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       const ses = s.Session || s.session || s['Session'];
       if (ses && String(ses).trim() && String(ses).trim() !== '—') set.add(String(ses).trim());
     });
+    if (Array.isArray(allKnownSessions)) {
+      allKnownSessions.forEach((ses) => {
+        if (ses && String(ses).trim() && String(ses).trim() !== '—') set.add(String(ses).trim());
+      });
+    }
+    CANONICAL_ACADEMIC_SESSIONS.forEach((ses) => {
+      set.add(ses);
+    });
     const list = Array.from(set);
 
     // Sort: Regular annual sessions first (e.g. 2025-26, 2024-25), Bi-Annual (BIAN) sessions after
     list.sort((a, b) => {
-      const aIsBian = a.toUpperCase().includes('BIAN') || a.toUpperCase().includes('BI-ANNUAL');
-      const bIsBian = b.toUpperCase().includes('BIAN') || b.toUpperCase().includes('BI-ANNUAL');
+      const aIsBian = /bian|bi-annual|apr/i.test(a);
+      const bIsBian = /bian|bi-annual|apr/i.test(b);
 
       if (aIsBian && !bIsBian) return 1;
       if (!aIsBian && bIsBian) return -1;
+
+      const numA = parseInt(String(a).match(/\d{4}/)?.[0] || '0', 10);
+      const numB = parseInt(String(b).match(/\d{4}/)?.[0] || '0', 10);
+      if (numA !== numB) return numB - numA;
 
       return b.localeCompare(a, undefined, { numeric: true });
     });
 
     return list.length > 0 ? list : ['2025-26', '2024-25'];
-  }, [deduplicatedStudents]);
+  }, [deduplicatedStudents, allKnownSessions]);
 
   // Sync default session selection to the most recent REGULAR session upon opening modal
   // Reset ref when modal closes so it re-applies on every new open
@@ -620,13 +735,16 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
         if (!matchesStatus) return false;
       }
 
-      // 1. Session Filter (Normalized EN-DASH / HYPHEN matching)
+      // 1. Session Filter (Normalized EN-DASH / HYPHEN matching & flexible prefix matching)
       const rawSes = String(s.Session || s.session || s['Session'] || '2025-26').trim();
-      const normSes = rawSes.replace(/–/g, '-').replace(/—/g, '-').toLowerCase();
+      const normSes = normalizeSessionVal(rawSes).replace(/–/g, '-').replace(/—/g, '-').toLowerCase();
       if (selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
         const matchesSes = selectedSessions.some((sel) => {
-          const normSel = String(sel).trim().replace(/–/g, '-').replace(/—/g, '-').toLowerCase();
-          return normSes === normSel;
+          const normSel = normalizeSessionVal(sel).trim().replace(/–/g, '-').replace(/—/g, '-').toLowerCase();
+          if (normSes === normSel) return true;
+          if (normSel === '2024-25' && normSes.startsWith('2024-25')) return true;
+          if (normSes === '2024-25' && normSel.startsWith('2024-25')) return true;
+          return false;
         });
         if (!matchesSes) return false;
       }
@@ -702,7 +820,10 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       else if (isFemale) femaleCount++;
       else otherGenderCount++;
 
-      const stClass = String(s.class || s.Class || s['Class'] || s['Admission sought for class'] || 'Class N/A').trim();
+      let rawCls = String(s.class || s.Class || s['Class'] || s['Admission sought for class'] || '').trim();
+      if (!rawCls || rawCls === '—') rawCls = 'Class N/A';
+      else if (!rawCls.toLowerCase().startsWith('class')) rawCls = `Class ${rawCls}`;
+      const stClass = rawCls;
       const stStream = resolveStream(s);
       const stStatus = getEffectiveStatus(s);
 
@@ -768,7 +889,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       rollStmtMap[rollKey].total++;
       if (isMale) rollStmtMap[rollKey].male++;
       if (isFemale) rollStmtMap[rollKey].female++;
-      const regNo = s['Board Registration Number'] || s.boardRegNo || s.regNo;
+      const regNo = s['Board Registration Number'] || s['Board Reg. No.'] || s['Board Reg No'] || s.boardRegNo || s.regNo || s['REG. NO.'] || s['Registration No.'];
       if (regNo) {
         rollStmtMap[rollKey].regCount++;
         regCount++;
@@ -1458,9 +1579,14 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
             <h2 className="text-xs sm:text-base font-black flex items-center gap-1.5 text-slate-900 dark:text-white truncate">
               <BarChart2 size={16} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
               <span className="truncate">Analytics & Statistical Reports Suite</span>
+              {(isLoadingHistory || isLoadingSeed) && (
+                <span className="text-[10px] text-amber-500 font-bold animate-pulse hidden sm:inline-block">
+                  • Loading archive...
+                </span>
+              )}
             </h2>
             <p className="hidden sm:block text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-              Enrollment analysis, subject counts, and gender breakdown.
+              Enrollment analysis, subject counts, and gender breakdown across current & past academic sessions (2006–2026).
             </p>
           </div>
 
