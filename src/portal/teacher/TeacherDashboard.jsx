@@ -69,22 +69,24 @@ export default function TeacherDashboard() {
             let displayDate = 'N/A';
             const rawTime = d.updatedAt || d.submittedAt;
             if (rawTime) {
+              let dateObj = null;
               if (typeof rawTime?.toDate === 'function') {
-                const dateObj = rawTime.toDate();
-                sortTime = dateObj.getTime();
-                displayDate = dateObj.toLocaleString();
+                dateObj = rawTime.toDate();
               } else if (rawTime?.seconds) {
-                const dateObj = new Date(rawTime.seconds * 1000);
-                sortTime = dateObj.getTime();
-                displayDate = dateObj.toLocaleString();
+                dateObj = new Date(rawTime.seconds * 1000);
+              } else if (rawTime instanceof Date) {
+                dateObj = rawTime;
               } else {
-                const dateObj = new Date(rawTime);
-                if (!isNaN(dateObj.getTime())) {
-                  sortTime = dateObj.getTime();
-                  displayDate = dateObj.toLocaleString();
-                } else {
-                  displayDate = String(rawTime);
-                }
+                dateObj = new Date(rawTime);
+              }
+
+              if (dateObj && !isNaN(dateObj.getTime())) {
+                sortTime = dateObj.getTime();
+                const dPart = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                const tPart = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                displayDate = `${dPart}, ${tPart}`;
+              } else {
+                displayDate = String(rawTime);
               }
             }
 
@@ -296,49 +298,62 @@ export default function TeacherDashboard() {
 
       {/* Submission History Drawer/Modal */}
       {showHistoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl p-4 border shadow-xl space-y-3 border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl p-3 sm:p-4 border shadow-2xl space-y-2.5 border-slate-200 dark:border-slate-800 my-auto max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 gap-2 shrink-0">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <History className="text-indigo-600 dark:text-indigo-400 shrink-0" size={18} />
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/50">
+                  <History size={15} />
+                </div>
                 <div className="min-w-0">
-                  <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                  <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate m-0">
                     My Assessment Submissions Log
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-medium">
-                    Showing your own submitted evaluations only (Pre-Board, Practicals, Term End & Unit Tests)
+                  <p className="text-[10px] text-slate-400 font-medium truncate m-0">
+                    Showing your own submitted evaluations only
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowHistoryModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
                 title="Close"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
             {/* Quick Search Filter */}
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className="relative shrink-0">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Filter by subject, class, or test type (e.g. Physics, 11th, Pre-Board)..."
+                placeholder="Filter by subject, class, or test type..."
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
               />
+              {historySearch && (
+                <button
+                  type="button"
+                  onClick={() => setHistorySearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
 
             {loadingHistory ? (
-              <div className="p-8 text-center text-xs font-bold text-slate-400 space-y-2">
+              <div className="py-8 text-center text-xs font-bold text-slate-400 space-y-2">
                 <RefreshCw size={18} className="animate-spin mx-auto text-indigo-600" />
                 <div>Fetching historical submissions…</div>
               </div>
             ) : filteredSubmissions.length > 0 ? (
-              <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
+              <div className="overflow-y-auto space-y-1.5 pr-0.5 flex-1 max-h-[64vh]">
                 {filteredSubmissions.map((item, i) => {
                   const itemId = String(item.id || item.docId || '');
                   const isPending = itemId.startsWith('pending_') || item.status === 'pending_approval';
@@ -347,99 +362,121 @@ export default function TeacherDashboard() {
                   return (
                     <div 
                       key={`${itemId || 'eval'}_${item.className}_${item.subject}_${item.practicalType}_${i}`} 
-                      className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs"
+                      className="p-2 sm:p-2.5 rounded-xl border bg-white dark:bg-slate-950/70 border-slate-200/90 dark:border-slate-800 shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-800 transition-all flex flex-col gap-1.5"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 truncate">
+                      {/* Top Row: Class & Subject + Assessment Type + Status Badge */}
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="font-black text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 truncate">
                             {item.className} • {item.subject}
                           </span>
-                          <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                          <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
                             {item.practicalType || 'Assessment'}
                           </span>
-                          {isPending ? (
-                            isRejected ? (
-                              <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400">
-                                Revision Requested
-                              </span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                                Pending Approval
-                              </span>
-                            )
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                              Approved & Live
-                            </span>
-                          )}
                           {item.isCrossSubject && (
-                            <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-purple-500/15 text-purple-600 dark:text-purple-400">
-                              Cross-Subject
+                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60">
+                              Cross
                             </span>
                           )}
                         </div>
-                        <div className="text-[9.5px] text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <Clock size={10} className="shrink-0" />
-                          <span>{item.displayDate || (item.updatedAt || item.submittedAt ? String(item.updatedAt || item.submittedAt) : 'N/A')}</span>
-                          <span className="text-indigo-600 dark:text-indigo-400 font-bold shrink-0">• {item.recordsCount || (item.records?.length || 0)} Students</span>
-                          {item.yearSuffix && (
-                            <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">• Session {item.yearSuffix}</span>
+
+                        {/* Status Badge */}
+                        <div className="shrink-0">
+                          {isPending ? (
+                            isRejected ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/60">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                                Revision
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/60">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                Pending
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/60">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              Approved & Live
+                            </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Direct Print or Save as PDF button */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
-                              showToast('Access Restricted: You can only view or print your own submitted awards.', 'error');
-                              return;
-                            }
-                            const ok = printHistoricalSubmission(item);
-                            if (!ok) {
-                              showToast('No student records found in this submission.', 'warning');
-                            }
-                          }}
-                          className="h-7 px-2.5 rounded-lg text-[10.5px] font-bold bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-slate-300 dark:border-slate-700 shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-                          title="Print or Save/Download PDF of Official Award Roll"
-                        >
-                          <Printer size={12} className="text-indigo-600 dark:text-indigo-400" />
-                          <span>Print / PDF</span>
-                        </button>
+                      {/* Bottom Row: Metadata + Compact Actions */}
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/60 text-[10px]">
+                        <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 min-w-0 flex-1 truncate">
+                          <Clock size={10.5} className="shrink-0 text-slate-400" />
+                          <span className="truncate">{item.displayDate}</span>
+                          <span className="text-slate-300 dark:text-slate-700 shrink-0">•</span>
+                          <span className="font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                            {item.recordsCount || (item.records?.length || 0)} Students
+                          </span>
+                          {item.yearSuffix && (
+                            <>
+                              <span className="text-slate-300 dark:text-slate-700 shrink-0 hidden xs:inline">•</span>
+                              <span className="shrink-0 hidden xs:inline text-slate-500 dark:text-slate-400">
+                                Session {item.yearSuffix}
+                              </span>
+                            </>
+                          )}
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
-                              showToast('Access Restricted: You can only load evaluation awards you submitted.', 'error');
-                              return;
-                            }
-                            setShowHistoryModal(false);
-                            const rawCls = String(item.className || '');
-                            const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
-                            navigate('/portal/teacher/practicals', {
-                              state: {
-                                selectedClass: cleanCls,
-                                selectedSubject: item.subject !== 'N/A' ? item.subject : 'Physics',
-                                practicalType: item.practicalType,
-                                yearSuffix: item.yearSuffix,
-                                loadedRecord: item
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Direct Print or Save as PDF button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                                showToast('Access Restricted: You can only view or print your own submitted awards.', 'error');
+                                return;
                               }
-                            });
-                          }}
-                          className="h-7 px-2.5 rounded-lg text-[10.5px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-                        >
-                          Load Record
-                        </button>
+                              const ok = printHistoricalSubmission(item);
+                              if (!ok) {
+                                showToast('No student records found in this submission.', 'warning');
+                              }
+                            }}
+                            className="h-6 px-2 rounded-md text-[10px] font-bold bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                            title="Print or Save/Download PDF of Official Award Roll"
+                          >
+                            <Printer size={11} className="text-indigo-600 dark:text-indigo-400" />
+                            <span>PDF</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                                showToast('Access Restricted: You can only load evaluation awards you submitted.', 'error');
+                                return;
+                              }
+                              setShowHistoryModal(false);
+                              const rawCls = String(item.className || '');
+                              const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
+                              navigate('/portal/teacher/practicals', {
+                                state: {
+                                  selectedClass: cleanCls,
+                                  selectedSubject: item.subject !== 'N/A' ? item.subject : 'Physics',
+                                  practicalType: item.practicalType,
+                                  yearSuffix: item.yearSuffix,
+                                  loadedRecord: item
+                                }
+                              });
+                            }}
+                            className="h-6 px-2.5 rounded-md text-[10px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                            title="Load this evaluation record"
+                          >
+                            <span>Load</span>
+                            <ArrowRight size={10} className="stroke-[2.5]" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="p-8 text-center text-xs font-bold text-slate-400">
+              <div className="py-8 text-center text-xs font-bold text-slate-400">
                 {historySearch ? 'No matching submissions found for this search.' : 'No past evaluation submission records found.'}
               </div>
             )}

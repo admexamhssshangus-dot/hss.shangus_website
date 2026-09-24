@@ -4,7 +4,7 @@ import { logTeacherActivity } from '../../services/adminActivityLogger';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import { 
-  ArrowLeft, RefreshCw, AlertCircle, 
+  ArrowLeft, ArrowRight, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock, Search,
   Bookmark, Send, ChevronDown, ChevronRight, Check, SlidersHorizontal, Zap, X, Info, Sparkles, Award,
   AlertTriangle, ShieldAlert
@@ -88,22 +88,36 @@ const cleanAdmNoVal = (val) => {
 
 // Compact clean date formatter for evaluation history records
 const formatSubmissionDate = (updatedAt, displayDate) => {
-  if (displayDate) return displayDate;
-  if (!updatedAt) return 'N/A';
+  const rawTime = updatedAt || displayDate;
+  if (!rawTime) return 'N/A';
   try {
-    const d = new Date(updatedAt);
-    if (isNaN(d.getTime())) return String(updatedAt);
-    return d.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    }) + ', ' + d.toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
+    let d = null;
+    if (typeof rawTime?.toDate === 'function') {
+      d = rawTime.toDate();
+    } else if (rawTime?.seconds) {
+      d = new Date(rawTime.seconds * 1000);
+    } else if (rawTime instanceof Date) {
+      d = rawTime;
+    } else {
+      d = new Date(rawTime);
+    }
+
+    if (d && !isNaN(d.getTime())) {
+      const dPart = d.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+      const tPart = d.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      return `${dPart}, ${tPart}`;
+    }
+    return String(displayDate || updatedAt || 'N/A');
   } catch {
-    return String(updatedAt);
+    return String(displayDate || updatedAt || 'N/A');
   }
 };
 
@@ -2567,22 +2581,22 @@ export default function PracticalsPage() {
             let displayDate = 'N/A';
             const rawTime = d.updatedAt || d.submittedAt;
             if (rawTime) {
+              let dateObj = null;
               if (typeof rawTime?.toDate === 'function') {
-                const dateObj = rawTime.toDate();
-                sortTime = dateObj.getTime();
-                displayDate = dateObj.toLocaleString();
+                dateObj = rawTime.toDate();
               } else if (rawTime?.seconds) {
-                const dateObj = new Date(rawTime.seconds * 1000);
-                sortTime = dateObj.getTime();
-                displayDate = dateObj.toLocaleString();
+                dateObj = new Date(rawTime.seconds * 1000);
+              } else if (rawTime instanceof Date) {
+                dateObj = rawTime;
               } else {
-                const dateObj = new Date(rawTime);
-                if (!isNaN(dateObj.getTime())) {
-                  sortTime = dateObj.getTime();
-                  displayDate = dateObj.toLocaleString();
-                } else {
-                  displayDate = String(rawTime);
-                }
+                dateObj = new Date(rawTime);
+              }
+
+              if (dateObj && !isNaN(dateObj.getTime())) {
+                sortTime = dateObj.getTime();
+                displayDate = formatSubmissionDate(dateObj);
+              } else {
+                displayDate = String(rawTime);
               }
             }
 
@@ -4928,7 +4942,7 @@ export default function PracticalsPage() {
                 className="py-6"
               />
             ) : filteredSubmissions.length > 0 ? (
-              <div className="overflow-y-auto space-y-2 pr-0.5 flex-1 max-h-[62vh]">
+              <div className="overflow-y-auto space-y-1.5 pr-0.5 flex-1 max-h-[64vh]">
                 {filteredSubmissions.map((item, i) => {
                   const itemId = String(item.id || item.docId || '');
                   const isPending = itemId.startsWith('pending_') || item.status === 'pending_approval';
@@ -4937,116 +4951,120 @@ export default function PracticalsPage() {
                   return (
                     <div 
                       key={`${itemId || 'eval'}_${item.className}_${item.subject}_${item.practicalType}_${i}`} 
-                      className="p-2.5 sm:p-3 rounded-xl border bg-white dark:bg-slate-950/60 border-slate-200/90 dark:border-slate-800/90 shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-800 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5"
+                      className="p-2 sm:p-2.5 rounded-xl border bg-white dark:bg-slate-950/70 border-slate-200/90 dark:border-slate-800 shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-800 transition-all flex flex-col gap-1.5"
                     >
-                      {/* Left / Top Information Block */}
-                      <div className="min-w-0 flex-1 space-y-1">
-                        {/* Title and Badges Row */}
-                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-black text-xs sm:text-[13px] text-slate-900 dark:text-white truncate">
-                              {item.className} • {item.subject}
+                      {/* Top Row: Class & Subject + Assessment Type + Status Badge */}
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="font-black text-xs sm:text-[13px] text-slate-900 dark:text-white truncate">
+                            {item.className} • {item.subject}
+                          </span>
+                          <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                            {item.practicalType || 'Assessment'}
+                          </span>
+                          {item.isCrossSubject && (
+                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60">
+                              Cross
                             </span>
-                            <span className="px-1.5 py-0.5 rounded text-[8.5px] sm:text-[9px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80">
-                              {item.practicalType || 'Assessment'}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1">
-                            {isPending ? (
-                              isRejected ? (
-                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                                  Revision Requested
-                                </span>
-                              ) : (
-                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                  Pending Approval
-                                </span>
-                              )
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                Approved & Live
-                              </span>
-                            )}
-                            {item.isCrossSubject && (
-                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                Cross-Subject
-                              </span>
-                            )}
-                          </div>
+                          )}
                         </div>
 
-                        {/* Metadata row with clean date, student count, session */}
-                        <div className="text-[10px] sm:text-[10.5px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <Clock size={10.5} className="text-slate-400 shrink-0" />
-                            <span>{formatSubmissionDate(item.updatedAt, item.displayDate)}</span>
-                          </span>
-                          <span className="text-slate-300 dark:text-slate-700">•</span>
-                          <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                            {item.recordsCount || (item.records?.length || 0)} Students
-                          </span>
-                          {item.yearSuffix && (
-                            <>
-                              <span className="text-slate-300 dark:text-slate-700">•</span>
-                              <span>Session {item.yearSuffix}</span>
-                            </>
+                        {/* Status Badge */}
+                        <div className="shrink-0">
+                          {isPending ? (
+                            isRejected ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/60">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                                Revision
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/60">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                Pending
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/60">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              Approved & Live
+                            </span>
                           )}
                         </div>
                       </div>
 
-                      {/* Buttons Row - Suitable size & responsive layout (50/50 on mobile, inline on desktop) */}
-                      <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 sm:pt-0 sm:border-0 sm:w-auto shrink-0">
-                        {/* Direct Print or Save as PDF button */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
-                              triggerNotification({
-                                type: 'error',
-                                title: 'Access Restricted',
-                                badge: 'Restricted',
-                                text: 'You cannot print or view awards submitted by other teachers.',
-                                primaryButtonText: 'Dismiss'
-                              });
-                              return;
-                            }
-                            const ok = printHistoricalSubmission(item);
-                            if (!ok) {
-                              triggerNotification({
-                                type: 'warning',
-                                title: 'No Records Found',
-                                text: 'This submission does not contain any student records to print.',
-                                primaryButtonText: 'Dismiss'
-                              });
-                            }
-                          }}
-                          className="flex-1 sm:flex-initial h-7.5 sm:h-7 px-3 rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
-                          title="Print or Save/Download PDF of Official Award Roll"
-                        >
-                          <Printer size={12} className="text-slate-500 dark:text-slate-400" />
-                          <span>Print / PDF</span>
-                        </button>
+                      {/* Bottom Row: Metadata + Compact Actions */}
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/60 text-[10px]">
+                        <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 min-w-0 flex-1 truncate">
+                          <Clock size={10.5} className="shrink-0 text-slate-400" />
+                          <span className="truncate">{formatSubmissionDate(item.updatedAt, item.displayDate)}</span>
+                          <span className="text-slate-300 dark:text-slate-700 shrink-0">•</span>
+                          <span className="font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                            {item.recordsCount || (item.records?.length || 0)} Students
+                          </span>
+                          {item.yearSuffix && (
+                            <>
+                              <span className="text-slate-300 dark:text-slate-700 shrink-0 hidden xs:inline">•</span>
+                              <span className="shrink-0 hidden xs:inline text-slate-500 dark:text-slate-400">
+                                Session {item.yearSuffix}
+                              </span>
+                            </>
+                          )}
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
-                              triggerNotification({
-                                type: 'error',
-                                title: 'Access Restricted',
-                                badge: 'Restricted',
-                                text: 'You cannot view or load evaluation awards submitted by other teachers.',
-                                primaryButtonText: 'Dismiss'
-                              });
-                              return;
-                            }
-                            handleLoadSubmissionRecord(item);
-                          }}
-                          className="flex-1 sm:flex-initial h-7.5 sm:h-7 px-3.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1"
-                        >
-                          Load Record
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Direct Print or Save as PDF button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                                triggerNotification({
+                                  type: 'error',
+                                  title: 'Access Restricted',
+                                  badge: 'Restricted',
+                                  text: 'You cannot print or view awards submitted by other teachers.',
+                                  primaryButtonText: 'Dismiss'
+                                });
+                                return;
+                              }
+                              const ok = printHistoricalSubmission(item);
+                              if (!ok) {
+                                triggerNotification({
+                                  type: 'warning',
+                                  title: 'No Records Found',
+                                  text: 'This submission does not contain any student records to print.',
+                                  primaryButtonText: 'Dismiss'
+                                });
+                              }
+                            }}
+                            className="h-6 px-2 rounded-md text-[10px] font-bold bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                            title="Print or Save/Download PDF of Official Award Roll"
+                          >
+                            <Printer size={11} className="text-indigo-600 dark:text-indigo-400" />
+                            <span>PDF</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                                triggerNotification({
+                                  type: 'error',
+                                  title: 'Access Restricted',
+                                  badge: 'Restricted',
+                                  text: 'You cannot view or load evaluation awards submitted by other teachers.',
+                                  primaryButtonText: 'Dismiss'
+                                });
+                                return;
+                              }
+                              handleLoadSubmissionRecord(item);
+                            }}
+                            className="h-6 px-2.5 rounded-md text-[10px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                            title="Load this evaluation record"
+                          >
+                            <span>Load</span>
+                            <ArrowRight size={10} className="stroke-[2.5]" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

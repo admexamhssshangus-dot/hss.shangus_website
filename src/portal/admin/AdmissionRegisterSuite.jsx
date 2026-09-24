@@ -4054,7 +4054,8 @@ export default function AdmissionRegisterSuite({
             box-sizing: border-box !important;
           }
 
-          .admission-spread-table thead {
+          /* Thead locked strictly to 14mm (7mm per row) on both Part 1 and Part 2 */
+          .register-ledger-page .admission-spread-table thead {
             height: 14mm !important;
             min-height: 14mm !important;
             max-height: 14mm !important;
@@ -4062,36 +4063,41 @@ export default function AdmissionRegisterSuite({
             flex-shrink: 0 !important;
           }
 
-          .admission-spread-table thead tr {
+          .register-ledger-page .admission-spread-table thead tr {
             height: 7mm !important;
             min-height: 7mm !important;
             max-height: 7mm !important;
             box-sizing: border-box !important;
           }
 
-          .admission-spread-table thead th {
+          .register-ledger-page .admission-spread-table thead th {
             height: 7mm !important;
             min-height: 7mm !important;
             max-height: 7mm !important;
-            padding: 0.5px 1px !important;
-            font-size: 6.8px !important;
+            padding: 0.2mm 0.4mm !important;
+            font-size: 6.5px !important;
             font-weight: 800 !important;
             line-height: 1.05 !important;
             vertical-align: middle !important;
             text-align: center !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
+            white-space: normal !important;
           }
 
-          .admission-spread-table thead th[rowspan="2"] {
+          .register-ledger-page .admission-spread-table thead th[rowspan="2"] {
             height: 14mm !important;
             min-height: 14mm !important;
             max-height: 14mm !important;
           }
 
-          /* Universal column stretching without rigid max-width caps */
-          .admission-spread-table th,
-          .admission-spread-table td,
+          .register-ledger-page .admission-spread-table thead th > span,
+          .register-ledger-page .admission-spread-table thead th > div {
+            max-height: 13.5mm !important;
+            overflow: hidden !important;
+          }
+
+          /* Sentup table universal stretching */
           .sentup-table th,
           .sentup-table td {
             min-width: 0 !important;
@@ -4100,7 +4106,7 @@ export default function AdmissionRegisterSuite({
             word-break: break-word !important;
           }
 
-          /* Every student row locked to EXACT calculatedRowHeightMm on both Part 1 and Part 2 */
+          /* Every student row strictly locked to EXACT calculatedRowHeightMm on both Part 1 and Part 2 */
           .register-resizable-row,
           .admission-spread-table tbody tr {
             height: ${calculatedRowHeightMm}mm !important;
@@ -4116,34 +4122,75 @@ export default function AdmissionRegisterSuite({
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
             max-height: ${calculatedRowHeightMm}mm !important;
-            padding: 0.2mm 0.6mm !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '6.8px' : '7.5px'} !important;
-            line-height: 1.1 !important;
+            padding: 0.1mm 0.5mm !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '6.2px' : '7.0px'} !important;
+            line-height: 1.05 !important;
             vertical-align: middle !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
+            white-space: nowrap !important;
+            text-overflow: ellipsis !important;
+            word-break: normal !important;
+            overflow-wrap: normal !important;
           }
 
+          /* General cell inner element containment to prevent row stretching */
           .admission-spread-table tbody tr > td > div,
           .admission-spread-table tbody tr > td > span {
-            max-height: calc(${calculatedRowHeightMm}mm - 0.4mm) !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 0.3mm) !important;
             overflow: hidden !important;
+            line-height: 1.05 !important;
           }
 
-          .register-photo-cell,
-          .sentup-table .sentup-photo-cell,
-          .sentup-table td.sentup-photo-cell {
-            padding: 0.3mm !important;
+          /* Compact 2-line cells in Part 1 and Part 2 (DOB words, online status, receipt, subs) */
+          .admission-spread-table td .line-clamp-2 {
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+            white-space: normal !important;
+            font-size: 6.2px !important;
+            line-height: 1.05 !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 0.3mm) !important;
+          }
+
+          /* Board Registration formatting in Print */
+          .admission-spread-table .st-reg-split,
+          .admission-spread-table .st-reg-split span {
+            font-size: ${currentStudentsPerPage >= 16 ? '6.0px' : '6.8px'} !important;
+            line-height: 1.02 !important;
+            white-space: nowrap !important;
+          }
+
+          /* Form No & Online status sizing in Print */
+          .admission-spread-table td div.font-bold {
+            font-size: 6.8px !important;
+            line-height: 1.02 !important;
+          }
+
+          /* Photo cell strict containment on Part 1 */
+          .register-photo-cell {
+            padding: 0.1mm !important;
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
             max-height: ${calculatedRowHeightMm}mm !important;
-            width: 11mm !important;
-            min-width: 11mm !important;
-            max-width: 13mm !important;
+            width: 10mm !important;
+            min-width: 9mm !important;
+            max-width: 11mm !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
             vertical-align: middle !important;
             text-align: center !important;
+          }
+
+          .register-photo-cell > div {
+            height: 100% !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 0.2mm) !important;
+            overflow: hidden !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 !important;
           }
 
           .admission-spread-table th[data-col="sno"],
@@ -4158,7 +4205,7 @@ export default function AdmissionRegisterSuite({
             width: auto !important;
             max-width: 100% !important;
             height: auto !important;
-            max-height: calc(${calculatedRowHeightMm}mm - 0.8mm) !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 0.4mm) !important;
             object-fit: contain !important;
             object-position: center center !important;
             display: block !important;
