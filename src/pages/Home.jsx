@@ -10,7 +10,7 @@ import { DEFAULT_HERO_BUTTONS, getCachedSiteSettings } from '../utils/settingsLo
 const Hero3DExperience = React.lazy(() => import('../components/3d/Hero3DExperience'));
 
 // Modern Counter Animation Component
-const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
+const AnimatedCounter = ({ end, prefix = '', suffix = '', compact = false }) => {
   const [count, setCount] = useState(0);
   const elementRef = useRef(null);
 
@@ -71,7 +71,23 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
     };
   }, [end]);
 
-  return <span ref={elementRef}>{prefix}{count > 999 ? count.toLocaleString() : count}{suffix}</span>;
+  const formattedValue = (() => {
+    if (compact) {
+      if (count >= 1000000) {
+        return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+      }
+      if (count >= 1000) {
+        return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+      }
+      if (end >= 1000) {
+        return (count / 1000).toFixed(1) + 'K';
+      }
+      return count;
+    }
+    return count > 999 ? count.toLocaleString() : count;
+  })();
+
+  return <span ref={elementRef}>{prefix}{formattedValue}{suffix}</span>;
 };
 
 const parseNoticeDate = (dateStr) => {
@@ -204,10 +220,10 @@ export default function Home() {
       }
     } catch (_) {}
     return {
-      visitors: 1400,
-      interactions: 642,
-      searches: 1400,
-      clicks: 642,
+      visitors: 1900,
+      interactions: 724,
+      searches: 1900,
+      clicks: 724,
     };
   });
 
@@ -272,10 +288,10 @@ export default function Home() {
           const data = await res.json();
           if (data && typeof data.visitors === 'number') {
             const stats = {
-              visitors: Number(data.visitors || 1400),
-              interactions: Number(data.interactions || data.clicks || 642),
-              searches: Number(data.searches || 1400),
-              clicks: Number(data.clicks || 642),
+              visitors: Number(data.visitors || 1900),
+              interactions: Number(data.interactions || data.clicks || 724),
+              searches: Number(data.searches || 1900),
+              clicks: Number(data.clicks || 724),
             };
             setTrafficStats(stats);
             try { localStorage.setItem('site_traffic_stats', JSON.stringify(stats)); } catch (_) {}
@@ -408,10 +424,10 @@ export default function Home() {
             if (snap.exists()) {
               const data = snap.data();
               if (data) {
-                const visitors = Number(data.visitors || 1400);
-                const clicks = Number(data.clicks || 642);
-                const searches = Number(data.searches || 1400);
-                const interactions = Number(data.interactions || clicks || 642);
+                const visitors = Number(data.visitors || 1900);
+                const clicks = Number(data.clicks || 724);
+                const searches = Number(data.searches || 1900);
+                const interactions = Number(data.interactions || clicks || 724);
                 const stats = { visitors, interactions, searches, clicks };
                 setTrafficStats(stats);
                 try { localStorage.setItem('site_traffic_stats', JSON.stringify(stats)); } catch (_) {}
@@ -524,7 +540,7 @@ export default function Home() {
             {/* Metric 1: Searches / Impressions */}
             <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
               <Search size={11} className="text-teal-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
-              <AnimatedCounter end={trafficStats.searches || trafficStats.visitors || 1400} suffix="+" />
+              <AnimatedCounter end={trafficStats.searches || trafficStats.visitors || 1900} suffix="+" compact={true} />
               <span className="text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">searches</span>
             </span>
 
@@ -533,7 +549,7 @@ export default function Home() {
             {/* Metric 2: Clicks */}
             <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
               <MousePointerClick size={11} className="text-indigo-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
-              <AnimatedCounter end={trafficStats.clicks || trafficStats.interactions || 642} suffix="+" />
+              <AnimatedCounter end={trafficStats.clicks || trafficStats.interactions || 724} suffix="+" compact={true} />
               <span className="text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">clicks</span>
             </span>
           </div>

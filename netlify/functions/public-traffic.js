@@ -38,23 +38,23 @@ exports.handler = async function handler(event) {
       const snap = await trafficRef.get();
       const data = snap.exists ? snap.data() : {};
       return response(200, {
-        visitors: Number(data.visitors || 1400),
-        interactions: Number(data.interactions || 642),
-        searches: Number(data.searches || 1400),
-        clicks: Number(data.clicks || 642),
+        visitors: Number(data.visitors || 1900),
+        interactions: Number(data.interactions || 724),
+        searches: Number(data.searches || 1900),
+        clicks: Number(data.clicks || 724),
         todayVisitors: Number(data.todayVisitors || 42),
         lastUpdated: data.lastUpdated || null,
-        source: 'Google Search Console & Cloud Telemetry',
+        source: 'Google Search Console (All-time Total)',
       });
     } catch (e) {
       console.warn('Traffic read error:', e.message);
       return response(200, {
-        visitors: 1400,
-        interactions: 642,
-        searches: 1400,
-        clicks: 642,
+        visitors: 1900,
+        interactions: 724,
+        searches: 1900,
+        clicks: 724,
         todayVisitors: 42,
-        source: 'Google Search Console & Cloud Telemetry',
+        source: 'Google Search Console (All-time Total)',
       });
     }
   }
@@ -90,10 +90,10 @@ exports.handler = async function handler(event) {
 
       return response(200, {
         success: true,
-        visitors: Number(data.visitors || 1400),
-        interactions: Number(data.interactions || 642),
-        searches: Number(data.searches || 1400),
-        clicks: Number(data.clicks || 642),
+        visitors: Number(data.visitors || 1900),
+        interactions: Number(data.interactions || 724),
+        searches: Number(data.searches || 1900),
+        clicks: Number(data.clicks || 724),
       });
     } catch (err) {
       console.warn('Traffic update note:', err.message);
