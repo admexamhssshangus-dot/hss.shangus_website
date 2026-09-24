@@ -3529,6 +3529,13 @@ export default function AdmissionRegisterSuite({
   const [onlyApprovedDates, setOnlyApprovedDates] = useState(true);
   const [assigningDates, setAssigningDates] = useState(false);
 
+  // Range and student selection states for date assignment
+  const [selectedDateIds, setSelectedDateIds] = useState(() => new Set());
+  const [dateRangeFrom, setDateRangeFrom] = useState('1');
+  const [dateRangeTo, setDateRangeTo] = useState('');
+  const [dateRangeType, setDateRangeType] = useState('sno'); // 'sno' | 'roll'
+  const [lastDateClickedIdx, setLastDateClickedIdx] = useState(null);
+
   const dateTargetStudents = useMemo(() => {
     return normalizedStudents.filter(st => {
       if (onlyApprovedDates && st.status !== 'Approved') return false;
@@ -3538,9 +3545,111 @@ export default function AdmissionRegisterSuite({
     });
   }, [normalizedStudents, onlyApprovedDates, assignDateSession, assignDateClass]);
 
+  // Synchronize selection to target students when class, session, or approval scope changes
+  const targetDateScopeKey = `${assignDateSession}_${assignDateClass}_${onlyApprovedDates}`;
+  const prevDateScopeRef = useRef('');
+
+  useEffect(() => {
+    if (prevDateScopeRef.current !== targetDateScopeKey) {
+      prevDateScopeRef.current = targetDateScopeKey;
+      setSelectedDateIds(new Set(dateTargetStudents.map(st => st.id)));
+      setDateRangeFrom('1');
+      setDateRangeTo(String(dateTargetStudents.length || ''));
+    }
+  }, [targetDateScopeKey, dateTargetStudents]);
+
+  const effectiveTargetStudents = useMemo(() => {
+    return dateTargetStudents.filter(st => selectedDateIds.has(st.id));
+  }, [dateTargetStudents, selectedDateIds]);
+
+  const handleSelectDateRange = (fromVal, toVal, type = dateRangeType) => {
+    const fromNum = parseInt(fromVal, 10);
+    const toNum = parseInt(toVal, 10);
+    if (isNaN(fromNum) || isNaN(toNum)) {
+      setToast({ message: '⚠️ Please enter valid From and To numbers for the range.', type: 'error' });
+      return;
+    }
+    const low = Math.min(fromNum, toNum);
+    const high = Math.max(fromNum, toNum);
+
+    const newSet = new Set();
+    if (type === 'roll') {
+      dateTargetStudents.forEach(st => {
+        const r = parseInt(st.rollNo, 10);
+        if (!isNaN(r) && r >= low && r <= high) {
+          newSet.add(st.id);
+        }
+      });
+    } else {
+      // By serial # (1-based index)
+      dateTargetStudents.forEach((st, idx) => {
+        const sno = idx + 1;
+        if (sno >= low && sno <= high) {
+          newSet.add(st.id);
+        }
+      });
+    }
+
+    setSelectedDateIds(newSet);
+    setToast({
+      message: `🎯 Selected ${newSet.size} students (Range: ${low} to ${high})`,
+      type: 'info'
+    });
+  };
+
+  const handleNextDateRange = () => {
+    const fromNum = parseInt(dateRangeFrom, 10) || 1;
+    const toNum = parseInt(dateRangeTo, 10) || 50;
+    const batchSize = Math.max(1, toNum - fromNum + 1);
+
+    const nextFrom = toNum + 1;
+    const nextTo = Math.min(dateTargetStudents.length, toNum + batchSize);
+
+    if (nextFrom > dateTargetStudents.length) {
+      setToast({ message: '⚠️ Already at the end of the student list.', type: 'info' });
+      return;
+    }
+
+    setDateRangeFrom(String(nextFrom));
+    setDateRangeTo(String(nextTo));
+    handleSelectDateRange(nextFrom, nextTo, dateRangeType);
+  };
+
+  const handleToggleStudent = (stId, idx, e) => {
+    const newSet = new Set(selectedDateIds);
+    if (e?.shiftKey && lastDateClickedIdx !== null) {
+      const start = Math.min(lastDateClickedIdx, idx);
+      const end = Math.max(lastDateClickedIdx, idx);
+      const shouldSelect = !selectedDateIds.has(stId);
+      for (let i = start; i <= end; i++) {
+        const targetId = dateTargetStudents[i]?.id;
+        if (targetId) {
+          if (shouldSelect) newSet.add(targetId);
+          else newSet.delete(targetId);
+        }
+      }
+    } else {
+      if (newSet.has(stId)) {
+        newSet.delete(stId);
+      } else {
+        newSet.add(stId);
+      }
+    }
+    setLastDateClickedIdx(idx);
+    setSelectedDateIds(newSet);
+  };
+
+  const handleToggleAllDates = () => {
+    if (selectedDateIds.size === dateTargetStudents.length) {
+      setSelectedDateIds(new Set());
+    } else {
+      setSelectedDateIds(new Set(dateTargetStudents.map(st => st.id)));
+    }
+  };
+
   const handleRunAssignDates = async () => {
-    if (dateTargetStudents.length === 0) {
-      setToast({ message: '⚠️ No students match the selected session and class scope.', type: 'error' });
+    if (effectiveTargetStudents.length === 0) {
+      setToast({ message: '⚠️ No students selected. Please select a range or check students to assign date.', type: 'error' });
       return;
     }
     setAssigningDates(true);
@@ -3549,7 +3658,7 @@ export default function AdmissionRegisterSuite({
       const fieldKey = assignDateField === 'admDate' ? 'Adm. Date' : 'Online Subm. Date';
       const aliasKey = assignDateField === 'admDate' ? 'admDate' : 'onlineSubmDate';
 
-      for (const st of dateTargetStudents) {
+      for (const st of effectiveTargetStudents) {
         const docRef = doc(db, 'admissions', st.id);
         const payload = {
           [fieldKey]: assignDateValue,
@@ -3563,14 +3672,29 @@ export default function AdmissionRegisterSuite({
 
       await batch.commit();
 
+      // Update local dataset state so table reflects new date immediately
+      setDataset(prev => {
+        const idSet = new Set(effectiveTargetStudents.map(s => s.id));
+        return prev.map(item => {
+          if (idSet.has(item.id)) {
+            return {
+              ...item,
+              [fieldKey]: assignDateValue,
+              [aliasKey]: assignDateValue
+            };
+          }
+          return item;
+        });
+      });
+
       await logAdminActivity({
         actionType: 'batch_date_assign',
         actionTitle: `Bulk Assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Submission Date'}`,
-        details: `Assigned date ${assignDateValue} to ${dateTargetStudents.length} students.`,
-        metadata: { date: assignDateValue, count: dateTargetStudents.length }
+        details: `Assigned date ${assignDateValue} to ${effectiveTargetStudents.length} students.`,
+        metadata: { date: assignDateValue, count: effectiveTargetStudents.length }
       });
 
-      setToast({ message: `✨ Applied date (${assignDateValue}) to ${dateTargetStudents.length} records!`, type: 'success' });
+      setToast({ message: `✨ Applied date (${assignDateValue}) to ${effectiveTargetStudents.length} records!`, type: 'success' });
       if (onDataUpdated) onDataUpdated();
     } catch (err) {
       console.error('Assign Dates error:', err);
@@ -7717,11 +7841,11 @@ export default function AdmissionRegisterSuite({
                   <button
                     type="button"
                     onClick={handleRunAssignDates}
-                    disabled={assigningDates || dateTargetStudents.length === 0}
+                    disabled={assigningDates || effectiveTargetStudents.length === 0}
                     className="py-1 px-3 rounded-lg font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs active:scale-95"
                   >
                     {assigningDates ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
-                    <span>Apply Date ({dateTargetStudents.length} Students)</span>
+                    <span>Apply Date ({effectiveTargetStudents.length} Students)</span>
                   </button>
                 </div>
               </div>
@@ -7788,13 +7912,139 @@ export default function AdmissionRegisterSuite({
                 </div>
               </div>
 
+              {/* Range & Batch Selection Toolbar */}
+              <div className="flex items-center justify-between gap-2.5 flex-wrap p-2.5 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-xs">
+                {/* Left: Range input controls */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                      Select Range:
+                    </span>
+                    <select
+                      value={dateRangeType}
+                      onChange={(e) => setDateRangeType(e.target.value)}
+                      className="py-0.5 px-2 text-[11px] font-bold rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer"
+                      title="Select Range by Serial Number (#) or Class Roll Number"
+                    >
+                      <option value="sno">By # (Row 1–{dateTargetStudents.length})</option>
+                      <option value="roll">By Roll No.</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700">
+                    <span className="text-[11px] font-semibold text-slate-500">From</span>
+                    <input
+                      type="number"
+                      value={dateRangeFrom}
+                      onChange={(e) => setDateRangeFrom(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSelectDateRange(dateRangeFrom, dateRangeTo, dateRangeType);
+                      }}
+                      placeholder="1"
+                      className="w-14 py-0.5 px-1 text-center font-mono font-bold text-xs rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    />
+                    <span className="text-[11px] font-semibold text-slate-500">To</span>
+                    <input
+                      type="number"
+                      value={dateRangeTo}
+                      onChange={(e) => setDateRangeTo(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSelectDateRange(dateRangeFrom, dateRangeTo, dateRangeType);
+                      }}
+                      placeholder={String(dateTargetStudents.length || '50')}
+                      className="w-14 py-0.5 px-1 text-center font-mono font-bold text-xs rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectDateRange(dateRangeFrom, dateRangeTo, dateRangeType)}
+                    className="py-1 px-2.5 rounded-md font-bold text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all active:scale-95 cursor-pointer"
+                  >
+                    Select Range
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleNextDateRange}
+                    className="py-1 px-2 rounded-md font-bold text-[11px] bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-all cursor-pointer shadow-2xs"
+                    title="Advance to next batch of students of the same size"
+                  >
+                    Next Batch →
+                  </button>
+                </div>
+
+                {/* Right: Quick Scope Pills & Selection Counter */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                    Selected: <span className="font-mono font-black text-indigo-600 dark:text-indigo-400">{selectedDateIds.size}</span> / {dateTargetStudents.length}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDateIds(new Set(dateTargetStudents.map(st => st.id)));
+                      setDateRangeFrom('1');
+                      setDateRangeTo(String(dateTargetStudents.length || ''));
+                    }}
+                    className="py-0.5 px-2 rounded font-bold text-[10.5px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 cursor-pointer shadow-2xs"
+                  >
+                    All ({dateTargetStudents.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectDateRange(1, Math.min(50, dateTargetStudents.length), 'sno');
+                      setDateRangeFrom('1');
+                      setDateRangeTo(String(Math.min(50, dateTargetStudents.length)));
+                    }}
+                    className="py-0.5 px-2 rounded font-bold text-[10.5px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 cursor-pointer shadow-2xs"
+                  >
+                    1–50
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectDateRange(51, Math.min(100, dateTargetStudents.length), 'sno');
+                      setDateRangeFrom('51');
+                      setDateRangeTo(String(Math.min(100, dateTargetStudents.length)));
+                    }}
+                    className="py-0.5 px-2 rounded font-bold text-[10.5px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 cursor-pointer shadow-2xs"
+                  >
+                    51–100
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDateIds(new Set())}
+                    className="py-0.5 px-2 rounded font-bold text-[10.5px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 cursor-pointer shadow-2xs"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
               {/* Target Records Table Preview */}
               {dateTargetStudents.length > 0 ? (
                 <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
-                  <div className="max-h-72 overflow-y-auto">
+                  <div className="max-h-80 overflow-y-auto">
                     <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300 text-[11px] border-b border-slate-200 dark:border-slate-700">
+                      <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300 text-[11px] border-b border-slate-200 dark:border-slate-700 z-10">
                         <tr>
+                          <th className="py-1 px-2 w-8 text-center">
+                            <input
+                              type="checkbox"
+                              checked={dateTargetStudents.length > 0 && selectedDateIds.size === dateTargetStudents.length}
+                              ref={el => {
+                                if (el) el.indeterminate = selectedDateIds.size > 0 && selectedDateIds.size < dateTargetStudents.length;
+                              }}
+                              onChange={handleToggleAllDates}
+                              className="rounded text-indigo-600 cursor-pointer"
+                              title="Select / Deselect All in View"
+                            />
+                          </th>
                           <th className="py-1 px-2 w-10 text-center">#</th>
                           <th className="py-1 px-2">Student Name</th>
                           <th className="py-1 px-2">Father's Name</th>
@@ -7805,21 +8055,49 @@ export default function AdmissionRegisterSuite({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200 text-[11px]">
-                        {dateTargetStudents.map((st, idx) => (
-                          <tr key={`date_target_${st.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
-                            <td className="py-1 px-2 text-center font-bold text-slate-400 ledger-mono-font">{idx + 1}</td>
-                            <td className="py-1 px-2 font-bold">{st.name}</td>
-                            <td className="py-1 px-2 text-slate-500">{st.father}</td>
-                            <td className="py-1 px-2 font-bold text-indigo-600">{st.class}</td>
-                            <td className="py-1 px-2 font-mono ledger-mono-font">{st.rollNo || '—'}</td>
-                            <td className="py-1 px-2 font-mono text-slate-500 ledger-mono-font">
-                              {assignDateField === 'admDate' ? (st.admDate || '—') : (st.onlineStatus || '—')}
-                            </td>
-                            <td className="py-1 px-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 ledger-mono-font">
-                              {assignDateValue}
-                            </td>
-                          </tr>
-                        ))}
+                        {dateTargetStudents.map((st, idx) => {
+                          const isSelected = selectedDateIds.has(st.id);
+                          return (
+                            <tr
+                              key={`date_target_${st.id || idx}_${idx}`}
+                              onClick={(e) => handleToggleStudent(st.id, idx, e)}
+                              className={`cursor-pointer transition-colors ${
+                                isSelected
+                                  ? 'bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100/60 dark:hover:bg-indigo-900/50'
+                                  : 'opacity-65 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                              }`}
+                            >
+                              <td className="py-1 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => handleToggleStudent(st.id, idx, e)}
+                                  className="rounded text-indigo-600 cursor-pointer"
+                                />
+                              </td>
+                              <td className="py-1 px-2 text-center font-bold text-slate-400 ledger-mono-font">{idx + 1}</td>
+                              <td className="py-1 px-2 font-bold">{st.name}</td>
+                              <td className="py-1 px-2 text-slate-500">{st.father}</td>
+                              <td className="py-1 px-2 font-bold text-indigo-600">{st.class}</td>
+                              <td className="py-1 px-2 font-mono ledger-mono-font">{st.rollNo || '—'}</td>
+                              <td className="py-1 px-2 font-mono text-slate-500 ledger-mono-font">
+                                {assignDateField === 'admDate' ? (st.admDate || '—') : (st.onlineStatus || '—')}
+                              </td>
+                              <td className="py-1 px-2 text-right font-mono font-bold ledger-mono-font">
+                                {isSelected ? (
+                                  <span className="text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
+                                    <span>{assignDateValue}</span>
+                                    <span className="px-1 py-0.2 rounded text-[9.5px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                                      Will Apply
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 font-normal italic">Excluded</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
