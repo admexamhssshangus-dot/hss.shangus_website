@@ -9535,6 +9535,9 @@ export default function AdvancedReports({
     const fullCurriculumByReg = new Map();
     const fullCurriculumByAdm = new Map();
     const fullCurriculumByName = new Map();
+    const fullCurriculumRecordByReg = new Map();
+    const fullCurriculumRecordByAdm = new Map();
+    const fullCurriculumRecordByName = new Map();
 
     // ─── CLASS PHOTO GROUP: 9th+10th share 'lower' bucket; 11th+12th share 'upper' bucket ───
     // This means a photo uploaded in 9th is reused for 10th, and a photo in 11th is reused for 12th.
@@ -9607,6 +9610,75 @@ export default function AdvancedReports({
       return false;
     };
 
+    // Helper to evaluate authenticity / reliability score of a student record
+    // Higher score means more authentic/authoritative (Approved > Assigned Roll > Recency > Form No > Valid Subjects)
+    const getRecordAuthenticityScore = (r) => {
+      if (!r) return -Infinity;
+      let score = 0;
+
+      // 1. Approval status & Assigned Roll Number (Primary Authority)
+      const roll = extractClassRoll(r);
+      const hasRoll = Boolean(roll && roll !== '—' && roll !== 'N/A' && roll !== 'null' && String(roll).trim().length > 0);
+      const rawStatus = String(r['Status'] || r['status'] || r['admissionStatus'] || r['Admission Status'] || '').toLowerCase();
+
+      const isApproved = rawStatus.includes('appr') || hasRoll;
+      const isProvisional = rawStatus.includes('provis');
+      const isDraft = rawStatus.includes('draft');
+      const isRejected = rawStatus.includes('reject');
+      const isWithdrawn = rawStatus.includes('withdraw') || rawStatus.includes('wthd');
+
+      if (isApproved) {
+        score += 1000000;
+      }
+      if (hasRoll) {
+        score += 500000;
+      }
+      if (isProvisional) {
+        score -= 200000;
+      }
+      if (isDraft || isRejected || isWithdrawn) {
+        score -= 500000;
+      }
+
+      // 2. Session Recency (Progressive Academic Timeline: 2024-25 beats 2023-24)
+      const sessStr = String(r['Session'] || r['session'] || r['Academic Session'] || '');
+      const yearMatch = sessStr.match(/\b(20\d\d)\b/);
+      const sessionYear = yearMatch ? parseInt(yearMatch[1], 10) : 2000;
+      score += sessionYear * 1000;
+
+      const sessLower = sessStr.toLowerCase();
+      if (sessLower.includes('oct') || sessLower.includes('nov') || sessLower.includes('bi-annual') || sessLower.includes('annual')) {
+        score += 100;
+      }
+
+      // 3. Official Form Number Present
+      const fNo = cleanFormNo(r['Form Number'] || r['FormNo'] || r['Form No.'] || r.formNo);
+      if (fNo && fNo !== '—' && fNo.length > 2) {
+        score += 50;
+      }
+
+      // 4. Complete Valid 5-Subject Curriculum
+      const cls = normalizeClassVal(r['Admission sought for class'] || r['Class'] || r.class || '11th');
+      const subs = formatStudentSubjects(r, cls);
+      if (subs && subs !== '—' && subs.length > 3) {
+        score += 50;
+      }
+
+      // 5. Explicit Known Stream (Science / Arts / Commerce vs General)
+      const st = resolveStudentStream(r);
+      if (st && st !== 'General') {
+        score += 50;
+      }
+
+      return score;
+    };
+
+    const isBetterRecord = (newRec, existingRec) => {
+      if (!existingRec) return true;
+      if (!newRec) return false;
+      return getRecordAuthenticityScore(newRec) > getRecordAuthenticityScore(existingRec);
+    };
+
     const getIdentityKeys = (rec) => {
       const keys = [];
       const reg = extractRegNoClean(rec);
@@ -9664,19 +9736,28 @@ export default function AdvancedReports({
         rec['Old Admission No.'] || rec['Old Adm. No.'] || rec['oldAdmNo'] || rec['Previous Adm. No.']
       );
 
-      // Index Class 11th record for authentic stream & subject verification in 12th
+      // Index Class 11th record for authentic stream & subject verification in 12th (Prioritize Approved & Recent records)
       if (recCls === '11th') {
         const regKey = extractRegNoClean(rec);
         const admKey = cleanedAdm;
         const nameKey = recName && recName !== 'student' && recName !== '—' ? `${recName.toLowerCase()}_${(recFather || '').toLowerCase().slice(0, 8)}` : '';
-        if (regKey && isValidRegNo(regKey) && !record11thByReg.has(regKey)) {
-          record11thByReg.set(regKey, rec);
+        if (regKey && isValidRegNo(regKey)) {
+          const existing = record11thByReg.get(regKey);
+          if (!existing || isBetterRecord(rec, existing)) {
+            record11thByReg.set(regKey, rec);
+          }
         }
-        if (admKey && admKey !== '—' && !record11thByAdm.has(admKey)) {
-          record11thByAdm.set(admKey, rec);
+        if (admKey && admKey !== '—') {
+          const existing = record11thByAdm.get(admKey);
+          if (!existing || isBetterRecord(rec, existing)) {
+            record11thByAdm.set(admKey, rec);
+          }
         }
-        if (nameKey && !record11thByName.has(nameKey)) {
-          record11thByName.set(nameKey, rec);
+        if (nameKey) {
+          const existing = record11thByName.get(nameKey);
+          if (!existing || isBetterRecord(rec, existing)) {
+            record11thByName.set(nameKey, rec);
+          }
         }
       }
 
@@ -9692,27 +9773,57 @@ export default function AdvancedReports({
             const regKey = extractRegNoClean(rec);
             const admKey = cleanedAdm;
             const nameKey = recName && recName !== 'student' && recName !== '—' ? `${recName.toLowerCase()}_${(recFather || '').toLowerCase().slice(0, 8)}` : '';
-            if (regKey && isValidRegNo(regKey) && !fullCurriculumByReg.has(`higher::${regKey}`)) {
-              fullCurriculumByReg.set(`higher::${regKey}`, rawSubsFormatted);
+            if (regKey && isValidRegNo(regKey)) {
+              const mapKey = `higher::${regKey}`;
+              const existing = fullCurriculumRecordByReg.get(mapKey);
+              if (!existing || isBetterRecord(rec, existing)) {
+                fullCurriculumByReg.set(mapKey, rawSubsFormatted);
+                fullCurriculumRecordByReg.set(mapKey, rec);
+              }
             }
-            if (admKey && admKey !== '—' && !fullCurriculumByAdm.has(`higher::${admKey}`)) {
-              fullCurriculumByAdm.set(`higher::${admKey}`, rawSubsFormatted);
+            if (admKey && admKey !== '—') {
+              const mapKey = `higher::${admKey}`;
+              const existing = fullCurriculumRecordByAdm.get(mapKey);
+              if (!existing || isBetterRecord(rec, existing)) {
+                fullCurriculumByAdm.set(mapKey, rawSubsFormatted);
+                fullCurriculumRecordByAdm.set(mapKey, rec);
+              }
             }
-            if (nameKey && !fullCurriculumByName.has(`higher::${nameKey}`)) {
-              fullCurriculumByName.set(`higher::${nameKey}`, rawSubsFormatted);
+            if (nameKey) {
+              const mapKey = `higher::${nameKey}`;
+              const existing = fullCurriculumRecordByName.get(mapKey);
+              if (!existing || isBetterRecord(rec, existing)) {
+                fullCurriculumByName.set(mapKey, rawSubsFormatted);
+                fullCurriculumRecordByName.set(mapKey, rec);
+              }
             }
           } else if (recTier === 'secondary') {
             const regKey = extractRegNoClean(rec);
             const admKey = cleanedAdm;
             const nameKey = recName && recName !== 'student' && recName !== '—' ? `${recName.toLowerCase()}_${(recFather || '').toLowerCase().slice(0, 8)}` : '';
-            if (regKey && isValidRegNo(regKey) && !fullCurriculumByReg.has(`secondary::${regKey}`)) {
-              fullCurriculumByReg.set(`secondary::${regKey}`, rawSubsFormatted);
+            if (regKey && isValidRegNo(regKey)) {
+              const mapKey = `secondary::${regKey}`;
+              const existing = fullCurriculumRecordByReg.get(mapKey);
+              if (!existing || isBetterRecord(rec, existing)) {
+                fullCurriculumByReg.set(mapKey, rawSubsFormatted);
+                fullCurriculumRecordByReg.set(mapKey, rec);
+              }
             }
-            if (admKey && admKey !== '—' && !fullCurriculumByAdm.has(`secondary::${admKey}`)) {
-              fullCurriculumByAdm.set(`secondary::${admKey}`, rawSubsFormatted);
+            if (admKey && admKey !== '—') {
+              const mapKey = `secondary::${admKey}`;
+              const existing = fullCurriculumRecordByAdm.get(mapKey);
+              if (!existing || isBetterRecord(rec, existing)) {
+                fullCurriculumByAdm.set(mapKey, rawSubsFormatted);
+                fullCurriculumRecordByAdm.set(mapKey, rec);
+              }
             }
-            if (nameKey && !fullCurriculumByName.has(`secondary::${nameKey}`)) {
-              fullCurriculumByName.set(`secondary::${nameKey}`, rawSubsFormatted);
+            if (nameKey) {
+              const mapKey = `secondary::${nameKey}`;
+              const existing = fullCurriculumRecordByName.get(mapKey);
+              if (!existing || isBetterRecord(rec, existing)) {
+                fullCurriculumByName.set(mapKey, rawSubsFormatted);
+                fullCurriculumRecordByName.set(mapKey, rec);
+              }
             }
           }
         }
@@ -9741,7 +9852,8 @@ export default function AdvancedReports({
           assignedRollByIdentity.set(`${recCls}_${recSess}_${k}`, { roll: rollVal, name: recName });
         }
 
-        if (!masterRecordByIdentity.has(k)) {
+        const existingMaster = masterRecordByIdentity.get(k);
+        if (!existingMaster || isBetterRecord(rec, existingMaster)) {
           masterRecordByIdentity.set(k, rec);
         }
       });
@@ -10077,26 +10189,34 @@ export default function AdvancedReports({
         }
 
         if (matched11thRec) {
+          const roll11th = extractClassRoll(matched11thRec);
+          const hasRoll11th = Boolean(roll11th && roll11th !== '—' && roll11th !== 'N/A' && roll11th !== 'null' && String(roll11th).trim().length > 0);
+          const rawStatus11th = String(matched11thRec['Status'] || matched11thRec.status || matched11thRec.admissionStatus || '').toLowerCase();
+          const is11thApproved = rawStatus11th.includes('appr') || hasRoll11th;
+
           stream11th = resolveStudentStream(matched11thRec);
           subs11th = formatStudentSubjects(matched11thRec, '11th');
 
-          if (stream11th && stream11th !== 'General') {
-            if (sStream && sStream !== 'General' && sStream.toLowerCase() !== stream11th.toLowerCase()) {
-              hasStreamMismatch = true;
-              streamMismatchNotice = `⚠️ Stream Mismatch: Opted "${optedStream12th}" in 12th vs "${stream11th}" in 11th`;
-              // Ground truth stream from 11th takes precedence!
-              sStream = stream11th;
+          // Only authentic approved 11th records can trigger discrepancies and override stream/subs
+          if (is11thApproved) {
+            if (stream11th && stream11th !== 'General') {
+              if (sStream && sStream !== 'General' && sStream.toLowerCase() !== stream11th.toLowerCase()) {
+                hasStreamMismatch = true;
+                streamMismatchNotice = `⚠️ Stream Mismatch: Opted "${optedStream12th}" in 12th vs "${stream11th}" in 11th`;
+                // Ground truth stream from 11th takes precedence!
+                sStream = stream11th;
+              }
             }
-          }
 
-          if (subs11th && subs11th !== '—' && optedSubs12th && optedSubs12th !== '—') {
-            const isMatch = areSubjectSetsMatching(subs11th, optedSubs12th);
-            if (!isMatch) {
-              hasSubsMismatch = true;
-              const diff = getMismatchedSubjectsDiff(subs11th, optedSubs12th);
-              subsMismatchNotice = diff.mismatchNotice || `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
-              // Ground truth subjects from 11th takes precedence!
-              sSubs = subs11th;
+            if (subs11th && subs11th !== '—' && optedSubs12th && optedSubs12th !== '—') {
+              const isMatch = areSubjectSetsMatching(subs11th, optedSubs12th);
+              if (!isMatch) {
+                hasSubsMismatch = true;
+                const diff = getMismatchedSubjectsDiff(subs11th, optedSubs12th);
+                subsMismatchNotice = diff.mismatchNotice || `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
+                // Ground truth subjects from 11th takes precedence!
+                sSubs = subs11th;
+              }
             }
           }
         }
@@ -10362,24 +10482,31 @@ export default function AdvancedReports({
         }
 
         if (matched11thRec) {
+          const roll11th = extractClassRoll(matched11thRec);
+          const hasRoll11th = Boolean(roll11th && roll11th !== '—' && roll11th !== 'N/A' && roll11th !== 'null' && String(roll11th).trim().length > 0);
+          const rawStatus11th = String(matched11thRec['Status'] || matched11thRec.status || matched11thRec.admissionStatus || '').toLowerCase();
+          const is11thApproved = rawStatus11th.includes('appr') || hasRoll11th;
+
           stream11th = resolveStudentStream(matched11thRec);
           subs11th = formatStudentSubjects(matched11thRec, '11th');
 
-          if (stream11th && stream11th !== 'General') {
-            if (sStream && sStream !== 'General' && sStream.toLowerCase() !== stream11th.toLowerCase()) {
-              hasStreamMismatch = true;
-              streamMismatchNotice = `⚠️ Stream Mismatch: Opted "${optedStream12th}" in 12th vs "${stream11th}" in 11th`;
-              sStream = stream11th;
+          if (is11thApproved) {
+            if (stream11th && stream11th !== 'General') {
+              if (sStream && sStream !== 'General' && sStream.toLowerCase() !== stream11th.toLowerCase()) {
+                hasStreamMismatch = true;
+                streamMismatchNotice = `⚠️ Stream Mismatch: Opted "${optedStream12th}" in 12th vs "${stream11th}" in 11th`;
+                sStream = stream11th;
+              }
             }
-          }
 
-          if (subs11th && subs11th !== '—' && optedSubs12th && optedSubs12th !== '—') {
-            const isMatch = areSubjectSetsMatching(subs11th, optedSubs12th);
-            if (!isMatch) {
-              hasSubsMismatch = true;
-              const diff = getMismatchedSubjectsDiff(subs11th, optedSubs12th);
-              subsMismatchNotice = diff.mismatchNotice || `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
-              sSubs = subs11th;
+            if (subs11th && subs11th !== '—' && optedSubs12th && optedSubs12th !== '—') {
+              const isMatch = areSubjectSetsMatching(subs11th, optedSubs12th);
+              if (!isMatch) {
+                hasSubsMismatch = true;
+                const diff = getMismatchedSubjectsDiff(subs11th, optedSubs12th);
+                subsMismatchNotice = diff.mismatchNotice || `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
+                sSubs = subs11th;
+              }
             }
           }
         }

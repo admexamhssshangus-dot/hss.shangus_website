@@ -585,6 +585,23 @@ export default function FundDistribution() {
     const record11thByAdm = new Map();
     const record11thByName = new Map();
 
+    const get11thAuthenticityScore = (r) => {
+      if (!r) return -Infinity;
+      let score = 0;
+      const roll = String(r.classRollNo || r['Class Roll No'] || r['Class Roll No.'] || r.rollNo || r.RollNo || '').trim();
+      const hasRoll = Boolean(roll && roll !== '—' && roll !== 'N/A' && roll !== 'undefined' && roll.length > 0);
+      const st = String(r.status || r.Status || r['Admission Status'] || r.admission_status || '').toLowerCase();
+      const isApproved = st.includes('appr') || hasRoll;
+      if (isApproved) score += 1000000;
+      if (hasRoll) score += 500000;
+      if (st.includes('provis')) score -= 200000;
+      const sessStr = String(r.session || r.Session || r['Academic Session'] || '');
+      const yearMatch = sessStr.match(/\b(20\d\d)\b/);
+      const sessionYear = yearMatch ? parseInt(yearMatch[1], 10) : 2000;
+      score += sessionYear * 1000;
+      return score;
+    };
+
     const index11thRecord = (item) => {
       const cls = String(item.class || item.Class || item['Admission sought for class'] || '').toLowerCase();
       if (cls.includes('11') || cls.includes('xi')) {
@@ -592,9 +609,20 @@ export default function FundDistribution() {
         const adm = String(item.admNo || item['Admission No'] || item.admissionNo || '').trim().toLowerCase();
         const name = String(item.name || item.studentName || item["Student's Name"] || '').trim().toLowerCase();
         const parent = String(item.fatherName || item["Father's Name"] || '').trim().toLowerCase();
-        if (reg && reg !== '—' && reg !== 'n/a') record11thByReg.set(reg, item);
-        if (adm && adm !== '—' && adm !== 'n/a') record11thByAdm.set(adm, item);
-        if (name && parent) record11thByName.set(`${name}_${parent}`, item);
+        const score = get11thAuthenticityScore(item);
+        if (reg && reg !== '—' && reg !== 'n/a') {
+          const ex = record11thByReg.get(reg);
+          if (!ex || score > get11thAuthenticityScore(ex)) record11thByReg.set(reg, item);
+        }
+        if (adm && adm !== '—' && adm !== 'n/a') {
+          const ex = record11thByAdm.get(adm);
+          if (!ex || score > get11thAuthenticityScore(ex)) record11thByAdm.set(adm, item);
+        }
+        if (name && parent) {
+          const key = `${name}_${parent}`;
+          const ex = record11thByName.get(key);
+          if (!ex || score > get11thAuthenticityScore(ex)) record11thByName.set(key, item);
+        }
       }
     };
 
