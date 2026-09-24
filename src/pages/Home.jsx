@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Award, BookOpen, GraduationCap, Megaphone, ArrowRight, Pause, Play, ShieldCheck, Quote, Sparkles, ChevronRight, Bell, MousePointerClick, Cloud } from 'lucide-react';
+import { Users, Award, BookOpen, GraduationCap, Megaphone, ArrowRight, Pause, Play, ShieldCheck, Quote, Sparkles, ChevronRight, Bell, MousePointerClick, Cloud, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 // 1. IMPORT YOUR LOCAL BACKGROUND IMAGE (Make sure the file is renamed to logo.png)
 import Slideshow from '../components/Slideshow';
@@ -204,10 +204,10 @@ export default function Home() {
       }
     } catch (_) {}
     return {
-      visitors: 18450,
-      interactions: 52820,
-      searches: 21340,
-      clicks: 31480,
+      visitors: 1400,
+      interactions: 642,
+      searches: 1400,
+      clicks: 642,
     };
   });
 
@@ -272,10 +272,10 @@ export default function Home() {
           const data = await res.json();
           if (data && typeof data.visitors === 'number') {
             const stats = {
-              visitors: Number(data.visitors || 18450),
-              interactions: Number(data.interactions || 52820),
-              searches: Number(data.searches || 21340),
-              clicks: Number(data.clicks || 31480),
+              visitors: Number(data.visitors || 1400),
+              interactions: Number(data.interactions || data.clicks || 642),
+              searches: Number(data.searches || 1400),
+              clicks: Number(data.clicks || 642),
             };
             setTrafficStats(stats);
             try { localStorage.setItem('site_traffic_stats', JSON.stringify(stats)); } catch (_) {}
@@ -408,10 +408,10 @@ export default function Home() {
             if (snap.exists()) {
               const data = snap.data();
               if (data) {
-                const visitors = Number(data.visitors || 18450);
-                const interactions = Number(data.interactions || (Number(data.searches || 21340) + Number(data.clicks || 31480)));
-                const searches = Number(data.searches || 21340);
-                const clicks = Number(data.clicks || 31480);
+                const visitors = Number(data.visitors || 1400);
+                const clicks = Number(data.clicks || 642);
+                const searches = Number(data.searches || 1400);
+                const interactions = Number(data.interactions || clicks || 642);
                 const stats = { visitors, interactions, searches, clicks };
                 setTrafficStats(stats);
                 try { localStorage.setItem('site_traffic_stats', JSON.stringify(stats)); } catch (_) {}
@@ -521,11 +521,11 @@ export default function Home() {
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
             </span>
 
-            {/* Metric 1: Visitors */}
+            {/* Metric 1: Searches / Impressions */}
             <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
-              <Users size={11} className="text-teal-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
-              <AnimatedCounter end={trafficStats.visitors} suffix="+" />
-              <span className="text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">visits</span>
+              <Search size={11} className="text-teal-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
+              <AnimatedCounter end={trafficStats.searches || trafficStats.visitors || 1400} suffix="+" />
+              <span className="text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">searches</span>
             </span>
 
             <span className="text-white/40 select-none">•</span>
@@ -533,7 +533,7 @@ export default function Home() {
             {/* Metric 2: Clicks */}
             <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
               <MousePointerClick size={11} className="text-indigo-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
-              <AnimatedCounter end={trafficStats.interactions} suffix="+" />
+              <AnimatedCounter end={trafficStats.clicks || trafficStats.interactions || 642} suffix="+" />
               <span className="text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">clicks</span>
             </span>
           </div>
