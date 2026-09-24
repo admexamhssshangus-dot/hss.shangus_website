@@ -1637,48 +1637,61 @@ html, body, #root {
 /* --- LIGHT THEME: Keep header & footer dark as designed --- */
 
 /* Top contact bar and nav row stay dark slate */
-.theme-light header .bg-slate-900 {
+.theme-light header.site-header-navbar .bg-slate-900,
+.theme-light header.fixed .bg-slate-900 {
   background-color: #0f172a !important;
 }
-.theme-light header .bg-slate-800 {
+.theme-light header.site-header-navbar .bg-slate-800,
+.theme-light header.fixed .bg-slate-800 {
   background-color: #1e293b !important;
 }
 
 /* Nav link text: inactive links must stay light (slate-300 = #cbd5e1) on dark navbar */
-.theme-light header nav .text-slate-300,
-.theme-light header .text-slate-300 {
+.theme-light header.site-header-navbar nav .text-slate-300,
+.theme-light header.site-header-navbar .text-slate-300,
+.theme-light header.fixed nav .text-slate-300,
+.theme-light header.fixed .text-slate-300 {
   color: #cbd5e1 !important;
 }
 
 /* Active nav link text: must be white */
-.theme-light header nav .text-white,
-.theme-light header .text-white {
+.theme-light header.site-header-navbar nav .text-white,
+.theme-light header.site-header-navbar .text-white,
+.theme-light header.fixed nav .text-white,
+.theme-light header.fixed .text-white {
   color: #ffffff !important;
 }
 
 /* Top contact bar text (phone/email) */
-.theme-light header .bg-slate-900 .text-slate-300,
-.theme-light header .bg-slate-900 .text-slate-400 {
+.theme-light header.site-header-navbar .bg-slate-900 .text-slate-300,
+.theme-light header.site-header-navbar .bg-slate-900 .text-slate-400,
+.theme-light header.fixed .bg-slate-900 .text-slate-300,
+.theme-light header.fixed .bg-slate-900 .text-slate-400 {
   color: #cbd5e1 !important;
 }
 
 /* Active tab background in nav (bg-slate-900 inside nav) */
-.theme-light header nav .bg-slate-900 {
+.theme-light header.site-header-navbar nav .bg-slate-900,
+.theme-light header.fixed nav .bg-slate-900 {
   background-color: #0f172a !important;
 }
 
 /* Mobile slide-down menu stays dark */
-.theme-light header .bg-slate-800.text-white,
-.theme-light header .md\\:hidden.bg-slate-800 {
+.theme-light header.site-header-navbar .bg-slate-800.text-white,
+.theme-light header.site-header-navbar .md\:hidden.bg-slate-800,
+.theme-light header.fixed .bg-slate-800.text-white,
+.theme-light header.fixed .md\:hidden.bg-slate-800 {
   background-color: #1e293b !important;
   color: #ffffff !important;
 }
 
 /* Admin lock icon in header */
-.theme-light header .text-slate-400 {
+.theme-light header.site-header-navbar .text-slate-400,
+.theme-light header.fixed .text-slate-400 {
   color: #94a3b8 !important;
 }
-.theme-light header .text-slate-600 {
+.theme-light header.site-header-navbar .text-slate-600,
+.theme-light header.fixed .text-slate-600 {
   color: #cbd5e1 !important;
 }
 
@@ -1775,11 +1788,13 @@ html, body, #root {
   border-color: var(--teal-accent) !important;
 }
 
-/* Mobile menu on Light theme: keep dark bg and white text */
-.theme-light header [class*="bg-slate-800"] {
+/* Mobile menu on Light theme: keep dark bg and white text strictly within the site navbar */
+.theme-light header.site-header-navbar [class*="bg-slate-800"],
+.theme-light header.fixed [class*="bg-slate-800"] {
   background-color: #1e293b !important;
 }
-.theme-light header [class*="bg-slate-700"] {
+.theme-light header.site-header-navbar [class*="bg-slate-700"],
+.theme-light header.fixed [class*="bg-slate-700"] {
   border-color: #334155 !important;
 }
 

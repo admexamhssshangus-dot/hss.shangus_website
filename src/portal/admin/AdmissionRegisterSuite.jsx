@@ -3878,6 +3878,7 @@ export default function AdmissionRegisterSuite({
             background: #ffffff !important;
           }
 
+          .admission-suite-root .admission-suite-toolbar,
           .admission-suite-root header, .admission-suite-root nav, .admission-suite-root footer,
           .admission-suite-root aside, .admission-suite-root .no-print, .admission-suite-root button,
           .admission-suite-root select, .admission-suite-root input, .admission-suite-root .screen-only,
@@ -4847,10 +4848,10 @@ export default function AdmissionRegisterSuite({
 
         /* ─── PURE HIGH-CONTRAST POPOVER DIALOG STYLING (THEME-AWARE) ─── */
         .register-popover-panel {
-          background-color: #ffffff;
-          color: #0f172a;
-          border: 1.5px solid #cbd5e1;
-          box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          border: 1.5px solid #cbd5e1 !important;
+          box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
         }
 
         .dark .register-popover-panel {
@@ -4858,6 +4859,126 @@ export default function AdmissionRegisterSuite({
           color: #f8fafc !important;
           border-color: #334155 !important;
           box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
+        }
+
+        .register-popover-panel .popover-header {
+          background-color: #f8fafc !important;
+          border-color: #cbd5e1 !important;
+        }
+        .dark .register-popover-panel .popover-header {
+          background-color: #0f172a !important;
+          border-color: #334155 !important;
+        }
+
+        .register-popover-panel .popover-heading {
+          color: #0f172a !important;
+          font-weight: 900 !important;
+        }
+        .dark .register-popover-panel .popover-heading {
+          color: #f8fafc !important;
+        }
+
+        .register-popover-panel .popover-subtext {
+          color: #475569 !important;
+          font-weight: 600 !important;
+        }
+        .dark .register-popover-panel .popover-subtext {
+          color: #94a3b8 !important;
+        }
+
+        .register-popover-panel .popover-tabs-container {
+          background-color: #f1f5f9 !important;
+          border-color: #cbd5e1 !important;
+        }
+        .dark .register-popover-panel .popover-tabs-container {
+          background-color: #1e293b !important;
+          border-color: #334155 !important;
+        }
+
+        .register-popover-panel .popover-tab-active {
+          background-color: #ffffff !important;
+          color: #4338ca !important;
+          border: 1.5px solid #cbd5e1 !important;
+          box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+        }
+        .dark .register-popover-panel .popover-tab-active {
+          background-color: #0f172a !important;
+          color: #818cf8 !important;
+          border-color: #334155 !important;
+        }
+
+        .register-popover-panel .popover-tab-inactive {
+          color: #475569 !important;
+          font-weight: 700 !important;
+        }
+        .register-popover-panel .popover-tab-inactive:hover {
+          color: #0f172a !important;
+          background-color: rgba(255, 255, 255, 0.9) !important;
+        }
+        .dark .register-popover-panel .popover-tab-inactive {
+          color: #94a3b8 !important;
+        }
+        .dark .register-popover-panel .popover-tab-inactive:hover {
+          color: #f8fafc !important;
+          background-color: rgba(15, 23, 42, 0.6) !important;
+        }
+
+        .register-popover-panel .popover-section-card {
+          background-color: #f8fafc !important;
+          border: 2px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        .dark .register-popover-panel .popover-section-card {
+          background-color: #1e293b !important;
+          border-color: #334155 !important;
+          color: #f8fafc !important;
+        }
+
+        .register-popover-panel .popover-option-btn:not(.popover-option-active) {
+          background-color: #ffffff !important;
+          border: 2px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        .register-popover-panel .popover-option-btn:not(.popover-option-active):hover {
+          background-color: #f1f5f9 !important;
+          border-color: #818cf8 !important;
+          color: #000000 !important;
+        }
+        .dark .register-popover-panel .popover-option-btn:not(.popover-option-active) {
+          background-color: #0f172a !important;
+          border: 2px solid #334155 !important;
+          color: #f8fafc !important;
+        }
+        .dark .register-popover-panel .popover-option-btn:not(.popover-option-active):hover {
+          background-color: #1e293b !important;
+          border-color: #6366f1 !important;
+          color: #ffffff !important;
+        }
+
+        .register-popover-panel .popover-option-active {
+          background-color: #4f46e5 !important;
+          border: 2px solid #4f46e5 !important;
+          color: #ffffff !important;
+        }
+
+        .register-popover-panel .popover-pill {
+          background-color: #ffffff !important;
+          border: 1.5px solid #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        .dark .register-popover-panel .popover-pill {
+          background-color: #0f172a !important;
+          border-color: #475569 !important;
+          color: #f8fafc !important;
+        }
+
+        .register-popover-panel .popover-footer {
+          background-color: #f8fafc !important;
+          border-color: #cbd5e1 !important;
+        }
+        .dark .register-popover-panel .popover-footer {
+          background-color: #0f172a !important;
+          border-color: #334155 !important;
         }
 
         .register-popover-panel label,
@@ -4945,6 +5066,30 @@ export default function AdmissionRegisterSuite({
           border-color: #334155 !important;
         }
 
+        .register-popover-panel input[type="text"],
+        .register-popover-panel input[type="number"] {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          border: 1.5px solid #cbd5e1 !important;
+        }
+
+        .register-popover-panel input[type="text"]::placeholder,
+        .register-popover-panel input[type="number"]::placeholder {
+          color: #64748b !important;
+        }
+
+        .dark .register-popover-panel input[type="text"],
+        .dark .register-popover-panel input[type="number"] {
+          background-color: #0f172a !important;
+          color: #f8fafc !important;
+          border-color: #334155 !important;
+        }
+
+        .dark .register-popover-panel input[type="text"]::placeholder,
+        .dark .register-popover-panel input[type="number"]::placeholder {
+          color: #94a3b8 !important;
+        }
+
         /* ─── PREMIUM TYPOGRAPHY SYSTEM ─── */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700;800&family=Merriweather:wght@400;700;900&display=swap');
 
@@ -4963,7 +5108,7 @@ export default function AdmissionRegisterSuite({
       `}</style>
 
       {/* ─── ULTRA-COMPACT CONSOLIDATED 1-ROW TOOLBAR (MOBILE-FIRST & RESPONSIVE) ─── */}
-      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2 sm:px-2.5 py-1">
+      <div role="toolbar" aria-label="Admission Register Suite Toolbar" className="admission-suite-toolbar no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2 sm:px-2.5 py-1">
         <div className="w-full max-w-[2000px] mx-auto flex items-center justify-between gap-1 xl:gap-2 flex-nowrap overflow-x-auto sm:overflow-visible no-scrollbar">
           {/* Left Cluster: Module Selector, Direct Class Scope, + Re-Adm, and Filters Popover */}
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
@@ -5256,13 +5401,13 @@ export default function AdmissionRegisterSuite({
                   {showViewPopover && (
                     <div className="register-popover-panel absolute right-0 top-full mt-2 w-[760px] sm:w-[860px] md:w-[940px] lg:w-[1000px] max-w-[96vw] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-slate-300 dark:border-slate-800 z-[100] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-slate-900 dark:text-slate-100">
                       {/* 1. Header (Sticky Top) */}
-                      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 backdrop-blur-sm shrink-0">
+                      <div className="popover-header flex items-center justify-between px-5 py-3.5 border-b border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 backdrop-blur-sm shrink-0">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-500/25">
                             <SlidersHorizontal size={17} />
                           </div>
                           <div>
-                            <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2 leading-tight">
+                            <div className="popover-heading font-black text-sm text-slate-900 dark:text-white flex items-center gap-2 leading-tight">
                               Display & Print Layout
                               {isLayoutModified && (
                                 <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded-full">
@@ -5270,7 +5415,7 @@ export default function AdmissionRegisterSuite({
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
+                            <div className="popover-subtext text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
                               Customise table density, margins & printing options
                             </div>
                           </div>
@@ -5286,14 +5431,14 @@ export default function AdmissionRegisterSuite({
                       </div>
 
                       {/* 2. Segmented Navigation Tabs */}
-                      <div className="flex items-center gap-2 p-2 bg-slate-150 bg-slate-100 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 shrink-0 text-xs font-bold">
+                      <div className="popover-tabs-container flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 shrink-0 text-xs font-bold">
                         <button
                           type="button"
                           onClick={() => setPopoverActiveTab('layout')}
                           className={`flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
                             popoverActiveTab === 'layout'
-                              ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
-                              : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
+                              ? 'popover-tab-active bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
+                              : 'popover-tab-inactive text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
                           }`}
                         >
                           <Printer size={14} />
@@ -5306,8 +5451,8 @@ export default function AdmissionRegisterSuite({
                             onClick={() => setPopoverActiveTab('columns')}
                             className={`flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
                               popoverActiveTab === 'columns'
-                                ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
-                                : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
+                                ? 'popover-tab-active bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
+                                : 'popover-tab-inactive text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
                             }`}
                           >
                             <Columns size={14} />
@@ -5323,8 +5468,8 @@ export default function AdmissionRegisterSuite({
                           onClick={() => setPopoverActiveTab('subjects')}
                           className={`flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
                             popoverActiveTab === 'subjects'
-                              ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
-                              : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
+                              ? 'popover-tab-active bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
+                              : 'popover-tab-inactive text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
                           }`}
                         >
                           <BookOpen size={14} />
@@ -5341,18 +5486,18 @@ export default function AdmissionRegisterSuite({
                         {popoverActiveTab === 'layout' && (
                           <div className="space-y-4">
                             {/* 1. Paper Size Selector (JKBOSE 13.7"x8.5" Default, Legal 14"x8.5", A4) */}
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
+                            <div className="popover-section-card p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
                               <div className="flex items-center justify-between mb-3">
                                 <div>
-                                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                  <span className="popover-heading text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                     <FileText size={15} className="text-indigo-600 dark:text-indigo-400" />
                                     <span>Paper Size & Physical Ledger Format</span>
                                   </span>
-                                  <p className="text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
+                                  <p className="popover-subtext text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
                                     Matches actual physical register & roll sheet paper used for printing
                                   </p>
                                 </div>
-                                <span className="px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
+                                <span className="popover-pill px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
                                   {paperSize === 'indian_legal' ? '348 × 216 mm' : paperSize === 'legal' ? '356 × 216 mm' : '297 × 210 mm'}
                                 </span>
                               </div>
@@ -5384,13 +5529,13 @@ export default function AdmissionRegisterSuite({
                                       key={p.id}
                                       type="button"
                                       onClick={() => handlePaperSizeChange(p.id)}
-                                      className={`p-3 rounded-xl text-left cursor-pointer transition-all border-2 ${
+                                      className={`popover-option-btn p-3 rounded-xl text-left cursor-pointer transition-all border-2 ${
                                         isActive
-                                          ? 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                          ? 'popover-option-active border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                                           : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs'
                                       }`}
                                     >
-                                      <div className="font-black text-xs sm:text-[13px] flex items-center justify-between">
+                                      <div className={`font-black text-xs sm:text-[13px] flex items-center justify-between ${isActive ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
                                         <span>{p.title}</span>
                                         {isActive && <Check size={14} className="shrink-0 text-white" />}
                                       </div>
@@ -5407,19 +5552,19 @@ export default function AdmissionRegisterSuite({
                             </div>
 
                             {/* 2. Students Per Sheet Selector (Tab-Aware: Sentup vs Register) */}
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
+                            <div className="popover-section-card p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
                               <div className="flex items-center justify-between mb-2">
                                 <div>
-                                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100">
+                                  <span className="popover-heading text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100">
                                     {activeTab === 'sentup' ? 'Sentup Candidates Per Sheet (Page Density)' : 'Admission Register Rows Per Sheet (Page Density)'}
                                   </span>
-                                  <p className="text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
+                                  <p className="popover-subtext text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
                                     {activeTab === 'sentup'
                                       ? 'Default is 10 candidates per sheet. Allows higher densities without page overflow.'
                                       : 'Rows dynamically stretch to fill page height without bottom gaps.'}
                                   </p>
                                 </div>
-                                <span className="px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-800 font-mono font-black text-xs text-indigo-700 dark:text-indigo-300 shadow-2xs">
+                                <span className="popover-pill px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-800 font-mono font-black text-xs text-indigo-700 dark:text-indigo-300 shadow-2xs">
                                   {pageChunks.length} Sheet{pageChunks.length === 1 ? '' : 's'} Total
                                 </span>
                               </div>
@@ -5441,13 +5586,13 @@ export default function AdmissionRegisterSuite({
                                         key={val}
                                         type="button"
                                         onClick={() => handleSentupStudentsPerPageChange(val)}
-                                        className={`p-2.5 rounded-xl text-left cursor-pointer transition-all border-2 ${
+                                        className={`popover-option-btn p-2.5 rounded-xl text-left cursor-pointer transition-all border-2 ${
                                           isActive
-                                            ? 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                            ? 'popover-option-active border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                                             : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs'
                                         }`}
                                       >
-                                        <div className="font-black text-xs sm:text-[13px] flex items-center justify-between">
+                                        <div className={`font-black text-xs sm:text-[13px] flex items-center justify-between ${isActive ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
                                           <span>{label}</span>
                                           {isActive && <Check size={14} className="shrink-0 text-white" />}
                                         </div>
@@ -5476,13 +5621,13 @@ export default function AdmissionRegisterSuite({
                                         key={val}
                                         type="button"
                                         onClick={() => handleStudentsPerPageChange(val)}
-                                        className={`p-2.5 rounded-xl text-left cursor-pointer transition-all border-2 ${
+                                        className={`popover-option-btn p-2.5 rounded-xl text-left cursor-pointer transition-all border-2 ${
                                           isActive
-                                            ? 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                            ? 'popover-option-active border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                                             : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs'
                                         }`}
                                       >
-                                        <div className="font-black text-xs sm:text-[13px] flex items-center justify-between">
+                                        <div className={`font-black text-xs sm:text-[13px] flex items-center justify-between ${isActive ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
                                           <span>{label}</span>
                                           {isActive && <Check size={14} className="shrink-0 text-white" />}
                                         </div>
@@ -5497,12 +5642,11 @@ export default function AdmissionRegisterSuite({
                             </div>
 
                             {/* Row Height & Print Margins Grid */}
-                            {/* Row Height & Print Margins Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               {/* Row Height */}
-                              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between shadow-2xs">
+                              <div className="popover-section-card p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between shadow-2xs">
                                 <div>
-                                  <div className="flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
+                                  <div className="popover-heading flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
                                     <span>Row Height:</span>
                                     <div className="flex items-center gap-1.5">
                                       <input
@@ -5557,10 +5701,10 @@ export default function AdmissionRegisterSuite({
                                       key={val}
                                       type="button"
                                       onClick={() => handleRowHeightChange(val)}
-                                      className={`py-1.5 rounded-lg text-[11px] font-black cursor-pointer transition-all text-center border-2 ${
+                                      className={`popover-option-btn py-1.5 rounded-lg text-[11px] font-black cursor-pointer transition-all text-center border-2 ${
                                         rowHeight === val
-                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                          : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-700 hover:border-indigo-400 hover:bg-slate-50 shadow-2xs'
+                                          ? 'popover-option-active bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 shadow-2xs'
                                       }`}
                                     >
                                       {label} {star ? '★' : ''}
@@ -5570,11 +5714,11 @@ export default function AdmissionRegisterSuite({
                               </div>
 
                               {/* Print Margins */}
-                              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between shadow-2xs">
+                              <div className="popover-section-card p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between shadow-2xs">
                                 <div>
-                                  <div className="flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
+                                  <div className="popover-heading flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
                                     <span>Print Margin:</span>
-                                    <span className="px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
+                                    <span className="popover-pill px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
                                       {printMargin}" ({Math.round(printMargin * 25.4)}mm)
                                     </span>
                                   </div>
@@ -5599,10 +5743,10 @@ export default function AdmissionRegisterSuite({
                                       key={m}
                                       type="button"
                                       onClick={() => handlePrintMarginChange(m)}
-                                      className={`py-1.5 rounded-lg text-[11px] font-black cursor-pointer transition-all text-center border-2 ${
+                                      className={`popover-option-btn py-1.5 rounded-lg text-[11px] font-black cursor-pointer transition-all text-center border-2 ${
                                         Math.abs(printMargin - m) < 0.02
-                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                          : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-700 hover:border-indigo-400 hover:bg-slate-50 shadow-2xs'
+                                          ? 'popover-option-active bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 shadow-2xs'
                                       }`}
                                     >
                                       {label}
@@ -5614,9 +5758,9 @@ export default function AdmissionRegisterSuite({
 
                             {/* Section to Display & View Layout */}
                             {activeTab === 'adm_register' && (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
+                              <div className="popover-section-card grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
                                 <div>
-                                  <label className="block text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
+                                  <label className="popover-heading block text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
                                     Section to Display:
                                   </label>
                                   <select
@@ -5632,17 +5776,17 @@ export default function AdmissionRegisterSuite({
                                   </select>
                                 </div>
                                 <div>
-                                  <label className="block text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
+                                  <label className="popover-heading block text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
                                     Book Layout:
                                   </label>
                                   <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200 dark:bg-slate-700 rounded-xl border border-slate-300 dark:border-slate-600">
                                     <button
                                       type="button"
                                       onClick={() => setSpreadLayoutMode('side_by_side')}
-                                      className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                                      className={`popover-option-btn py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                                         spreadLayoutMode === 'side_by_side'
-                                          ? 'bg-indigo-600 text-white shadow-sm'
-                                          : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-50'
+                                          ? 'popover-option-active bg-indigo-600 text-white shadow-sm'
+                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-50'
                                       }`}
                                     >
                                       <Columns size={13} />
@@ -5651,10 +5795,10 @@ export default function AdmissionRegisterSuite({
                                     <button
                                       type="button"
                                       onClick={() => setSpreadLayoutMode('stacked')}
-                                      className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                                      className={`popover-option-btn py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                                         spreadLayoutMode === 'stacked'
-                                          ? 'bg-indigo-600 text-white shadow-sm'
-                                          : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-50'
+                                          ? 'popover-option-active bg-indigo-600 text-white shadow-sm'
+                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-50'
                                       }`}
                                     >
                                       <LayoutGrid size={13} />
@@ -5667,8 +5811,8 @@ export default function AdmissionRegisterSuite({
 
                             {/* Sentup Page Inclusions */}
                             {activeTab === 'sentup' && (
-                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <span className="block text-xs font-black text-slate-800 dark:text-slate-200 mb-1.5">
+                              <div className="popover-section-card p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <span className="popover-heading block text-xs font-black text-slate-800 dark:text-slate-200 mb-1.5">
                                   Sentup Document Pages:
                                 </span>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -5701,16 +5845,16 @@ export default function AdmissionRegisterSuite({
                             )}
 
                             {/* Screen Zoom Controls */}
-                            <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <div className="popover-section-card flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
                               <div>
-                                <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                                <span className="popover-heading text-xs font-black text-slate-800 dark:text-slate-200">
                                   On-Screen Zoom:
                                 </span>
-                                <div className="text-[10.5px] text-slate-500 dark:text-slate-400">
+                                <div className="popover-subtext text-[10.5px] text-slate-500 dark:text-slate-400">
                                   Scales ledger display on current screen
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                              <div className="popover-pill flex items-center gap-1.5 p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                                 <button
                                   type="button"
                                   onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
@@ -5800,7 +5944,7 @@ export default function AdmissionRegisterSuite({
                         {popoverActiveTab === 'subjects' && (
                           <div className="space-y-3">
                             {/* Action Bar */}
-                            <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <div className="popover-section-card flex items-center justify-between gap-2 p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
                               <div className="flex items-center gap-1.5">
                                 {savingSubjectsCloud ? (
                                   <span className="text-[10.5px] font-bold text-indigo-600 flex items-center gap-1">
@@ -5832,7 +5976,7 @@ export default function AdmissionRegisterSuite({
                             </div>
 
                             {/* Add Form */}
-                            <div className="flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <div className="popover-section-card flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700">
                               <input
                                 type="text"
                                 placeholder="Code (e.g. BIO)"
@@ -5966,7 +6110,7 @@ export default function AdmissionRegisterSuite({
                       </div>
 
                       {/* 4. Sticky Footer Actions (Always Accessible) */}
-                      <div className="border-t-2 border-slate-300 dark:border-slate-800 p-3.5 bg-slate-50 dark:bg-slate-900 space-y-2.5 shrink-0 shadow-lg">
+                      <div className="popover-footer border-t-2 border-slate-300 dark:border-slate-800 p-3.5 bg-slate-50 dark:bg-slate-900 space-y-2.5 shrink-0 shadow-lg">
                         {isLayoutModified && (
                           <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold">
                             <span className="flex items-center gap-2">
@@ -5992,7 +6136,7 @@ export default function AdmissionRegisterSuite({
                           <button
                             type="button"
                             onClick={handleResetLayoutToOriginal}
-                            className="col-span-2 py-2.5 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-black text-xs sm:text-[13px] flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                            className="popover-option-btn col-span-2 py-2.5 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-black text-xs sm:text-[13px] flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shadow-2xs"
                             title="Reset columns, density, margins and row heights to original factory format"
                           >
                             <RotateCcw size={15} />
@@ -6053,7 +6197,7 @@ export default function AdmissionRegisterSuite({
             )}
           </div>
         </div>
-      </header>
+      </div>
 
       {/* ─── TOAST NOTIFICATION ─── */}
       {toast && (
