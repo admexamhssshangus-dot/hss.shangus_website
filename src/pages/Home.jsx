@@ -523,13 +523,13 @@ export default function Home() {
           </React.Suspense>
         )}
 
-        {/* Real-time Google Cloud Traffic (Clean, no outline or fill, positioned at bottom right, zero tooltip popups) */}
+        {/* Real-time Google Cloud Traffic (Sleek glass badge at top-right on mobile so slideshow arrows are never hidden; bottom-right on desktop) */}
         <aside
-          className={`absolute ${notices.length > 0 ? 'bottom-2 right-2.5 md:bottom-[4.2rem] md:right-5' : 'bottom-2.5 right-3 md:bottom-4 md:right-5'} z-30 pointer-events-auto select-none`}
+          className={`absolute top-2 right-2.5 sm:top-auto ${notices.length > 0 ? 'sm:bottom-[4.2rem]' : 'sm:bottom-4'} sm:right-5 z-30 pointer-events-auto select-none`}
           aria-label="Real-time website traffic metrics"
         >
           <div
-            className="inline-flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] cursor-default transition-opacity hover:opacity-100 opacity-90 font-medium"
+            className="inline-flex items-center gap-1.5 sm:gap-2 text-[9px] xs:text-[10px] sm:text-xs text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] cursor-default transition-opacity hover:opacity-100 opacity-90 font-medium bg-slate-950/70 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none px-2 py-0.5 sm:p-0 rounded-full border border-white/20 sm:border-0 shadow-md sm:shadow-none"
           >
             {/* Live Indicator Dot */}
             <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
@@ -539,18 +539,18 @@ export default function Home() {
 
             {/* Metric 1: Searches / Impressions */}
             <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
-              <Search size={11} className="text-teal-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
+              <Search size={10} className="text-teal-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] sm:w-[11px] sm:h-[11px]" />
               <AnimatedCounter end={trafficStats.searches || trafficStats.visitors || 1900} suffix="+" compact={true} />
-              <span className="text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">searches</span>
+              <span className="text-[8px] xs:text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">searches</span>
             </span>
 
             <span className="text-white/40 select-none">•</span>
 
             {/* Metric 2: Clicks */}
             <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
-              <MousePointerClick size={11} className="text-indigo-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
+              <MousePointerClick size={10} className="text-indigo-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] sm:w-[11px] sm:h-[11px]" />
               <AnimatedCounter end={trafficStats.clicks || trafficStats.interactions || 724} suffix="+" compact={true} />
-              <span className="text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">clicks</span>
+              <span className="text-[8px] xs:text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">clicks</span>
             </span>
           </div>
         </aside>

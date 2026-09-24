@@ -284,16 +284,16 @@ export default function Slideshow({
 
       {/* Interactive Controls & Slide Indicator Dots */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-        <div className="hero-slider-controls-pill flex items-center gap-0.5 sm:gap-1.5 absolute bottom-1.5 right-1.5 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-4 md:bottom-20 pointer-events-auto z-20 px-1 sm:px-2.5 py-0.5 sm:py-1 rounded-full group">
+        <div className="hero-slider-controls-pill flex items-center gap-1 sm:gap-1.5 absolute bottom-1.5 right-1.5 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-4 md:bottom-20 pointer-events-auto z-20 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full group bg-slate-950/60 sm:bg-slate-950/40 backdrop-blur-xs border border-white/15">
           {/* Prev button */}
           <button
             type="button"
             aria-label="Previous slide"
             onClick={handlePrev}
-            className="text-white/85 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-3.5 h-3.5 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+            className="text-white/90 hover:text-white hover:bg-white/20 active:scale-90 rounded-full flex items-center justify-center w-4.5 h-4.5 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             title="Previous slide"
           >
-            <ChevronLeft size={10} className="stroke-[2.5] sm:hidden" />
+            <ChevronLeft size={11} className="stroke-[2.5] sm:hidden" />
             <ChevronLeft size={12} className="stroke-[2.5] hidden sm:block" />
           </button>
 
@@ -306,10 +306,10 @@ export default function Slideshow({
                   type="button"
                   onClick={() => setIndex(i)}
                   aria-label={`Jump to slide ${i + 1}`}
-                  className={`h-0.5 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
+                  className={`h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
                     i === index
-                      ? 'w-2.5 sm:w-5 bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.9)]'
-                      : 'w-0.5 sm:w-1.5 bg-white/45 hover:bg-white/80'
+                      ? 'w-3 sm:w-5 bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.9)]'
+                      : 'w-1 sm:w-1.5 bg-white/50 hover:bg-white/80'
                   }`}
                   title={`Slide ${i + 1}`}
                 />
@@ -322,10 +322,10 @@ export default function Slideshow({
             type="button"
             aria-label="Next slide"
             onClick={handleNext}
-            className="text-white/85 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-3.5 h-3.5 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+            className="text-white/90 hover:text-white hover:bg-white/20 active:scale-90 rounded-full flex items-center justify-center w-4.5 h-4.5 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             title="Next slide"
           >
-            <ChevronRight size={10} className="stroke-[2.5] sm:hidden" />
+            <ChevronRight size={11} className="stroke-[2.5] sm:hidden" />
             <ChevronRight size={12} className="stroke-[2.5] hidden sm:block" />
           </button>
         </div>
