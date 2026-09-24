@@ -7278,7 +7278,7 @@ export default function AdvancedReports({
   const [bulkFormsClass, setBulkFormsClass] = useState('ALL');
   const [bulkFormsStream, setBulkFormsStream] = useState('ALL');
   const [bulkFormsSelectedSessions, setBulkFormsSelectedSessions] = useState(() => ['2025-26']);
-  const [bulkFormsSelectedStatuses, setBulkFormsSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
+  const [bulkFormsSelectedStatuses, setBulkFormsSelectedStatuses] = useState(() => ['Approved']);
   const [bulkFormsSearch, setBulkFormsSearch] = useState('');
 
   // Global Custom Confirmation Modal State
@@ -7470,7 +7470,7 @@ export default function AdvancedReports({
   const [photoExportSelectedSessions, setPhotoExportSelectedSessions] = useState(() => ['2025-26']);
   const [photoExportClass, setPhotoExportClass] = useState('ALL');
   const [photoExportStream, setPhotoExportStream] = useState('ALL');
-  const [photoExportSelectedStatuses, setPhotoExportSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
+  const [photoExportSelectedStatuses, setPhotoExportSelectedStatuses] = useState(() => ['Approved']);
   const [photoExportMode, setPhotoExportMode] = useState('all_filtered'); // 'all_filtered' | 'roll_range' | 'selected_table'
   const [photoExportRollStart, setPhotoExportRollStart] = useState('');
   const [photoExportRollEnd, setPhotoExportRollEnd] = useState('');
@@ -7498,7 +7498,7 @@ export default function AdvancedReports({
   const [masterExportSelectedClasses, setMasterExportSelectedClasses] = useState([]); // [] means All Classes
   const [masterExportClass, setMasterExportClass] = useState('ALL');
   const [masterExportStream, setMasterExportStream] = useState('ALL');
-  const [masterExportSelectedStatuses, setMasterExportSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
+  const [masterExportSelectedStatuses, setMasterExportSelectedStatuses] = useState(() => ['Approved']);
   const [isExportingMasterRegister, setIsExportingMasterRegister] = useState(false);
   const [masterMultiScope, setMasterMultiScope] = useState('filtered'); // 'filtered' | 'all'
   const [masterMultiColumnMode, setMasterMultiColumnMode] = useState('important'); // 'important' | 'all'

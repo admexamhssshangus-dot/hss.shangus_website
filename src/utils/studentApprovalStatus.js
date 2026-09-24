@@ -76,11 +76,18 @@ export function resolveStudentAdmissionStatus(student) {
   if (rawStatus.includes('reject') || rawStatus.includes('rejt') || rawStatus.includes('cancel')) return 'Rejected';
   if (rawStatus.includes('draft') || rawStatus.includes('dft')) return 'Draft';
 
-  if (hasAssignedClassRollNumber(student)) return 'Approved';
+  if (
+    rawStatus.includes('approved') ||
+    rawStatus.includes('admitted') ||
+    rawStatus.includes('enrolled') ||
+    student.isApproved === true ||
+    hasAssignedClassRollNumber(student)
+  ) {
+    return 'Approved';
+  }
+
   if (rawStatus.includes('provis')) return 'Provisional';
 
-  // Explicit Approved/Admitted/Enrolled flags are historical metadata only.
-  // A class roll number is the sole source of truth for current approval.
   return 'Submitted';
 }
 
