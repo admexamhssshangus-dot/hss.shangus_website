@@ -290,7 +290,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header ref={headerRef} className="w-full shadow-md z-50 fixed top-0 left-0 right-0 bg-white print:hidden">
+      <header ref={headerRef} className="site-header-navbar w-full shadow-md z-50 fixed top-0 left-0 right-0 bg-white print:hidden">
         {/* WRAPPER: keep content in flow; header is transformed to hide/show to avoid layout jitter */}
         <div className="overflow-hidden">
           {/* ROW 1: Top Contact Bar (hidden on small screens) */}
