@@ -507,66 +507,47 @@ export default function Home() {
           </React.Suspense>
         )}
 
-        {/* Real-time Google Cloud Traffic Badge over top right of hero image */}
+        {/* Real-time Google Cloud Traffic Pill (Minimal, lightweight glassmorphism) */}
         <aside
-          className="absolute top-2 right-2 xs:top-2.5 xs:right-2.5 sm:top-4 sm:right-4 z-30 pointer-events-auto"
+          className="absolute top-2 right-2 xs:top-2.5 xs:right-2.5 sm:top-3.5 sm:right-4 z-30 pointer-events-auto select-none"
           aria-label="Real-time website traffic metrics"
         >
-          <div className="bg-slate-950/75 hover:bg-slate-950/85 backdrop-blur-md sm:backdrop-blur-xl border border-white/20 hover:border-white/35 rounded-xl sm:rounded-2xl p-1.5 sm:p-2.5 shadow-2xl shadow-black/60 transition-all duration-300 max-w-[200px] xs:max-w-[220px] sm:max-w-xs text-left group">
-            {/* Header: Live dot & Google Cloud indicator */}
-            <div className="flex items-center justify-between gap-1 pb-1 sm:pb-1.5 mb-1 sm:mb-1.5 border-b border-white/10">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-                </span>
-                <span className="text-[8.5px] xs:text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 truncate">
-                  Live Traffic
-                </span>
-              </div>
-              <span className="inline-flex items-center gap-1 text-[7.5px] xs:text-[8px] sm:text-[9.5px] font-semibold text-slate-300 bg-white/10 px-1.5 py-0.5 rounded-full border border-white/15 shrink-0">
-                <Cloud size={10} className="text-sky-300" />
-                <span>Google Cloud</span>
+          <div
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-slate-950/60 hover:bg-slate-950/75 backdrop-blur-md border border-white/15 hover:border-white/30 shadow-md shadow-black/40 text-white transition-all duration-200 group cursor-default"
+            title="Real-time Telemetry via Google Cloud Platform: Total Visitors & Clicks"
+          >
+            {/* Live Indicator Dot */}
+            <div className="flex items-center gap-1">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+              </span>
+              <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1">
+                <Cloud size={10} className="text-sky-300 hidden sm:inline" />
+                <span>Live</span>
               </span>
             </div>
 
-            {/* Compact modern animation metric cards */}
-            <div className="grid grid-cols-2 gap-1 sm:gap-2">
-              {/* Metric 1: Total Visitors */}
-              <div className="bg-white/5 hover:bg-white/10 rounded-lg sm:rounded-xl p-1.5 sm:p-2 border border-white/10 transition-colors">
-                <div className="flex items-center gap-1 mb-0.5">
-                  <div className="w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-md bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300 shrink-0">
-                    <Users size={11} className="stroke-[2.5]" />
-                  </div>
-                  <span className="text-[7.5px] xs:text-[8px] sm:text-[9.5px] font-black text-teal-200 uppercase tracking-wider truncate">
-                    VISITORS
-                  </span>
-                </div>
-                <div className="text-[11px] xs:text-xs sm:text-base font-black text-white font-slogan tracking-tight leading-none mt-0.5 sm:mt-1">
-                  <AnimatedCounter end={trafficStats.visitors} suffix="+" />
-                </div>
-                <div className="text-[7px] xs:text-[7.5px] sm:text-[8.5px] text-slate-400 font-medium leading-tight mt-0.5 truncate">
-                  Total Visits
-                </div>
-              </div>
+            <span className="w-px h-2.5 bg-white/20" aria-hidden="true" />
 
-              {/* Metric 2: Total Searches / Clicks */}
-              <div className="bg-white/5 hover:bg-white/10 rounded-lg sm:rounded-xl p-1.5 sm:p-2 border border-white/10 transition-colors">
-                <div className="flex items-center gap-1 mb-0.5">
-                  <div className="w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-md bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shrink-0">
-                    <MousePointerClick size={11} className="stroke-[2.5]" />
-                  </div>
-                  <span className="text-[7.5px] xs:text-[8px] sm:text-[9.5px] font-black text-indigo-200 uppercase tracking-wider truncate">
-                    CLICKS
-                  </span>
-                </div>
-                <div className="text-[11px] xs:text-xs sm:text-base font-black text-white font-slogan tracking-tight leading-none mt-0.5 sm:mt-1">
-                  <AnimatedCounter end={trafficStats.interactions} suffix="+" />
-                </div>
-                <div className="text-[7px] xs:text-[7.5px] sm:text-[8.5px] text-slate-400 font-medium leading-tight mt-0.5 truncate">
-                  Searches &amp; Clicks
-                </div>
-              </div>
+            {/* Metric 1: Visitors */}
+            <div className="flex items-center gap-1 text-[10px] sm:text-[11.5px] leading-none">
+              <Users size={11} className="text-teal-300 stroke-[2.5] shrink-0" />
+              <span className="font-extrabold text-white font-slogan tracking-tight">
+                <AnimatedCounter end={trafficStats.visitors} suffix="+" />
+              </span>
+              <span className="text-[7.5px] sm:text-[9px] text-slate-300/80 font-medium lowercase">visits</span>
+            </div>
+
+            <span className="w-px h-2.5 bg-white/20" aria-hidden="true" />
+
+            {/* Metric 2: Clicks */}
+            <div className="flex items-center gap-1 text-[10px] sm:text-[11.5px] leading-none">
+              <MousePointerClick size={11} className="text-indigo-300 stroke-[2.5] shrink-0" />
+              <span className="font-extrabold text-white font-slogan tracking-tight">
+                <AnimatedCounter end={trafficStats.interactions} suffix="+" />
+              </span>
+              <span className="text-[7.5px] sm:text-[9px] text-slate-300/80 font-medium lowercase">clicks</span>
             </div>
           </div>
         </aside>
