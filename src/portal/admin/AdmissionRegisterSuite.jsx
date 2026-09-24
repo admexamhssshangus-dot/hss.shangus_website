@@ -385,7 +385,8 @@ function renderOnlineSubmCell(status) {
 
 function renderAdmDateCell(date) {
   if (!date || date === '—') return '—';
-  return <span className="whitespace-nowrap font-bold text-[7.5px] ledger-mono-font truncate">{date}</span>;
+  const formatted = formatRegisterDate(date);
+  return <span className="whitespace-nowrap font-bold text-[7.5px] ledger-mono-font truncate">{formatted || date}</span>;
 }
 
 function renderPenCell(pen) {
@@ -596,6 +597,14 @@ function valueAsDate(value) {
     const converted = new Date(
       Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]),
       Number(dmy[4] || 0), Number(dmy[5] || 0), Number(dmy[6] || 0)
+    );
+    return Number.isNaN(converted.getTime()) ? null : converted;
+  }
+  const ymd = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (ymd) {
+    const converted = new Date(
+      Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]),
+      Number(ymd[4] || 0), Number(ymd[5] || 0), Number(ymd[6] || 0)
     );
     return Number.isNaN(converted.getTime()) ? null : converted;
   }
@@ -3630,7 +3639,7 @@ export default function AdmissionRegisterSuite({
     const totalBatches = Math.ceil(totalCount / batchSize);
 
     try {
-      const todayDate = new Date().toISOString().split('T')[0];
+      const todayDate = formatRegisterDate(new Date());
 
       for (let b = 0; b < totalBatches; b++) {
         const batchSlice = itemsToAssign.slice(b * batchSize, (b + 1) * batchSize);
@@ -3648,10 +3657,12 @@ export default function AdmissionRegisterSuite({
         for (const item of batchSlice) {
           const { student, proposed } = item;
           const docRef = doc(db, 'admissions', student.id);
+          const rawDate = student.admDate ? formatRegisterDate(student.admDate) : todayDate;
           const payload = {
             'Adm. No.': proposed,
             admNo: proposed,
-            'Adm. Date': student.admDate || todayDate,
+            'Adm. Date': rawDate,
+            admDate: rawDate,
             updatedAt: new Date().toISOString(),
             lastEditedBy: `Admin (${user?.email || 'Assign IDs'})`
           };
@@ -3877,6 +3888,7 @@ export default function AdmissionRegisterSuite({
     try {
       const fieldKey = assignDateField === 'admDate' ? 'Adm. Date' : 'Online Subm. Date';
       const aliasKey = assignDateField === 'admDate' ? 'admDate' : 'onlineSubmDate';
+      const dateToSave = assignDateField === 'admDate' ? formatRegisterDate(assignDateValue) : assignDateValue;
 
       for (let b = 0; b < totalBatches; b++) {
         const batchSlice = effectiveTargetStudents.slice(b * batchSize, (b + 1) * batchSize);
@@ -3894,8 +3906,8 @@ export default function AdmissionRegisterSuite({
         for (const st of batchSlice) {
           const docRef = doc(db, 'admissions', st.id);
           const payload = {
-            [fieldKey]: assignDateValue,
-            [aliasKey]: assignDateValue,
+            [fieldKey]: dateToSave,
+            [aliasKey]: dateToSave,
             updatedAt: new Date().toISOString(),
             lastEditedBy: `Admin (${user?.email || 'Assign Dates'})`
           };

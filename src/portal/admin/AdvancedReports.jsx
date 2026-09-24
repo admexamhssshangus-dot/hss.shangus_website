@@ -1602,6 +1602,106 @@ export function formatDobToDisplay(dobRaw) {
 }
 
 /**
+ * Standardize any date to DD-MM-YYYY format for consistent display across all records and exports.
+ * Supports strings (YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, ISO), Date objects, and Firestore Timestamps.
+ */
+export function formatDateDDMMYYYY(val) {
+  if (!val || val === '—' || val === '-' || val === 'N/A' || val === 'NA' || val === 'null' || val === 'undefined') return '—';
+  try {
+    if (typeof val?.toDate === 'function') {
+      const d = val.toDate();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}-${mm}-${d.getFullYear()}`;
+    }
+    if (typeof val?.toMillis === 'function') {
+      const d = new Date(val.toMillis());
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}-${mm}-${d.getFullYear()}`;
+    }
+    if (typeof val === 'object' && typeof val.seconds === 'number') {
+      const d = new Date(val.seconds * 1000);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}-${mm}-${d.getFullYear()}`;
+    }
+    if (val instanceof Date) {
+      if (isNaN(val.getTime())) return '—';
+      const dd = String(val.getDate()).padStart(2, '0');
+      const mm = String(val.getMonth() + 1).padStart(2, '0');
+      return `${dd}-${mm}-${val.getFullYear()}`;
+    }
+    const str = String(val).trim();
+    if (!str || str === '—' || str === '-' || str === 'N/A' || str === 'NA' || str === 'null' || str === 'undefined') return '—';
+
+    // 1. Match DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (dmyMatch) {
+      const dd = dmyMatch[1].padStart(2, '0');
+      const mm = dmyMatch[2].padStart(2, '0');
+      const yyyy = dmyMatch[3];
+      return `${dd}-${mm}-${yyyy}`;
+    }
+
+    // 2. Match YYYY-MM-DD or YYYY/MM/DD
+    const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (ymdMatch) {
+      const yyyy = ymdMatch[1];
+      const mm = ymdMatch[2].padStart(2, '0');
+      const dd = ymdMatch[3].padStart(2, '0');
+      return `${dd}-${mm}-${yyyy}`;
+    }
+
+    // 3. Fallback Date parse (ISO strings or timestamp strings)
+    const parsed = Date.parse(str);
+    if (!isNaN(parsed)) {
+      const d = new Date(parsed);
+      if (d.getFullYear() > 1900 && d.getFullYear() < 2100) {
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        return `${dd}-${mm}-${d.getFullYear()}`;
+      }
+    }
+    return str;
+  } catch (_) {
+    return String(val || '—');
+  }
+}
+
+/**
+ * Extract raw admission date from a record checking all standard naming variations.
+ */
+export function extractRawAdmDate(rec) {
+  if (!rec || typeof rec !== 'object') return '';
+  const candidates = [
+    rec['Adm. Date'],
+    rec['Adm Date'],
+    rec['admDate'],
+    rec['admissionDate'],
+    rec['Admission Date'],
+    rec['Admission Date:'],
+    rec['Date of Admission'],
+    rec['Date of admission'],
+    rec['dateOfAdmission'],
+    rec['adm_date'],
+    rec['admission_date'],
+    rec['allottedDate'],
+    rec['Allotted Date'],
+    rec['approvedAt'],
+    rec['allotmentDate'],
+    rec['Allotment Date']
+  ];
+  for (const c of candidates) {
+    if (c !== undefined && c !== null && c !== '—' && c !== '-' && c !== 'N/A' && c !== 'null' && c !== 'undefined') {
+      const str = String(c).trim();
+      if (str && str !== '—') return str;
+    }
+  }
+  return '';
+}
+
+/**
  * Format online submission date/timestamp to DD-MM-YYYY HH:mm AM/PM or DD-MM-YYYY
  */
 export function formatOnlineSubmDate(val) {
@@ -1774,6 +1874,17 @@ const extractRawAdmNo = (rec) => {
     rec['adm_number'],
     rec['Admission_No'],
     rec['Admission_Number'],
+    rec['admissionNo'],
+    rec['admissionNumber'],
+    rec['allottedAdmNo'],
+    rec['allotted_adm_no'],
+    rec['Allotted Adm No'],
+    rec['Allotted Adm. No.'],
+    rec['allotmentNo'],
+    rec['Allotment No'],
+    rec['Allotment No.'],
+    rec['Admission No:'],
+    rec['Adm. No.:'],
     rec['Adm. No. (if allotted)'],
     rec['Adm No (if allotted)'],
     rec['Admitted S.No'],
@@ -5058,8 +5169,28 @@ const COLUMN_DEFS = [
   },
   {
     key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black whitespace-nowrap text-center', render: (val, student) => {
-      const formatted = formatStudentAdmNo(student) || cleanAdmNoVal(val);
-      if (!formatted) return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
+      const rawAdm = (val && val !== '—' && val !== 'N/A') ? val : (
+        student?.admNo ||
+        student?.['Adm. No.'] ||
+        student?.['Admission No.'] ||
+        student?.admissionNo ||
+        student?.admissionNumber ||
+        student?.['Admission Number'] ||
+        student?.['Adm No.'] ||
+        student?.['Adm No'] ||
+        ''
+      );
+      const formatted = formatStudentAdmNo(student) || cleanAdmNoVal(rawAdm);
+      if (!formatted || formatted === '—') {
+        return (
+          <span
+            className="font-mono text-slate-400 dark:text-slate-600 select-none cursor-default"
+            title="Admission Number not allotted yet (Use 'Assign IDs' in Tools menu or Quick Cell Edit to allot)"
+          >
+            —
+          </span>
+        );
+      }
 
       const isRe =
         String(
@@ -5405,7 +5536,17 @@ const COLUMN_DEFS = [
       return <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{formatted}</span>;
     }
   },
-  { key: 'admDate', label: 'Adm. Date' },
+  {
+    key: 'admDate',
+    label: 'Adm. Date',
+    className: 'font-mono text-center whitespace-nowrap text-xs',
+    render: (val, student) => {
+      const raw = (val && val !== '—' && val !== 'N/A') ? val : extractRawAdmDate(student);
+      const formatted = formatDateDDMMYYYY(raw);
+      if (!formatted || formatted === '—') return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
+      return <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{formatted}</span>;
+    }
+  },
   { key: 'boardName', label: 'Board Name' },
   {
     key: 'dobWords',
@@ -6720,15 +6861,29 @@ export default function AdvancedReports({
 
       const isDob = colKey === 'dob' || targetFieldName === 'DoB (as per school records)';
       const formattedNewDob = isDob ? (formatDobToDisplay(newValue) || newValue) : null;
+      const isAdmDate = colKey === 'admDate' || targetFieldName === 'Adm. Date';
+      const formattedNewAdmDate = isAdmDate ? (formatDateDDMMYYYY(newValue) || newValue) : null;
+      const isAdmNo = colKey === 'admNo' || targetFieldName === 'Adm. No.';
+      const cleanedAdmNo = isAdmNo ? cleanAdmNoVal(newValue) : null;
       const isSessionEdit = colKey.toLowerCase() === 'session' || targetFieldName.toLowerCase() === 'session';
 
       const payload = {
-        [targetFieldName]: isDob ? formattedNewDob : newValue,
+        [targetFieldName]: isDob ? formattedNewDob : (isAdmDate ? formattedNewAdmDate : (isAdmNo ? cleanedAdmNo : newValue)),
         ...(isDob ? {
           dob: formattedNewDob,
           'DoB (as per school records)': formattedNewDob,
           'DoB (figures)': formattedNewDob,
           DoB: formattedNewDob
+        } : {}),
+        ...(isAdmDate ? {
+          admDate: formattedNewAdmDate,
+          'Adm. Date': formattedNewAdmDate,
+          admissionDate: formattedNewAdmDate
+        } : {}),
+        ...(isAdmNo ? {
+          admNo: cleanedAdmNo,
+          'Adm. No.': cleanedAdmNo,
+          admissionNo: cleanedAdmNo
         } : {}),
         ...(isSessionEdit ? {
           session: newValue,
@@ -6768,13 +6923,21 @@ export default function AdvancedReports({
           };
           return {
             ...st,
-            [colKey]: isDob ? formattedNewDob : newValue,
-            [targetFieldName]: isDob ? formattedNewDob : newValue,
+            [colKey]: isDob ? formattedNewDob : (isAdmDate ? formattedNewAdmDate : (isAdmNo ? cleanedAdmNo : newValue)),
+            [targetFieldName]: isDob ? formattedNewDob : (isAdmDate ? formattedNewAdmDate : (isAdmNo ? cleanedAdmNo : newValue)),
             ...(isDob ? {
               dob: formattedNewDob,
               'DoB (as per school records)': formattedNewDob,
               'DoB (figures)': formattedNewDob,
               DoB: formattedNewDob
+            } : {}),
+            ...(isAdmDate ? {
+              admDate: formattedNewAdmDate,
+              'Adm. Date': formattedNewAdmDate
+            } : {}),
+            ...(isAdmNo ? {
+              admNo: cleanedAdmNo,
+              'Adm. No.': cleanedAdmNo
             } : {}),
             directEditHistory: nextHistory,
             fieldEditHistory: nextHistory,
@@ -7980,7 +8143,7 @@ export default function AdvancedReports({
           cleanVal(s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo),
           cleanVal(s.currResult || s['Result (Current)'] || s.result),
           cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
-          cleanVal(s.admDate || s.admissionDate || s.onlineSubmDate || s['Adm. Date'] || s['Online Subm. Date'] || s.timestamp),
+          cleanVal(formatDateDDMMYYYY(s.admDate || s.admissionDate || s['Adm. Date'] || extractRawAdmDate(s)) || s.onlineSubmDate || s['Online Subm. Date'] || s.timestamp),
           cleanVal(getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active'),
           cleanVal(s.bankAccount || s['Bank Account No.'] || s.paymentRef || s.utrNo || s['Payment Reference']),
           cleanVal(s.bankName || s['Bank Name'] || s['Name of Bank']),
@@ -8121,7 +8284,7 @@ export default function AdvancedReports({
         // 9. System, Audit & Database Metadata
         { id: 'status', label: 'Admission Status', getVal: (s) => getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active' },
         { id: 'onlineSubmDate', label: 'Online Submission Date', getVal: (s) => s.onlineSubmDate || s['Online Subm. Date'] || s.submittedAt },
-        { id: 'admDate', label: 'Admission Date', getVal: (s) => s.admDate || s.admissionDate || s['Adm. Date'] || s.timestamp },
+        { id: 'admDate', label: 'Admission Date', getVal: (s) => formatDateDDMMYYYY(s.admDate || s.admissionDate || s['Adm. Date'] || extractRawAdmDate(s)) },
         { id: 'createdAt', label: 'Record Created Timestamp', getVal: (s) => s.createdAt ? (s.createdAt.toDate ? s.createdAt.toDate().toISOString() : s.createdAt) : '' },
         { id: 'updatedAt', label: 'Record Last Updated Timestamp', getVal: (s) => s.updatedAt ? (s.updatedAt.toDate ? s.updatedAt.toDate().toISOString() : s.updatedAt) : '' },
         { id: 'lastEditedBy', label: 'Last Edited By', getVal: (s) => s.lastEditedBy || s.editedBy || '' },
@@ -8977,7 +9140,7 @@ export default function AdvancedReports({
           cleanVal(s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo),
           cleanVal(s.currResult || s['Result (Current)'] || s.result),
           cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
-          cleanVal(s.admDate || s.admissionDate || s.onlineSubmDate || s['Adm. Date'] || s['Online Subm. Date'] || s.timestamp),
+          cleanVal(formatDateDDMMYYYY(s.admDate || s.admissionDate || s['Adm. Date'] || extractRawAdmDate(s)) || s.onlineSubmDate || s['Online Subm. Date'] || s.timestamp),
           cleanVal(getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active'),
           cleanVal(s.bankAccount || s['Bank Account No.'] || s.paymentRef || s.utrNo || s['Payment Reference']),
           cleanVal(s.bankName || s['Bank Name'] || s['Name of Bank']),
@@ -9355,7 +9518,21 @@ export default function AdvancedReports({
   }, []);
 
   useEffect(() => {
+    // 1. Preload student registration index for instant O(1) admission number & identity resolution
+    getStudentRegIndex().catch(() => {});
+
+    // 2. Fetch and synchronize live admissions data
     loadReportsData();
+
+    // 3. Hydrate modern master registers (2022-2026) in the background if cache is cold
+    const cachedMaster = getCachedCollectionSync('masterRegisters');
+    if (!cachedMaster || cachedMaster.length === 0) {
+      getMasterRegistersScoped().then(ml => {
+        if (Array.isArray(ml) && ml.length > 0) {
+          setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+        }
+      }).catch(() => {});
+    }
 
     const handleMasterUpdate = () => {
       historicalLoadAttemptedRef.current = true;
@@ -10092,7 +10269,11 @@ export default function AdvancedReports({
         }
       }
 
-      const finalAdmNo = resolveAdmNo(a) !== '—' ? resolveAdmNo(a) : resolveAdmNo(mergedRec);
+      const rawDirectAdmNo = formatStudentAdmNo(a) || cleanAdmNoVal(a.admNo || a['Adm. No.'] || a['Admission No.'] || a.admissionNo || a.admissionNumber);
+      const finalAdmNo = rawDirectAdmNo || (resolveAdmNo(a) !== '—' ? resolveAdmNo(a) : (resolveAdmNo(mergedRec) !== '—' ? resolveAdmNo(mergedRec) : '—'));
+
+      const rawAdmDate = extractRawAdmDate(a) || (masterMatch ? extractRawAdmDate(masterMatch) : '');
+      const finalAdmDate = rawAdmDate ? formatDateDDMMYYYY(rawAdmDate) : '—';
 
       const regFromMaster = masterMatch ? extractRegNo(masterMatch) : '';
       const regFromActive = extractRegNo(a) || (mergedRec ? extractRegNo(mergedRec) : '');
@@ -10270,6 +10451,7 @@ export default function AdvancedReports({
         _regLower: finalBoardRegNo.toLowerCase(),
         id: uniqueDocId,
         docId: uniqueDocId,
+        _docId: a._docId || a.docId || a.id,
         sno: idx + 1,
         formNo: cleanFNo || '—',
         classRollNo: activeClassRoll,
@@ -10278,6 +10460,7 @@ export default function AdvancedReports({
         'RL. NO.': activeClassRoll,
         'RL. NO': activeClassRoll,
         admNo: finalAdmNo,
+        'Adm. No.': finalAdmNo,
         class: targetClass,
         session: targetSession,
         boardRegNo: finalBoardRegNo,
@@ -10313,7 +10496,8 @@ export default function AdvancedReports({
         ifsc: a['IFSC code'] || a['IFSC Code'] || '—',
 
         onlineSubmDate: finalOnlineSubmDate,
-        admDate: a['Adm. Date'] || '—',
+        admDate: finalAdmDate,
+        'Adm. Date': finalAdmDate,
         boardName: a['Board Name'] || a['Board Name (Class 10th)'] || '—',
         dobWords: a['DoB (words)'] || '—',
         block: a['Block'] || '—',
@@ -10408,7 +10592,10 @@ export default function AdvancedReports({
       const cleanFNo = String(m['Form Number'] || m['Form No.'] || m.formNo || '').replace(/^'/, '').replace(/^(N\/A|—)$/i, '').trim();
       const rawReg = extractRegNo(m);
       const rawRoll = extractClassRoll(m);
-      const finalAdmNo = resolveAdmNo(m) || cleanAdmNoVal(m['Admission No.'] || m['Adm. No.'] || m.admNo) || '—';
+      const rawDirectHistAdm = formatStudentAdmNo(m) || cleanAdmNoVal(m['Admission No.'] || m['Adm. No.'] || m.admNo || m.admissionNo || m.admissionNumber);
+      const finalAdmNo = rawDirectHistAdm || resolveAdmNo(m) || cleanAdmNoVal(m['Admission No.'] || m['Adm. No.'] || m.admNo) || '—';
+      const rawHistAdmDate = extractRawAdmDate(m);
+      const finalHistAdmDate = rawHistAdmDate ? formatDateDDMMYYYY(rawHistAdmDate) : '—';
       const targetClass = normalizeClassVal(m['Admission sought for class'] || m['Class'] || m['class'] || m['className'] || m.className || m.class || '11th');
       const targetSession = normalizeSessionVal(m['Session'] || m['session'] || m['Academic Session'] || m.session || '2024-25');
 
@@ -10611,7 +10798,9 @@ export default function AdvancedReports({
         apaarId: sApaar,
         prevSchool: sPrevSchool,
         onlineSubmDate: m['Online Subm. Date'] || m.onlineSubmDate || '—',
-        admDate: m['Adm. Date'] || m.admDate || '—',
+        admDate: finalHistAdmDate,
+        'Adm. Date': finalHistAdmDate,
+        'Adm. No.': finalAdmNo,
         boardName: m['Board Name'] || m['Board Name (Class 10th)'] || m.boardName || demo.boardName || '—',
         dobWords: m['DoB (words)'] || m.dobWords || demo.dobWords || '—',
         block: m['Block'] || m.block || demo.block || '—',
@@ -11661,26 +11850,34 @@ export default function AdvancedReports({
     try {
       // 1. Prepare batch operation for fast atomic Firestore execution
       const batch = writeBatch(db);
-      const todayDate = new Date().toISOString().split('T')[0];
+      const todayDate = formatDateDDMMYYYY(new Date());
+      const assignedMap = new Map();
 
       for (const item of candidatePreviewList) {
         const { student, proposed, strat } = item;
         if (!proposed || proposed === '—' || strat === 'skip') continue;
 
-        const cleanFNo = cleanFormNo(student.formNo || student['Form Number'] || student['FormNo']);
-        const docId = cleanFNo ? `form_${cleanFNo}` : String(student.id || '').replace(/^(active_|hist_)/, '');
+        // Resolve exact Firestore document ID (do NOT use form_${cleanFNo})
+        const docId = getExactAdmissionDocId(student) || student.docId || student._docId || student.id || student.formNo;
+        if (!docId) continue;
+
+        const existingAdmDate = extractRawAdmDate(student);
+        const formattedAdmDate = existingAdmDate ? formatDateDDMMYYYY(existingAdmDate) : todayDate;
 
         const payload = {
           'Adm. No.': proposed,
-          'admNo': proposed,
-          'Adm. Date': student.admDate && student.admDate !== '—' ? student.admDate : todayDate,
+          admNo: proposed,
+          'Adm. Date': formattedAdmDate,
+          admDate: formattedAdmDate,
           updatedAt: new Date().toISOString(),
-          lastEditedBy: 'Admin (Assign IDs Tool)'
+          lastEditedBy: `Admin (${user?.email || 'Assign IDs Tool'})`
         };
 
         // Write directly to admissions collection in Firestore (Fast & Reliable)
         const docRef = doc(db, 'admissions', docId);
         batch.set(docRef, payload, { merge: true });
+        updateCachedItem('admissions', docId, payload);
+        assignedMap.set(docId, payload);
 
         if (strat === 'assign_new') assignedCount++;
         else if (strat === 'inherit_prev') inheritedCount++;
@@ -11689,6 +11886,15 @@ export default function AdvancedReports({
 
       // 2. Commit batch atomically to Cloud Firestore in 1 single ultra-fast network call
       await batch.commit();
+
+      // 3. Update in-memory currentAdmissions list in place so table reflects new Adm Nos immediately
+      setCurrentAdmissions(prev => prev.map(s => {
+        const docId = getExactAdmissionDocId(s) || s.docId || s._docId || s.id || s.formNo;
+        if (assignedMap.has(docId)) {
+          return { ...s, ...assignedMap.get(docId) };
+        }
+        return s;
+      }));
 
       setToast({
         message: `⚡ High-Speed Database Update Complete! Assigned IDs to ${assignedCount + inheritedCount + customCount} students.`,
@@ -11708,9 +11914,61 @@ export default function AdvancedReports({
 
   // Run Assign Dates
   const handleRunAssignDates = async () => {
+    if (filteredStudents.length === 0) {
+      setToast({ message: '⚠️ No students matching current filters to assign dates.', type: 'error' });
+      return;
+    }
     setToolExecuting(true);
     try {
-      showToast(`Bulk assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Online Submission Date'} (${assignDateValue}) to ${filteredStudents.length} selected student records!`, 'success');
+      const fieldKey = assignDateField === 'admDate' ? 'Adm. Date' : 'Online Subm. Date';
+      const aliasKey = assignDateField === 'admDate' ? 'admDate' : 'onlineSubmDate';
+      const formattedDateValue = assignDateField === 'admDate' ? formatDateDDMMYYYY(assignDateValue) : assignDateValue;
+
+      const batch = writeBatch(db);
+      let count = 0;
+      const updatedMap = new Map();
+
+      for (const student of filteredStudents) {
+        if (student._isHistorical) continue; // Skip historical records
+        const docId = getExactAdmissionDocId(student) || student.docId || student._docId || student.id;
+        if (!docId) continue;
+
+        const payload = {
+          [fieldKey]: formattedDateValue,
+          [aliasKey]: formattedDateValue,
+          updatedAt: new Date().toISOString(),
+          lastEditedBy: `Admin (${user?.email || 'Assign Dates Tool'})`
+        };
+
+        const docRef = doc(db, 'admissions', docId);
+        batch.set(docRef, payload, { merge: true });
+        updateCachedItem('admissions', docId, payload);
+        updatedMap.set(docId, payload);
+        count++;
+      }
+
+      if (count > 0) {
+        await batch.commit();
+
+        setCurrentAdmissions(prev => prev.map(s => {
+          const docId = getExactAdmissionDocId(s) || s.docId || s._docId || s.id;
+          if (updatedMap.has(docId)) {
+            return { ...s, ...updatedMap.get(docId) };
+          }
+          return s;
+        }));
+
+        setToast({
+          message: `⚡ Successfully bulk assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Online Submission Date'} (${formattedDateValue}) to ${count} students!`,
+          type: 'success'
+        });
+        loadReportsData(true);
+      } else {
+        setToast({ message: '⚠️ No active admission records were eligible for date update.', type: 'info' });
+      }
+    } catch (err) {
+      console.error('Assign Dates error:', err);
+      setToast({ message: `❌ Error assigning dates: ${err.message}`, type: 'error' });
     } finally {
       setToolExecuting(false);
     }
@@ -14786,8 +15044,8 @@ export default function AdvancedReports({
                             'Status': quickEditStudent.editStatus,
                             classRollNo: quickEditStudent.editRollNo,
                             'Class Roll No': quickEditStudent.editRollNo,
-                            admDate: quickEditStudent.editAdmDate,
-                            'Adm. Date': quickEditStudent.editAdmDate
+                            admDate: formatDateDDMMYYYY(quickEditStudent.editAdmDate),
+                            'Adm. Date': formatDateDDMMYYYY(quickEditStudent.editAdmDate)
                           })}
                           className="px-5 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
                         >
