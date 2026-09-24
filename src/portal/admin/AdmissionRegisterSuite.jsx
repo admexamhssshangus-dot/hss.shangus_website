@@ -1622,6 +1622,18 @@ export default function AdmissionRegisterSuite({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
+  // Close View & Layout popup modal on Escape key press
+  useEffect(() => {
+    if (!showViewPopover) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowViewPopover(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showViewPopover]);
+
   // Readmission Management Modal State (Universal Candidate Search & Class Mapper)
   const [readmissionModalStudent, setReadmissionModalStudent] = useState(null);
   const [isUniversalModalOpen, setIsUniversalModalOpen] = useState(false);
@@ -5397,258 +5409,188 @@ export default function AdmissionRegisterSuite({
                     <ChevronDown size={10} className="text-slate-400" />
                   </button>
 
-                  {/* View Popover Dropdown Panel */}
+                  {/* View & Print Layout Modal (Centered Popup Window with Backdrop) */}
                   {showViewPopover && (
-                    <div className="register-popover-panel absolute right-0 top-full mt-2 w-[760px] sm:w-[860px] md:w-[940px] lg:w-[1000px] max-w-[96vw] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border-2 border-slate-300 dark:border-slate-800 z-[100] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-slate-900 dark:text-slate-100">
-                      {/* 1. Header (Sticky Top) */}
-                      <div className="popover-header flex items-center justify-between px-5 py-3.5 border-b border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 backdrop-blur-sm shrink-0">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-500/25">
-                            <SlidersHorizontal size={17} />
-                          </div>
-                          <div>
-                            <div className="popover-heading font-black text-sm text-slate-900 dark:text-white flex items-center gap-2 leading-tight">
-                              Display & Print Layout
-                              {isLayoutModified && (
-                                <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded-full">
-                                  Modified
-                                </span>
-                              )}
+                    <div
+                      className="fixed inset-0 z-[120] bg-slate-950/65 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6 animate-in fade-in duration-150"
+                      onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowViewPopover(false);
+                      }}
+                    >
+                      <div
+                        className="register-popover-panel relative w-full max-w-2xl lg:max-w-3xl max-h-[88vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-300 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 text-slate-900 dark:text-slate-100"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* 1. Header (Compact) */}
+                        <div className="popover-header flex items-center justify-between px-4 py-2.5 sm:px-5 sm:py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shrink-0">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                              <SlidersHorizontal size={15} />
                             </div>
-                            <div className="popover-subtext text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
-                              Customise table density, margins & printing options
+                            <div>
+                              <div className="popover-heading font-black text-sm text-slate-900 dark:text-white flex items-center gap-2 leading-none">
+                                <span>Display &amp; Print Layout</span>
+                                {isLayoutModified && (
+                                  <span className="text-[9px] uppercase tracking-wider font-black text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 px-1.5 py-0.2 rounded-full">
+                                    Modified
+                                  </span>
+                                )}
+                              </div>
+                              <div className="popover-subtext text-[10.5px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                                Configure table density, paper size, margins &amp; sheet views
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowViewPopover(false)}
-                          className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 cursor-pointer transition-colors"
-                          title="Close"
-                        >
-                          <X size={18} />
-                        </button>
-                      </div>
-
-                      {/* 2. Segmented Navigation Tabs */}
-                      <div className="popover-tabs-container flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 shrink-0 text-xs font-bold">
-                        <button
-                          type="button"
-                          onClick={() => setPopoverActiveTab('layout')}
-                          className={`flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                            popoverActiveTab === 'layout'
-                              ? 'popover-tab-active bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
-                              : 'popover-tab-inactive text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
-                          }`}
-                        >
-                          <Printer size={14} />
-                          <span>Layout & Print</span>
-                        </button>
-
-                        {activeTab === 'sentup' && (
                           <button
                             type="button"
-                            onClick={() => setPopoverActiveTab('columns')}
-                            className={`flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                              popoverActiveTab === 'columns'
-                                ? 'popover-tab-active bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
-                                : 'popover-tab-inactive text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
+                            onClick={() => setShowViewPopover(false)}
+                            className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer transition-colors"
+                            title="Close (Esc)"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+
+                        {/* 2. Segmented Navigation Tabs (Compact) */}
+                        <div className="popover-tabs-container flex items-center gap-1.5 px-3 py-1.5 sm:px-4 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 shrink-0 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setPopoverActiveTab('layout')}
+                            className={`flex-1 py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer text-xs transition-all ${
+                              popoverActiveTab === 'layout'
+                                ? 'popover-tab-active bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs font-black border border-slate-200 dark:border-slate-700'
+                                : 'popover-tab-inactive text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                             }`}
                           >
-                            <Columns size={14} />
-                            <span>Columns</span>
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                              {ALL_SENTUP_COLS.filter(c => isSentupColVisible(c.key)).length}/{ALL_SENTUP_COLS.length}
+                            <Printer size={13} />
+                            <span>Layout &amp; Print</span>
+                          </button>
+
+                          {activeTab === 'sentup' && (
+                            <button
+                              type="button"
+                              onClick={() => setPopoverActiveTab('columns')}
+                              className={`flex-1 py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer text-xs transition-all ${
+                                popoverActiveTab === 'columns'
+                                  ? 'popover-tab-active bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs font-black border border-slate-200 dark:border-slate-700'
+                                  : 'popover-tab-inactive text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
+                              }`}
+                            >
+                              <Columns size={13} />
+                              <span>Columns</span>
+                              <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">
+                                {ALL_SENTUP_COLS.filter(c => isSentupColVisible(c.key)).length}/{ALL_SENTUP_COLS.length}
+                              </span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setPopoverActiveTab('subjects')}
+                            className={`flex-1 py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer text-xs transition-all ${
+                              popoverActiveTab === 'subjects'
+                                ? 'popover-tab-active bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs font-black border border-slate-200 dark:border-slate-700'
+                                : 'popover-tab-inactive text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
+                            }`}
+                          >
+                            <BookOpen size={13} />
+                            <span>Subject Key</span>
+                            <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                              {sentupSubjectAbbreviations.length}
                             </span>
                           </button>
-                        )}
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={() => setPopoverActiveTab('subjects')}
-                          className={`flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                            popoverActiveTab === 'subjects'
-                              ? 'popover-tab-active bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm font-black border border-slate-300 dark:border-slate-700'
-                              : 'popover-tab-inactive text-slate-700 dark:text-slate-300 hover:text-slate-900 hover:bg-white/80 dark:hover:bg-slate-900/60 font-extrabold'
-                          }`}
-                        >
-                          <BookOpen size={14} />
-                          <span>Subject Key</span>
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600">
-                            {sentupSubjectAbbreviations.length}
-                          </span>
-                        </button>
-                      </div>
-
-                      {/* 3. Scrollable Tab Content Body */}
-                      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-left">
-                        {/* ─── TAB 1: LAYOUT & PRINT ─── */}
-                        {popoverActiveTab === 'layout' && (
-                          <div className="space-y-4">
-                            {/* 1. Paper Size Selector (JKBOSE 13.7"x8.5" Default, Legal 14"x8.5", A4) */}
-                            <div className="popover-section-card p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
-                              <div className="flex items-center justify-between mb-3">
-                                <div>
-                                  <span className="popover-heading text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                    <FileText size={15} className="text-indigo-600 dark:text-indigo-400" />
-                                    <span>Paper Size & Physical Ledger Format</span>
+                        {/* 3. Scrollable Tab Content Body */}
+                        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 text-left">
+                          {/* ─── TAB 1: LAYOUT & PRINT ─── */}
+                          {popoverActiveTab === 'layout' && (
+                            <div className="space-y-3">
+                              {/* 1. Paper Size Selector */}
+                              <div className="popover-section-card p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="popover-heading text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                    <FileText size={13} className="text-indigo-600 dark:text-indigo-400" />
+                                    <span>Paper Size Format</span>
                                   </span>
-                                  <p className="popover-subtext text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
-                                    Matches actual physical register & roll sheet paper used for printing
-                                  </p>
-                                </div>
-                                <span className="popover-pill px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
-                                  {paperSize === 'indian_legal' ? '348 × 216 mm' : paperSize === 'legal' ? '356 × 216 mm' : '297 × 210 mm'}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                {[
-                                  {
-                                    id: 'indian_legal',
-                                    title: '13.7" × 8.5" (Default)',
-                                    subtitle: 'JKBOSE Register Sheet',
-                                    note: 'Standard School Register & Sentup Paper',
-                                    star: true
-                                  },
-                                  {
-                                    id: 'legal',
-                                    title: '14.0" × 8.5"',
-                                    subtitle: 'US / Standard Legal',
-                                    note: 'Standard Legal landscape size'
-                                  },
-                                  {
-                                    id: 'a4',
-                                    title: '11.7" × 8.3" (A4)',
-                                    subtitle: 'A4 Landscape',
-                                    note: 'Standard office printer paper'
-                                  }
-                                ].map(p => {
-                                  const isActive = paperSize === p.id;
-                                  return (
-                                    <button
-                                      key={p.id}
-                                      type="button"
-                                      onClick={() => handlePaperSizeChange(p.id)}
-                                      className={`popover-option-btn p-3 rounded-xl text-left cursor-pointer transition-all border-2 ${
-                                        isActive
-                                          ? 'popover-option-active border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs'
-                                      }`}
-                                    >
-                                      <div className={`font-black text-xs sm:text-[13px] flex items-center justify-between ${isActive ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
-                                        <span>{p.title}</span>
-                                        {isActive && <Check size={14} className="shrink-0 text-white" />}
-                                      </div>
-                                      <div className={`text-[11px] font-bold mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-700 dark:text-slate-300'}`}>
-                                        {p.subtitle}
-                                      </div>
-                                      <div className={`text-[10px] font-medium mt-0.5 ${isActive ? 'text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}>
-                                        {p.note}
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {/* 2. Students Per Sheet Selector (Tab-Aware: Sentup vs Register) */}
-                            <div className="popover-section-card p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
-                              <div className="flex items-center justify-between mb-2">
-                                <div>
-                                  <span className="popover-heading text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100">
-                                    {activeTab === 'sentup' ? 'Sentup Candidates Per Sheet (Page Density)' : 'Admission Register Rows Per Sheet (Page Density)'}
+                                  <span className="popover-pill px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono font-bold text-[10px] text-slate-700 dark:text-slate-300">
+                                    {paperSize === 'indian_legal' ? '348 × 216 mm' : paperSize === 'legal' ? '356 × 216 mm' : '297 × 210 mm'}
                                   </span>
-                                  <p className="popover-subtext text-[11px] text-slate-600 dark:text-slate-400 font-bold mt-0.5">
-                                    {activeTab === 'sentup'
-                                      ? 'Default is 10 candidates per sheet. Allows higher densities without page overflow.'
-                                      : 'Rows dynamically stretch to fill page height without bottom gaps.'}
-                                  </p>
                                 </div>
-                                <span className="popover-pill px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-800 font-mono font-black text-xs text-indigo-700 dark:text-indigo-300 shadow-2xs">
-                                  {pageChunks.length} Sheet{pageChunks.length === 1 ? '' : 's'} Total
-                                </span>
-                              </div>
-                              {activeTab === 'sentup' ? (
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-2.5">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                   {[
-                                    { val: 10, label: '10 Rows', note: 'Standard ★ (Default)' },
-                                    { val: 12, label: '12 Rows', note: 'Comfortable' },
-                                    { val: 14, label: '14 Rows', note: 'Balanced' },
-                                    { val: 15, label: '15 Rows', note: 'Compact' },
-                                    { val: 16, label: '16 Rows', note: 'Dense' },
-                                    { val: 18, label: '18 Rows', note: 'High Density' },
-                                    { val: 20, label: '20 Rows', note: 'Ultra Dense' },
-                                    { val: 25, label: '25 Rows', note: 'Maximum Fit' }
-                                  ].map(({ val, label, note }) => {
-                                    const isActive = sentupStudentsPerPage === val;
+                                    { id: 'indian_legal', title: '13.7" × 8.5" (Default)', label: 'JKBOSE Register' },
+                                    { id: 'legal', title: '14.0" × 8.5"', label: 'US Legal' },
+                                    { id: 'a4', title: '11.7" × 8.3"', label: 'A4 Landscape' }
+                                  ].map(p => {
+                                    const isActive = paperSize === p.id;
                                     return (
                                       <button
-                                        key={val}
+                                        key={p.id}
                                         type="button"
-                                        onClick={() => handleSentupStudentsPerPageChange(val)}
-                                        className={`popover-option-btn p-2.5 rounded-xl text-left cursor-pointer transition-all border-2 ${
+                                        onClick={() => handlePaperSizeChange(p.id)}
+                                        className={`popover-option-btn p-2 rounded-lg text-left cursor-pointer transition-all border ${
                                           isActive
-                                            ? 'popover-option-active border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs'
+                                            ? 'popover-option-active border-indigo-600 bg-indigo-600 text-white shadow-xs'
+                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:border-indigo-300'
                                         }`}
                                       >
-                                        <div className={`font-black text-xs sm:text-[13px] flex items-center justify-between ${isActive ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
-                                          <span>{label}</span>
-                                          {isActive && <Check size={14} className="shrink-0 text-white" />}
+                                        <div className={`font-black text-xs flex items-center justify-between ${isActive ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
+                                          <span>{p.title}</span>
+                                          {isActive && <Check size={12} className="shrink-0 text-white" />}
                                         </div>
-                                        <div className={`text-[10px] font-bold mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-600 dark:text-slate-300'}`}>
-                                          {note}
+                                        <div className={`text-[10px] font-medium mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                                          {p.label}
                                         </div>
                                       </button>
                                     );
                                   })}
                                 </div>
-                              ) : (
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-2.5">
-                                  {[
-                                    { val: 10, label: '10 Rows', note: 'Spacious / Large' },
-                                    { val: 12, label: '12 Rows', note: 'Balanced' },
-                                    { val: 14, label: '14 Rows', note: 'Compact' },
-                                    { val: 15, label: '15 Rows', note: 'Standard ★ (Default)' },
-                                    { val: 16, label: '16 Rows', note: 'Dense' },
-                                    { val: 18, label: '18 Rows', note: 'High Density' },
-                                    { val: 20, label: '20 Rows', note: 'Ultra Dense' },
-                                    { val: 25, label: '25 Rows', note: 'Maximum Fit' }
-                                  ].map(({ val, label, note }) => {
-                                    const isActive = studentsPerPage === val;
+                              </div>
+
+                              {/* 2. Students Per Sheet Selector (Compact Grid) */}
+                              <div className="popover-section-card p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="popover-heading text-xs font-black text-slate-800 dark:text-slate-200">
+                                    {activeTab === 'sentup' ? 'Candidates Per Sheet' : 'Rows Per Sheet'}
+                                  </span>
+                                  <span className="popover-pill px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono font-bold text-[10px] text-indigo-700 dark:text-indigo-300">
+                                    {pageChunks.length} Sheet{pageChunks.length === 1 ? '' : 's'} Total
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                                  {[10, 12, 14, 15, 16, 18, 20, 25].map((val) => {
+                                    const currentDensity = activeTab === 'sentup' ? sentupStudentsPerPage : studentsPerPage;
+                                    const isActive = currentDensity === val;
                                     return (
                                       <button
                                         key={val}
                                         type="button"
-                                        onClick={() => handleStudentsPerPageChange(val)}
-                                        className={`popover-option-btn p-2.5 rounded-xl text-left cursor-pointer transition-all border-2 ${
+                                        onClick={() => activeTab === 'sentup' ? handleSentupStudentsPerPageChange(val) : handleStudentsPerPageChange(val)}
+                                        className={`popover-option-btn py-1.5 px-1 rounded-lg text-center cursor-pointer transition-all border text-xs font-black ${
                                           isActive
-                                            ? 'popover-option-active border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-2xs'
+                                            ? 'popover-option-active border-indigo-600 bg-indigo-600 text-white shadow-xs'
+                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:border-indigo-300'
                                         }`}
+                                        title={`${val} rows per sheet${val === 15 || (activeTab === 'sentup' && val === 10) ? ' (Default)' : ''}`}
                                       >
-                                        <div className={`font-black text-xs sm:text-[13px] flex items-center justify-between ${isActive ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
-                                          <span>{label}</span>
-                                          {isActive && <Check size={14} className="shrink-0 text-white" />}
-                                        </div>
-                                        <div className={`text-[10px] font-bold mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-600 dark:text-slate-300'}`}>
-                                          {note}
+                                        <div>{val}</div>
+                                        <div className={`text-[8.5px] font-normal leading-none mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                          {val === 10 && activeTab === 'sentup' ? '★ Def' : val === 15 && activeTab !== 'sentup' ? '★ Def' : 'Rows'}
                                         </div>
                                       </button>
                                     );
                                   })}
                                 </div>
-                              )}
-                            </div>
+                              </div>
 
-                            {/* Row Height & Print Margins Grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {/* Row Height */}
-                              <div className="popover-section-card p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between shadow-2xs">
-                                <div>
-                                  <div className="popover-heading flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
+                              {/* 3. Row Height & Print Margins Grid (Compact) */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Row Height */}
+                                <div className="popover-section-card p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                  <div className="flex items-center justify-between text-xs font-black text-slate-800 dark:text-slate-200 mb-1">
                                     <span>Row Height:</span>
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1 font-mono text-xs">
                                       <input
                                         type="number"
                                         min={MIN_REGISTER_ROW_HEIGHT}
@@ -5675,10 +5617,10 @@ export default function AdmissionRegisterSuite({
                                             setRowHeightInput(String(val));
                                           }
                                         }}
-                                        className="w-14 text-center py-1 px-1.5 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                                        className="w-12 text-center py-0.5 px-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-bold text-xs"
                                         title="Enter custom row height (30-100px)"
                                       />
-                                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">px</span>
+                                      <span className="text-[10px] text-slate-500">px</span>
                                     </div>
                                   </div>
                                   <input
@@ -5688,37 +5630,35 @@ export default function AdmissionRegisterSuite({
                                     step="1"
                                     value={rowHeight}
                                     onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
-                                    className="w-full cursor-pointer accent-indigo-600 my-2"
+                                    className="w-full cursor-pointer accent-indigo-600 my-1"
                                   />
+                                  <div className="grid grid-cols-3 gap-1 mt-1">
+                                    {[
+                                      { label: 'Compact', val: 40 },
+                                      { label: 'Default ★', val: 56 },
+                                      { label: 'Spacious', val: 72 }
+                                    ].map(({ label, val }) => (
+                                      <button
+                                        key={val}
+                                        type="button"
+                                        onClick={() => handleRowHeightChange(val)}
+                                        className={`popover-option-btn py-1 rounded text-[10px] font-black cursor-pointer text-center border ${
+                                          rowHeight === val
+                                            ? 'popover-option-active bg-indigo-600 text-white border-indigo-600'
+                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                        }`}
+                                      >
+                                        {label}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
-                                <div className="grid grid-cols-3 gap-1.5 mt-1.5">
-                                  {[
-                                    { label: 'Compact', val: 40 },
-                                    { label: 'Default', val: 56, star: true },
-                                    { label: 'Spacious', val: 72 }
-                                  ].map(({ label, val, star }) => (
-                                    <button
-                                      key={val}
-                                      type="button"
-                                      onClick={() => handleRowHeightChange(val)}
-                                      className={`popover-option-btn py-1.5 rounded-lg text-[11px] font-black cursor-pointer transition-all text-center border-2 ${
-                                        rowHeight === val
-                                          ? 'popover-option-active bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 shadow-2xs'
-                                      }`}
-                                    >
-                                      {label} {star ? '★' : ''}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
 
-                              {/* Print Margins */}
-                              <div className="popover-section-card p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between shadow-2xs">
-                                <div>
-                                  <div className="popover-heading flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
+                                {/* Print Margins */}
+                                <div className="popover-section-card p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                  <div className="flex items-center justify-between text-xs font-black text-slate-800 dark:text-slate-200 mb-1">
                                     <span>Print Margin:</span>
-                                    <span className="popover-pill px-3 py-1 rounded-lg bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 font-mono font-black text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
+                                    <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300">
                                       {printMargin}" ({Math.round(printMargin * 25.4)}mm)
                                     </span>
                                   </div>
@@ -5729,419 +5669,416 @@ export default function AdmissionRegisterSuite({
                                     step="0.05"
                                     value={printMargin}
                                     onChange={(e) => handlePrintMarginChange(parseFloat(e.target.value))}
-                                    className="w-full cursor-pointer accent-indigo-600 my-2"
+                                    className="w-full cursor-pointer accent-indigo-600 my-1"
                                   />
-                                </div>
-                                <div className="grid grid-cols-4 gap-1.5 mt-1.5">
-                                  {[
-                                    { m: 0.2, label: '0.2"' },
-                                    { m: 0.3, label: '0.3" ★' },
-                                    { m: 0.4, label: '0.4"' },
-                                    { m: 0.5, label: '0.5"' }
-                                  ].map(({ m, label }) => (
-                                    <button
-                                      key={m}
-                                      type="button"
-                                      onClick={() => handlePrintMarginChange(m)}
-                                      className={`popover-option-btn py-1.5 rounded-lg text-[11px] font-black cursor-pointer transition-all text-center border-2 ${
-                                        Math.abs(printMargin - m) < 0.02
-                                          ? 'popover-option-active bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-400 hover:bg-slate-50 shadow-2xs'
-                                      }`}
-                                    >
-                                      {label}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Section to Display & View Layout */}
-                            {activeTab === 'adm_register' && (
-                              <div className="popover-section-card grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xs">
-                                <div>
-                                  <label className="popover-heading block text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
-                                    Section to Display:
-                                  </label>
-                                  <select
-                                    value={registerViewSection}
-                                    onChange={(e) => setRegisterViewSection(e.target.value)}
-                                    className="w-full py-2 px-3 text-xs rounded-xl font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                                  >
-                                    <option value="all">📑 All Spreads (Full Register)</option>
-                                    <option value="cover">📜 Cover Page Only</option>
-                                    <option value="spreads">📖 Ledger Table Only</option>
-                                    <option value="summary">📊 Summary Statement Only</option>
-                                    <option value="notes">📝 Notes & Annexure Only</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="popover-heading block text-xs sm:text-[13px] font-black text-slate-900 dark:text-slate-100 mb-1.5">
-                                    Book Layout:
-                                  </label>
-                                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200 dark:bg-slate-700 rounded-xl border border-slate-300 dark:border-slate-600">
-                                    <button
-                                      type="button"
-                                      onClick={() => setSpreadLayoutMode('side_by_side')}
-                                      className={`popover-option-btn py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                                        spreadLayoutMode === 'side_by_side'
-                                          ? 'popover-option-active bg-indigo-600 text-white shadow-sm'
-                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-50'
-                                      }`}
-                                    >
-                                      <Columns size={13} />
-                                      <span>Side-by-Side</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setSpreadLayoutMode('stacked')}
-                                      className={`popover-option-btn py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                                        spreadLayoutMode === 'stacked'
-                                          ? 'popover-option-active bg-indigo-600 text-white shadow-sm'
-                                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-50'
-                                      }`}
-                                    >
-                                      <LayoutGrid size={13} />
-                                      <span>Stacked</span>
-                                    </button>
+                                  <div className="grid grid-cols-4 gap-1 mt-1">
+                                    {[
+                                      { m: 0.2, label: '0.2"' },
+                                      { m: 0.3, label: '0.3" ★' },
+                                      { m: 0.4, label: '0.4"' },
+                                      { m: 0.5, label: '0.5"' }
+                                    ].map(({ m, label }) => (
+                                      <button
+                                        key={m}
+                                        type="button"
+                                        onClick={() => handlePrintMarginChange(m)}
+                                        className={`popover-option-btn py-1 rounded text-[10px] font-black cursor-pointer text-center border ${
+                                          Math.abs(printMargin - m) < 0.02
+                                            ? 'popover-option-active bg-indigo-600 text-white border-indigo-600'
+                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                        }`}
+                                      >
+                                        {label}
+                                      </button>
+                                    ))}
                                   </div>
                                 </div>
                               </div>
-                            )}
 
-                            {/* Sentup Page Inclusions */}
-                            {activeTab === 'sentup' && (
-                              <div className="popover-section-card p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <span className="popover-heading block text-xs font-black text-slate-800 dark:text-slate-200 mb-1.5">
-                                  Sentup Document Pages:
-                                </span>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <label className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
-                                    <input
-                                      type="checkbox"
-                                      checked={includeCoverPage}
-                                      onChange={(e) => setIncludeCoverPage(e.target.checked)}
-                                      className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
-                                    />
-                                    <div>
-                                      <div>Cover Page (Page 1)</div>
-                                      <div className="text-[10px] text-slate-500 font-normal">Official red document title label</div>
-                                    </div>
-                                  </label>
-                                  <label className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
-                                    <input
-                                      type="checkbox"
-                                      checked={includePlanPage}
-                                      onChange={(e) => setIncludePlanPage(e.target.checked)}
-                                      className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
-                                    />
-                                    <div>
-                                      <div>Exam Plan & Key (Page 2)</div>
-                                      <div className="text-[10px] text-slate-500 font-normal">Subject codes & seat scheme</div>
-                                    </div>
-                                  </label>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Screen Zoom Controls */}
-                            <div className="popover-section-card flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                              <div>
-                                <span className="popover-heading text-xs font-black text-slate-800 dark:text-slate-200">
-                                  On-Screen Zoom:
-                                </span>
-                                <div className="popover-subtext text-[10.5px] text-slate-500 dark:text-slate-400">
-                                  Scales ledger display on current screen
-                                </div>
-                              </div>
-                              <div className="popover-pill flex items-center gap-1.5 p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                                <button
-                                  type="button"
-                                  onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
-                                  className="w-7 h-7 flex items-center justify-center rounded-lg font-black text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 cursor-pointer shadow-2xs"
-                                  title="Zoom Out"
-                                >
-                                  -
-                                </button>
-                                <span className="px-2 font-mono font-black text-xs text-slate-800 dark:text-slate-200 min-w-[50px] text-center">
-                                  {Math.round(zoomLevel * 100)}%
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
-                                  className="w-7 h-7 flex items-center justify-center rounded-lg font-black text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 cursor-pointer shadow-2xs"
-                                  title="Zoom In"
-                                >
-                                  +
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setZoomLevel(1.0)}
-                                  className="text-[10.5px] font-black text-indigo-600 dark:text-indigo-400 hover:underline px-1.5 cursor-pointer"
-                                >
-                                  Reset
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* ─── TAB 2: SENTUP VISIBLE COLUMNS ─── */}
-                        {popoverActiveTab === 'columns' && (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="relative flex-1">
-                                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input
-                                  type="text"
-                                  placeholder="Search columns..."
-                                  value={columnSearchQuery}
-                                  onChange={(e) => setColumnSearchQuery(e.target.value)}
-                                  className="w-full pl-7 pr-2 py-1 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={resetSentupCols}
-                                className="text-[10.5px] font-black text-indigo-600 dark:text-indigo-400 hover:underline shrink-0 cursor-pointer px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60"
-                              >
-                                Reset Defaults
-                              </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-60 overflow-y-auto pr-1">
-                              {ALL_SENTUP_COLS
-                                .filter(col => !columnSearchQuery.trim() || col.label.toLowerCase().includes(columnSearchQuery.toLowerCase()))
-                                .map(col => {
-                                  const checked = isSentupColVisible(col.key);
-                                  return (
-                                    <label
-                                      key={col.key}
-                                      className={`flex items-center gap-2.5 p-2 rounded-xl border cursor-pointer transition-all ${
-                                        checked
-                                          ? 'border-indigo-300 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-950/30 text-slate-900 dark:text-slate-100'
-                                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500'
-                                      }`}
+                              {/* 4. Section to Display & Book Layout */}
+                              {activeTab === 'adm_register' && (
+                                <div className="popover-section-card grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                  <div>
+                                    <label className="block text-xs font-black text-slate-800 dark:text-slate-200 mb-1">
+                                      Section to Display:
+                                    </label>
+                                    <select
+                                      value={registerViewSection}
+                                      onChange={(e) => setRegisterViewSection(e.target.value)}
+                                      className="w-full py-1.5 px-2 text-xs rounded-lg font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                                     >
+                                      <option value="all">📑 All Spreads (Full Register)</option>
+                                      <option value="cover">📜 Cover Page Only</option>
+                                      <option value="spreads">📖 Ledger Table Only</option>
+                                      <option value="summary">📊 Summary Statement Only</option>
+                                      <option value="notes">📝 Notes &amp; Annexure Only</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-black text-slate-800 dark:text-slate-200 mb-1">
+                                      Book Layout:
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-1 p-0.5 bg-slate-200 dark:bg-slate-700 rounded-lg">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSpreadLayoutMode('side_by_side')}
+                                        className={`py-1 px-2 rounded-md text-[11px] font-black flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                          spreadLayoutMode === 'side_by_side'
+                                            ? 'bg-indigo-600 text-white shadow-xs'
+                                            : 'text-slate-700 dark:text-slate-300 hover:bg-white/60'
+                                        }`}
+                                      >
+                                        <Columns size={12} />
+                                        <span>Side-by-Side</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSpreadLayoutMode('stacked')}
+                                        className={`py-1 px-2 rounded-md text-[11px] font-black flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                          spreadLayoutMode === 'stacked'
+                                            ? 'bg-indigo-600 text-white shadow-xs'
+                                            : 'text-slate-700 dark:text-slate-300 hover:bg-white/60'
+                                        }`}
+                                      >
+                                        <LayoutGrid size={12} />
+                                        <span>Stacked</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 5. Sentup Page Inclusions */}
+                              {activeTab === 'sentup' && (
+                                <div className="popover-section-card p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                  <span className="block text-xs font-black text-slate-800 dark:text-slate-200 mb-1.5">
+                                    Sentup Document Pages:
+                                  </span>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <label className="flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-50">
                                       <input
                                         type="checkbox"
-                                        checked={checked}
-                                        onChange={() => toggleSentupCol(col.key)}
-                                        className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                                        checked={includeCoverPage}
+                                        onChange={(e) => setIncludeCoverPage(e.target.checked)}
+                                        className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                       />
-                                      <span className="text-xs font-bold truncate">{col.label}</span>
-                                      {col.key === 'st_rollNo' && isAprBianSession && !sentupExplicitCols.has('st_rollNo') && (
-                                        <span className="text-[9px] text-amber-600 font-bold ml-auto shrink-0">(APR off)</span>
-                                      )}
+                                      <div>
+                                        <div>Cover Page (Page 1)</div>
+                                        <div className="text-[10px] text-slate-500 font-normal">Official document title label</div>
+                                      </div>
                                     </label>
-                                  );
-                                })}
-                            </div>
-                          </div>
-                        )}
+                                    <label className="flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-50">
+                                      <input
+                                        type="checkbox"
+                                        checked={includePlanPage}
+                                        onChange={(e) => setIncludePlanPage(e.target.checked)}
+                                        className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                      />
+                                      <div>
+                                        <div>Exam Plan &amp; Key (Page 2)</div>
+                                        <div className="text-[10px] text-slate-500 font-normal">Subject codes &amp; seating scheme</div>
+                                      </div>
+                                    </label>
+                                  </div>
+                                </div>
+                              )}
 
-                        {/* ─── TAB 3: SUBJECT KEY (PAGE 2) ─── */}
-                        {popoverActiveTab === 'subjects' && (
-                          <div className="space-y-3">
-                            {/* Action Bar */}
-                            <div className="popover-section-card flex items-center justify-between gap-2 p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
-                              <div className="flex items-center gap-1.5">
-                                {savingSubjectsCloud ? (
-                                  <span className="text-[10.5px] font-bold text-indigo-600 flex items-center gap-1">
-                                    <Loader2 size={11} className="animate-spin" /> Saving Cloud...
+                              {/* 6. Screen Zoom Controls */}
+                              <div className="popover-section-card flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div className="text-xs font-black text-slate-800 dark:text-slate-200">
+                                  On-Screen Zoom:
+                                  <span className="font-normal text-slate-500 dark:text-slate-400 text-[10.5px] ml-1.5">Scale table view</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 p-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                  <button
+                                    type="button"
+                                    onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
+                                    className="w-6 h-6 flex items-center justify-center rounded font-black text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 cursor-pointer"
+                                    title="Zoom Out"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="px-1.5 font-mono font-black text-xs text-slate-800 dark:text-slate-200 min-w-[45px] text-center">
+                                    {Math.round(zoomLevel * 100)}%
                                   </span>
-                                ) : (
-                                  <span className="text-[10px] font-black text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                    <Check size={10} /> Cloud Synced
-                                  </span>
-                                )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
+                                    className="w-6 h-6 flex items-center justify-center rounded font-black text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 cursor-pointer"
+                                    title="Zoom In"
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setZoomLevel(1.0)}
+                                    className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline px-1 cursor-pointer"
+                                  >
+                                    Reset
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2">
+                            </div>
+                          )}
+
+                          {/* ─── TAB 2: SENTUP VISIBLE COLUMNS ─── */}
+                          {popoverActiveTab === 'columns' && (
+                            <div className="space-y-2.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="relative flex-1">
+                                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search columns..."
+                                    value={columnSearchQuery}
+                                    onChange={(e) => setColumnSearchQuery(e.target.value)}
+                                    className="w-full pl-7 pr-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                                  />
+                                </div>
                                 <button
                                   type="button"
-                                  onClick={() => saveSubjectAbbreviationsToCloud(sentupSubjectAbbreviations)}
-                                  disabled={savingSubjectsCloud}
-                                  className="text-[10.5px] font-black text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 flex items-center gap-1 cursor-pointer bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 px-2 py-1 rounded-lg shadow-2xs hover:bg-emerald-50"
+                                  onClick={resetSentupCols}
+                                  className="text-[10.5px] font-black text-indigo-600 dark:text-indigo-400 hover:underline shrink-0 cursor-pointer px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60"
                                 >
-                                  <Save size={11} /> Save to Cloud
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleResetSubjectAbbreviations}
-                                  className="text-[10.5px] font-black text-slate-500 hover:text-rose-600 cursor-pointer hover:underline"
-                                >
-                                  Reset Official
+                                  Reset Defaults
                                 </button>
                               </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto pr-1">
+                                {ALL_SENTUP_COLS
+                                  .filter(col => !columnSearchQuery.trim() || col.label.toLowerCase().includes(columnSearchQuery.toLowerCase()))
+                                  .map(col => {
+                                    const checked = isSentupColVisible(col.key);
+                                    return (
+                                      <label
+                                        key={col.key}
+                                        className={`flex items-center gap-2 p-1.5 rounded-lg border cursor-pointer transition-all ${
+                                          checked
+                                            ? 'border-indigo-300 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-950/30 text-slate-900 dark:text-slate-100'
+                                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={() => toggleSentupCol(col.key)}
+                                          className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-3.5 h-3.5"
+                                        />
+                                        <span className="text-xs font-bold truncate">{col.label}</span>
+                                        {col.key === 'st_rollNo' && isAprBianSession && !sentupExplicitCols.has('st_rollNo') && (
+                                          <span className="text-[9px] text-amber-600 font-bold ml-auto shrink-0">(APR off)</span>
+                                        )}
+                                      </label>
+                                    );
+                                  })}
+                              </div>
                             </div>
+                          )}
 
-                            {/* Add Form */}
-                            <div className="popover-section-card flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700">
-                              <input
-                                type="text"
-                                placeholder="Code (e.g. BIO)"
-                                value={newSubCode}
-                                onChange={(e) => setNewSubCode(e.target.value)}
-                                className="w-24 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold uppercase focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                              />
-                              <input
-                                type="text"
-                                placeholder="Subject Title (e.g. Biology)"
-                                value={newSubName}
-                                onChange={(e) => setNewSubName(e.target.value)}
-                                className="flex-1 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddSubjectAbbreviation();
-                                  }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={handleAddSubjectAbbreviation}
-                                disabled={!newSubCode.trim() || !newSubName.trim()}
-                                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 shrink-0 shadow-2xs"
-                              >
-                                <Plus size={12} />
-                                <span>Add</span>
-                              </button>
-                            </div>
+                          {/* ─── TAB 3: SUBJECT KEY (PAGE 2) ─── */}
+                          {popoverActiveTab === 'subjects' && (
+                            <div className="space-y-2.5">
+                              {/* Action Bar */}
+                              <div className="popover-section-card flex items-center justify-between gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div className="flex items-center gap-1.5">
+                                  {savingSubjectsCloud ? (
+                                    <span className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
+                                      <Loader2 size={11} className="animate-spin" /> Saving Cloud...
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9.5px] font-black text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 px-1.5 py-0.2 rounded-full flex items-center gap-1">
+                                      <Check size={10} /> Cloud Synced
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => saveSubjectAbbreviationsToCloud(sentupSubjectAbbreviations)}
+                                    disabled={savingSubjectsCloud}
+                                    className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 flex items-center gap-1 cursor-pointer bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 rounded-lg shadow-2xs hover:bg-emerald-50"
+                                  >
+                                    <Save size={10} /> Save to Cloud
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleResetSubjectAbbreviations}
+                                    className="text-[10px] font-black text-slate-500 hover:text-rose-600 cursor-pointer hover:underline"
+                                  >
+                                    Reset Official
+                                  </button>
+                                </div>
+                              </div>
 
-                            {/* Search Filter for Subject Key */}
-                            <div className="relative">
-                              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                              <input
-                                type="text"
-                                placeholder="Filter subject key..."
-                                value={subjectSearchQuery}
-                                onChange={(e) => setSubjectSearchQuery(e.target.value)}
-                                className="w-full pl-7 pr-2 py-1 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                              />
-                            </div>
+                              {/* Add Form */}
+                              <div className="popover-section-card flex items-center gap-1.5 p-1.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <input
+                                  type="text"
+                                  placeholder="Code"
+                                  value={newSubCode}
+                                  onChange={(e) => setNewSubCode(e.target.value)}
+                                  className="w-20 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold uppercase focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Subject Title (e.g. Biology)"
+                                  value={newSubName}
+                                  onChange={(e) => setNewSubName(e.target.value)}
+                                  className="flex-1 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleAddSubjectAbbreviation();
+                                    }
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleAddSubjectAbbreviation}
+                                  disabled={!newSubCode.trim() || !newSubName.trim()}
+                                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 shrink-0 shadow-2xs"
+                                >
+                                  <Plus size={11} />
+                                  <span>Add</span>
+                                </button>
+                              </div>
 
-                            {/* List of current abbreviations */}
-                            <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
-                              {sentupSubjectAbbreviations
-                                .filter(sub => !subjectSearchQuery.trim() || (sub.name || '').toLowerCase().includes(subjectSearchQuery.toLowerCase()) || (sub.code || '').toLowerCase().includes(subjectSearchQuery.toLowerCase()))
-                                .map((sub, sIdx) => {
-                                  const itemKey = sub.id || `sub_idx_${sIdx}`;
-                                  const isEditing = editingSubKey === itemKey;
+                              {/* Search Filter for Subject Key */}
+                              <div className="relative">
+                                <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                  type="text"
+                                  placeholder="Filter subject key..."
+                                  value={subjectSearchQuery}
+                                  onChange={(e) => setSubjectSearchQuery(e.target.value)}
+                                  className="w-full pl-7 pr-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                                />
+                              </div>
 
-                                  if (isEditing) {
+                              {/* List of current abbreviations */}
+                              <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                                {sentupSubjectAbbreviations
+                                  .filter(sub => !subjectSearchQuery.trim() || (sub.name || '').toLowerCase().includes(subjectSearchQuery.toLowerCase()) || (sub.code || '').toLowerCase().includes(subjectSearchQuery.toLowerCase()))
+                                  .map((sub, sIdx) => {
+                                    const itemKey = sub.id || `sub_idx_${sIdx}`;
+                                    const isEditing = editingSubKey === itemKey;
+
+                                    if (isEditing) {
+                                      return (
+                                        <div
+                                          key={itemKey}
+                                          className="flex items-center gap-1.5 p-1 bg-indigo-50/90 dark:bg-indigo-950/60 rounded-lg border border-indigo-300 dark:border-indigo-700 shadow-xs"
+                                        >
+                                          <input
+                                            type="text"
+                                            value={editSubCode}
+                                            onChange={(e) => setEditSubCode(e.target.value)}
+                                            className="w-16 px-1.5 py-0.5 text-xs rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold uppercase focus:outline-hidden"
+                                            placeholder="Code"
+                                            autoFocus
+                                          />
+                                          <input
+                                            type="text"
+                                            value={editSubName}
+                                            onChange={(e) => setEditSubName(e.target.value)}
+                                            className="flex-1 px-1.5 py-0.5 text-xs rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium focus:outline-hidden"
+                                            placeholder="Subject Title"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveEditSubjectAbbreviation(itemKey)}
+                                            disabled={!editSubCode.trim() || !editSubName.trim()}
+                                            className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer transition-colors shrink-0 disabled:opacity-40"
+                                            title="Save changes"
+                                          >
+                                            <Check size={12} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={handleCancelEditSubjectAbbreviation}
+                                            className="p-1 text-slate-500 hover:text-slate-700 rounded cursor-pointer transition-colors shrink-0"
+                                            title="Cancel"
+                                          >
+                                            <X size={12} />
+                                          </button>
+                                        </div>
+                                      );
+                                    }
+
                                     return (
                                       <div
                                         key={itemKey}
-                                        className="flex items-center gap-1.5 p-1.5 bg-indigo-50/90 dark:bg-indigo-950/60 rounded-xl border border-indigo-300 dark:border-indigo-700 shadow-xs"
+                                        className="flex items-center justify-between px-2 py-1 bg-white dark:bg-slate-800 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 rounded-lg border border-slate-200/80 dark:border-slate-700 text-xs shadow-2xs group transition-colors"
                                       >
-                                        <input
-                                          type="text"
-                                          value={editSubCode}
-                                          onChange={(e) => setEditSubCode(e.target.value)}
-                                          className="w-20 px-2 py-1 text-xs rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold uppercase focus:outline-hidden"
-                                          placeholder="Code"
-                                          autoFocus
-                                        />
-                                        <input
-                                          type="text"
-                                          value={editSubName}
-                                          onChange={(e) => setEditSubName(e.target.value)}
-                                          className="flex-1 px-2 py-1 text-xs rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium focus:outline-hidden"
-                                          placeholder="Subject Title"
-                                        />
-                                        <button
-                                          type="button"
-                                          onClick={() => handleSaveEditSubjectAbbreviation(itemKey)}
-                                          disabled={!editSubCode.trim() || !editSubName.trim()}
-                                          className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer transition-colors shrink-0 disabled:opacity-40"
-                                          title="Save changes"
-                                        >
-                                          <Check size={13} />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={handleCancelEditSubjectAbbreviation}
-                                          className="p-1 text-slate-500 hover:text-slate-700 rounded cursor-pointer transition-colors shrink-0"
-                                          title="Cancel"
-                                        >
-                                          <X size={13} />
-                                        </button>
+                                        <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                          <span className="px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-300 font-mono font-black text-[9.5px] shrink-0">
+                                            {sub.code}
+                                          </span>
+                                          <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] truncate">
+                                            {sub.name}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStartEditSubjectAbbreviation(sub, itemKey)}
+                                            className="p-0.5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 rounded cursor-pointer transition-colors"
+                                            title={`Edit ${sub.name}`}
+                                          >
+                                            <Edit3 size={11} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteSubjectAbbreviation(itemKey)}
+                                            className="p-0.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded cursor-pointer transition-colors"
+                                            title={`Delete ${sub.name}`}
+                                          >
+                                            <Trash2 size={11} />
+                                          </button>
+                                        </div>
                                       </div>
                                     );
-                                  }
+                                  })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
-                                  return (
-                                    <div
-                                      key={itemKey}
-                                      className="flex items-center justify-between px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs shadow-2xs group transition-colors"
-                                    >
-                                      <div className="flex items-center gap-2 min-w-0 pr-2">
-                                        <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-300 font-mono font-black text-[10px] shrink-0">
-                                          {sub.code}
-                                        </span>
-                                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] truncate">
-                                          {sub.name}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleStartEditSubjectAbbreviation(sub, itemKey)}
-                                          className="p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 rounded cursor-pointer transition-colors"
-                                          title={`Edit ${sub.name}`}
-                                        >
-                                          <Edit3 size={12} />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteSubjectAbbreviation(itemKey)}
-                                          className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded cursor-pointer transition-colors"
-                                          title={`Delete ${sub.name}`}
-                                        >
-                                          <Trash2 size={12} />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                        {/* 4. Footer (Compact & Minimal) */}
+                        <div className="popover-footer border-t border-slate-200 dark:border-slate-800 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 shrink-0">
+                          <div className="flex items-center justify-between gap-3">
+                            {isLayoutModified ? (
+                              <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5 truncate">
+                                <AlertCircle size={13} className="shrink-0 text-amber-600" />
+                                <span>Customized layout</span>
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                                Official default format active
+                              </span>
+                            )}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={handleResetLayoutToOriginal}
+                                className="popover-option-btn py-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                title="Reset columns, density, margins and row heights to original format"
+                              >
+                                <RotateCcw size={12} />
+                                <span>Reset Defaults</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleSaveLayoutToFirebase}
+                                disabled={savingLayout}
+                                className="py-1.5 px-3.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95 disabled:opacity-50"
+                                title="Save custom layout as default to Firebase"
+                              >
+                                {savingLayout ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                <span>Save to Firebase</span>
+                              </button>
                             </div>
                           </div>
-                        )}
-                      </div>
-
-                      {/* 4. Sticky Footer Actions (Always Accessible) */}
-                      <div className="popover-footer border-t-2 border-slate-300 dark:border-slate-800 p-3.5 bg-slate-50 dark:bg-slate-900 space-y-2.5 shrink-0 shadow-lg">
-                        {isLayoutModified && (
-                          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold">
-                            <span className="flex items-center gap-2">
-                              <AlertCircle size={14} className="text-amber-600 shrink-0" />
-                              <span>Layout customized. Save to update cloud defaults.</span>
-                            </span>
-                            <span className="text-[10px] uppercase tracking-wider font-black text-amber-800 dark:text-amber-300 bg-amber-200/90 dark:bg-amber-900/80 px-2 py-0.5 rounded-full border border-amber-300">
-                              Modified
-                            </span>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-5 gap-2.5">
-                          <button
-                            type="button"
-                            onClick={handleSaveLayoutToFirebase}
-                            disabled={savingLayout}
-                            className="col-span-3 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-[13px] flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-600/25 transition-all active:scale-95 disabled:opacity-50"
-                            title="Save custom column widths, row height, margin and candidates per sheet to Firebase"
-                          >
-                            {savingLayout ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                            <span className="truncate">Set as Default (Firebase)</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleResetLayoutToOriginal}
-                            className="popover-option-btn col-span-2 py-2.5 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-black text-xs sm:text-[13px] flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shadow-2xs"
-                            title="Reset columns, density, margins and row heights to original factory format"
-                          >
-                            <RotateCcw size={15} />
-                            <span>Reset Defaults</span>
-                          </button>
                         </div>
                       </div>
                     </div>
