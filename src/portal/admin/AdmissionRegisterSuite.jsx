@@ -3821,16 +3821,18 @@ export default function AdmissionRegisterSuite({
   const pageSizeCss = isA4 ? 'a4 landscape' : (isStandardLegal ? 'legal landscape' : '13.7in 8.5in');
 
   const printMarginMm = Math.max(2.5, Math.min(20, printMargin * 25.4));
-  const printableHeightMm = Math.max(140, paperHeightMm - (printMarginMm * 2) - 1.0);
+  // Account for browser print engine margins (such as Chrome Save as PDF default margins of ~8-10mm)
+  const effectiveMarginMm = Math.max(8.0, printMarginMm);
+  const printableHeightMm = Math.max(130, paperHeightMm - (effectiveMarginMm * 2) - 2.5);
 
   const currentStudentsPerPage = activeTab === 'sentup' ? (sentupStudentsPerPage || 10) : (studentsPerPage || 15);
   // Allowance for top school header, thead, and signature footer:
   // Sentup: sentup-header (12mm) + margin (1.2mm) + thead (6.5mm) + signature-footer (8.5mm) + margin (1.5mm) + borders (2mm) = 31.7mm -> safe allowance 34mm
   // Register: register-header (12mm) + margin (1.5mm) + thead (14mm) + signature-footer (13.5mm) + margin (1.5mm) + borders (2mm) = 44.5mm
-  const headerFooterAllowanceMm = activeTab === 'sentup' ? 34 : 44.5;
+  const headerFooterAllowanceMm = activeTab === 'sentup' ? 34 : 45.0;
   const maxFittingRowMm = (printableHeightMm - headerFooterAllowanceMm) / currentStudentsPerPage;
   // Floor to 1 decimal place with 0.2mm safety buffer to guarantee zero page overflow in Blink:
-  const calculatedRowHeightMm = Math.max(6.0, Math.floor((maxFittingRowMm - 0.2) * 10) / 10).toFixed(1);
+  const calculatedRowHeightMm = Math.max(5.5, Math.floor((maxFittingRowMm - 0.2) * 10) / 10).toFixed(1);
 
   return (
     <div ref={suiteRootRef} className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
@@ -3961,8 +3963,8 @@ export default function AdmissionRegisterSuite({
             border-radius: 0 !important;
             box-shadow: none !important;
             outline: none !important;
-            page-break-after: always !important;
-            break-after: page !important;
+            page-break-after: auto !important;
+            break-after: auto !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
             background: #ffffff !important;
@@ -3982,12 +3984,15 @@ export default function AdmissionRegisterSuite({
             box-sizing: border-box !important;
             padding: 0 !important;
             margin: 0 !important;
-            page-break-after: always !important;
-            break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
             overflow: visible !important;
             background: #ffffff !important;
+          }
+
+          .spread-container {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
           }
 
           .spread-container .register-ledger-page:first-child {
@@ -3995,7 +4000,7 @@ export default function AdmissionRegisterSuite({
             break-after: page !important;
           }
 
-          .spread-container .register-ledger-page:last-child {
+          .spread-container:not(:last-child) .register-ledger-page:last-child {
             page-break-after: always !important;
             break-after: page !important;
           }
@@ -4041,6 +4046,8 @@ export default function AdmissionRegisterSuite({
             border-bottom: 1.5px solid #0f172a !important;
             box-sizing: border-box !important;
             flex-shrink: 0 !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
 
           .register-header h2 {
@@ -4710,20 +4717,12 @@ export default function AdmissionRegisterSuite({
 
           /* Clean single 1px black borders without thick or duplicate outlines */
           table {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
             border-collapse: collapse !important;
             border: 1px solid #000000 !important;
             table-layout: fixed !important;
-          }
-
-          .sentup-ledger-page table,
-          .sentup-table {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
           }
 
           th, td {
@@ -4781,6 +4780,7 @@ export default function AdmissionRegisterSuite({
           opacity: 1 !important;
         }
 
+      @media screen {
         .admission-spread-table thead th {
           color: #0f172a !important;
           font-weight: 800 !important;
@@ -4857,6 +4857,7 @@ export default function AdmissionRegisterSuite({
           margin-top: auto;
           flex-shrink: 0;
         }
+      }
 
         /* ─── PURE HIGH-CONTRAST POPOVER DIALOG STYLING (THEME-AWARE) ─── */
         .register-popover-panel {
