@@ -965,6 +965,7 @@ export default function AdmissionRegisterSuite({
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [toast, setToast] = useState(null);
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+  const [taskProgress, setTaskProgress] = useState(null);
 
   // Detect whether currently selected session is APR/BIAN (Bi-annual / Private cohort)
   const isAprBianSession = useMemo(() => {
@@ -1126,25 +1127,15 @@ export default function AdmissionRegisterSuite({
   const handleSessionChange = useCallback((newSession) => {
     if (newSession === selectedSession) return;
     setIsLoadingSession(true);
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        setSelectedSession(newSession);
-        setIsLoadingSession(false);
-      }, 40);
-    });
+    setSelectedSession(newSession);
   }, [selectedSession]);
 
   const handleResetFilters = useCallback(() => {
     setIsLoadingSession(true);
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        setSelectedSession('2025-26');
-        setSelectedStatus('Approved');
-        setSelectedAdmissionType('ALL');
-        setSelectedStream('ALL');
-        setIsLoadingSession(false);
-      }, 40);
-    });
+    setSelectedSession('2025-26');
+    setSelectedStatus('Approved');
+    setSelectedAdmissionType('ALL');
+    setSelectedStream('ALL');
   }, []);
 
   // ─── DYNAMIC COLUMN WIDTHS & ROW HEIGHT STATE (FIREBASE + LOCAL STORAGE PRESERVED) ───
@@ -1458,6 +1449,13 @@ export default function AdmissionRegisterSuite({
       localStorage.setItem('hss_register_paper_size', paperSize);
     } catch (_) {}
 
+    setTaskProgress({
+      title: 'Saving Cloud Configuration',
+      step: 'Synchronizing table layout, density & subject key to Cloud Firestore...',
+      progress: 45,
+      icon: 'cloud'
+    });
+
     try {
       setSavingLayout(true);
       let firebaseSaved = false;
@@ -1478,6 +1476,14 @@ export default function AdmissionRegisterSuite({
 
       setIsLayoutModified(false);
       if (firebaseSaved) {
+        setTaskProgress({
+          title: 'Cloud Configuration Synchronized',
+          step: 'Verified settings saved to cloud & persistent storage!',
+          progress: 100,
+          status: 'success',
+          icon: 'cloud'
+        });
+        setTimeout(() => setTaskProgress(null), 700);
         setToast({
           message: '✅ Table layout & subject key saved to Cloud and browser storage!',
           type: 'success'
@@ -1491,6 +1497,14 @@ export default function AdmissionRegisterSuite({
           });
         } catch (_) {}
       } else {
+        setTaskProgress({
+          title: 'Preserved Locally',
+          step: 'Table layout preserved permanently on your browser device!',
+          progress: 100,
+          status: 'success',
+          icon: 'cloud'
+        });
+        setTimeout(() => setTaskProgress(null), 700);
         setToast({
           message: '💾 Table layout preserved permanently on your browser device!',
           type: 'info'
@@ -1499,6 +1513,7 @@ export default function AdmissionRegisterSuite({
     } catch (err) {
       console.error('Failed to save layout to Firebase:', err);
       setIsLayoutModified(false);
+      setTaskProgress(null);
       setToast({
         message: '💾 Layout preserved locally in browser storage!',
         type: 'info'
@@ -1517,6 +1532,13 @@ export default function AdmissionRegisterSuite({
 
     // 2. Persist to Cloud Firestore
     setSavingSubjectsCloud(true);
+    setTaskProgress({
+      title: 'Updating Subject Directory',
+      step: `Synchronizing ${updatedList.length} subject abbreviations to Cloud Firestore...`,
+      progress: 45,
+      icon: 'cloud'
+    });
+
     try {
       const payload = {
         sentupSubjectAbbreviations: updatedList,
@@ -1544,6 +1566,14 @@ export default function AdmissionRegisterSuite({
       }
 
       if (cloudSaved) {
+        setTaskProgress({
+          title: 'Subject Directory Synced',
+          step: `${updatedList.length} subject abbreviations saved to Cloud!`,
+          progress: 100,
+          status: 'success',
+          icon: 'cloud'
+        });
+        setTimeout(() => setTaskProgress(null), 700);
         setToast({
           message: '☁️ Subject abbreviations saved to cloud!',
           type: 'success'
@@ -1557,6 +1587,14 @@ export default function AdmissionRegisterSuite({
           });
         } catch (_) {}
       } else {
+        setTaskProgress({
+          title: 'Preserved Locally',
+          step: 'Subject abbreviations preserved in browser storage.',
+          progress: 100,
+          status: 'success',
+          icon: 'cloud'
+        });
+        setTimeout(() => setTaskProgress(null), 700);
         setToast({
           message: '💾 Subject abbreviations preserved in browser storage.',
           type: 'info'
@@ -1564,6 +1602,7 @@ export default function AdmissionRegisterSuite({
       }
     } catch (err) {
       console.error('Failed to save subject abbreviations to cloud:', err);
+      setTaskProgress(null);
       setToast({
         message: '💾 Subject abbreviations preserved in browser storage.',
         type: 'info'
@@ -2051,11 +2090,13 @@ export default function AdmissionRegisterSuite({
     if (selectedSession === '2025-26' && Array.isArray(propStudents) && propStudents.length > 0) {
       sessionCacheRef.current['2025-26'] = propStudents;
       setDataset(propStudents);
+      setIsLoadingSession(false);
       return;
     }
 
     if (sessionCacheRef.current[selectedSession]) {
       setDataset(sessionCacheRef.current[selectedSession]);
+      setIsLoadingSession(false);
       return;
     }
 
@@ -2788,15 +2829,16 @@ export default function AdmissionRegisterSuite({
     return sorted.map((st, i) => ({ ...st, sno: i + 1 }));
   }, [normalizedStudents, selectedStatus, selectedAdmissionType, selectedClass, selectedStream, searchQuery, sortConfig, activeTab, selectedSession, isAprBianSession]);
 
-  // ASYNC PHOTO FETCHING FOR VISIBLE FILTERED STUDENTS
+  // ASYNC PHOTO FETCHING FOR VISIBLE FILTERED STUDENTS (HIGH-SPEED ON-DEMAND BATCHING)
   useEffect(() => {
     if (!filteredStudents || filteredStudents.length === 0) return;
     let isMounted = true;
 
+    const winMap = typeof window !== 'undefined' ? window._hss_central_photo_map || {} : {};
     const toFetch = filteredStudents.filter(st => {
-      const existing = (st.boardReg && isValidPhotoKey(st.boardReg) && photosMap[st.boardReg]) ||
-        (st.formNo && isValidPhotoKey(st.formNo) && photosMap[st.formNo]) ||
-        (st.id && isValidPhotoKey(st.id) && photosMap[st.id]) ||
+      const existing = (st.boardReg && isValidPhotoKey(st.boardReg) && (photosMap[st.boardReg] || winMap[st.boardReg])) ||
+        (st.formNo && isValidPhotoKey(st.formNo) && (photosMap[st.formNo] || winMap[st.formNo])) ||
+        (st.id && isValidPhotoKey(st.id) && (photosMap[st.id] || winMap[st.id])) ||
         st.directPhoto;
       return !existing || existing === '/logo.png';
     });
@@ -2809,12 +2851,12 @@ export default function AdmissionRegisterSuite({
       return res;
     };
 
-    const batches = chunkArray(toFetch, 15);
+    const batches = chunkArray(toFetch, 25);
 
     (async () => {
       for (const batch of batches) {
         if (!isMounted) break;
-        const results = await Promise.all(
+        const results = await Promise.allSettled(
           batch.map(async (st) => {
             try {
               const url = await fetchStudentPhotoOnDemand(st.raw || st);
@@ -2828,11 +2870,18 @@ export default function AdmissionRegisterSuite({
         if (isMounted) {
           setPhotosMap(prev => {
             const next = { ...prev };
-            results.forEach(r => {
-              if (r && r.url) {
+            results.forEach(res => {
+              if (res.status === 'fulfilled' && res.value && res.value.url) {
+                const r = res.value;
                 if (r.id && isValidPhotoKey(r.id)) next[r.id] = r.url;
                 if (r.formNo && isValidPhotoKey(r.formNo)) next[r.formNo] = r.url;
                 if (r.boardReg && isValidPhotoKey(r.boardReg)) next[r.boardReg] = r.url;
+                if (typeof window !== 'undefined') {
+                  if (!window._hss_central_photo_map) window._hss_central_photo_map = {};
+                  if (r.id) window._hss_central_photo_map[r.id] = r.url;
+                  if (r.formNo) window._hss_central_photo_map[r.formNo] = r.url;
+                  if (r.boardReg) window._hss_central_photo_map[r.boardReg] = r.url;
+                }
               }
             });
             return next;
@@ -2845,10 +2894,12 @@ export default function AdmissionRegisterSuite({
   }, [filteredStudents]);
 
   const getResolvedStudentPhoto = (s) => {
+    if (!s) return '';
+    const winMap = typeof window !== 'undefined' ? window._hss_central_photo_map : null;
     return (
-      (s.boardReg && isValidPhotoKey(s.boardReg) && photosMap[s.boardReg]) ||
-      (s.formNo && isValidPhotoKey(s.formNo) && photosMap[s.formNo]) ||
-      (s.id && isValidPhotoKey(s.id) && photosMap[s.id]) ||
+      (s.boardReg && isValidPhotoKey(s.boardReg) && (photosMap[s.boardReg] || (winMap && winMap[s.boardReg]))) ||
+      (s.formNo && isValidPhotoKey(s.formNo) && (photosMap[s.formNo] || (winMap && winMap[s.formNo]))) ||
+      (s.id && isValidPhotoKey(s.id) && (photosMap[s.id] || (winMap && winMap[s.id]))) ||
       s.directPhoto ||
       getStudentPhotoUrl(s.raw || s, '') ||
       ''
@@ -2858,32 +2909,73 @@ export default function AdmissionRegisterSuite({
   const handleCleanPrint = async () => {
     if (isPreparingPrint) return;
     setIsPreparingPrint(true);
+    setTaskProgress({
+      title: 'Preparing Official Print Layout',
+      step: 'Scanning candidate records & photo cache...',
+      progress: 10,
+      icon: 'print'
+    });
 
     try {
       // Resolve only the current filtered register, with bounded request concurrency.
       const missingPhotos = filteredStudents.filter(st => !getResolvedStudentPhoto(st));
       const resolvedPhotos = {};
-      for (let i = 0; i < missingPhotos.length; i += 12) {
-        const batch = missingPhotos.slice(i, i + 12);
-        const results = await Promise.allSettled(batch.map(async (st) => ({
-          student: st,
-          url: await fetchStudentPhotoOnDemand(st.raw || st)
-        })));
-        results.forEach(result => {
-          if (result.status !== 'fulfilled' || !result.value.url) return;
-          const { student, url } = result.value;
-          if (student.id) resolvedPhotos[student.id] = url;
-          if (student.formNo) resolvedPhotos[student.formNo] = url;
-          if (student.boardReg) resolvedPhotos[student.boardReg] = url;
-        });
+      const totalToFetch = missingPhotos.length;
+
+      if (totalToFetch > 0) {
+        const batchSize = 20;
+        for (let i = 0; i < totalToFetch; i += batchSize) {
+          const batch = missingPhotos.slice(i, i + batchSize);
+          const currentCount = Math.min(totalToFetch, i + batch.length);
+          setTaskProgress({
+            title: 'Preparing Official Print Layout',
+            step: `Resolving candidate photographs on demand (${currentCount} of ${totalToFetch})...`,
+            progress: 10 + Math.round((currentCount / totalToFetch) * 60),
+            current: currentCount,
+            total: totalToFetch,
+            icon: 'print'
+          });
+
+          const results = await Promise.allSettled(batch.map(async (st) => ({
+            student: st,
+            url: await fetchStudentPhotoOnDemand(st.raw || st)
+          })));
+          results.forEach(result => {
+            if (result.status !== 'fulfilled' || !result.value.url) return;
+            const { student, url } = result.value;
+            if (student.id) resolvedPhotos[student.id] = url;
+            if (student.formNo) resolvedPhotos[student.formNo] = url;
+            if (student.boardReg) resolvedPhotos[student.boardReg] = url;
+            if (typeof window !== 'undefined') {
+              if (!window._hss_central_photo_map) window._hss_central_photo_map = {};
+              if (student.id) window._hss_central_photo_map[student.id] = url;
+              if (student.formNo) window._hss_central_photo_map[student.formNo] = url;
+              if (student.boardReg) window._hss_central_photo_map[student.boardReg] = url;
+            }
+          });
+        }
       }
 
       if (Object.keys(resolvedPhotos).length > 0) {
         setPhotosMap(prev => ({ ...prev, ...resolvedPhotos }));
       }
 
+      setTaskProgress({
+        title: 'Preparing Official Print Layout',
+        step: 'Awaiting typography & vector ledger spread alignment...',
+        progress: 80,
+        icon: 'print'
+      });
+
       if (document.fonts?.ready) await document.fonts.ready;
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      setTaskProgress({
+        title: 'Preparing Official Print Layout',
+        step: 'Pre-rasterizing and verifying image decodes...',
+        progress: 92,
+        icon: 'print'
+      });
 
       const images = Array.from(suiteRootRef.current?.querySelectorAll('img') || []);
       await Promise.all(images.map(img => {
@@ -2892,13 +2984,24 @@ export default function AdmissionRegisterSuite({
           const done = () => resolve();
           img.addEventListener('load', done, { once: true });
           img.addEventListener('error', done, { once: true });
-          setTimeout(done, 5000);
+          setTimeout(done, 4000);
         });
       }));
 
+      setTaskProgress({
+        title: 'Preparing Official Print Layout',
+        step: 'Opening browser print dialog...',
+        progress: 100,
+        status: 'success',
+        icon: 'print'
+      });
+
+      await new Promise(r => setTimeout(r, 200));
+      setTaskProgress(null);
       window.print();
     } catch (error) {
       console.error('Could not fully prepare Admission Register print:', error);
+      setTaskProgress(null);
       setToast({ message: 'Some print assets could not be prepared. Please retry after photos finish loading.', type: 'error' });
     } finally {
       setIsPreparingPrint(false);
@@ -3412,6 +3515,14 @@ export default function AdmissionRegisterSuite({
   const [onlyApprovedAssign, setOnlyApprovedAssign] = useState(true);
   const [assignStrategies, setAssignStrategies] = useState({});
 
+  // Synchronize assign_ids and assign_dates session scope with selectedSession
+  useEffect(() => {
+    if (selectedSession) {
+      setAssignSessionFilter(selectedSession);
+      setAssignDateSession(selectedSession);
+    }
+  }, [selectedSession]);
+
   const calculatedNextAdmNo = useMemo(() => {
     let maxId = 5000;
     normalizedStudents.forEach(s => {
@@ -3493,42 +3604,120 @@ export default function AdmissionRegisterSuite({
       return;
     }
 
+    const itemsToAssign = candidateIdPreviewList.filter(item => {
+      const { proposed, strat } = item;
+      return proposed && proposed !== '—' && strat !== 'skip';
+    });
+
+    if (itemsToAssign.length === 0) {
+      setToast({ message: '⚠️ No students with valid proposed admission numbers to assign.', type: 'info' });
+      return;
+    }
+
     setAssigningIds(true);
+    const totalCount = itemsToAssign.length;
+    setTaskProgress({
+      title: 'Bulk Assigning Admission Numbers',
+      step: `Preparing to assign admission numbers to ${totalCount} students...`,
+      progress: 5,
+      current: 0,
+      total: totalCount,
+      icon: 'assign'
+    });
+
     let count = 0;
+    const batchSize = 400; // Stay under Firestore's 500-op batch write limit
+    const totalBatches = Math.ceil(totalCount / batchSize);
+
     try {
-      const batch = writeBatch(db);
       const todayDate = new Date().toISOString().split('T')[0];
 
-      for (const item of candidateIdPreviewList) {
-        const { student, proposed, strat } = item;
-        if (!proposed || proposed === '—' || strat === 'skip') continue;
+      for (let b = 0; b < totalBatches; b++) {
+        const batchSlice = itemsToAssign.slice(b * batchSize, (b + 1) * batchSize);
+        const batch = writeBatch(db);
 
-        const docRef = doc(db, 'admissions', student.id);
-        const payload = {
-          'Adm. No.': proposed,
-          admNo: proposed,
-          'Adm. Date': student.admDate || todayDate,
-          updatedAt: new Date().toISOString(),
-          lastEditedBy: `Admin (${user?.email || 'Assign IDs'})`
-        };
-        batch.set(docRef, payload, { merge: true });
-        updateCachedItem('admissions', student.id, payload);
-        count++;
+        setTaskProgress({
+          title: 'Bulk Assigning Admission Numbers',
+          step: `Writing Firestore batch ${b + 1} of ${totalBatches} (${count} / ${totalCount} saved)...`,
+          progress: 10 + Math.round((b / totalBatches) * 75),
+          current: count,
+          total: totalCount,
+          icon: 'assign'
+        });
+
+        for (const item of batchSlice) {
+          const { student, proposed } = item;
+          const docRef = doc(db, 'admissions', student.id);
+          const payload = {
+            'Adm. No.': proposed,
+            admNo: proposed,
+            'Adm. Date': student.admDate || todayDate,
+            updatedAt: new Date().toISOString(),
+            lastEditedBy: `Admin (${user?.email || 'Assign IDs'})`
+          };
+          batch.set(docRef, payload, { merge: true });
+          updateCachedItem('admissions', student.id, payload);
+          count++;
+        }
+
+        await batch.commit();
       }
 
-      await batch.commit();
-
-      await logAdminActivity({
-        actionType: 'batch_id_assign',
-        actionTitle: 'Bulk Assigned Admission Numbers',
-        details: `Assigned admission numbers to ${count} students in session ${assignSessionFilter}.`,
-        metadata: { count, session: assignSessionFilter }
+      setTaskProgress({
+        title: 'Bulk Assigning Admission Numbers',
+        step: 'Logging administrative activity and synchronizing local cache...',
+        progress: 92,
+        current: count,
+        total: totalCount,
+        icon: 'assign'
       });
+
+      // Update local dataset state so tables and candidate lists update immediately
+      setDataset(prev => {
+        const assignedMap = new Map();
+        itemsToAssign.forEach(it => {
+          assignedMap.set(it.student.id, it.proposed);
+        });
+        return prev.map(item => {
+          if (assignedMap.has(item.id)) {
+            const proposed = assignedMap.get(item.id);
+            return {
+              ...item,
+              admNo: proposed,
+              'Adm. No.': proposed,
+              'Adm. Date': item['Adm. Date'] || item.admDate || todayDate,
+              admDate: item['Adm. Date'] || item.admDate || todayDate
+            };
+          }
+          return item;
+        });
+      });
+
+      try {
+        await logAdminActivity({
+          actionType: 'batch_id_assign',
+          actionTitle: 'Bulk Assigned Admission Numbers',
+          details: `Assigned admission numbers to ${count} students in session ${assignSessionFilter}.`,
+          metadata: { count, session: assignSessionFilter }
+        });
+      } catch (_) {}
+
+      setTaskProgress({
+        title: 'Assignment Complete',
+        step: `✨ Successfully assigned admission numbers to ${count} students!`,
+        progress: 100,
+        status: 'success',
+        current: count,
+        total: totalCount,
+        icon: 'assign'
+      });
+      setTimeout(() => setTaskProgress(null), 900);
 
       setToast({ message: `✨ Successfully assigned Admission Numbers to ${count} students!`, type: 'success' });
       if (onDataUpdated) onDataUpdated();
     } catch (err) {
       console.error('Assign IDs batch error:', err);
+      setTaskProgress(null);
       setToast({ message: `❌ Error assigning IDs: ${err.message}`, type: 'error' });
     } finally {
       setAssigningIds(false);
@@ -3669,24 +3858,63 @@ export default function AdmissionRegisterSuite({
       return;
     }
     setAssigningDates(true);
+    const totalCount = effectiveTargetStudents.length;
+    const fieldLabel = assignDateField === 'admDate' ? 'Admission Date' : 'Online Submission Date';
+
+    setTaskProgress({
+      title: `Bulk Assigning ${fieldLabel}`,
+      step: `Preparing to assign date (${assignDateValue}) to ${totalCount} students...`,
+      progress: 5,
+      current: 0,
+      total: totalCount,
+      icon: 'calendar'
+    });
+
+    const batchSize = 400; // Stay well within Firestore 500 ops limit
+    const totalBatches = Math.ceil(totalCount / batchSize);
+    let count = 0;
+
     try {
-      const batch = writeBatch(db);
       const fieldKey = assignDateField === 'admDate' ? 'Adm. Date' : 'Online Subm. Date';
       const aliasKey = assignDateField === 'admDate' ? 'admDate' : 'onlineSubmDate';
 
-      for (const st of effectiveTargetStudents) {
-        const docRef = doc(db, 'admissions', st.id);
-        const payload = {
-          [fieldKey]: assignDateValue,
-          [aliasKey]: assignDateValue,
-          updatedAt: new Date().toISOString(),
-          lastEditedBy: `Admin (${user?.email || 'Assign Dates'})`
-        };
-        batch.set(docRef, payload, { merge: true });
-        updateCachedItem('admissions', st.id, payload);
+      for (let b = 0; b < totalBatches; b++) {
+        const batchSlice = effectiveTargetStudents.slice(b * batchSize, (b + 1) * batchSize);
+        const batch = writeBatch(db);
+
+        setTaskProgress({
+          title: `Bulk Assigning ${fieldLabel}`,
+          step: `Writing Firestore batch ${b + 1} of ${totalBatches} (${count} / ${totalCount} saved)...`,
+          progress: 10 + Math.round((b / totalBatches) * 75),
+          current: count,
+          total: totalCount,
+          icon: 'calendar'
+        });
+
+        for (const st of batchSlice) {
+          const docRef = doc(db, 'admissions', st.id);
+          const payload = {
+            [fieldKey]: assignDateValue,
+            [aliasKey]: assignDateValue,
+            updatedAt: new Date().toISOString(),
+            lastEditedBy: `Admin (${user?.email || 'Assign Dates'})`
+          };
+          batch.set(docRef, payload, { merge: true });
+          updateCachedItem('admissions', st.id, payload);
+          count++;
+        }
+
+        await batch.commit();
       }
 
-      await batch.commit();
+      setTaskProgress({
+        title: `Bulk Assigning ${fieldLabel}`,
+        step: 'Synchronizing local dataset & table state...',
+        progress: 90,
+        current: count,
+        total: totalCount,
+        icon: 'calendar'
+      });
 
       // Update local dataset state so table reflects new date immediately
       setDataset(prev => {
@@ -3703,112 +3931,195 @@ export default function AdmissionRegisterSuite({
         });
       });
 
-      await logAdminActivity({
-        actionType: 'batch_date_assign',
-        actionTitle: `Bulk Assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Submission Date'}`,
-        details: `Assigned date ${assignDateValue} to ${effectiveTargetStudents.length} students.`,
-        metadata: { date: assignDateValue, count: effectiveTargetStudents.length }
+      try {
+        await logAdminActivity({
+          actionType: 'batch_date_assign',
+          actionTitle: `Bulk Assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Submission Date'}`,
+          details: `Assigned date ${assignDateValue} to ${effectiveTargetStudents.length} students.`,
+          metadata: { date: assignDateValue, count: effectiveTargetStudents.length }
+        });
+      } catch (_) {}
+
+      setTaskProgress({
+        title: 'Date Assignment Complete',
+        step: `✨ Successfully applied date (${assignDateValue}) to ${totalCount} records!`,
+        progress: 100,
+        status: 'success',
+        current: count,
+        total: totalCount,
+        icon: 'calendar'
       });
+      setTimeout(() => setTaskProgress(null), 900);
 
       setToast({ message: `✨ Applied date (${assignDateValue}) to ${effectiveTargetStudents.length} records!`, type: 'success' });
       if (onDataUpdated) onDataUpdated();
     } catch (err) {
       console.error('Assign Dates error:', err);
+      setTaskProgress(null);
       setToast({ message: `❌ Failed to assign dates: ${err.message}`, type: 'error' });
     } finally {
       setAssigningDates(false);
     }
   };
 
-  // Native Excel (.xlsx) Export for Admission Register and Sentup
-  const handleExportExcel = () => {
-    if (filteredStudents.length === 0) return;
+  // Native Excel (.xlsx) Export for Admission Register and Sentup with Real-Time Progress
+  const handleExportExcel = async () => {
+    if (filteredStudents.length === 0) {
+      setToast({ message: '⚠️ No student records to export for current filter criteria.', type: 'info' });
+      return;
+    }
 
-    if (activeTab === 'adm_register') {
-      const headers = [
-        'S.No.', 'Class Roll No.', 'Form No.', 'Status', 'Admission Type', 'Online Subm.', 'Adm. Date', 'Adm. No.', 'Old Adm. No.', 'Class', 'Board Reg. No.',
-        "Student's Name", "Father's Name", "Mother's Name", 'DOB (Figures)', 'DOB (Words)', 'Gender',
-        'Village/Town', 'Block', 'Tehsil', 'District', 'Student Mobile', 'Parent Mobile',
-        'Stream', 'Chosen Subjects', 'Aadhaar No.', 'Social Category', 'Socio-Economic Category', 'Blood Group',
-        'Bank Account No.', 'IFSC Code', 'PEN (UDISE)', 'Previous School', 'Prev Roll No', 'Prev Result',
-        'Admtd. Vide DC/CC', 'Withdrawal Date', 'Issued DC/CC', 'DC/CC Receipt', 'Remarks'
-      ];
+    const isRegister = activeTab === 'adm_register';
+    const reportTitle = isRegister ? 'Official Admission Register' : 'JKBOSE Examination Sentup';
 
-      const rows = filteredStudents.map(s => [
-        s.sno,
-        s.rollNo || '',
-        s.formNo || '',
-        s.status || '',
-        s.isReadmission ? 'Re-admission' : 'Fresh',
-        s.onlineStatus || '',
-        s.admDate || '',
-        s.admNo || '',
-        s.oldAdmNo || '',
-        s.class || '',
-        s.boardReg || '',
-        s.name || '',
-        s.father || '',
-        s.mother || '',
-        s.dobFigures || '',
-        s.dobWords || '',
-        s.gender || '',
-        s.village || '',
-        s.block || '',
-        s.tehsil || '',
-        s.district || '',
-        s.mobile || '',
-        s.parentMobile || '',
-        s.stream || '',
-        s.subs || '',
-        s.aadhar || '',
-        s.category || '',
-        s.socioEcon || '',
-        s.blood || '',
-        s.account || '',
-        s.ifsc || '',
-        s.pen || '',
-        s.prevSchool || '',
-        s.prevRoll || '',
-        s.prevResult || '',
-        s.prevCC || '',
-        s.withdrawal || '',
-        s.issuedCC || '',
-        s.receipt || '',
-        s.remarks || ''
-      ]);
+    setTaskProgress({
+      title: `Exporting ${reportTitle}`,
+      step: 'Compiling candidate records & column definitions...',
+      progress: 20,
+      icon: 'excel'
+    });
 
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Admission_Register');
-      const filename = `HSS_Shangus_Official_Admission_Register_${selectedSession}_${selectedClass}_${selectedStatus}.xlsx`;
-      XLSX.writeFile(wb, filename);
-    } else {
-      const colDefs = [
-        { key: 'st_sno', label: 'S.No.', get: s => s.sno },
-        { key: 'st_sno', label: 'Adm. No.', get: s => s.admNo || '' },
-        { key: 'st_rollNo', label: 'Class Roll No.', get: s => s.rollNo || '' },
-        { key: 'st_boardReg', label: 'Board Reg. No.', get: s => s.boardReg || '' },
-        { key: 'st_name', label: "Student's Name", get: s => s.name || '' },
-        { key: 'st_parentage', label: "Father's Name", get: s => s.father || '' },
-        { key: 'st_parentage', label: "Mother's Name", get: s => s.mother || '' },
-        { key: 'st_dob', label: 'Date of Birth', get: s => s.dobFigures || '' },
-        { key: 'st_subs', label: 'Subjects', get: s => s.subs || '' },
-        { key: 'st_boardRoll', label: 'Board Roll No.', get: s => s.boardRollNo || '' },
-        { key: 'st_result', label: 'Result', get: s => s.currentResult || '' },
-        { key: 'st_admitReceipt', label: 'Admit Card Receipt', get: () => '' },
-        { key: 'st_marksReceipt', label: 'Marks Card Receipt', get: () => '' }
-      ];
+    // Allow UI to paint progress window
+    await new Promise(r => setTimeout(r, 60));
 
-      const activeColDefs = colDefs.filter(c => isSentupColVisible(c.key));
-      const headers = activeColDefs.map(c => c.label);
-      const exportList = activeTab === 'sentup' ? activeIncludedRows : filteredStudents;
-      const rows = exportList.map(s => activeColDefs.map(c => c.get(s)));
+    try {
+      if (isRegister) {
+        const headers = [
+          'S.No.', 'Class Roll No.', 'Form No.', 'Status', 'Admission Type', 'Online Subm.', 'Adm. Date', 'Adm. No.', 'Old Adm. No.', 'Class', 'Board Reg. No.',
+          "Student's Name", "Father's Name", "Mother's Name", 'DOB (Figures)', 'DOB (Words)', 'Gender',
+          'Village/Town', 'Block', 'Tehsil', 'District', 'Student Mobile', 'Parent Mobile',
+          'Stream', 'Chosen Subjects', 'Aadhaar No.', 'Social Category', 'Socio-Economic Category', 'Blood Group',
+          'Bank Account No.', 'IFSC Code', 'PEN (UDISE)', 'Previous School', 'Prev Roll No', 'Prev Result',
+          'Admtd. Vide DC/CC', 'Withdrawal Date', 'Issued DC/CC', 'DC/CC Receipt', 'Remarks'
+        ];
 
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'JKBOSE_Sentup');
-      const filename = `HSS_Shangus_JKBOSE_Sentup_${selectedSession}_${selectedClass}_${selectedStatus}.xlsx`;
-      XLSX.writeFile(wb, filename);
+        setTaskProgress({
+          title: `Exporting ${reportTitle}`,
+          step: `Formatting ${filteredStudents.length} rows for Admission Register spreadsheet...`,
+          progress: 50,
+          current: filteredStudents.length,
+          total: filteredStudents.length,
+          icon: 'excel'
+        });
+        await new Promise(r => setTimeout(r, 40));
+
+        const rows = filteredStudents.map(s => [
+          s.sno,
+          s.rollNo || '',
+          s.formNo || '',
+          s.status || '',
+          s.isReadmission ? 'Re-admission' : 'Fresh',
+          s.onlineStatus || '',
+          s.admDate || '',
+          s.admNo || '',
+          s.oldAdmNo || '',
+          s.class || '',
+          s.boardReg || '',
+          s.name || '',
+          s.father || '',
+          s.mother || '',
+          s.dobFigures || '',
+          s.dobWords || '',
+          s.gender || '',
+          s.village || '',
+          s.block || '',
+          s.tehsil || '',
+          s.district || '',
+          s.mobile || '',
+          s.parentMobile || '',
+          s.stream || '',
+          s.subs || '',
+          s.aadhar || '',
+          s.category || '',
+          s.socioEcon || '',
+          s.blood || '',
+          s.account || '',
+          s.ifsc || '',
+          s.pen || '',
+          s.prevSchool || '',
+          s.prevRoll || '',
+          s.prevResult || '',
+          s.prevCC || '',
+          s.withdrawal || '',
+          s.issuedCC || '',
+          s.receipt || '',
+          s.remarks || ''
+        ]);
+
+        setTaskProgress({
+          title: `Exporting ${reportTitle}`,
+          step: 'Building binary workbook & generating download...',
+          progress: 85,
+          icon: 'excel'
+        });
+        await new Promise(r => setTimeout(r, 40));
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Admission_Register');
+        const filename = `HSS_Shangus_Official_Admission_Register_${selectedSession}_${selectedClass}_${selectedStatus}.xlsx`;
+        XLSX.writeFile(wb, filename);
+      } else {
+        const colDefs = [
+          { key: 'st_sno', label: 'S.No.', get: s => s.sno },
+          { key: 'st_admNo', label: 'Adm. No.', get: s => s.admNo || '' },
+          { key: 'st_rollNo', label: 'Class Roll No.', get: s => s.rollNo || '' },
+          { key: 'st_boardReg', label: 'Board Reg. No.', get: s => s.boardReg || '' },
+          { key: 'st_name', label: "Student's Name", get: s => s.name || '' },
+          { key: 'st_parentage', label: "Father's Name", get: s => s.father || '' },
+          { key: 'st_parentage', label: "Mother's Name", get: s => s.mother || '' },
+          { key: 'st_dob', label: 'Date of Birth', get: s => s.dobFigures || '' },
+          { key: 'st_subs', label: 'Subjects', get: s => s.subs || '' },
+          { key: 'st_boardRoll', label: 'Board Roll No.', get: s => s.boardRollNo || '' },
+          { key: 'st_result', label: 'Result', get: s => s.currentResult || '' },
+          { key: 'st_admitReceipt', label: 'Admit Card Receipt', get: () => '' },
+          { key: 'st_marksReceipt', label: 'Marks Card Receipt', get: () => '' }
+        ];
+
+        const activeColDefs = colDefs.filter(c => isSentupColVisible(c.key));
+        const headers = activeColDefs.map(c => c.label);
+        const exportList = activeIncludedRows || filteredStudents;
+
+        setTaskProgress({
+          title: `Exporting ${reportTitle}`,
+          step: `Formatting ${exportList.length} rows for Sentup examination spreadsheet...`,
+          progress: 50,
+          current: exportList.length,
+          total: exportList.length,
+          icon: 'excel'
+        });
+        await new Promise(r => setTimeout(r, 40));
+
+        const rows = exportList.map(s => activeColDefs.map(c => c.get(s)));
+
+        setTaskProgress({
+          title: `Exporting ${reportTitle}`,
+          step: 'Building binary workbook & generating download...',
+          progress: 85,
+          icon: 'excel'
+        });
+        await new Promise(r => setTimeout(r, 40));
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'JKBOSE_Sentup');
+        const filename = `HSS_Shangus_JKBOSE_Sentup_${selectedSession}_${selectedClass}_${selectedStatus}.xlsx`;
+        XLSX.writeFile(wb, filename);
+      }
+
+      setTaskProgress({
+        title: 'Export Complete',
+        step: 'Workbook downloaded successfully!',
+        progress: 100,
+        status: 'success',
+        icon: 'excel'
+      });
+      setTimeout(() => setTaskProgress(null), 700);
+      setToast({ message: '📊 Excel spreadsheet downloaded successfully!', type: 'success' });
+    } catch (err) {
+      console.error('Excel Export Error:', err);
+      setTaskProgress(null);
+      setToast({ message: `❌ Export failed: ${err.message}`, type: 'error' });
     }
   };
 
@@ -6137,6 +6448,72 @@ export default function AdmissionRegisterSuite({
         </div>
       </div>
 
+      {/* ─── REAL-TIME TASK PROGRESS MODAL ─── */}
+      {taskProgress && (
+        <div className="no-print fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-xs shrink-0 ${
+                taskProgress.status === 'success'
+                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+              }`}>
+                {taskProgress.status === 'success' ? (
+                  <Check size={22} className="animate-in zoom-in-75 duration-300" strokeWidth={2.5} />
+                ) : taskProgress.icon === 'print' ? (
+                  <Printer size={20} className="animate-pulse" />
+                ) : taskProgress.icon === 'excel' ? (
+                  <FileSpreadsheet size={20} className="animate-pulse" />
+                ) : taskProgress.icon === 'calendar' ? (
+                  <Calendar size={20} className="animate-pulse" />
+                ) : taskProgress.icon === 'cloud' ? (
+                  <Save size={20} className="animate-pulse" />
+                ) : (
+                  <Loader2 size={20} className="animate-spin" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-black text-sm text-slate-900 dark:text-white truncate">
+                  {taskProgress.title || 'Processing Task'}
+                </h3>
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                  {taskProgress.status === 'success' ? 'Task completed successfully' : 'Please wait, working on request…'}
+                </p>
+              </div>
+              {taskProgress.progress !== undefined && (
+                <div className="text-right shrink-0">
+                  <span className="font-mono font-black text-xs text-indigo-600 dark:text-indigo-400">
+                    {Math.round(taskProgress.progress)}%
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Micro Progress Bar */}
+            <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-200/80 dark:border-slate-700/80">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ease-out ${
+                  taskProgress.status === 'success'
+                    ? 'bg-emerald-500'
+                    : 'bg-gradient-to-r from-indigo-600 to-violet-500'
+                }`}
+                style={{ width: `${Math.max(5, Math.min(100, taskProgress.progress || 10))}%` }}
+              />
+            </div>
+
+            {/* Status / Step Subtext */}
+            <div className="flex items-center justify-between text-[11px] font-medium text-slate-600 dark:text-slate-300">
+              <span className="truncate pr-2">{taskProgress.step || 'Processing data...'}</span>
+              {taskProgress.current !== undefined && taskProgress.total !== undefined && (
+                <span className="shrink-0 font-mono text-[10.5px] text-slate-400">
+                  {taskProgress.current} / {taskProgress.total}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── TOAST NOTIFICATION ─── */}
       {toast && (
         <div className="no-print fixed top-12 right-4 z-[9999] animate-bounce">
@@ -7797,7 +8174,13 @@ export default function AdmissionRegisterSuite({
                   <span className="text-slate-500 font-semibold text-[10.5px]">Session:</span>
                   <select
                     value={assignSessionFilter}
-                    onChange={(e) => setAssignSessionFilter(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAssignSessionFilter(val);
+                      if (val !== selectedSession) {
+                        handleSessionChange(val);
+                      }
+                    }}
                     className="py-0.5 px-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-indigo-700 dark:text-indigo-300 cursor-pointer"
                   >
                     {availableSessions.map(sess => (
@@ -8043,7 +8426,13 @@ export default function AdmissionRegisterSuite({
                   <label className="block text-[10.5px] font-bold text-slate-500 mb-0.5">Session Scope:</label>
                   <select
                     value={assignDateSession}
-                    onChange={(e) => setAssignDateSession(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAssignDateSession(val);
+                      if (val !== selectedSession) {
+                        handleSessionChange(val);
+                      }
+                    }}
                     className="w-full py-1 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold cursor-pointer text-indigo-700 dark:text-indigo-300"
                   >
                     {availableSessions.map(sess => (
