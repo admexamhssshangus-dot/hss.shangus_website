@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, AlertTriangle, CheckCircle2, ShieldAlert, CheckSquare, Square, Search, RefreshCw, Archive, RotateCcw } from 'lucide-react';
 import { moveToRecycleBin } from '../../services/recycleBinService';
-import { extractRegNoClean, getStudentName, getFatherName } from './AdvancedReports';
+import { extractRegNoClean, getStudentName } from './AdvancedReports';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import ModernLoader from '../../components/ModernLoader';
 import { showToast } from '../../components/common/GlobalToast';
@@ -41,14 +41,13 @@ export default function DeleteApplicationModal({
   const studentName = getStudentName(student) || 'Student';
   const formNo = student['Form Number'] || student['Form No.'] || student.formNo || '—';
   const regNoClean = extractRegNoClean(student);
-  const fatherName = getFatherName(student).toLowerCase();
 
   const handleNextStep = () => {
     if (deleteScope === 'admissions') {
       // Direct to final confirm for admissions only
       setStep(3);
     } else {
-      // Search master registers & admissions for linked historical records
+      // Search master registers & admissions for linked historical records strictly by unique Board Reg No or Form No
       const matches = [];
       const seenIds = new Set();
 
@@ -63,15 +62,14 @@ export default function DeleteApplicationModal({
         if (seenIds.has(stId)) return;
 
         const stRegClean = extractRegNoClean(st);
-        const stName = getStudentName(st).toLowerCase();
-        const stFather = getFatherName(st).toLowerCase();
         const stForm = String(st['Form Number'] || st['Form No.'] || st.formNo || '').trim();
 
-        const isRegMatch = regNoClean && stRegClean && regNoClean === stRegClean;
-        const isFormMatch = formNo && formNo !== '—' && stForm && formNo.toLowerCase() === stForm.toLowerCase();
-        const isNameMatch = studentName.toLowerCase() === stName && fatherName && stFather && fatherName === stFather;
+        // Strictly match by unique Registration Number or unique Form Number.
+        // Never match by name as different students may share identical names.
+        const isRegMatch = Boolean(regNoClean && stRegClean && regNoClean.toLowerCase() === stRegClean.toLowerCase());
+        const isFormMatch = Boolean(formNo && formNo !== '—' && stForm && formNo.toLowerCase() === stForm.toLowerCase());
 
-        if (isRegMatch || isFormMatch || isNameMatch) {
+        if (isRegMatch || isFormMatch) {
           seenIds.add(stId);
           matches.push({ ...st, _sourceCollection: sourceColl });
         }
@@ -263,7 +261,9 @@ export default function DeleteApplicationModal({
                       </span>
                     </div>
                     <div className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5 font-medium">
-                      Searches database for all student records matching Board Registration Number ({regNoClean || 'N/A'}) or Name to purge linked records across past sessions.
+                      {regNoClean
+                        ? `Searches database for all student records matching Board Registration Number (${regNoClean}) across past sessions.`
+                        : `Board Registration Number not available. Searches database for linked records matching Form Number (#${formNo}).`}
                     </div>
                   </div>
                 </label>
@@ -298,7 +298,7 @@ export default function DeleteApplicationModal({
                     <span>Select Applications to Archive</span>
                   </h4>
                   <p className="text-[11px] font-semibold text-slate-500">
-                    Found {matchedRecords.length} linked record(s) matching student profile.
+                    Found {matchedRecords.length} linked record(s) matching Board Registration Number ({regNoClean || formNo}).
                   </p>
                 </div>
 
