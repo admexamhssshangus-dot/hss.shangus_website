@@ -760,7 +760,7 @@ export async function updateStudentDocument(student, updates) {
     }
   }
 
-  const withTimeout = (promise, ms = 4000) =>
+  const withTimeout = (promise, ms = 2500) =>
     Promise.race([
       promise,
       new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore operation timeout')), ms))
@@ -768,15 +768,19 @@ export async function updateStudentDocument(student, updates) {
 
   const cleanCid = (id) => String(id || '').replace(/^(admissions|masterRegisters)\//, '').trim();
 
+  const exactDocId = String(student?._docId || student?.docId || student?.id || '').trim();
   const idCandidates = Array.from(new Set([
+    cleanCid(exactDocId),
     cleanCid(rawId),
     cleanCid(student._docId),
     cleanCid(student.docId),
     cleanCid(student.id),
-    formNo ? `adm_${formNo}` : '',
-    formNo ? `active_${formNo}` : '',
+    cleanCid(exactDocId).replace(/^active_/, ''),
+    cleanCid(exactDocId).replace(/^hist_/, ''),
     cleanCid(rawId).replace(/^active_/, ''),
     cleanCid(rawId).replace(/^hist_/, ''),
+    formNo ? `adm_${formNo}` : '',
+    formNo ? `active_${formNo}` : '',
     formNo
   ].filter(Boolean)));
 
@@ -805,7 +809,7 @@ export async function updateStudentDocument(student, updates) {
     }
   }
 
-  const collsToTry = isMasterRegister ? ['masterRegisters', 'admissions'] : ['admissions', 'masterRegisters'];
+  const collsToTry = isMasterRegister ? ['masterRegisters', 'admissions'] : ['admissions'];
 
   if (!updated) {
     for (const cid of idCandidates) {
@@ -866,8 +870,6 @@ export async function updateStudentDocument(student, updates) {
       photoData
     }).catch(() => {});
   }
-
-  invalidateStudentCaches();
 
   return updated;
 }
@@ -5606,7 +5608,33 @@ const COLUMN_DEFS = [
   { key: 'currMarksReapp', label: 'Marks/Reapp (Current)' },
   { key: 'withdrawalDate', label: 'Date of withdrawl' },
   { key: 'currCcDc', label: 'No. & Date of CC/DC Issued (This Institution)' },
-  { key: 'remarks', label: 'Remarks' },
+  {
+    key: 'remarks',
+    label: 'Remarks',
+    className: 'text-xs text-slate-700 dark:text-slate-300',
+    render: (val, student) => {
+      const text = (val && val !== '—') ? String(val).trim() : (student?.remarks || student?.Remarks || '');
+      const status = student?._getJkboseStatus?.('remarks');
+      if (!text || text === '—') {
+        return (
+          <span className="inline-flex items-center gap-1.5 flex-wrap">
+            <span className="text-slate-400 dark:text-slate-600 font-normal">—</span>
+            {status && <JkboseFieldBadge info={status} />}
+          </span>
+        );
+      }
+      return (
+        <div className="text-xs leading-normal break-words text-slate-800 dark:text-slate-200">
+          <span>{text}</span>
+          {status && (
+            <span className="inline-block ml-1.5 align-middle">
+              <JkboseFieldBadge info={status} />
+            </span>
+          )}
+        </div>
+      );
+    }
+  },
   {
     key: 'pdfUrl', label: 'PDF_URL', render: (val) => (
       val && typeof val === 'string' && val.startsWith('http') ? (
@@ -5680,7 +5708,7 @@ const DEFAULT_1_WIDTHS = {
   currMarksReapp: 90,
   withdrawalDate: 95,
   currCcDc: 120,
-  remarks: 110,
+  remarks: 180,
   pdfUrl: 85,
   readmission: 80,
   apaarId: 100,
@@ -6726,9 +6754,6 @@ export default function AdvancedReports({
   const executeSaveQuickCellEdit = async (student, colKey, newValue, reasonCategory = 'Routine Correction', customReason = '', extraFields = {}) => {
     try {
       setIsSavingQuickEdit(true);
-      setQuickEditProgress(15);
-      setQuickEditStage('Validating & Preparing field updates...');
-      await new Promise(r => setTimeout(r, 100));
 
       const fNo = student['Form Number'] || student['Form No.'] || student.formNo;
       const cleanFNo = fNo ? String(fNo).replace(/^'/, '').trim() : '';
@@ -6905,15 +6930,7 @@ export default function AdvancedReports({
         lastEditedBy: `Admin (${editorName})`
       };
 
-      setQuickEditProgress(50);
-      setQuickEditStage('Syncing live record to Cloud Firestore database...');
-
-      // Perform in-place update on existing document (never creates duplicate docs)
-      await updateStudentDocument(student, payload);
-
-      setQuickEditProgress(75);
-      setQuickEditStage('Updating local registers cache & table view...');
-
+      // ── Instant Optimistic State Update: 0ms UI Latency ──
       setCurrentAdmissions(prev => prev.map(st => {
         if ((cleanFNo && String(st['Form Number'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
           const nextHistory = {
@@ -6978,8 +6995,21 @@ export default function AdvancedReports({
         return st;
       }));
 
-      setQuickEditProgress(90);
-      setQuickEditStage('Logging administrative activity audit trail...');
+      // Close modal and notify user immediately
+      setQuickEditCell(null);
+      setConfirmModalConfig(null);
+      setToast({
+        message: `✅ Updated ${targetFieldName} to "${newValue}"!`,
+        type: 'success'
+      });
+      setTimeout(() => setToast(null), 3000);
+
+      // Perform in-place update on existing Firestore document in parallel
+      updateStudentDocument(student, payload).catch(err => {
+        console.error('Quick edit background sync error:', err);
+        setToast({ message: `❌ Cloud sync error: ${err.message}`, type: 'error' });
+        setTimeout(() => setToast(null), 4000);
+      });
 
       // Log activity
       try {
@@ -6989,18 +7019,6 @@ export default function AdvancedReports({
           `Changed "${targetFieldName}" to "${newValue}" for ${student.studentName || 'Student'} (Form #${cleanFNo || '—'}) [Reason: ${reasonCategory} - ${customReason}]`
         );
       } catch (_) {}
-
-      setQuickEditProgress(100);
-      setQuickEditStage('✅ Successfully Synced System-Wide!');
-      await new Promise(r => setTimeout(r, 450));
-
-      setQuickEditCell(null);
-      setConfirmModalConfig(null);
-      setToast({
-        message: `✅ Updated ${targetFieldName} to "${newValue}"!`,
-        type: 'success'
-      });
-      setTimeout(() => setToast(null), 3000);
     } catch (err) {
       console.error('Quick edit error:', err);
       setToast({ message: `❌ Quick edit failed: ${err.message}`, type: 'error' });
@@ -7368,7 +7386,7 @@ export default function AdvancedReports({
 
     const onMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      const minColWidth = colKey === 'sno' ? 65 : 1;
+      const minColWidth = colKey === 'sno' ? 65 : colKey === 'remarks' ? 140 : 1;
       const newWidth = Math.max(minColWidth, startWidth + deltaX);
       latestWidths = { ...latestWidths, [colKey]: newWidth };
       setColWidths(prev => ({
@@ -13402,7 +13420,7 @@ export default function AdvancedReports({
                 )}
                 {orderedVisibleColumns.map((col, idx) => {
                   const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
-                  const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : configuredWidth;
+                  const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : col.key === 'remarks' ? Math.max(configuredWidth, 170) : configuredWidth;
                   const stickyClasses = col.isSticky
                     ? `${hasSnoColumn ? 'sticky left-0' : 'sticky left-9'} top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700`
                     : 'sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black';
@@ -13418,7 +13436,7 @@ export default function AdvancedReports({
                       onDragStart={(e) => handleColumnDragStart(e, col.key)}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleColumnDrop(e, col.key)}
-                      className={`relative group/th group-hover/th:z-50 select-none px-1.5 py-1 text-xs sm:text-[12px] leading-tight whitespace-normal break-all overflow-visible cursor-grab active:cursor-grabbing transition-colors ${stickyClasses} ${draggedColKey === col.key ? 'opacity-40 bg-amber-200 dark:bg-amber-900' : ''}`}
+                      className={`relative group/th group-hover/th:z-50 select-none px-1.5 py-1 text-xs sm:text-[12px] leading-tight whitespace-normal break-words overflow-visible cursor-grab active:cursor-grabbing transition-colors ${stickyClasses} ${draggedColKey === col.key ? 'opacity-40 bg-amber-200 dark:bg-amber-900' : ''}`}
                     >
                       {/* Prominent Column Shift Arrows (Centered, z-50 elevated, uncropped, hidden on mobile touch) */}
                       {!col.isSticky && (
@@ -13540,7 +13558,7 @@ export default function AdvancedReports({
                         const isCopied = copiedCellId === cellId;
                         const isRowCopied = copiedCellId === `row_${s.id || s.sno}`;
                         const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
-                        const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : configuredWidth;
+                        const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : col.key === 'remarks' ? Math.max(configuredWidth, 170) : configuredWidth;
 
                         const stickyBg = col.isSticky
                           ? ` ${hasSnoColumn ? 'sticky left-0' : 'sticky left-9'} z-20 border-r border-slate-200 dark:border-slate-800/50 transition-colors ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} group-hover:bg-amber-50 dark:group-hover:bg-amber-900/30`
@@ -13590,13 +13608,13 @@ export default function AdvancedReports({
                                 </div>
                               </div>
                             ) : (
-                              <div className="flex items-center justify-between gap-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1.5 min-w-0">
                                 <div className={`flex-1 min-w-0 ${['boardRegNo', 'formNo', 'admNo', 'classRollNo', 'session', 'class'].includes(col.key) ? 'whitespace-nowrap' : 'whitespace-normal break-words'}`}>
                                   {col.render ? col.render(val, studentWithModal) : val}
                                 </div>
-                                {(!['studentName', 'fatherName', 'subs', 'aadhar', 'dob', 'sno'].includes(col.key)) &&
+                                {(!['studentName', 'fatherName', 'subs', 'aadhar', 'dob', 'sno', 'remarks'].includes(col.key)) &&
                                   studentWithModal._getJkboseStatus?.(col.key) && (
-                                    <JkboseFieldBadge info={studentWithModal._getJkboseStatus(col.key)} className="ml-1" />
+                                    <JkboseFieldBadge info={studentWithModal._getJkboseStatus(col.key)} className="ml-1 flex-shrink-0" />
                                   )}
                               </div>
                             )}
