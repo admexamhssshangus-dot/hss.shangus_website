@@ -3554,7 +3554,7 @@ export default function AdmissionRegisterSuite({
   }, [calculatedNextAdmNo]);
 
   const candidateAssignStudents = useMemo(() => {
-    return normalizedStudents.filter(st => {
+    const list = normalizedStudents.filter(st => {
       if (onlyApprovedAssign && st.status !== 'Approved') return false;
       if (assignSessionFilter !== 'ALL' && st.session !== assignSessionFilter) return false;
       if (assignClasses.length > 0) {
@@ -3565,6 +3565,17 @@ export default function AdmissionRegisterSuite({
         if (st.admNo && st.admNo !== '—' && st.admNo !== 'N/A') return false;
       }
       return true;
+    });
+
+    return list.sort((a, b) => {
+      const numA = parseInt(String(a.rollNo || '').replace(/\D/g, ''), 10);
+      const numB = parseInt(String(b.rollNo || '').replace(/\D/g, ''), 10);
+      const hasA = !isNaN(numA);
+      const hasB = !isNaN(numB);
+      if (hasA && hasB) return numA - numB;
+      if (hasA) return -1;
+      if (hasB) return 1;
+      return (a.name || '').localeCompare(b.name || '');
     });
   }, [normalizedStudents, onlyApprovedAssign, assignSessionFilter, assignClasses, onlyMissingAdmNo]);
 
@@ -4106,15 +4117,76 @@ export default function AdmissionRegisterSuite({
   const [dateRangeTo, setDateRangeTo] = useState('');
   const [dateRangeType, setDateRangeType] = useState('sno'); // 'sno' | 'roll'
   const [lastDateClickedIdx, setLastDateClickedIdx] = useState(null);
+  const [dateSortField, setDateSortField] = useState('rollNo'); // 'rollNo' | 'admNo' | 'name' | 'father' | 'class' | 'currentDate' | 'sno'
+  const [dateSortDirection, setDateSortDirection] = useState('asc'); // 'asc' | 'desc'
+
+  const handleDateSort = (field) => {
+    if (dateSortField === field) {
+      setDateSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setDateSortField(field);
+      setDateSortDirection('asc');
+    }
+  };
 
   const dateTargetStudents = useMemo(() => {
-    return normalizedStudents.filter(st => {
+    const list = normalizedStudents.filter(st => {
       if (onlyApprovedDates && st.status !== 'Approved') return false;
       if (assignDateSession !== 'ALL' && st.session !== assignDateSession) return false;
       if (assignDateClass !== 'ALL' && !matchesClassVal(assignDateClass, st.class)) return false;
       return true;
     });
-  }, [normalizedStudents, onlyApprovedDates, assignDateSession, assignDateClass]);
+
+    if (dateSortField === 'sno') {
+      return dateSortDirection === 'desc' ? [...list].reverse() : list;
+    }
+
+    return [...list].sort((a, b) => {
+      let comparison = 0;
+
+      if (dateSortField === 'rollNo') {
+        const numA = parseInt(String(a.rollNo || '').replace(/\D/g, ''), 10);
+        const numB = parseInt(String(b.rollNo || '').replace(/\D/g, ''), 10);
+        const hasA = !isNaN(numA);
+        const hasB = !isNaN(numB);
+        if (hasA && hasB) {
+          comparison = numA - numB;
+        } else if (hasA) {
+          comparison = -1;
+        } else if (hasB) {
+          comparison = 1;
+        } else {
+          comparison = (a.name || '').localeCompare(b.name || '');
+        }
+      } else if (dateSortField === 'admNo') {
+        const numA = parseInt(String(a.admNo || '').replace(/\D/g, ''), 10);
+        const numB = parseInt(String(b.admNo || '').replace(/\D/g, ''), 10);
+        const hasA = !isNaN(numA);
+        const hasB = !isNaN(numB);
+        if (hasA && hasB && numA !== numB) {
+          comparison = numA - numB;
+        } else {
+          comparison = (a.admNo || '').localeCompare(b.admNo || '');
+        }
+      } else if (dateSortField === 'name') {
+        comparison = (a.name || '').localeCompare(b.name || '');
+      } else if (dateSortField === 'father') {
+        comparison = (a.father || '').localeCompare(b.father || '');
+      } else if (dateSortField === 'class') {
+        comparison = (a.class || '').localeCompare(b.class || '');
+      } else if (dateSortField === 'currentDate') {
+        const dateA = assignDateField === 'admDate' ? (a.admDate || '') : (a.onlineStatus || '');
+        const dateB = assignDateField === 'admDate' ? (b.admDate || '') : (b.onlineStatus || '');
+        comparison = dateA.localeCompare(dateB);
+      }
+
+      if (comparison === 0) {
+        comparison = (a.name || '').localeCompare(b.name || '');
+      }
+
+      return dateSortDirection === 'desc' ? -comparison : comparison;
+    });
+  }, [normalizedStudents, onlyApprovedDates, assignDateSession, assignDateClass, dateSortField, dateSortDirection, assignDateField]);
 
   // Synchronize selection to target students when class, session, or approval scope changes
   const targetDateScopeKey = `${assignDateSession}_${assignDateClass}_${onlyApprovedDates}`;
@@ -9223,7 +9295,7 @@ export default function AdmissionRegisterSuite({
               </div>
 
               {/* Compact Form Toolbar */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
                 <div>
                   <label className="block text-[10.5px] font-bold text-slate-500 mb-0.5">Target Field:</label>
                   <select
@@ -9287,6 +9359,44 @@ export default function AdmissionRegisterSuite({
                       <option key={c} value={c}>Class {c}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Sort / Order By Selector */}
+                <div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[10.5px] font-bold text-slate-500">Order / Sort By:</label>
+                    <button
+                      type="button"
+                      onClick={() => setDateSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                      className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                      title="Toggle ascending / descending sort order"
+                    >
+                      {dateSortDirection === 'asc' ? '↑ Asc' : '↓ Desc'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={dateSortField}
+                      onChange={(e) => setDateSortField(e.target.value)}
+                      className="w-full py-1 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold cursor-pointer text-indigo-700 dark:text-indigo-300"
+                    >
+                      <option value="rollNo">🔢 Class Roll No (Default)</option>
+                      <option value="admNo">🎫 Admission No</option>
+                      <option value="name">🔤 Student Name</option>
+                      <option value="father">👤 Father's Name</option>
+                      <option value="currentDate">📅 Current Date</option>
+                      <option value="class">🏫 Class</option>
+                      <option value="sno">📋 Original List Order</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setDateSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                      className="p-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 hover:text-indigo-600 cursor-pointer shrink-0 shadow-2xs"
+                      title={dateSortDirection === 'asc' ? 'Currently Ascending (Click for Descending)' : 'Currently Descending (Click for Ascending)'}
+                    >
+                      {dateSortDirection === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -9409,7 +9519,7 @@ export default function AdmissionRegisterSuite({
                 <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
                   <div className="max-h-80 overflow-y-auto">
                     <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300 text-[11px] border-b border-slate-200 dark:border-slate-700 z-10">
+                      <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300 text-[11px] border-b border-slate-200 dark:border-slate-700 z-10 select-none">
                         <tr>
                           <th className="py-1 px-2 w-8 text-center">
                             <input
@@ -9423,13 +9533,99 @@ export default function AdmissionRegisterSuite({
                               title="Select / Deselect All in View"
                             />
                           </th>
-                          <th className="py-1 px-2 w-10 text-center">#</th>
-                          <th className="py-1 px-2">Student Name</th>
-                          <th className="py-1 px-2">Father's Name</th>
-                          <th className="py-1 px-2">Class</th>
-                          <th className="py-1 px-2">Roll No.</th>
-                          <th className="py-1 px-2">Current Date</th>
-                          <th className="py-1 px-2 text-right text-indigo-600">New Date to Apply</th>
+                          <th
+                            className="py-1 px-2 w-10 text-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            onClick={() => handleDateSort('sno')}
+                            title="Sort by Row Number (#)"
+                          >
+                            <div className="flex items-center justify-center gap-0.5">
+                              <span>#</span>
+                              {dateSortField === 'sno' ? (
+                                dateSortDirection === 'asc' ? <ChevronUp size={11} className="text-indigo-600 font-black" /> : <ChevronDown size={11} className="text-indigo-600 font-black" />
+                              ) : null}
+                            </div>
+                          </th>
+                          <th
+                            className="py-1 px-2 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            onClick={() => handleDateSort('name')}
+                            title="Sort alphabetically by Student Name"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span>Student Name</span>
+                              {dateSortField === 'name' ? (
+                                dateSortDirection === 'asc' ? <ChevronUp size={11} className="text-indigo-600 font-black" /> : <ChevronDown size={11} className="text-indigo-600 font-black" />
+                              ) : <ArrowUpDown size={10} className="text-slate-400 opacity-60" />}
+                            </div>
+                          </th>
+                          <th
+                            className="py-1 px-2 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            onClick={() => handleDateSort('father')}
+                            title="Sort by Father's Name"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span>Father's Name</span>
+                              {dateSortField === 'father' ? (
+                                dateSortDirection === 'asc' ? <ChevronUp size={11} className="text-indigo-600 font-black" /> : <ChevronDown size={11} className="text-indigo-600 font-black" />
+                              ) : <ArrowUpDown size={10} className="text-slate-400 opacity-60" />}
+                            </div>
+                          </th>
+                          <th
+                            className="py-1 px-2 w-16 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            onClick={() => handleDateSort('class')}
+                            title="Sort by Class"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span>Class</span>
+                              {dateSortField === 'class' ? (
+                                dateSortDirection === 'asc' ? <ChevronUp size={11} className="text-indigo-600 font-black" /> : <ChevronDown size={11} className="text-indigo-600 font-black" />
+                              ) : <ArrowUpDown size={10} className="text-slate-400 opacity-60" />}
+                            </div>
+                          </th>
+                          <th
+                            className={`py-1 px-2 w-20 text-center cursor-pointer transition-colors ${
+                              dateSortField === 'rollNo'
+                                ? 'bg-indigo-100/70 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300'
+                                : 'hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                            onClick={() => handleDateSort('rollNo')}
+                            title="Sort numerically by Class Roll Number (Default)"
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              <span>Roll No</span>
+                              {dateSortField === 'rollNo' ? (
+                                dateSortDirection === 'asc' ? <ChevronUp size={12} className="text-indigo-600 font-black" /> : <ChevronDown size={12} className="text-indigo-600 font-black" />
+                              ) : <ArrowUpDown size={10} className="text-slate-400 opacity-60" />}
+                            </div>
+                          </th>
+                          <th
+                            className={`py-1 px-2 w-24 text-center cursor-pointer transition-colors ${
+                              dateSortField === 'admNo'
+                                ? 'bg-indigo-100/70 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300'
+                                : 'hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                            onClick={() => handleDateSort('admNo')}
+                            title="Sort by Admission Number"
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              <span>Adm No</span>
+                              {dateSortField === 'admNo' ? (
+                                dateSortDirection === 'asc' ? <ChevronUp size={11} className="text-indigo-600 font-black" /> : <ChevronDown size={11} className="text-indigo-600 font-black" />
+                              ) : <ArrowUpDown size={10} className="text-slate-400 opacity-60" />}
+                            </div>
+                          </th>
+                          <th
+                            className="py-1 px-2 w-28 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            onClick={() => handleDateSort('currentDate')}
+                            title="Sort by Current Date"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span>Current Date</span>
+                              {dateSortField === 'currentDate' ? (
+                                dateSortDirection === 'asc' ? <ChevronUp size={11} className="text-indigo-600 font-black" /> : <ChevronDown size={11} className="text-indigo-600 font-black" />
+                              ) : <ArrowUpDown size={10} className="text-slate-400 opacity-60" />}
+                            </div>
+                          </th>
+                          <th className="py-1 px-2 text-right text-indigo-600 w-36">New Date to Apply</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200 text-[11px]">
@@ -9457,7 +9653,12 @@ export default function AdmissionRegisterSuite({
                               <td className="py-1 px-2 font-bold">{st.name}</td>
                               <td className="py-1 px-2 text-slate-500">{st.father}</td>
                               <td className="py-1 px-2 font-bold text-indigo-600">{st.class}</td>
-                              <td className="py-1 px-2 font-mono ledger-mono-font">{st.rollNo || '—'}</td>
+                              <td className="py-1 px-2 text-center font-mono font-black ledger-mono-font text-indigo-700 dark:text-indigo-300">
+                                {st.rollNo || '—'}
+                              </td>
+                              <td className="py-1 px-2 text-center font-mono ledger-mono-font text-slate-600 dark:text-slate-400">
+                                {st.admNo || '—'}
+                              </td>
                               <td className="py-1 px-2 font-mono text-slate-500 ledger-mono-font">
                                 {assignDateField === 'admDate' ? (st.admDate || '—') : (st.onlineStatus || '—')}
                               </td>
