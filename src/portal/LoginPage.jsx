@@ -1094,15 +1094,14 @@ export default function LoginPage() {
         {/* RIGHT COLUMN: MAIN LOGIN GLASS CARD (Fully Responsive 100% width on mobile, 6-col on lg) */}
         <div className="lg:col-span-6 w-full max-w-[420px] mx-auto lg:max-w-none">
           
-          <div className={`rounded-2xl sm:rounded-3xl p-3.5 xs:p-4 sm:p-5.5 border shadow-lg sm:shadow-xl transition-all duration-300 relative overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl ${
+          <div className={`portal-auth-card rounded-2xl sm:rounded-3xl p-3.5 xs:p-4 sm:p-5.5 border shadow-lg sm:shadow-xl transition-all duration-300 relative overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl ${
             activeTheme.cardBorder
           }`}>
 
-            {/* Loading blur overlay */}
+            {/* Loading blur overlay with full theme contrast support */}
             {isLoading && (
               <div 
-                className="absolute inset-0 z-50 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center p-4 animate-fadeIn"
-                style={{ backgroundColor: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                className="portal-loading-overlay absolute inset-0 z-50 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center p-4 animate-fadeIn bg-white/95 dark:bg-slate-950/95 backdrop-blur-md"
               >
                 <ModernLoader
                   moduleKey={isSuperAdmin ? 'admin' : 'auth'}

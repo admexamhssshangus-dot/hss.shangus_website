@@ -307,13 +307,12 @@ export default function RegisterPage() {
 
         {/* RIGHT COLUMN: MAIN REGISTRATION GLASS CARD */}
         <div className="lg:col-span-6 w-full max-w-[480px] mx-auto lg:max-w-none">
-          <div className="rounded-3xl p-5 sm:p-7 border shadow-2xl transition-all duration-300 relative overflow-hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border-slate-200/80 dark:border-slate-800/80 shadow-teal-500/5">
+          <div className="portal-auth-card rounded-3xl p-5 sm:p-7 border shadow-2xl transition-all duration-300 relative overflow-hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border-slate-200/80 dark:border-slate-800/80 shadow-teal-500/5">
 
-            {/* Loading blur overlay */}
+            {/* Loading blur overlay with full theme contrast support */}
             {isLoading && (
               <div 
-                className="absolute inset-0 z-50 rounded-3xl flex flex-col items-center justify-center p-4 animate-fadeIn"
-                style={{ backgroundColor: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                className="portal-loading-overlay absolute inset-0 z-50 rounded-3xl flex flex-col items-center justify-center p-4 animate-fadeIn bg-white/95 dark:bg-slate-950/95 backdrop-blur-md"
               >
                 <ModernLoader
                   moduleKey="student"
