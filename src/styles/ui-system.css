@@ -1,4 +1,5 @@
 :root {
+  --site-header-height: 56px;
   --ui-primary: #0f766e;
   --ui-primary-hover: #115e59;
   --ui-accent: #c2410c;
@@ -13,6 +14,22 @@
   --ui-shadow-card: 0 12px 32px -24px rgba(15, 23, 42, 0.45);
   --ui-content: 72rem;
   --ui-control-height: 2.75rem;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --site-header-height: 112px;
+  }
+}
+
+main#main-content {
+  padding-top: var(--site-header-height, 56px);
+}
+
+@media (min-width: 48rem) {
+  main#main-content {
+    padding-top: var(--site-header-height, 112px);
+  }
 }
 
 html {
@@ -123,9 +140,16 @@ button, input, select, textarea { font: inherit; }
 .ui-mobile-only { display: none; }
 @media (max-width: 47.99rem) { .ui-mobile-only { display: block; } }
 
+.hero-container {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 18rem;
+}
+
 @media (min-width: 48rem) {
   .hero-container {
-    height: calc(100vh - var(--site-header-height, 7rem));
+    aspect-ratio: auto;
+    height: calc(100vh - var(--site-header-height, 112px));
     min-height: 32rem;
     max-height: 48rem;
   }

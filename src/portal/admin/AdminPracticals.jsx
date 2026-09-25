@@ -2988,20 +2988,26 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
       if (!cur) return prev;
       const updated = { ...cur, [field]: rawVal };
 
-      // Recalculate totalMarks
       const pStr = field === 'practicalMarks' ? rawVal : (cur.practicalMarks || '');
       const vStr = field === 'vivaMarks' ? rawVal : (cur.vivaMarks || '');
-      const isAbs = /^(A|AB|ABS|ABSENT)$/i.test(pStr) || /^(A|AB|ABS|ABSENT)$/i.test(vStr);
-      if (isAbs) {
+      const pIsNum = !isNaN(Number(pStr)) && pStr !== '';
+      const vIsNum = !isNaN(Number(vStr)) && vStr !== '';
+      const isExplicitAbs = rawVal === 'A' || rawVal === 'AB' || rawVal === 'ABS' || rawVal === 'ABSENT';
+
+      if (isExplicitAbs) {
+        updated.practicalMarks = 'AB';
+        updated.vivaMarks = 'AB';
         updated.totalMarks = 'AB';
-      } else {
-        const pNum = Number(pStr) || 0;
-        const vNum = Number(vStr) || 0;
-        if (vStr && vStr !== '—' && vStr !== '0') {
-          updated.totalMarks = String(pNum + vNum);
-        } else {
-          updated.totalMarks = pStr;
+      } else if (pIsNum || vIsNum) {
+        // If entering a numeric mark, clear any phantom lingering 'AB' from vivaMarks
+        if (field === 'practicalMarks' && (/^(A|AB|ABS|ABSENT)$/i.test(cur.vivaMarks) || !cur.vivaMarks)) {
+          updated.vivaMarks = '';
         }
+        const pNum = pIsNum ? Number(pStr) : 0;
+        const vNum = (vIsNum && !/^(A|AB|ABS|ABSENT)$/i.test(updated.vivaMarks)) ? Number(updated.vivaMarks) : 0;
+        updated.totalMarks = String(Math.min(subjectMaxMarks, pNum + vNum));
+      } else {
+        updated.totalMarks = pStr || '';
       }
       updated.updatedByAdmin = true;
       copy[origIdx] = updated;
@@ -3212,10 +3218,13 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
       return s;
     };
 
-    const normalizeViva = (v) => {
+    const normalizeViva = (v, prac) => {
       if (v === null || v === undefined || v === '' || v === '—' || String(v).trim() === '0') return '—';
       const s = String(v).trim().toUpperCase();
-      if (s === 'AB' || s === 'A' || s === 'ABS' || s === 'ABSENT') return 'AB';
+      if (s === 'AB' || s === 'A' || s === 'ABS' || s === 'ABSENT') {
+        if (prac && !isNaN(Number(prac)) && Number(prac) > 0) return '—';
+        return 'AB';
+      }
       const num = Number(s);
       if (!isNaN(num)) return num === 0 ? '—' : String(num);
       return s;
@@ -3259,8 +3268,8 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
 
       const oldPrac = normalizeMark(oldRec.practicalMarks);
       const newPrac = normalizeMark(r.practicalMarks);
-      const oldViva = normalizeViva(oldRec.vivaMarks);
-      const newViva = normalizeViva(r.vivaMarks);
+      const oldViva = normalizeViva(oldRec.vivaMarks, oldRec.practicalMarks);
+      const newViva = normalizeViva(r.vivaMarks, r.practicalMarks);
       const oldTot = normalizeMark(oldRec.totalMarks ?? oldRec.practicalMarks);
       const newTot = normalizeMark(r.totalMarks ?? r.practicalMarks);
 
