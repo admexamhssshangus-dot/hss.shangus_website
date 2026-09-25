@@ -635,7 +635,11 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
 
   const rawStudent = studentData?.raw || studentData || {};
   const effectiveAddress = address || extractFullAddress(rawStudent) || '';
-  const effectiveAdmissionNo = admissionNo || extractStudentAdmissionNumber(rawStudent) || '';
+  let effectiveAdmissionNo = admissionNo || extractStudentAdmissionNumber(rawStudent) || '';
+  const rawOldAdm = String(rawStudent.oldAdmNo || rawStudent['Old Admission No.'] || rawStudent['Old Adm No'] || studentData?.oldAdmNo || '').trim();
+  if (rawOldAdm && rawOldAdm !== '—' && rawOldAdm !== 'N/A' && !effectiveAdmissionNo.includes('(') && effectiveAdmissionNo !== rawOldAdm) {
+    effectiveAdmissionNo = `${effectiveAdmissionNo} (${rawOldAdm})`;
+  }
   const effectiveAdmissionDate = admissionDate || extractStudentAdmissionDate(rawStudent) || '';
 
   const FEMALE_NAME_TOKENS = new Set([
@@ -1045,6 +1049,10 @@ export function printStudentCertificate({
   const logoSrc = '/logo192.png';
   const certId = metaDetails.certificateNo || refNo || 'SHG-2026';
   const regId = metaDetails.regNo || '';
+  const metaOldAdm = String(metaDetails.oldAdmNo || '').trim();
+  if (metaOldAdm && metaOldAdm !== '—' && metaOldAdm !== 'N/A' && metaDetails.admissionNo && !metaDetails.admissionNo.includes('(') && metaDetails.admissionNo !== metaOldAdm) {
+    metaDetails.admissionNo = `${metaDetails.admissionNo} (${metaOldAdm})`;
+  }
   const admId = metaDetails.admissionNo || '';
   const rollId = metaDetails.rollNo || '';
   const verifyUrl = buildCertificateVerificationUrl({
@@ -1935,6 +1943,10 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     const { student, bodyHtml, metaDetails = {} } = item;
     const certId = metaDetails.certificateNo || 'SHG-2026';
     const regId = metaDetails.regNo || '';
+    const metaOldAdm = String(metaDetails.oldAdmNo || '').trim();
+    if (metaOldAdm && metaOldAdm !== '—' && metaOldAdm !== 'N/A' && metaDetails.admissionNo && !metaDetails.admissionNo.includes('(') && metaDetails.admissionNo !== metaOldAdm) {
+      metaDetails.admissionNo = `${metaDetails.admissionNo} (${metaOldAdm})`;
+    }
     const admId = metaDetails.admissionNo || '';
     const rollId = metaDetails.rollNo || getStudentRollVal(student) || '';
     const verifyUrl = buildCertificateVerificationUrl({

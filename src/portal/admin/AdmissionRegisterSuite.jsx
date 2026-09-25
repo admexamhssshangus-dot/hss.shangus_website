@@ -6,7 +6,7 @@ import {
   Plus, Trash2, FileCheck, Sliders, Loader2, Columns, LayoutGrid,
   UserCheck, UserX, AlertCircle, X, Edit3, UserPlus, ChevronRight,
   Filter, Eye, ChevronDown, ChevronUp, Sparkles, SlidersHorizontal, Save, RotateCcw, Move, ArrowUpDown,
-  CheckSquare, Square, Minus, AlertTriangle, CheckCircle2, ListOrdered, Hash, Download
+  CheckSquare, Square, Minus, AlertTriangle, CheckCircle2, ListOrdered, Hash, Download, Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -924,6 +924,130 @@ function formatBoardRegSplit(val) {
     );
   }
   return <span className="font-black font-mono text-[13px] tracking-tight">{s}</span>;
+}
+
+// Detect if student has an academic gap (> 1 year academic gap or re-admission)
+function hasStudentAcademicGap(student, currentSession = '', prevInfo = null) {
+  if (!student) return false;
+  // 1. Explicit readmission flag
+  if (student.isReadmission === true) return true;
+  const raw = student.raw || student;
+  const reAdmStr = String(raw.readmission || raw['readmission'] || raw['Re-admission'] || raw['Re-Admission'] || raw.isReadmission || raw['Are you seeking Re-admission?'] || raw.reAdmissionStatus || '').toLowerCase();
+  if (reAdmStr === 'yes' || raw.readmission === true || raw.isReadmission === true) return true;
+
+  // 2. Old admission number present and differs from current admission number
+  const oldAdm = cleanStr(student.oldAdmNo || raw.oldAdmNo || raw['Old Admission No.'] || raw['Old Adm No'] || raw['Old Adm. No.'] || raw['previousAdmNo']);
+  const currAdm = cleanStr(student.admNo || raw.admNo || raw['Adm. No.']);
+  if (oldAdm && oldAdm !== currAdm && oldAdm !== '—' && oldAdm !== 'N/A') return true;
+
+  // 3. Academic session comparison: More than 1 year difference
+  const effCurrSess = currentSession || student.session || raw.session || raw['Academic Session'] || '';
+  const currYearMatch = String(effCurrSess).match(/(19\d\d|20\d\d)/);
+  const currYear = currYearMatch ? parseInt(currYearMatch[1], 10) : null;
+
+  const prevSess = prevInfo?.session || raw.prevSession || raw['Previous Session'] || '';
+  const prevYearMatch = String(prevSess).match(/(19\d\d|20\d\d)/);
+  const prevYear = prevYearMatch ? parseInt(prevYearMatch[1], 10) : null;
+
+  if (currYear && prevYear) {
+    const diff = currYear - prevYear;
+    if (diff > 1) return true;
+  }
+
+  // 4. Previous passing year comparison: More than standard academic gap
+  const passYearStr = cleanStr(raw.prevPassingYear || raw['Passing Year'] || raw['Year of Passing'] || raw.passingYear || '');
+  const passMatch = String(passYearStr).match(/(19\d\d|20\d\d)/);
+  if (currYear && passMatch) {
+    const pYear = parseInt(passMatch[1], 10);
+    const cls = cleanStr(student.class || raw.class || '');
+    if (cls.includes('12') && currYear - pYear > 2) return true;
+    if (cls.includes('10') && currYear - pYear > 1) return true;
+  }
+
+  return false;
+}
+
+// Student Priority Scoring for Sequential Allotment
+// Priority 1: Junior class of tier (11th or 9th) fresh entrants
+// Priority 2: Senior class of tier (12th or 10th) Re-admissions with Academic Gap (> 1 yr)
+// Priority 3: Regular continuous 12th/10th students (inherit admission number, no sequential advance)
+function getStudentAllotmentPriority(student, currentSession = '', prevInfo = null) {
+  const cls = cleanStr(student.class || '');
+  const is9th = cls.includes('9');
+  const is10th = cls.includes('10');
+  const is11th = cls.includes('11');
+  const is12th = cls.includes('12');
+
+  const hasGap = hasStudentAcademicGap(student, currentSession, prevInfo);
+
+  if (is9th) {
+    return {
+      tierOrder: 10,
+      tierLabel: '🥇 Priority 1: 9th Fresh Entrant',
+      priorityBadge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300',
+      isFresh: true,
+      hasGap: false,
+      isSeniorReAdm: false
+    };
+  }
+  if (is10th && hasGap) {
+    return {
+      tierOrder: 20,
+      tierLabel: '🥈 Priority 2: 10th Re-Adm (Gap)',
+      priorityBadge: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-300',
+      isFresh: false,
+      hasGap: true,
+      isSeniorReAdm: true
+    };
+  }
+  if (is11th) {
+    return {
+      tierOrder: 30,
+      tierLabel: '🥇 Priority 1: 11th Fresh Entrant',
+      priorityBadge: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-300',
+      isFresh: true,
+      hasGap: false,
+      isSeniorReAdm: false
+    };
+  }
+  if (is12th && hasGap) {
+    return {
+      tierOrder: 40,
+      tierLabel: '🥈 Priority 2: 12th Re-Adm (Gap)',
+      priorityBadge: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border-amber-400',
+      isFresh: false,
+      hasGap: true,
+      isSeniorReAdm: true
+    };
+  }
+  if (is10th) {
+    return {
+      tierOrder: 50,
+      tierLabel: '🔄 Regular 10th (Continuous / Inherit)',
+      priorityBadge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300',
+      isFresh: false,
+      hasGap: false,
+      isSeniorReAdm: false
+    };
+  }
+  if (is12th) {
+    return {
+      tierOrder: 60,
+      tierLabel: '🔄 Regular 12th (Continuous / Inherit)',
+      priorityBadge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300',
+      isFresh: false,
+      hasGap: false,
+      isSeniorReAdm: false
+    };
+  }
+  return {
+    tierOrder: 90,
+    tierLabel: 'Standard Entrant',
+    priorityBadge: 'bg-slate-100 text-slate-600 border-slate-200',
+    isFresh: false,
+    hasGap: false,
+    isSeniorReAdm: false
+  };
 }
 
 export default function AdmissionRegisterSuite({
@@ -2805,12 +2929,7 @@ export default function AdmissionRegisterSuite({
       const cB = getClassPriority(b.class);
       if (cA !== cB) return cA - cB;
 
-      // Fresh First (0), Re-admission at end of each class register (1)
-      const isReA = a.isReadmission ? 1 : 0;
-      const isReB = b.isReadmission ? 1 : 0;
-      if (isReA !== isReB) return isReA - isReB;
-
-      // Class Roll No sorted numerically
+      // Class Roll No sorted numerically (Default Order)
       const rA = parseInt(String(a.rollNo || '').replace(/\D/g, ''), 10);
       const rB = parseInt(String(b.rollNo || '').replace(/\D/g, ''), 10);
       const hasRollA = !isNaN(rA) && rA > 0;
@@ -2824,12 +2943,17 @@ export default function AdmissionRegisterSuite({
         return 1;
       }
 
-      // Fallback: Admission No numerically
+      // Fallback 1: Admission No numerically
       const admA = parseInt(String(a.admNo || '').replace(/\D/g, ''), 10);
       const admB = parseInt(String(b.admNo || '').replace(/\D/g, ''), 10);
       if (!isNaN(admA) && !isNaN(admB) && admA > 0 && admB > 0 && admA !== admB) {
         return admA - admB;
       }
+
+      // Fallback 2: Fresh First (0), Re-admission (1)
+      const isReA = a.isReadmission ? 1 : 0;
+      const isReB = b.isReadmission ? 1 : 0;
+      if (isReA !== isReB) return isReA - isReB;
 
       return (a.name || '').localeCompare(b.name || '');
     });
@@ -3516,17 +3640,19 @@ export default function AdmissionRegisterSuite({
   // -------------------------------------------------------------
   // ASSIGN IDs ENGINE STATE & LOGIC
   // -------------------------------------------------------------
-  const [assignStartId, setAssignStartId] = useState('5476');
+  const [assignStartId, setAssignStartId] = useState('5001');
   const [assigningIds, setAssigningIds] = useState(false);
-  const [assignClasses, setAssignClasses] = useState(['9th', '11th']);
+  const [assignClasses, setAssignClasses] = useState(['11th', '12th']);
   const [assignSessionFilter, setAssignSessionFilter] = useState('2025-26');
   const [onlyMissingAdmNo, setOnlyMissingAdmNo] = useState(true);
   const [onlyApprovedAssign, setOnlyApprovedAssign] = useState(true);
   const [assignStrategies, setAssignStrategies] = useState({});
-  const [assignViewMode, setAssignViewMode] = useState('allot'); // 'allot' | 'audit'
+  const [assignViewMode, setAssignViewMode] = useState('integrated'); // 'integrated' | 'allot' | 'audit'
   const [auditorSearch, setAuditorSearch] = useState('');
   const [auditorFilter, setAuditorFilter] = useState('all'); // 'all' | 'gaps_only' | 'duplicates_only' | 'unassigned_only'
   const [includeHistoryInAudit, setIncludeHistoryInAudit] = useState(false);
+
+  const [assignSortVariable, setAssignSortVariable] = useState('rollNo'); // 'rollNo' | 'admNo' | 'name' | 'formNo'
 
   // Synchronize assign_ids and assign_dates session scope with selectedSession
   useEffect(() => {
@@ -3548,7 +3674,7 @@ export default function AdmissionRegisterSuite({
   }, [normalizedStudents]);
 
   useEffect(() => {
-    if (calculatedNextAdmNo && (!assignStartId || assignStartId === '5476')) {
+    if (calculatedNextAdmNo && (!assignStartId || assignStartId === '5476' || assignStartId === '5001')) {
       setAssignStartId(calculatedNextAdmNo);
     }
   }, [calculatedNextAdmNo]);
@@ -3567,21 +3693,7 @@ export default function AdmissionRegisterSuite({
       return true;
     });
 
-    return list.sort((a, b) => {
-      const numA = parseInt(String(a.rollNo || '').replace(/\D/g, ''), 10);
-      const numB = parseInt(String(b.rollNo || '').replace(/\D/g, ''), 10);
-      const hasA = !isNaN(numA);
-      const hasB = !isNaN(numB);
-      if (hasA && hasB) return numA - numB;
-      if (hasA) return -1;
-      if (hasB) return 1;
-      return (a.name || '').localeCompare(b.name || '');
-    });
-  }, [normalizedStudents, onlyApprovedAssign, assignSessionFilter, assignClasses, onlyMissingAdmNo]);
-
-  const candidateIdPreviewList = useMemo(() => {
-    let seqCounter = parseInt(assignStartId, 10) || 5476;
-    return candidateAssignStudents.map(st => {
+    const mapped = list.map(st => {
       const reg = st.boardReg;
       let prevInfo = null;
       if (reg && reg.length > 5) {
@@ -3599,28 +3711,130 @@ export default function AdmissionRegisterSuite({
         }
       }
 
+      if (!prevInfo && reg && reg.length > 5 && allAdmissionsPool) {
+        const poolMatch = allAdmissionsPool.find(adm => {
+          const aReg = cleanStr(adm.boardRegNo || adm['Board Registration Number'] || adm.boardReg);
+          const aAdm = cleanStr(adm.admNo || adm['Adm. No.']);
+          return aReg === reg && aAdm && adm.id !== st.id;
+        });
+        if (poolMatch) {
+          prevInfo = {
+            admNo: cleanStr(poolMatch.admNo || poolMatch['Adm. No.']),
+            class: cleanStr(poolMatch.class || poolMatch.Class || '11th'),
+            session: cleanStr(poolMatch.session || poolMatch.Session || '')
+          };
+        }
+      }
+
+      const priorityInfo = getStudentAllotmentPriority(st, assignSessionFilter, prevInfo);
+      return {
+        student: st,
+        prevInfo,
+        priorityInfo
+      };
+    });
+
+    // Sort strictly by:
+    // 1. Priority Tier Order:
+    //    10 (9th Fresh), 20 (10th Re-adm Gap), 30 (11th Fresh), 40 (12th Re-adm Gap), 50 (10th Regular), 60 (12th Regular)
+    // 2. Order within Tier by selected variable (Default: Class Roll No)
+    // 3. Student Name alphabetically
+    mapped.sort((a, b) => {
+      if (a.priorityInfo.tierOrder !== b.priorityInfo.tierOrder) {
+        return a.priorityInfo.tierOrder - b.priorityInfo.tierOrder;
+      }
+      if (assignSortVariable === 'admNo') {
+        const numA = parseInt(String(a.student.admNo || a.prevInfo?.admNo || a.student.oldAdmNo || '').replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(String(b.student.admNo || b.prevInfo?.admNo || b.student.oldAdmNo || '').replace(/\D/g, ''), 10) || 0;
+        if (numA !== numB) return numA - numB;
+      } else if (assignSortVariable === 'name') {
+        const diff = (a.student.name || '').localeCompare(b.student.name || '');
+        if (diff !== 0) return diff;
+      } else if (assignSortVariable === 'formNo') {
+        const numA = parseInt(String(a.student.formNo || '').replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(String(b.student.formNo || '').replace(/\D/g, ''), 10) || 0;
+        if (numA !== numB) return numA - numB;
+      }
+
+      // Default: Class Roll Number numerically (1, 2, 3... 100)
+      const numA = parseInt(String(a.student.rollNo || '').replace(/\D/g, ''), 10);
+      const numB = parseInt(String(b.student.rollNo || '').replace(/\D/g, ''), 10);
+      const hasA = !isNaN(numA);
+      const hasB = !isNaN(numB);
+      if (hasA && hasB) return numA - numB;
+      if (hasA) return -1;
+      if (hasB) return 1;
+      return (a.student.name || '').localeCompare(b.student.name || '');
+    });
+
+    return mapped;
+  }, [normalizedStudents, onlyApprovedAssign, assignSessionFilter, assignClasses, onlyMissingAdmNo, assignSortVariable, historyDataset, allAdmissionsPool]);
+
+  const candidateIdPreviewList = useMemo(() => {
+    let seqCounter = parseInt(assignStartId, 10) || 5001;
+    return candidateAssignStudents.map(item => {
+      const { student: st, prevInfo, priorityInfo } = item;
       const userStrat = assignStrategies[st.id];
-      const strat = userStrat || (prevInfo ? 'inherit_prev' : 'assign_new');
+
+      // Automatic default strategy determination:
+      // - Priority 1 (Fresh 9th or 11th): 'assign_new' (consumes starting sequential numbers e.g. 5001-5100)
+      // - Priority 2 (10th or 12th Re-admission with Academic Gap > 1 yr): 'assign_new' (consumes NEXT sequential numbers e.g. 5101-5110)
+      // - Continuous regular progression (no gap): 'inherit_prev' if prevInfo/admNo exists, else 'assign_new'
+      let defaultStrat = 'assign_new';
+      if (priorityInfo.tierOrder === 10 || priorityInfo.tierOrder === 30) {
+        defaultStrat = 'assign_new';
+      } else if (priorityInfo.tierOrder === 20 || priorityInfo.tierOrder === 40) {
+        defaultStrat = 'assign_new';
+      } else if (prevInfo || (st.admNo && st.admNo !== '—' && st.admNo !== 'N/A')) {
+        defaultStrat = 'inherit_prev';
+      }
+
+      const strat = userStrat || defaultStrat;
 
       let proposed = '—';
+      let proposedDisplay = '—';
+      let oldAdmNo = '';
+
+      // Determine old admission number if student has prior enrollment
+      const rawOld = cleanStr(st.oldAdmNo || st.raw?.oldAdmNo || st.raw?.['Old Admission No.'] || st.raw?.['Old Adm No'] || prevInfo?.admNo);
+      if (rawOld && rawOld !== '—' && rawOld !== 'N/A') {
+        oldAdmNo = rawOld;
+      } else if (st.admNo && st.admNo !== '—' && st.admNo !== 'N/A') {
+        oldAdmNo = st.admNo;
+      }
+
       if (strat === 'assign_new') {
-        proposed = String(seqCounter);
+        const assignedNo = String(seqCounter);
         seqCounter++;
-      } else if (strat === 'inherit_prev' && prevInfo) {
-        proposed = prevInfo.admNo;
+        proposed = assignedNo;
+
+        // If candidate is a senior re-admission with academic gap (or has oldAdmNo), format display as: 5101 (4892)
+        if (priorityInfo.hasGap || priorityInfo.isSeniorReAdm || (oldAdmNo && oldAdmNo !== assignedNo)) {
+          proposedDisplay = oldAdmNo ? `${assignedNo} (${oldAdmNo})` : assignedNo;
+        } else {
+          proposedDisplay = assignedNo;
+        }
+      } else if (strat === 'inherit_prev') {
+        proposed = prevInfo?.admNo || st.admNo || '—';
+        proposedDisplay = proposed;
       } else if (strat === 'skip') {
         proposed = st.admNo || '—';
+        proposedDisplay = proposed;
       }
 
       return {
         student: st,
         currentAdm: st.admNo,
         prevInfo,
+        priorityInfo,
         strat,
-        proposed
+        proposed,
+        proposedDisplay,
+        oldAdmNo: (priorityInfo.hasGap || priorityInfo.isSeniorReAdm || (oldAdmNo && oldAdmNo !== proposed)) ? oldAdmNo : '',
+        isGapReAdmission: priorityInfo.hasGap || priorityInfo.isSeniorReAdm
       };
     });
-  }, [candidateAssignStudents, assignStartId, assignStrategies, historyDataset]);
+  }, [candidateAssignStudents, assignStartId, assignStrategies]);
 
   const handleRunAssignIds = async () => {
     if (candidateIdPreviewList.length === 0) {
@@ -3670,7 +3884,7 @@ export default function AdmissionRegisterSuite({
         });
 
         for (const item of batchSlice) {
-          const { student, proposed } = item;
+          const { student, proposed, oldAdmNo: itemOldAdm } = item;
           const docRef = doc(db, 'admissions', student.id);
           const rawDate = student.admDate ? formatRegisterDate(student.admDate) : todayDate;
           const payload = {
@@ -3681,6 +3895,15 @@ export default function AdmissionRegisterSuite({
             updatedAt: new Date().toISOString(),
             lastEditedBy: `Admin (${user?.email || 'Assign IDs'})`
           };
+
+          if (itemOldAdm && itemOldAdm !== proposed) {
+            payload.oldAdmNo = itemOldAdm;
+            payload['Old Admission No.'] = itemOldAdm;
+            payload['Old Adm No'] = itemOldAdm;
+            payload.isReadmission = true;
+            payload.readmission = 'Yes';
+          }
+
           batch.set(docRef, payload, { merge: true });
           updateCachedItem('admissions', student.id, payload);
           count++;
@@ -3702,18 +3925,27 @@ export default function AdmissionRegisterSuite({
       setDataset(prev => {
         const assignedMap = new Map();
         itemsToAssign.forEach(it => {
-          assignedMap.set(it.student.id, it.proposed);
+          assignedMap.set(it.student.id, it);
         });
         return prev.map(item => {
           if (assignedMap.has(item.id)) {
-            const proposed = assignedMap.get(item.id);
-            return {
+            const it = assignedMap.get(item.id);
+            const proposed = it.proposed;
+            const updated = {
               ...item,
               admNo: proposed,
               'Adm. No.': proposed,
               'Adm. Date': item['Adm. Date'] || item.admDate || todayDate,
               admDate: item['Adm. Date'] || item.admDate || todayDate
             };
+            if (it.oldAdmNo && it.oldAdmNo !== proposed) {
+              updated.oldAdmNo = it.oldAdmNo;
+              updated['Old Admission No.'] = it.oldAdmNo;
+              updated['Old Adm No'] = it.oldAdmNo;
+              updated.isReadmission = true;
+              updated.readmission = 'Yes';
+            }
+            return updated;
           }
           return item;
         });
@@ -4450,7 +4682,7 @@ export default function AdmissionRegisterSuite({
           s.isReadmission ? 'Re-admission' : 'Fresh',
           s.onlineStatus || '',
           s.admDate || '',
-          s.admNo || '',
+          s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' ? `${s.admNo || ''} (${s.oldAdmNo})` : (s.admNo || ''),
           s.oldAdmNo || '',
           s.class || '',
           s.boardReg || '',
@@ -4501,7 +4733,7 @@ export default function AdmissionRegisterSuite({
       } else {
         const colDefs = [
           { key: 'st_sno', label: 'S.No.', get: s => s.sno },
-          { key: 'st_admNo', label: 'Adm. No.', get: s => s.admNo || '' },
+          { key: 'st_admNo', label: 'Adm. No.', get: s => (s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' ? `${s.admNo || ''} (${s.oldAdmNo})` : (s.admNo || '')) },
           { key: 'st_rollNo', label: 'Class Roll No.', get: s => s.rollNo || '' },
           { key: 'st_boardReg', label: 'Board Reg. No.', get: s => s.boardReg || '' },
           { key: 'st_name', label: "Student's Name", get: s => s.name || '' },
@@ -5879,17 +6111,12 @@ export default function AdmissionRegisterSuite({
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
             {/* 1. Main Suite Module Dropdown */}
             <select
-              value={activeTab === 'assign_ids' && assignViewMode === 'audit' ? 'adm_no_audit' : activeTab}
+              value={activeTab}
               onChange={(e) => {
                 const nextTab = e.target.value;
-                if (nextTab === 'adm_no_audit') {
-                  setActiveTab('assign_ids');
-                  setAssignViewMode('audit');
-                  return;
-                }
                 setActiveTab(nextTab);
                 if (nextTab === 'assign_ids') {
-                  setAssignViewMode('allot');
+                  setAssignViewMode('integrated');
                 }
                 if (nextTab === 'adm_register' || nextTab === 'sentup') {
                   setSelectedStatus('Approved');
@@ -5899,8 +6126,7 @@ export default function AdmissionRegisterSuite({
             >
               <option value="adm_register">📖 Admission Register</option>
               <option value="sentup">📋 Sentup Export</option>
-              <option value="assign_ids">🔢 Assign IDs</option>
-              <option value="adm_no_audit">🔍 Adm No. Gap Auditor</option>
+              <option value="assign_ids">🔢 Assign IDs & Gap Auditor</option>
               <option value="assign_dates">📅 Assign Dates</option>
             </select>
 
@@ -6053,27 +6279,56 @@ export default function AdmissionRegisterSuite({
                   />
                 </div>
 
-                {/* 6. Active Sort Indicator & Quick Reset */}
-                {sortConfig.key ? (
-                  <button
-                    type="button"
-                    onClick={handleResetSort}
-                    className="py-0.5 px-2 rounded-lg bg-indigo-100 hover:bg-rose-100 text-indigo-900 hover:text-rose-900 dark:bg-indigo-950/80 dark:text-indigo-200 dark:hover:bg-rose-950/80 dark:hover:text-rose-200 border border-indigo-300 dark:border-indigo-700 hover:border-rose-400 font-bold text-[10.5px] flex items-center gap-1 shadow-2xs cursor-pointer transition-colors shrink-0"
-                    title="Click to reset to default register order"
-                  >
-                    <ArrowUpDown size={10} className="text-indigo-600 dark:text-indigo-400" />
-                    <span>Sorted: {getSortColumnLabel(sortConfig.key)} ({sortConfig.direction === 'asc' ? '▲ Asc' : '▼ Desc'})</span>
-                    <X size={10} className="text-slate-500 hover:text-rose-600 ml-0.5" />
-                  </button>
-                ) : (
-                  <div
-                    className="hidden xl:flex items-center gap-1 py-0.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300 shrink-0 select-none"
-                    title="Click any column header to sort by that column"
-                  >
-                    <ArrowUpDown size={9.5} className="text-slate-400" />
-                    <span>Order: {activeTab === 'sentup' && isAprBianSession ? 'Exam Roll (Default)' : 'Class Roll (Default)'}</span>
+                {/* 6. Order By Selector & Active Sort Indicator */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 py-0.5 px-1.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300 shadow-2xs">
+                    <ArrowUpDown size={9.5} className="text-slate-400 shrink-0" />
+                    <span className="hidden sm:inline text-slate-500">Order:</span>
+                    <select
+                      value={sortConfig.key || 'rollNo'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'rollNo') {
+                          handleResetSort();
+                        } else {
+                          setSortConfig({ key: val, direction: 'asc' });
+                        }
+                      }}
+                      className="bg-transparent font-bold text-slate-800 dark:text-slate-200 text-[10.5px] cursor-pointer outline-hidden focus:ring-0 border-0 p-0 pr-1"
+                      title="Sort table by column (Default: Class Roll No.)"
+                    >
+                      <option value="rollNo">Class Roll No. (Default)</option>
+                      <option value="admNo">Adm. No.</option>
+                      <option value="sno">S.No.</option>
+                      <option value="name">Student Name</option>
+                      <option value="formNo">Form No.</option>
+                      <option value="admDate">Admission Date</option>
+                      <option value="boardReg">Board Reg. No.</option>
+                      <option value="boardRollNo">Exam/Board Roll</option>
+                      <option value="dobFigures">Date of Birth</option>
+                    </select>
                   </div>
-                )}
+                  {sortConfig.key && (
+                    <button
+                      type="button"
+                      onClick={() => setSortConfig(prev => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                      className="py-0.5 px-1.5 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] font-black cursor-pointer shadow-2xs"
+                      title="Toggle Ascending / Descending"
+                    >
+                      {sortConfig.direction === 'asc' ? '▲ Asc' : '▼ Desc'}
+                    </button>
+                  )}
+                  {sortConfig.key && (
+                    <button
+                      type="button"
+                      onClick={handleResetSort}
+                      className="py-0.5 px-1.5 rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 text-[10px] font-bold cursor-pointer shadow-2xs hover:bg-rose-100"
+                      title="Reset to default Class Roll No order"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -7455,7 +7710,7 @@ export default function AdmissionRegisterSuite({
                                     <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden">{renderAdmDateCell(s.admDate)}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[9px] leading-tight">
                                       <div className="ledger-mono-font font-black">{s.admNo || '—'}</div>
-                                      {s.isReadmission && s.oldAdmNo && s.oldAdmNo !== s.admNo && (
+                                      {s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' && (
                                         <div className="text-[7.5px] font-mono text-purple-700 font-bold">({s.oldAdmNo})</div>
                                       )}
                                     </td>
@@ -8352,7 +8607,9 @@ export default function AdmissionRegisterSuite({
                                 {isSentupColVisible('st_sno') && (
                                   <td className="border border-slate-900 px-1 py-0.5 text-center">
                                     <div className={`font-black text-[13px] leading-tight ledger-mono-font ${isSkipped ? 'line-through text-slate-400' : ''}`}>{s.sno}</div>
-                                    <div className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-400 ledger-mono-font">[{s.admNo || '—'}]</div>
+                                    <div className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-400 ledger-mono-font">
+                                      [{s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' ? `${s.admNo || '—'} (${s.oldAdmNo})` : (s.admNo || '—')}]
+                                    </div>
                                   </td>
                                 )}
                                 {isSentupColVisible('st_rollNo') && (
@@ -8577,22 +8834,23 @@ export default function AdmissionRegisterSuite({
           {/* ============================================================== */}
           {/* TAB 3: ASSIGN IDs (BULK SEQUENTIAL + GAP AUDITOR LEDGER)        */}
           {/* ============================================================== */}
+          {/* ============================================================== */}
+          {/* TAB 3: ASSIGN IDs & GAP AUDITOR (INTEGRATED PAGE)               */}
+          {/* ============================================================== */}
           {activeTab === 'assign_ids' && (
-            <div className="space-y-3 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs text-xs">
-              {/* Compact Control Bar with Mode Switcher */}
+            <div className="space-y-3.5 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs text-xs">
+              {/* Compact Control Bar with Integrated Mode Switcher */}
               <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
-                    {assignViewMode === 'audit' ? <ListOrdered size={15} /> : <CreditCard size={15} />}
+                    <Layers size={15} />
                   </span>
                   <div>
                     <h2 className="text-xs font-black text-slate-900 dark:text-white leading-tight">
-                      {assignViewMode === 'audit' ? 'Sequential Admission No. Ledger & Gap Auditor' : 'Bulk Assign Admission Numbers'}
+                      Bulk Assign Admission Numbers & Sequence Gap Auditor
                     </h2>
                     <p className="text-[10.5px] text-slate-500 font-medium">
-                      {assignViewMode === 'audit'
-                        ? 'Audit sequential allotment, verify whom each ID belongs to, and pinpoint missing gaps or duplicate numbers.'
-                        : 'Auto-numbering & Board Reg No inheritance with direct Firestore sync.'}
+                      Paired-tier sequential allotment (11th→12th Re-adm, 9th→10th Re-adm) with continuous audit and bracketed old admission numbers.
                     </p>
                   </div>
                 </div>
@@ -8602,15 +8860,29 @@ export default function AdmissionRegisterSuite({
                   <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
                     <button
                       type="button"
+                      onClick={() => setAssignViewMode('integrated')}
+                      className={`py-1 px-2.5 rounded-md text-[11px] font-black flex items-center gap-1.5 cursor-pointer transition-all ${
+                        assignViewMode === 'integrated'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                      title="View both the Allotment Queue and Sequential Ledger on the same page"
+                    >
+                      <Layers size={12} />
+                      <span>⚡ Integrated (All-in-One)</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setAssignViewMode('allot')}
                       className={`py-1 px-2.5 rounded-md text-[11px] font-black flex items-center gap-1.5 cursor-pointer transition-all ${
                         assignViewMode === 'allot'
                           ? 'bg-indigo-600 text-white shadow-xs'
                           : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                       }`}
+                      title="Focus on Candidate Allotment Queue"
                     >
                       <CreditCard size={12} />
-                      <span>Bulk Allotment</span>
+                      <span>Allotment Queue</span>
                       {candidateIdPreviewList.length > 0 && (
                         <span className="ml-0.5 px-1 py-0.2 rounded-full text-[9px] bg-indigo-800 text-white font-mono">
                           {candidateIdPreviewList.length}
@@ -8625,9 +8897,10 @@ export default function AdmissionRegisterSuite({
                           ? 'bg-indigo-600 text-white shadow-xs'
                           : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                       }`}
+                      title="Focus on Sequential Ledger & Gap Auditor"
                     >
                       <ListOrdered size={12} />
-                      <span>Sequential Ledger & Gaps</span>
+                      <span>Ledger & Gaps</span>
                       <span className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[9.5px] font-mono ${
                         auditorStats.totalGaps > 0
                           ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-black'
@@ -8635,53 +8908,45 @@ export default function AdmissionRegisterSuite({
                       }`}>
                         {auditorStats.totalAssigned}
                       </span>
-                      {auditorStats.totalGaps > 0 && (
-                        <span className="px-1 py-0.2 rounded-full text-[9px] bg-amber-500 text-white font-black" title={`${auditorStats.totalGaps} Gaps (${auditorStats.totalSkippedNumbers} numbers skipped)`}>
-                          {auditorStats.totalGaps} gaps
-                        </span>
-                      )}
                     </button>
                   </div>
 
-                  {assignViewMode === 'allot' ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setAssignStartId(calculatedNextAdmNo)}
-                        className="py-1 px-2 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 hover:bg-indigo-100 flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
-                        title="Auto-calculate next available Admission Number from database"
-                      >
-                        <RefreshCw size={11} />
-                        <span>Auto-Next ({calculatedNextAdmNo})</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRunAssignIds}
-                        disabled={assigningIds || candidateIdPreviewList.length === 0}
-                        className="py-1 px-3 rounded-lg font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs active:scale-95"
-                      >
-                        {assigningIds ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
-                        <span>Assign IDs ({candidateIdPreviewList.length})</span>
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleExportAuditorExcel}
-                      disabled={auditorStats.totalAssigned === 0}
-                      className="py-1 px-3 rounded-lg font-black text-white bg-emerald-600 hover:bg-emerald-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs active:scale-95"
-                      title="Export complete sequential ledger, skipped gap list, and duplicate audits to Excel"
-                    >
-                      <Download size={12} />
-                      <span>Export Audit (.xlsx)</span>
-                    </button>
-                  )}
+                  {/* Actions */}
+                  <button
+                    type="button"
+                    onClick={() => setAssignStartId(calculatedNextAdmNo)}
+                    className="py-1 px-2 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 hover:bg-indigo-100 flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                    title="Auto-calculate next available Admission Number from database"
+                  >
+                    <RefreshCw size={11} />
+                    <span>Auto-Next ({calculatedNextAdmNo})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRunAssignIds}
+                    disabled={assigningIds || candidateIdPreviewList.length === 0}
+                    className="py-1 px-3 rounded-lg font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs active:scale-95"
+                    title="Assign proposed IDs to all queued students"
+                  >
+                    {assigningIds ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                    <span>Assign IDs ({candidateIdPreviewList.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportAuditorExcel}
+                    disabled={auditorStats.totalAssigned === 0}
+                    className="py-1 px-3 rounded-lg font-black text-white bg-emerald-600 hover:bg-emerald-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs active:scale-95"
+                    title="Export complete sequential ledger, skipped gap list, and duplicate audits to Excel"
+                  >
+                    <Download size={12} />
+                    <span>Export Audit (.xlsx)</span>
+                  </button>
                 </div>
               </div>
 
-              {/* Shared Scope Toolbar (Session, Classes, Status) */}
+              {/* Shared Scope Toolbar (Session, Quick Tiers, Start ID, Checkboxes) */}
               <div className="flex items-center justify-between gap-2 flex-wrap p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
-                {/* Session */}
+                {/* Session Scope */}
                 <div className="flex items-center gap-1">
                   <span className="text-slate-500 font-semibold text-[10.5px]">Session:</span>
                   <select
@@ -8702,10 +8967,35 @@ export default function AdmissionRegisterSuite({
                   </select>
                 </div>
 
-                {/* Target Classes Toggle Pills */}
-                <div className="flex items-center gap-1">
-                  <span className="text-slate-500 font-semibold text-[10.5px]">Classes:</span>
-                  <div className="flex items-center gap-0.5">
+                {/* Target Classes Quick Tiers & Toggle Pills */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-slate-500 font-semibold text-[10.5px]">Classes / Tier:</span>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setAssignClasses(['11th', '12th'])}
+                      className={`py-0.5 px-2 rounded text-[10.5px] font-black cursor-pointer border transition-all ${
+                        assignClasses.includes('11th') && assignClasses.includes('12th') && assignClasses.length === 2
+                          ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
+                          : 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50'
+                      }`}
+                      title="Higher Secondary Tier: Priority 1 for 11th, Priority 2 for 12th Re-admissions with Gap"
+                    >
+                      🎓 11th & 12th (HSS)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssignClasses(['9th', '10th'])}
+                      className={`py-0.5 px-2 rounded text-[10.5px] font-black cursor-pointer border transition-all ${
+                        assignClasses.includes('9th') && assignClasses.includes('10th') && assignClasses.length === 2
+                          ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
+                          : 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50'
+                      }`}
+                      title="Secondary Tier: Priority 1 for 9th, Priority 2 for 10th Re-admissions with Gap"
+                    >
+                      🏫 9th & 10th (SEC)
+                    </button>
+                    <span className="text-slate-300 dark:text-slate-700 mx-0.5">|</span>
                     {availableClasses.map(cls => {
                       const checked = assignClasses.includes(cls);
                       return (
@@ -8716,7 +9006,7 @@ export default function AdmissionRegisterSuite({
                             if (checked) setAssignClasses(prev => prev.filter(c => c !== cls));
                             else setAssignClasses(prev => [...prev, cls]);
                           }}
-                          className={`py-0.5 px-2 rounded text-[10.5px] font-extrabold cursor-pointer border transition-all ${
+                          className={`py-0.5 px-1.5 rounded text-[10.5px] font-extrabold cursor-pointer border transition-all ${
                             checked
                               ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
                               : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-100'
@@ -8729,18 +9019,32 @@ export default function AdmissionRegisterSuite({
                   </div>
                 </div>
 
-                {/* Allotment-Specific Controls */}
-                {assignViewMode === 'allot' && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-500 font-semibold text-[10.5px]">Start ID:</span>
-                    <input
-                      type="number"
-                      value={assignStartId}
-                      onChange={(e) => setAssignStartId(e.target.value)}
-                      className="w-20 py-0.5 px-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-center"
-                    />
-                  </div>
-                )}
+                {/* Start ID Input */}
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 font-semibold text-[10.5px]">Start ID:</span>
+                  <input
+                    type="number"
+                    value={assignStartId}
+                    onChange={(e) => setAssignStartId(e.target.value)}
+                    className="w-20 py-0.5 px-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-center"
+                  />
+                </div>
+
+                {/* Queue Order Variable */}
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 font-semibold text-[10.5px]">Queue Order:</span>
+                  <select
+                    value={assignSortVariable}
+                    onChange={(e) => setAssignSortVariable(e.target.value)}
+                    className="py-0.5 px-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-indigo-700 dark:text-indigo-300 cursor-pointer text-[10.5px]"
+                    title="Order students within priority tier (Default: Class Roll No.)"
+                  >
+                    <option value="rollNo">Class Roll No. (Default)</option>
+                    <option value="admNo">Adm No / Prev Adm</option>
+                    <option value="name">Student Name</option>
+                    <option value="formNo">Form No.</option>
+                  </select>
+                </div>
 
                 {/* Only Approved Checkbox */}
                 <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white dark:bg-slate-900 py-0.5 px-2 rounded-md border border-slate-200 dark:border-slate-800">
@@ -8753,123 +9057,328 @@ export default function AdmissionRegisterSuite({
                   <span className="text-[10.5px] font-bold text-emerald-700 dark:text-emerald-400">Only Approved</span>
                 </label>
 
-                {/* Allotment-Specific Missing Checkbox */}
-                {assignViewMode === 'allot' && (
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white dark:bg-slate-900 py-0.5 px-2 rounded-md border border-slate-200 dark:border-slate-800">
-                    <input
-                      type="checkbox"
-                      checked={onlyMissingAdmNo}
-                      onChange={(e) => setOnlyMissingAdmNo(e.target.checked)}
-                      className="rounded text-indigo-600 cursor-pointer"
-                    />
-                    <span className="text-[10.5px]">Only Missing Adm No</span>
-                    <span className="ml-1 px-1 py-0.2 rounded font-mono font-black text-[10px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950">
-                      {candidateIdPreviewList.length}
+                {/* Only Missing Checkbox */}
+                <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white dark:bg-slate-900 py-0.5 px-2 rounded-md border border-slate-200 dark:border-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={onlyMissingAdmNo}
+                    onChange={(e) => setOnlyMissingAdmNo(e.target.checked)}
+                    className="rounded text-indigo-600 cursor-pointer"
+                  />
+                  <span className="text-[10.5px]">Only Missing Adm No</span>
+                  <span className="ml-1 px-1 py-0.2 rounded font-mono font-black text-[10px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950">
+                    {candidateIdPreviewList.length}
+                  </span>
+                </label>
+              </div>
+
+              {/* Universal Top KPI Metrics Strip (Sequence Range & Health) */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {/* 1. Total Allotted */}
+                <div className="p-2 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 shadow-2xs">
+                  <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Allotted Numbers</div>
+                  <div className="text-base font-black text-indigo-900 dark:text-indigo-200 font-mono">
+                    {auditorStats.totalAssigned}
+                  </div>
+                  <div className="text-[9.5px] text-indigo-600/80 dark:text-indigo-400/80 font-medium">Students with Adm No</div>
+                </div>
+
+                {/* 2. Number Range */}
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sequential Range</div>
+                  <div className="text-sm font-black text-slate-800 dark:text-slate-100 font-mono truncate">
+                    {auditorStats.minAdm !== null ? `${auditorStats.minAdm} – ${auditorStats.maxAdm}` : 'None'}
+                  </div>
+                  <div className="text-[9.5px] text-slate-500 font-medium">
+                    Span: {auditorStats.span} numbers
+                  </div>
+                </div>
+
+                {/* 3. Gaps Detected */}
+                <div className={`p-2 rounded-lg border shadow-2xs ${
+                  auditorStats.totalGaps > 0
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800'
+                    : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                      auditorStats.totalGaps > 0 ? 'text-amber-800 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'
+                    }`}>
+                      Gaps in Sequence
                     </span>
-                  </label>
-                )}
+                    {auditorStats.totalGaps > 0 ? (
+                      <AlertTriangle size={13} className="text-amber-600" />
+                    ) : (
+                      <CheckCircle2 size={13} className="text-emerald-600" />
+                    )}
+                  </div>
+                  <div className={`text-base font-black font-mono ${
+                    auditorStats.totalGaps > 0 ? 'text-amber-900 dark:text-amber-200' : 'text-emerald-800 dark:text-emerald-200'
+                  }`}>
+                    {auditorStats.totalGaps === 0 ? '0 Gaps' : `${auditorStats.totalGaps} Gaps`}
+                  </div>
+                  <div className={`text-[9.5px] font-medium ${
+                    auditorStats.totalGaps > 0 ? 'text-amber-700 dark:text-amber-400 font-bold' : 'text-emerald-600 dark:text-emerald-400'
+                  }`}>
+                    {auditorStats.totalGaps === 0 ? '✓ Fully continuous sequence' : `⚠️ ${auditorStats.totalSkippedNumbers} numbers skipped`}
+                  </div>
+                </div>
+
+                {/* 4. Duplicates */}
+                <div className={`p-2 rounded-lg border shadow-2xs ${
+                  auditorStats.duplicatesCount > 0
+                    ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
+                    : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                      auditorStats.duplicatesCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'
+                    }`}>
+                      Duplicates
+                    </span>
+                    {auditorStats.duplicatesCount > 0 ? (
+                      <AlertCircle size={13} className="text-rose-600" />
+                    ) : (
+                      <Check size={13} className="text-emerald-600" />
+                    )}
+                  </div>
+                  <div className={`text-base font-black font-mono ${
+                    auditorStats.duplicatesCount > 0 ? 'text-rose-900 dark:text-rose-200' : 'text-emerald-800 dark:text-emerald-200'
+                  }`}>
+                    {auditorStats.duplicatesCount === 0 ? '0 Duplicates' : `${auditorStats.duplicatesCount} Duplicates`}
+                  </div>
+                  <div className={`text-[9.5px] font-medium ${
+                    auditorStats.duplicatesCount > 0 ? 'text-rose-700 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400'
+                  }`}>
+                    {auditorStats.duplicatesCount === 0 ? '✓ No duplicate numbers' : '🚨 Clashing IDs detected!'}
+                  </div>
+                </div>
+
+                {/* 5. Unassigned Pending */}
+                <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 shadow-2xs">
+                  <div className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">Allotment Queue</div>
+                  <div className="text-base font-black text-purple-900 dark:text-purple-200 font-mono">
+                    {candidateIdPreviewList.length}
+                  </div>
+                  <div className="text-[9.5px] text-purple-600 dark:text-purple-400 font-medium">
+                    {candidateIdPreviewList.length === 0 ? '✓ Scope fully allotted' : 'Pending in queue'}
+                  </div>
+                </div>
               </div>
 
               {/* ============================================================ */}
-              {/* AUDITOR VIEW: STATS, FILTER BAR & SEQUENTIAL GAP LEDGER      */}
+              {/* SECTION 1: PRIORITY ALLOTMENT QUEUE & CANDIDATE PREVIEW      */}
               {/* ============================================================ */}
-              {assignViewMode === 'audit' && (
-                <div className="space-y-3">
-                  {/* KPI Metric Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    {/* 1. Total Allotted */}
-                    <div className="p-2 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 shadow-2xs">
-                      <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Allotted Numbers</div>
-                      <div className="text-base font-black text-indigo-900 dark:text-indigo-200 font-mono">
-                        {auditorStats.totalAssigned}
-                      </div>
-                      <div className="text-[9.5px] text-indigo-600/80 dark:text-indigo-400/80 font-medium">Students with Adm No</div>
+              {(assignViewMode === 'integrated' || assignViewMode === 'allot') && (
+                <div className="space-y-2 pt-1 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <span className="p-1 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                        <CreditCard size={13} />
+                      </span>
+                      <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                        Section 1: Priority Allotment Queue
+                      </h3>
+                      <span className="px-1.5 py-0.2 rounded-full font-mono font-bold text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
+                        {candidateIdPreviewList.length} Students
+                      </span>
                     </div>
 
-                    {/* 2. Number Range */}
-                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 shadow-2xs">
-                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sequential Range</div>
-                      <div className="text-sm font-black text-slate-800 dark:text-slate-100 font-mono truncate">
-                        {auditorStats.minAdm !== null ? `${auditorStats.minAdm} – ${auditorStats.maxAdm}` : 'None'}
-                      </div>
-                      <div className="text-[9.5px] text-slate-500 font-medium">
-                        Span: {auditorStats.span} numbers
-                      </div>
-                    </div>
-
-                    {/* 3. Gaps Detected */}
-                    <div className={`p-2 rounded-lg border shadow-2xs ${
-                      auditorStats.totalGaps > 0
-                        ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800'
-                        : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                          auditorStats.totalGaps > 0 ? 'text-amber-800 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'
-                        }`}>
-                          Gaps in Sequence
-                        </span>
-                        {auditorStats.totalGaps > 0 ? (
-                          <AlertTriangle size={13} className="text-amber-600" />
-                        ) : (
-                          <CheckCircle2 size={13} className="text-emerald-600" />
-                        )}
-                      </div>
-                      <div className={`text-base font-black font-mono ${
-                        auditorStats.totalGaps > 0 ? 'text-amber-900 dark:text-amber-200' : 'text-emerald-800 dark:text-emerald-200'
-                      }`}>
-                        {auditorStats.totalGaps === 0 ? '0 Gaps' : `${auditorStats.totalGaps} Gaps`}
-                      </div>
-                      <div className={`text-[9.5px] font-medium ${
-                        auditorStats.totalGaps > 0 ? 'text-amber-700 dark:text-amber-400 font-bold' : 'text-emerald-600 dark:text-emerald-400'
-                      }`}>
-                        {auditorStats.totalGaps === 0 ? '✓ Fully continuous sequence' : `⚠️ ${auditorStats.totalSkippedNumbers} numbers skipped`}
-                      </div>
-                    </div>
-
-                    {/* 4. Duplicates */}
-                    <div className={`p-2 rounded-lg border shadow-2xs ${
-                      auditorStats.duplicatesCount > 0
-                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
-                        : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                          auditorStats.duplicatesCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'
-                        }`}>
-                          Duplicates
-                        </span>
-                        {auditorStats.duplicatesCount > 0 ? (
-                          <AlertCircle size={13} className="text-rose-600" />
-                        ) : (
-                          <Check size={13} className="text-emerald-600" />
-                        )}
-                      </div>
-                      <div className={`text-base font-black font-mono ${
-                        auditorStats.duplicatesCount > 0 ? 'text-rose-900 dark:text-rose-200' : 'text-emerald-800 dark:text-emerald-200'
-                      }`}>
-                        {auditorStats.duplicatesCount === 0 ? '0 Duplicates' : `${auditorStats.duplicatesCount} Duplicates`}
-                      </div>
-                      <div className={`text-[9.5px] font-medium ${
-                        auditorStats.duplicatesCount > 0 ? 'text-rose-700 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400'
-                      }`}>
-                        {auditorStats.duplicatesCount === 0 ? '✓ No duplicate numbers' : '🚨 Clashing IDs detected!'}
-                      </div>
-                    </div>
-
-                    {/* 5. Unassigned */}
-                    <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 shadow-2xs">
-                      <div className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">Unassigned</div>
-                      <div className="text-base font-black text-purple-900 dark:text-purple-200 font-mono">
-                        {auditorStats.unassignedCount}
-                      </div>
-                      <div className="text-[9.5px] text-purple-600 dark:text-purple-400 font-medium">
-                        {auditorStats.unassignedCount === 0 ? '✓ All students assigned' : 'Need admission numbers'}
-                      </div>
+                    <div className="text-[10.5px] text-slate-500 font-medium">
+                      Start Sequence: <strong className="font-mono text-indigo-700 dark:text-indigo-300 font-black">{assignStartId}</strong>
                     </div>
                   </div>
 
-                  {/* Auditor Toolbar: Filter Pills, History Toggle & Search */}
+                  {/* Priority Rules Guidance Callout */}
+                  <div className="p-2.5 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/80 flex items-start gap-2">
+                    <span className="p-1 rounded-md bg-indigo-600 text-white font-black text-xs shrink-0 mt-0.5">
+                      <Check size={12} />
+                    </span>
+                    <div className="text-[11px] leading-relaxed text-indigo-950 dark:text-indigo-200">
+                      <strong className="font-black text-indigo-900 dark:text-white uppercase tracking-wider block text-[10px] mb-0.5">
+                        Tier Sequential Allotment Rules ({assignSessionFilter})
+                      </strong>
+                      <span>
+                        🥇 <strong className="font-bold text-emerald-800 dark:text-emerald-300">Priority 1 (Fresh 9th / 11th):</strong> Ordered by Roll No, consumes starting sequential IDs (e.g. 5001–5100).
+                        {' • '}
+                        🥈 <strong className="font-bold text-amber-800 dark:text-amber-300">Priority 2 (Re-admissions with Academic Gap &gt;1 yr):</strong> Consumes next sequential IDs (e.g. 5101–5110), retaining old IDs in brackets like <span className="font-mono font-black text-purple-700 dark:text-purple-300">5101 (4892)</span>.
+                        {' • '}
+                        🔄 <strong className="font-bold text-slate-700 dark:text-slate-300">Regular Continuous:</strong> Standard 1-year progression students retain their previous admission number via inheritance without advancing sequential counter.
+                      </span>
+                    </div>
+                  </div>
+
+                  {candidateIdPreviewList.length > 0 ? (
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
+                      <div className="max-h-96 overflow-y-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300 text-[11px] border-b border-slate-200 dark:border-slate-700 z-10">
+                            <tr>
+                              <th className="py-1.5 px-2 w-10 text-center">#</th>
+                              <th className="py-1.5 px-2 w-36">Priority Group</th>
+                              <th className="py-1.5 px-2 w-14 text-center">Roll No</th>
+                              <th className="py-1.5 px-2 min-w-40">Student & Father's Name</th>
+                              <th className="py-1.5 px-2">Class (Session)</th>
+                              <th className="py-1.5 px-2">Board Reg. No.</th>
+                              <th className="py-1.5 px-2">Previous Adm. No.</th>
+                              <th className="py-1.5 px-2 text-center">Current Adm No</th>
+                              <th className="py-1.5 px-2 text-center">Strategy</th>
+                              <th className="py-1.5 px-2 text-right">Proposed ID</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200 text-[11px]">
+                            {candidateIdPreviewList.map((item, idx) => {
+                              const { student, currentAdm, prevInfo, strat, proposed, proposedDisplay, oldAdmNo, isGapReAdmission } = item;
+                              return (
+                                <tr key={`cand_preview_${student.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                                  <td className="py-1 px-2 text-center font-bold text-slate-400 ledger-mono-font">{idx + 1}</td>
+                                  <td className="py-1 px-2">
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9.5px] font-black border ${item.priorityInfo?.priorityBadge || 'bg-slate-100 text-slate-700'}`}>
+                                      {item.priorityInfo?.tierLabel || 'Standard'}
+                                    </span>
+                                  </td>
+                                  <td className="py-1 px-2 text-center font-mono font-bold text-slate-700 dark:text-slate-300 ledger-mono-font">
+                                    {student.rollNo || '—'}
+                                  </td>
+                                  <td className="py-1 px-2">
+                                    <div className="font-extrabold text-slate-900 dark:text-white leading-tight">{student.name}</div>
+                                    <div className="text-[10px] text-slate-500">S/O: {student.father || '—'}</div>
+                                  </td>
+                                  <td className="py-1 px-2 font-bold text-indigo-600 dark:text-indigo-400">
+                                    {student.class} <span className="text-[10px] text-slate-400">({student.session})</span>
+                                  </td>
+                                  <td className="py-1 px-2 font-mono text-[10.5px] ledger-mono-font">{student.boardReg || '—'}</td>
+                                  <td className="py-1 px-2 font-mono text-[10.5px]">
+                                    {prevInfo ? (
+                                      <span className="px-1.5 py-0.5 rounded font-black text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800">
+                                        {prevInfo.admNo} ({prevInfo.class})
+                                      </span>
+                                    ) : oldAdmNo ? (
+                                      <span className="px-1.5 py-0.5 rounded font-black text-purple-700 bg-purple-100 dark:text-purple-300 dark:bg-purple-950 border border-purple-300 dark:border-purple-800">
+                                        {oldAdmNo} (Old)
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">—</span>
+                                    )}
+                                  </td>
+                                  <td className="py-1 px-2 text-center font-mono ledger-mono-font text-slate-600 dark:text-slate-400">{currentAdm || '—'}</td>
+                                  <td className="py-1 px-2 text-center">
+                                    <div className="inline-flex rounded-md p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                      <button
+                                        type="button"
+                                        onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'assign_new' }))}
+                                        className={`px-1.5 py-0.5 text-[9.5px] font-black rounded cursor-pointer transition-all ${
+                                          strat === 'assign_new' ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400'
+                                        }`}
+                                      >
+                                        Sequential
+                                      </button>
+                                      {(prevInfo || currentAdm) && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'inherit_prev' }))}
+                                          className={`px-1.5 py-0.5 text-[9.5px] font-black rounded cursor-pointer transition-all ${
+                                            strat === 'inherit_prev' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400'
+                                          }`}
+                                        >
+                                          Inherit
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'skip' }))}
+                                        className={`px-1.5 py-0.5 text-[9.5px] font-black rounded cursor-pointer transition-all ${
+                                          strat === 'skip' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400'
+                                        }`}
+                                      >
+                                        Skip
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td className="py-1 px-2 text-right">
+                                    {(isGapReAdmission || (oldAdmNo && oldAdmNo !== proposed)) && oldAdmNo && oldAdmNo !== '—' ? (
+                                      <div className="font-mono font-black text-xs text-purple-700 dark:text-purple-300">
+                                        <span>{proposed}</span> <span className="text-[10px] text-purple-600 font-bold">({oldAdmNo})</span>
+                                      </div>
+                                    ) : (
+                                      <div className="font-mono font-black text-indigo-700 dark:text-indigo-300 text-xs">
+                                        {proposed}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center border-2 border-dashed border-indigo-200 dark:border-indigo-800/60 rounded-xl bg-gradient-to-b from-indigo-50/50 to-white dark:from-indigo-950/20 dark:to-slate-900">
+                      <div className="inline-flex p-2 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 mb-1.5 shadow-xs">
+                        <CheckCircle2 size={24} />
+                      </div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white mb-0.5">
+                        All Students in Selected Scope Already Have Admission Numbers!
+                      </h4>
+                      <p className="text-[11px] text-slate-500 max-w-md mx-auto mb-2 font-medium">
+                        Found <strong className="font-bold text-indigo-700 dark:text-indigo-300">{auditorStats.totalAssigned}</strong> students with assigned admission numbers in range <span className="font-mono font-bold text-slate-800 dark:text-slate-200">[{auditorStats.minAdm || '—'} – {auditorStats.maxAdm || '—'}]</span>.
+                        {auditorStats.totalGaps > 0 ? (
+                          <span className="block mt-0.5 font-bold text-amber-600 dark:text-amber-400">
+                            ⚠️ Note: {auditorStats.totalGaps} sequential {auditorStats.totalGaps === 1 ? 'gap' : 'gaps'} ({auditorStats.totalSkippedNumbers} skipped numbers) detected in this range.
+                          </span>
+                        ) : (
+                          <span className="block mt-0.5 font-bold text-emerald-600 dark:text-emerald-400">
+                            ✓ All admission numbers in this scope are fully continuous with zero gaps!
+                          </span>
+                        )}
+                      </p>
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 py-1 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50">
+                        <input
+                          type="checkbox"
+                          checked={onlyMissingAdmNo}
+                          onChange={(e) => setOnlyMissingAdmNo(e.target.checked)}
+                          className="rounded text-indigo-600 cursor-pointer"
+                        />
+                        <span>Show All (Uncheck "Only Missing")</span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ============================================================ */}
+              {/* SECTION 2: SEQUENTIAL ADMISSION NO. LEDGER & GAP AUDITOR     */}
+              {/* ============================================================ */}
+              {(assignViewMode === 'integrated' || assignViewMode === 'audit') && (
+                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <span className="p-1 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                        <ListOrdered size={13} />
+                      </span>
+                      <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                        Section 2: Sequential Admission No. Ledger & Gap Auditor
+                      </h3>
+                      <span className="px-1.5 py-0.2 rounded-full font-mono font-bold text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
+                        {auditorStats.totalAssigned} Allotted Records
+                      </span>
+                    </div>
+
+                    {auditorStats.totalGaps > 0 ? (
+                      <div className="text-[10.5px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                        <AlertTriangle size={12} className="text-amber-600" />
+                        <span>{auditorStats.totalGaps} Gaps ({auditorStats.totalSkippedNumbers} numbers skipped)</span>
+                      </div>
+                    ) : (
+                      <div className="text-[10.5px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                        <CheckCircle2 size={12} className="text-emerald-600" />
+                        <span>Continuous Sequence (0 Gaps)</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Auditor Filter Bar & Real-time Search */}
                   <div className="flex items-center justify-between gap-2 flex-wrap p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
                     {/* Left: Filter Pills */}
                     <div className="flex items-center gap-1 flex-wrap">
@@ -8963,7 +9472,7 @@ export default function AdmissionRegisterSuite({
                           <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300 text-[11px] border-b border-slate-200 dark:border-slate-700 z-10">
                             <tr>
                               <th className="py-1.5 px-2.5 w-12 text-center">#</th>
-                              <th className="py-1.5 px-2.5 w-24">Adm No</th>
+                              <th className="py-1.5 px-2.5 w-28">Adm No</th>
                               <th className="py-1.5 px-2 w-16 text-center">Roll No</th>
                               <th className="py-1.5 px-2.5 min-w-48">Student & Parentage</th>
                               <th className="py-1.5 px-2 w-28">Class (Session)</th>
@@ -9028,15 +9537,22 @@ export default function AdmissionRegisterSuite({
                                     {rowIdx + 1}
                                   </td>
                                   <td className="py-1 px-2.5">
-                                    <span className={`inline-block font-mono font-black text-xs px-2 py-0.5 rounded ${
-                                      item.isDuplicate
-                                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200 border border-rose-300 dark:border-rose-800'
-                                        : item.isUnassigned
-                                          ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                                          : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
-                                    }`}>
-                                      {item.admNo}
-                                    </span>
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className={`inline-block font-mono font-black text-xs px-2 py-0.5 rounded ${
+                                        item.isDuplicate
+                                          ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200 border border-rose-300 dark:border-rose-800'
+                                          : item.isUnassigned
+                                            ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                            : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+                                      }`}>
+                                        {item.admNo}
+                                      </span>
+                                      {st.oldAdmNo && st.oldAdmNo !== item.admNo && (
+                                        <span className="font-mono font-bold text-[10px] px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200 border border-purple-300 dark:border-purple-800" title={`Old Admission No. before Academic Gap: ${st.oldAdmNo}`}>
+                                          ({st.oldAdmNo})
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="py-1 px-2 text-center font-mono font-bold text-slate-700 dark:text-slate-300 ledger-mono-font">
                                     {st.rollNo || '—'}
@@ -9109,144 +9625,6 @@ export default function AdmissionRegisterSuite({
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* ============================================================ */}
-              {/* ALLOTMENT VIEW: HIGH DENSITY CANDIDATE PREVIEW TABLE         */}
-              {/* ============================================================ */}
-              {assignViewMode === 'allot' && (
-                <>
-                  {candidateIdPreviewList.length > 0 ? (
-                    <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
-                      <div className="max-h-96 overflow-y-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300 text-[11px] border-b border-slate-200 dark:border-slate-700">
-                            <tr>
-                              <th className="py-1.5 px-2 w-10 text-center">#</th>
-                              <th className="py-1.5 px-2 min-w-44">Student & Father's Name</th>
-                              <th className="py-1.5 px-2">Class (Session)</th>
-                              <th className="py-1.5 px-2">Board Reg. No.</th>
-                              <th className="py-1.5 px-2">Previous Adm. No.</th>
-                              <th className="py-1.5 px-2 text-center">Current Adm No</th>
-                              <th className="py-1.5 px-2 text-center">Strategy</th>
-                              <th className="py-1.5 px-2 text-right">Proposed ID</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200 text-[11px]">
-                            {candidateIdPreviewList.map((item, idx) => {
-                              const { student, currentAdm, prevInfo, strat, proposed } = item;
-                              return (
-                                <tr key={`cand_preview_${student.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
-                                  <td className="py-1 px-2 text-center font-bold text-slate-400 ledger-mono-font">{idx + 1}</td>
-                                  <td className="py-1 px-2">
-                                    <div className="font-extrabold text-slate-900 dark:text-white leading-tight">{student.name}</div>
-                                    <div className="text-[10px] text-slate-500">S/O: {student.father || '—'}</div>
-                                  </td>
-                                  <td className="py-1 px-2 font-bold text-indigo-600 dark:text-indigo-400">
-                                    {student.class} <span className="text-[10px] text-slate-400">({student.session})</span>
-                                  </td>
-                                  <td className="py-1 px-2 font-mono text-[10.5px] ledger-mono-font">{student.boardReg || '—'}</td>
-                                  <td className="py-1 px-2 font-mono text-[10.5px]">
-                                    {prevInfo ? (
-                                      <span className="px-1.5 py-0.5 rounded font-black text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800">
-                                        {prevInfo.admNo} ({prevInfo.class})
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-400">—</span>
-                                    )}
-                                  </td>
-                                  <td className="py-1 px-2 text-center font-mono ledger-mono-font text-slate-600 dark:text-slate-400">{currentAdm || '—'}</td>
-                                  <td className="py-1 px-2 text-center">
-                                    <div className="inline-flex rounded-md p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                      <button
-                                        type="button"
-                                        onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'assign_new' }))}
-                                        className={`px-1.5 py-0.5 text-[9.5px] font-black rounded cursor-pointer transition-all ${
-                                          strat === 'assign_new' ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400'
-                                        }`}
-                                      >
-                                        Sequential
-                                      </button>
-                                      {prevInfo && (
-                                        <button
-                                          type="button"
-                                          onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'inherit_prev' }))}
-                                          className={`px-1.5 py-0.5 text-[9.5px] font-black rounded cursor-pointer transition-all ${
-                                            strat === 'inherit_prev' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400'
-                                          }`}
-                                        >
-                                          Inherit
-                                        </button>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'skip' }))}
-                                        className={`px-1.5 py-0.5 text-[9.5px] font-black rounded cursor-pointer transition-all ${
-                                          strat === 'skip' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400'
-                                        }`}
-                                      >
-                                        Skip
-                                      </button>
-                                    </div>
-                                  </td>
-                                  <td className="py-1 px-2 text-right font-mono font-black text-indigo-700 dark:text-indigo-300 text-xs">
-                                    {proposed}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center border-2 border-dashed border-indigo-200 dark:border-indigo-800/60 rounded-xl bg-gradient-to-b from-indigo-50/50 to-white dark:from-indigo-950/20 dark:to-slate-900">
-                      <div className="inline-flex p-3 rounded-2xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 mb-3 shadow-xs">
-                        <CheckCircle2 size={32} />
-                      </div>
-                      <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">
-                        All Students in Selected Scope Already Have Admission Numbers!
-                      </h3>
-                      <p className="text-xs text-slate-500 max-w-md mx-auto mb-4 font-medium">
-                        {auditorStats.totalAssigned > 0 ? (
-                          <>
-                            Found <strong className="font-bold text-indigo-700 dark:text-indigo-300">{auditorStats.totalAssigned}</strong> students with assigned admission numbers in range <span className="font-mono font-bold text-slate-800 dark:text-slate-200">[{auditorStats.minAdm || '—'} – {auditorStats.maxAdm || '—'}]</span>.
-                            {auditorStats.totalGaps > 0 ? (
-                              <span className="block mt-1 font-bold text-amber-600 dark:text-amber-400">
-                                ⚠️ Note: {auditorStats.totalGaps} sequential {auditorStats.totalGaps === 1 ? 'gap' : 'gaps'} ({auditorStats.totalSkippedNumbers} skipped numbers) detected in this range.
-                              </span>
-                            ) : (
-                              <span className="block mt-1 font-bold text-emerald-600 dark:text-emerald-400">
-                                ✓ All admission numbers in this scope are fully continuous with zero gaps!
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          'No students match the selected class scope and session filter.'
-                        )}
-                      </p>
-                      <div className="flex items-center justify-center gap-2 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => setAssignViewMode('audit')}
-                          className="py-1.5 px-4 rounded-lg font-black text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
-                        >
-                          <ListOrdered size={14} />
-                          <span>View Sequential Ledger & Audit Gaps ({auditorStats.totalAssigned})</span>
-                        </button>
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 py-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50">
-                          <input
-                            type="checkbox"
-                            checked={onlyMissingAdmNo}
-                            onChange={(e) => setOnlyMissingAdmNo(e.target.checked)}
-                            className="rounded text-indigo-600 cursor-pointer"
-                          />
-                          <span>Show All (Uncheck "Only Missing")</span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                </>
               )}
             </div>
           )}
