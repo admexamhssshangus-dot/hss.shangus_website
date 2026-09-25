@@ -370,36 +370,79 @@ export function extractStudentAdmissionNumber(st) {
     st?.admNo
   ];
 
+  let resolved = '';
   for (const c of candidates) {
-    if (isUsableRecordValue(c)) return String(c).trim();
+    if (isUsableRecordValue(c)) {
+      resolved = String(c).trim();
+      break;
+    }
   }
 
   // Handle punctuation/case variants without confusing admission dates,
   // statuses, or class-roll numbers with an admission number.
-  for (const [key, value] of Object.entries(raw)) {
-    const normalized = normalizeRecordKey(key);
-    const looksLikeAdmissionNo = (normalized.includes('admission') || normalized.startsWith('adm')) &&
-      (normalized.includes('no') || normalized.includes('number'));
-    if (!looksLikeAdmissionNo || normalized.includes('date') || normalized.includes('status') || normalized.includes('readmission')) continue;
-    if (isUsableRecordValue(value) && !/^(yes|no|true|false)$/i.test(String(value).trim())) return String(value).trim();
+  if (!resolved) {
+    for (const [key, value] of Object.entries(raw)) {
+      const normalized = normalizeRecordKey(key);
+      const looksLikeAdmissionNo = (normalized.includes('admission') || normalized.startsWith('adm')) &&
+        (normalized.includes('no') || normalized.includes('number'));
+      if (!looksLikeAdmissionNo || normalized.includes('date') || normalized.includes('status') || normalized.includes('readmission')) continue;
+      if (isUsableRecordValue(value) && !/^(yes|no|true|false)$/i.test(String(value).trim())) {
+        resolved = String(value).trim();
+        break;
+      }
+    }
   }
 
   // Fallback to Form No. / Application ID if standard Admission Register number is not yet allotted
-  const formCandidates = [
-    raw['Form Number'],
-    raw['Form No.'],
-    raw['Form No'],
-    raw['formNo'],
-    raw['formNumber'],
-    raw['Application ID'],
-    raw['appId'],
-    st?.formNo
-  ];
-  for (const f of formCandidates) {
-    if (isUsableRecordValue(f)) return String(f).trim();
+  if (!resolved) {
+    const formCandidates = [
+      raw['Form Number'],
+      raw['Form No.'],
+      raw['Form No'],
+      raw['formNo'],
+      raw['formNumber'],
+      raw['Application ID'],
+      raw['appId'],
+      st?.formNo
+    ];
+    for (const f of formCandidates) {
+      if (isUsableRecordValue(f)) {
+        resolved = String(f).trim();
+        break;
+      }
+    }
   }
 
-  return '';
+  if (!resolved) return '';
+
+  // For re-admitted candidates with an academic gap, show old admission number in brackets: e.g. 5101 (4892)
+  const oldAdmCandidates = [
+    raw['oldAdmNo'],
+    raw['old_adm_no'],
+    raw['Old Admission No.'],
+    raw['Old Admission No'],
+    raw['Old Adm No'],
+    raw['Old Adm. No.'],
+    raw['previousAdmNo'],
+    raw['prevAdmNo'],
+    st?.oldAdmNo
+  ];
+  let oldAdmNo = '';
+  for (const o of oldAdmCandidates) {
+    if (isUsableRecordValue(o)) {
+      const val = String(o).trim();
+      if (val && val !== '—' && val !== 'N/A' && val !== 'undefined') {
+        oldAdmNo = val;
+        break;
+      }
+    }
+  }
+
+  if (oldAdmNo && oldAdmNo !== resolved && !resolved.includes('(')) {
+    return `${resolved} (${oldAdmNo})`;
+  }
+
+  return resolved;
 }
 
 /**
