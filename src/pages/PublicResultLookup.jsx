@@ -2676,10 +2676,10 @@ export default function PublicResultLookup() {
               </div>
 
               {/* Status Note under table */}
-              <div className="flex items-center justify-between gap-2 pt-0.5 text-[8.5px] sm:text-[9px] text-slate-500 dark:text-slate-400 print:text-slate-600">
-                <div className="flex items-center gap-1">
-                  <Clock size={10} className="text-teal-600 print:text-slate-500 shrink-0" />
-                  <span className="truncate max-w-[200px] sm:max-w-none">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 pt-1.5 sm:pt-0.5 text-[8.5px] sm:text-[9px] text-slate-500 dark:text-slate-400 print:text-slate-600 print:flex-row print:items-center print:justify-between print:pt-0.5">
+                <div className="flex items-center gap-1 min-w-0">
+                  <Clock size={10} className="text-teal-600 dark:text-teal-400 print:text-slate-500 shrink-0" />
+                  <span className="font-semibold text-slate-600 dark:text-slate-300 print:text-slate-600">
                     {activeResult.evaluatedCount < activeResult.totalCount
                       ? 'Provisional Award Roll • Under Evaluation'
                       : 'Official Award Roll • Verified'
@@ -2687,9 +2687,11 @@ export default function PublicResultLookup() {
                   </span>
                 </div>
                 {activeResult.hasMarks && (
-                  <span className="font-mono font-bold text-teal-700 dark:text-teal-300 print:text-black shrink-0">
-                    {activeResult.percentage} ({String(activeResult.division || 'In Progress').replace(/re-appear|fail/gi, 'Scope for Improvement')})
-                  </span>
+                  <div className="font-mono font-bold text-teal-700 dark:text-teal-300 print:text-black shrink-0 sm:text-right pl-3.5 sm:pl-0">
+                    <span>
+                      {activeResult.percentage} ({String(activeResult.division || 'In Progress').replace(/re-appear|fail/gi, 'Scope for Improvement')})
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
