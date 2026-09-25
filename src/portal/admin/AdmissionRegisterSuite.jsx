@@ -1053,6 +1053,44 @@ function getStudentAllotmentPriority(student, currentSession = '', prevInfo = nu
   };
 }
 
+// Scope Admission Number check/audit strictly to:
+// 1. Fresh Class 9th students (entry to Secondary tier)
+// 2. Fresh Class 11th students (entry to Higher Secondary tier)
+// 3. ANY student labelled as Re-admission (or with academic gap) for the session
+// Regular continuous 10th and 12th students are excluded from this session's new admission number check/audit
+export function isEligibleForSessionAdmNoAudit(student, sessionFilter = '') {
+  if (!student) return false;
+  const cls = cleanStr(student.class || student.Class || '');
+  const is9th = matchesClassVal('9th', cls);
+  const is11th = matchesClassVal('11th', cls);
+  if (is9th || is11th) return true;
+
+  // 1. Explicit readmission flag on normalized student
+  if (student.isReadmission === true) return true;
+
+  // 2. Raw record readmission markers
+  const raw = student.raw || student;
+  const reAdmStr = String(
+    raw.readmission || raw['readmission'] || raw['Re-admission'] || raw['Re-Admission'] ||
+    raw.isReadmission || raw['Are you seeking Re-admission?'] || raw.reAdmissionStatus ||
+    student.reAdmissionStatus || ''
+  ).toLowerCase().trim();
+  if (reAdmStr === 'yes' || raw.readmission === true || raw.isReadmission === true) return true;
+
+  // 3. Admission Type field
+  const admType = String(raw.admissionType || raw['Admission Type'] || raw.admType || '').toLowerCase();
+  if (admType.includes('readmission') || admType.includes('re-admission')) return true;
+
+  // 4. Remarks or status mentioning re-admission
+  const remarks = String(student.remarks || raw.remarks || raw.Remarks || '').toLowerCase();
+  if (remarks.includes('readmission') || remarks.includes('re-admission')) return true;
+
+  // 5. Academic gap (>1 year)
+  if (hasStudentAcademicGap(student, sessionFilter)) return true;
+
+  return false;
+}
+
 export default function AdmissionRegisterSuite({
   students: propStudents,
   allHistory: propAllHistory,
@@ -2628,8 +2666,7 @@ export default function AdmissionRegisterSuite({
         };
       }
 
-      const fallbackAdmNo = (rollNo && !isNaN(parseInt(rollNo, 10))) ? String(5277 + parseInt(rollNo, 10)) : '';
-      const finalAdmNo = finalAdmNumber || (areClassTiersCompatible(cls, histMatch?.class) ? firstCleanValue(histMatch, ADMISSION_NO_KEYS) : '') || fallbackAdmNo;
+      const finalAdmNo = finalAdmNumber || (areClassTiersCompatible(cls, histMatch?.class) ? firstCleanValue(histMatch, ADMISSION_NO_KEYS) : '') || '';
       const finalAdmDate = admDate || formatRegisterDate(firstRawValue(histMatch, ADMISSION_DATE_KEYS)) || (s.onlineSubmDate ? formatRegisterDate(s.onlineSubmDate) : '') || '02-03-2026';
       const displayAdmNo = (isReadmission && oldAdmNo && oldAdmNo !== finalAdmNo)
         ? `${finalAdmNo || '—'} (${oldAdmNo})`
@@ -3644,18 +3681,34 @@ export default function AdmissionRegisterSuite({
   }, [selectedSession]);
 
   const calculatedNextAdmNo = useMemo(() => {
+    // 1. Try to find the max valid admission number within current audit scoped students (this session & tier)
+    let maxScoped = 0;
+    normalizedStudents.forEach(s => {
+      if (assignSessionFilter !== 'ALL' && s.session !== assignSessionFilter) return;
+      if (assignClasses.length > 0 && !assignClasses.some(c => matchesClassVal(c, s.class))) return;
+      if (!isEligibleForSessionAdmNoAudit(s, assignSessionFilter)) return;
+      const num = parseInt(String(s.admNo || '').replace(/\D/g, ''), 10);
+      if (!isNaN(num) && num > maxScoped && num < 99999) {
+        maxScoped = num;
+      }
+    });
+    if (maxScoped > 0) {
+      return String(maxScoped + 1);
+    }
+
+    // 2. Fallback to highest existing admission number overall
     let maxId = 5000;
     normalizedStudents.forEach(s => {
-      const num = parseInt(s.admNo, 10);
+      const num = parseInt(String(s.admNo || '').replace(/\D/g, ''), 10);
       if (!isNaN(num) && num > maxId && num < 99999) {
         maxId = num;
       }
     });
     return String(maxId + 1);
-  }, [normalizedStudents]);
+  }, [normalizedStudents, assignSessionFilter, assignClasses]);
 
   useEffect(() => {
-    if (calculatedNextAdmNo && (!assignStartId || assignStartId === '5476' || assignStartId === '5001')) {
+    if (calculatedNextAdmNo && (!assignStartId || assignStartId === '5476' || assignStartId === '5001' || assignStartId === '52774779')) {
       setAssignStartId(calculatedNextAdmNo);
     }
   }, [calculatedNextAdmNo]);
@@ -3668,6 +3721,9 @@ export default function AdmissionRegisterSuite({
         const match = assignClasses.some(c => matchesClassVal(c, st.class));
         if (!match) return false;
       }
+      // Check/allot admission numbers strictly for 9th, 11th, and Re-admissions for this session
+      if (!isEligibleForSessionAdmNoAudit(st, assignSessionFilter)) return false;
+
       if (onlyMissingAdmNo) {
         if (st.admNo && st.admNo !== '—' && st.admNo !== 'N/A') return false;
       }
@@ -3983,6 +4039,9 @@ export default function AdmissionRegisterSuite({
         const match = assignClasses.some(c => matchesClassVal(c, st.class));
         if (!match) return false;
       }
+      // Check admission numbers strictly for 9th, 11th, and Re-admissions for this session
+      if (!isEligibleForSessionAdmNoAudit(st, assignSessionFilter)) return false;
+
       return true;
     });
   }, [normalizedStudents, flatHistoryRecords, includeHistoryInAudit, onlyApprovedAssign, assignSessionFilter, assignClasses]);
@@ -4082,7 +4141,10 @@ export default function AdmissionRegisterSuite({
       const isDuplicate = admMap.get(entry.cleanAdm)?.length > 1;
       const dupCount = admMap.get(entry.cleanAdm)?.length || 1;
 
-      if (entry.numVal !== null) {
+      // Realistic admission numbers in school ledgers are typically 1 to 5 digits (e.g. 1 to 99999)
+      const isRealisticAdm = entry.numVal !== null && entry.numVal > 0 && entry.numVal < 100000;
+
+      if (isRealisticAdm) {
         if (minAdm === null || entry.numVal < minAdm) minAdm = entry.numVal;
         if (maxAdm === null || entry.numVal > maxAdm) maxAdm = entry.numVal;
 
@@ -4118,6 +4180,7 @@ export default function AdmissionRegisterSuite({
         student: entry.student,
         admNo: entry.cleanAdm,
         numVal: entry.numVal,
+        isAnomaly: entry.numVal !== null && entry.numVal >= 100000,
         isDuplicate,
         duplicateCount: dupCount
       });
@@ -9187,14 +9250,16 @@ export default function AdmissionRegisterSuite({
                     </span>
                     <div className="text-[11px] leading-relaxed text-indigo-950 dark:text-indigo-200">
                       <strong className="font-black text-indigo-900 dark:text-white uppercase tracking-wider block text-[10px] mb-0.5">
-                        Tier Sequential Allotment Rules ({assignSessionFilter})
+                        Session Allotment & Audit Policy ({assignSessionFilter})
                       </strong>
                       <span>
+                        🎯 <strong className="font-bold text-indigo-900 dark:text-indigo-200">Active Scope:</strong> Checked and audited strictly for <strong className="text-emerald-800 dark:text-emerald-300">Class 9th</strong>, <strong className="text-indigo-800 dark:text-indigo-300">Class 11th</strong>, and students labelled as <strong className="text-amber-800 dark:text-amber-300">Re-admission</strong> for {assignSessionFilter}.
+                        {' • '}
                         🥇 <strong className="font-bold text-emerald-800 dark:text-emerald-300">Priority 1 (Fresh 9th / 11th):</strong> Ordered by Roll No, consumes starting sequential IDs (e.g. 5001–5100).
                         {' • '}
-                        🥈 <strong className="font-bold text-amber-800 dark:text-amber-300">Priority 2 (Re-admissions with Academic Gap &gt;1 yr):</strong> Consumes next sequential IDs (e.g. 5101–5110), retaining old IDs in brackets like <span className="font-mono font-black text-purple-700 dark:text-purple-300">5101 (4892)</span>.
+                        🥈 <strong className="font-bold text-amber-800 dark:text-amber-300">Priority 2 (Re-admissions):</strong> Consumes next sequential IDs, retaining previous IDs in brackets like <span className="font-mono font-black text-purple-700 dark:text-purple-300">5101 (4892)</span>.
                         {' • '}
-                        🔄 <strong className="font-bold text-slate-700 dark:text-slate-300">Regular Continuous:</strong> Standard 1-year progression students retain their previous admission number via inheritance without advancing sequential counter.
+                        🔄 <strong className="font-bold text-slate-700 dark:text-slate-300">Regular Continuous:</strong> Standard 1-year progression students (10th/12th) retain their previous admission number without advancing sequential counter.
                       </span>
                     </div>
                   </div>
@@ -9310,10 +9375,10 @@ export default function AdmissionRegisterSuite({
                         <CheckCircle2 size={24} />
                       </div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white mb-0.5">
-                        All Students in Selected Scope Already Have Admission Numbers!
+                        All Eligible Students (9th, 11th & Re-admissions) in Selected Scope Already Have Admission Numbers!
                       </h4>
                       <p className="text-[11px] text-slate-500 max-w-md mx-auto mb-2 font-medium">
-                        Found <strong className="font-bold text-indigo-700 dark:text-indigo-300">{auditorStats.totalAssigned}</strong> students with assigned admission numbers in range <span className="font-mono font-bold text-slate-800 dark:text-slate-200">[{auditorStats.minAdm || '—'} – {auditorStats.maxAdm || '—'}]</span>.
+                        Found <strong className="font-bold text-indigo-700 dark:text-indigo-300">{auditorStats.totalAssigned}</strong> eligible students with assigned admission numbers in range <span className="font-mono font-bold text-slate-800 dark:text-slate-200">[{auditorStats.minAdm || '—'} – {auditorStats.maxAdm || '—'}]</span>.
                         {auditorStats.totalGaps > 0 ? (
                           <span className="block mt-0.5 font-bold text-amber-600 dark:text-amber-400">
                             ⚠️ Note: {auditorStats.totalGaps} sequential {auditorStats.totalGaps === 1 ? 'gap' : 'gaps'} ({auditorStats.totalSkippedNumbers} skipped numbers) detected in this range.
