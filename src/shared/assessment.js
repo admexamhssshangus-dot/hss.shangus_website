@@ -36,14 +36,23 @@ function expectedSubjectCodes(student) {
     if (!normalized) return '';
     return aliases[normalized] || subjectDefinitions.find(subject => [key(subject.code), key(subject.name)].includes(normalized))?.code || `UNKNOWN:${normalized}`;
   }).filter(Boolean);
-  const distinctCodes = [...new Set(codes)];
+  const normCls = key(student.className || student.Class || student.selectedClass || '');
+  const isSec = ['10th', '9th', '10', '9', 'x', 'ix'].includes(normCls);
+
+  let distinctCodes = [...new Set(codes)];
+  if (!isSec && normCls) {
+    distinctCodes = distinctCodes.filter(c => c !== 'SC' && c !== 'SS');
+  }
   if (distinctCodes.length > 0) return distinctCodes;
 
-  const normCls = key(student.className || student.Class || student.selectedClass || '');
-  if (['10th', '9th', '10', '9', 'x', 'ix'].includes(normCls)) {
+  if (isSec) {
     return ['EN', 'MA', 'SC', 'SS', 'UR'];
   }
-  return [];
+  const stream = key(student.stream || student.Stream || '');
+  if (stream.includes('scien')) {
+    return ['EN', 'PH', 'CH', 'BI', 'ES'];
+  }
+  return ['EN', 'ED', 'HT', 'PS', 'UR'];
 }
 function gradeAssessment(subjects, expectedCodes) {
   const expected = [...new Set(expectedCodes || [])];

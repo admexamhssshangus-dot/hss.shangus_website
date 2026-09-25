@@ -1635,24 +1635,20 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
+        "code": "BI",
+        "name": "Biology"
       },
       {
-        "code": "UR",
-        "name": "Urdu"
-      },
-      {
-        "code": "ITE",
-        "name": "IT and ITES"
+        "code": "HTC",
+        "name": "Healthcare"
       }
     ]
   },
@@ -1843,20 +1839,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "ITE",
@@ -2017,24 +2009,20 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
+        "code": "BI",
+        "name": "Biology"
       },
       {
-        "code": "UR",
-        "name": "Urdu"
-      },
-      {
-        "code": "ITE",
-        "name": "IT and ITES"
+        "code": "PD",
+        "name": "Physical Education"
       }
     ]
   },
@@ -3369,20 +3357,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
-      },
-      {
-        "code": "SC",
-        "name": "Science (Class 10th)"
-      },
-      {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
         "code": "UR",
         "name": "Urdu"
+      },
+      {
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
       },
       {
         "code": "HTC",
@@ -4167,20 +4151,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "ITE",
@@ -4737,20 +4717,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "ITE",
@@ -6613,20 +6589,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
         "code": "MA",
         "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
       },
       {
         "code": "ITE",
@@ -7219,7 +7191,7 @@
     "className": "12th",
     "classRollNo": "164",
     "boardRegNo": "2301000000610001",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1cz3EpZMTb4cJuzNnJYztRq0CsSC2QNe1/view?usp=drivesdk",
     "dob": "2010-03-18",
@@ -7229,20 +7201,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
-      },
-      {
-        "code": "SC",
-        "name": "Science (Class 10th)"
-      },
-      {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
         "code": "UR",
         "name": "Urdu"
+      },
+      {
+        "code": "HT",
+        "name": "History"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
       },
       {
         "code": "ITE",
@@ -8422,24 +8390,20 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
-      },
-      {
-        "code": "SC",
-        "name": "Science (Class 10th)"
-      },
-      {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
         "code": "UR",
         "name": "Urdu"
       },
       {
-        "code": "HTC",
-        "name": "Healthcare"
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
+      },
+      {
+        "code": "PD",
+        "name": "Physical Education"
       }
     ]
   },
@@ -13439,7 +13403,7 @@
     "className": "12th",
     "classRollNo": "67",
     "boardRegNo": "2301000000610009",
-    "stream": "",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1m_sIciM6uh31qTxo4axoCHfOyUrSrDO2/view?usp=drivesdk",
     "dob": "2010-05-25",
@@ -13449,20 +13413,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "ITE",
@@ -14228,7 +14188,7 @@
     "className": "12th",
     "classRollNo": "77",
     "boardRegNo": "2101000000610021",
-    "stream": "",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1Qyp7UF1HxRnESF505vJmVRzJTj9YMZuF/view?usp=drivesdk",
     "dob": "2007-10-20",
@@ -14238,20 +14198,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "ITE",
@@ -15518,7 +15474,7 @@
     "className": "12th",
     "classRollNo": "89",
     "boardRegNo": "2301000000610013",
-    "stream": "",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/14svVbILv2zuhvKHmZ79goK3OLdYm7Nhd/view?usp=drivesdk",
     "dob": "2010-10-03",
@@ -15528,20 +15484,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "HTC",
@@ -16727,7 +16679,7 @@
     "className": "12th",
     "classRollNo": "74",
     "boardRegNo": "2101005000610037",
-    "stream": "",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1Vdjfcn07_U3hSb3DL5SHH5Vvs2_4dFuX/view?usp=drivesdk",
     "dob": "2008-03-04",
@@ -16737,20 +16689,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "ITE",
@@ -17331,7 +17279,7 @@
     "className": "12th",
     "classRollNo": "",
     "boardRegNo": "2301000000610023",
-    "stream": "",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1Qq0lXu27Qf3SzsEXKtFnzfV8fYdGsxEZ/view?usp=drivesdk",
     "examRollNo": "201000225",
@@ -17342,24 +17290,20 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
+      },
+      {
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "MA",
         "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
-      },
-      {
-        "code": "ITE",
-        "name": "IT and ITES"
       }
     ]
   },
@@ -18192,7 +18136,7 @@
     "className": "12th",
     "classRollNo": "",
     "boardRegNo": "2201003000610003",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/16SQgGIrixaaQ1hTab3UJnGi2X2fmZszb/view?usp=drivesdk",
     "examRollNo": "201000220",
@@ -18203,20 +18147,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
-      },
-      {
-        "code": "SC",
-        "name": "Science (Class 10th)"
-      },
-      {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
         "code": "UR",
         "name": "Urdu"
+      },
+      {
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
       },
       {
         "code": "HTC",
@@ -19044,7 +18984,7 @@
     "classRollNo": "",
     "examRollNo": "201000208",
     "boardRegNo": "2101000000610008",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2007-10-09",
@@ -19054,24 +18994,20 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "EC",
+        "name": "Economics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "HT",
+        "name": "History"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
+        "code": "PS",
+        "name": "Political Science"
       },
       {
-        "code": "UR",
-        "name": "Urdu"
-      },
-      {
-        "code": "HTC",
-        "name": "Healthcare"
+        "code": "ES",
+        "name": "Environmental Science"
       }
     ]
   },
@@ -19083,7 +19019,7 @@
     "classRollNo": "",
     "examRollNo": "201000209",
     "boardRegNo": "2101000000610015",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2007-10-18",
@@ -19093,24 +19029,20 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
-      },
-      {
-        "code": "SC",
-        "name": "Science (Class 10th)"
-      },
-      {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
         "code": "UR",
         "name": "Urdu"
       },
       {
-        "code": "ITE",
-        "name": "IT and ITES"
+        "code": "HT",
+        "name": "History"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
+      },
+      {
+        "code": "HTC",
+        "name": "Healthcare"
       }
     ]
   },
@@ -19122,7 +19054,7 @@
     "classRollNo": "",
     "examRollNo": "201000210",
     "boardRegNo": "2101000000610028",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2007-10-25",
@@ -19132,20 +19064,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "ED",
+        "name": "Education"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "HT",
+        "name": "History"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "PS",
+        "name": "Political Science"
       },
       {
         "code": "HTC",
@@ -19161,7 +19089,7 @@
     "classRollNo": "",
     "examRollNo": "201000211",
     "boardRegNo": "2101000000610033",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2008-10-06",
@@ -19171,20 +19099,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
-      },
-      {
-        "code": "SC",
-        "name": "Science (Class 10th)"
-      },
-      {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
         "code": "UR",
         "name": "Urdu"
+      },
+      {
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
       },
       {
         "code": "HTC",
@@ -19200,7 +19124,7 @@
     "classRollNo": "",
     "examRollNo": "201000212",
     "boardRegNo": "2101000000610047",
-    "stream": "",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2007-07-01",
@@ -19210,24 +19134,20 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
+        "code": "BI",
+        "name": "Biology"
       },
       {
-        "code": "UR",
-        "name": "Urdu"
-      },
-      {
-        "code": "ITE",
-        "name": "IT and ITES"
+        "code": "HTC",
+        "name": "Healthcare"
       }
     ]
   },
@@ -19449,7 +19369,7 @@
     "classRollNo": "",
     "examRollNo": "201000219",
     "boardRegNo": "2201000000610012",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2008-10-15",
@@ -19459,20 +19379,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
-      },
-      {
-        "code": "SC",
-        "name": "Science (Class 10th)"
-      },
-      {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
         "code": "UR",
         "name": "Urdu"
+      },
+      {
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
       },
       {
         "code": "HTC",
@@ -21029,7 +20945,7 @@
     "classRollNo": "",
     "examRollNo": "301001303",
     "boardRegNo": "2201000000610010",
-    "stream": "",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2008-12-07",
@@ -21039,20 +20955,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "ITE",
@@ -21068,7 +20980,7 @@
     "classRollNo": "",
     "examRollNo": "301001304",
     "boardRegNo": "2201000000610014",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2008-04-09",
@@ -21078,20 +20990,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "ED",
+        "name": "Education"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "HT",
+        "name": "History"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "PS",
+        "name": "Political Science"
       },
       {
         "code": "ITE",
@@ -21107,7 +21015,7 @@
     "classRollNo": "",
     "examRollNo": "301001305",
     "boardRegNo": "2201000000610023",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2007-10-05",
@@ -21117,20 +21025,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
-      },
-      {
-        "code": "SC",
-        "name": "Science (Class 10th)"
-      },
-      {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
         "code": "UR",
         "name": "Urdu"
+      },
+      {
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "HT",
+        "name": "History"
       },
       {
         "code": "ITE",
@@ -21146,7 +21050,7 @@
     "classRollNo": "",
     "examRollNo": "301001306",
     "boardRegNo": "2201000000610031",
-    "stream": "",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2008-10-08",
@@ -21156,20 +21060,16 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
+        "code": "PH",
+        "name": "Physics"
       },
       {
-        "code": "SC",
-        "name": "Science (Class 10th)"
+        "code": "CH",
+        "name": "Chemistry"
       },
       {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
-        "code": "UR",
-        "name": "Urdu"
+        "code": "BI",
+        "name": "Biology"
       },
       {
         "code": "ITE",
@@ -21185,7 +21085,7 @@
     "classRollNo": "",
     "examRollNo": "301001307",
     "boardRegNo": "2201000000610036",
-    "stream": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "",
     "dob": "2006-06-26",
@@ -21195,24 +21095,20 @@
         "name": "General English"
       },
       {
-        "code": "SS",
-        "name": "Social Science (Class 10th)"
-      },
-      {
-        "code": "SC",
-        "name": "Science (Class 10th)"
-      },
-      {
-        "code": "MA",
-        "name": "Mathematics"
-      },
-      {
         "code": "UR",
         "name": "Urdu"
       },
       {
-        "code": "ITE",
-        "name": "IT and ITES"
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "HT",
+        "name": "History"
+      },
+      {
+        "code": "HTC",
+        "name": "Healthcare"
       }
     ]
   },
