@@ -5136,9 +5136,9 @@ export default function AdmissionRegisterSuite({
             height: ${registerRowHeightMm}mm !important;
             min-height: ${registerRowHeightMm}mm !important;
             max-height: ${registerRowHeightMm}mm !important;
-            padding: 0.1mm 0.4mm !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '5.8px' : '6.5px'} !important;
-            line-height: 1.02 !important;
+            padding: 0 0.3mm !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '5.2px' : '5.8px'} !important;
+            line-height: 1.0 !important;
             vertical-align: middle !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
@@ -5148,12 +5148,16 @@ export default function AdmissionRegisterSuite({
             overflow-wrap: normal !important;
           }
 
+          .admission-spread-table tbody tr > td * {
+            box-sizing: border-box !important;
+          }
+
           /* General cell inner element containment to prevent row stretching on Part 1 and Part 2 */
           .admission-spread-table tbody tr > td > div:not(.register-photo-inner),
           .admission-spread-table tbody tr > td > span {
             max-height: calc(${registerRowHeightMm}mm - 0.2mm) !important;
             overflow: hidden !important;
-            line-height: 1.02 !important;
+            line-height: 1.0 !important;
             box-sizing: border-box !important;
           }
 
@@ -5166,7 +5170,7 @@ export default function AdmissionRegisterSuite({
           /* Compact multi-line cells in Part 1 and Part 2 (DOB words, online status, receipt, subs, account, prevSchool, remarks) */
           .admission-spread-table td .line-clamp-2,
           .admission-spread-table td div.truncate {
-            line-height: 1.02 !important;
+            line-height: 1.0 !important;
             max-height: calc(${registerRowHeightMm}mm - 0.3mm) !important;
             overflow: hidden !important;
           }
@@ -5176,50 +5180,63 @@ export default function AdmissionRegisterSuite({
             -webkit-line-clamp: 2 !important;
             -webkit-box-orient: vertical !important;
             white-space: normal !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.4px'} !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '4.6px' : '5.2px'} !important;
           }
 
-          /* Board Registration formatting in Print */
+          /* Board Registration in Print (both split and single-line) */
           .admission-spread-table .st-reg-split,
-          .admission-spread-table .st-reg-split span {
-            font-size: ${currentStudentsPerPage >= 16 ? '5.2px' : '5.8px'} !important;
+          .admission-spread-table .st-reg-split span,
+          .admission-spread-table td span.font-mono,
+          .admission-spread-table td span.font-black.font-mono {
+            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.4px'} !important;
             line-height: 1.0 !important;
             white-space: nowrap !important;
           }
 
           /* Form No & Online status sizing in Print */
-          .admission-spread-table tbody tr > td:nth-child(4) div.font-bold {
-            font-size: ${currentStudentsPerPage >= 16 ? '5.4px' : '6.0px'} !important;
+          .admission-spread-table tbody tr > td div.font-bold,
+          .admission-spread-table tbody tr > td div.text-\[8\.5px\] {
+            font-size: ${currentStudentsPerPage >= 16 ? '5.0px' : '5.5px'} !important;
             line-height: 1.0 !important;
           }
 
-          .admission-spread-table tbody tr > td:nth-child(4) div.text-\[6\.5px\] {
-            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.2px'} !important;
+          .admission-spread-table tbody tr > td div.text-\[6\.5px\],
+          .admission-spread-table tbody tr > td span.text-\[7px\],
+          .admission-spread-table tbody tr > td span.text-\[6px\] {
+            font-size: ${currentStudentsPerPage >= 16 ? '4.4px' : '4.8px'} !important;
             line-height: 1.0 !important;
             margin-top: 0 !important;
           }
 
-          .admission-spread-table tbody tr > td:nth-child(4) span {
-            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.2px'} !important;
-            line-height: 1.0 !important;
-          }
-
           /* Admission No and Old Adm No in Print */
-          .admission-spread-table tbody tr > td:nth-child(6) div.ledger-mono-font {
-            font-size: ${currentStudentsPerPage >= 16 ? '6.0px' : '6.8px'} !important;
+          .admission-spread-table tbody tr > td div.ledger-mono-font,
+          .admission-spread-table tbody tr > td div.text-\[9px\] {
+            font-size: ${currentStudentsPerPage >= 16 ? '5.4px' : '6.0px'} !important;
             line-height: 1.0 !important;
           }
 
-          .admission-spread-table tbody tr > td:nth-child(6) div.text-\[7\.5px\] {
-            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.4px'} !important;
+          .admission-spread-table tbody tr > td div.text-\[7\.5px\] {
+            font-size: ${currentStudentsPerPage >= 16 ? '4.4px' : '4.8px'} !important;
             line-height: 1.0 !important;
           }
 
-          /* Candidate Name cell in Print */
+          /* Candidate Name, Father Name, Mother Name strictly contained in Print */
           .admission-spread-table td.group\/name-cell > div,
-          .admission-spread-table td div.font-black.uppercase {
-            font-size: ${currentStudentsPerPage >= 16 ? '5.8px' : '6.5px'} !important;
-            line-height: 1.02 !important;
+          .admission-spread-table td div.font-black.uppercase,
+          .admission-spread-table tbody tr > td:nth-child(10),
+          .admission-spread-table tbody tr > td:nth-child(11) {
+            font-size: ${currentStudentsPerPage >= 16 ? '5.2px' : '5.8px'} !important;
+            line-height: 1.0 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+
+          /* Address and Contact cells strictly single-line */
+          .admission-spread-table tbody tr > td.bg-yellow-50,
+          .admission-spread-table tbody tr > td.bg-yellow-50 * {
+            font-size: ${currentStudentsPerPage >= 16 ? '5.0px' : '5.6px'} !important;
+            line-height: 1.0 !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
@@ -5241,15 +5258,27 @@ export default function AdmissionRegisterSuite({
           }
 
           .register-photo-inner {
-            height: ${registerRowHeightMm}mm !important;
-            max-height: ${registerRowHeightMm}mm !important;
+            height: calc(${registerRowHeightMm}mm - 0.3mm) !important;
+            max-height: calc(${registerRowHeightMm}mm - 0.3mm) !important;
             width: 100% !important;
             overflow: hidden !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            padding: 0.1mm !important;
+            padding: 0 !important;
+            margin: 0 !important;
             box-sizing: border-box !important;
+          }
+
+          .register-photo-cell img {
+            height: calc(${registerRowHeightMm}mm - 0.5mm) !important;
+            max-height: calc(${registerRowHeightMm}mm - 0.5mm) !important;
+            width: auto !important;
+            max-width: 9.5mm !important;
+            object-fit: contain !important;
+            object-position: center center !important;
+            display: block !important;
+            margin: 0 auto !important;
           }
 
           .photo-fallback.hidden {
