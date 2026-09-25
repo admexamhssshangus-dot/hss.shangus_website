@@ -4817,6 +4817,8 @@ export default function AdmissionRegisterSuite({
   //              A4    = 153.0mm (10.2mm/row for 15 rows, total sheet ~186.5mm <= 189.68mm printable area).
   const registerRowsBudgetMm = isA4 ? 153.0 : 159.0;
   const registerRowHeightMm = Math.max(5.5, Math.floor((registerRowsBudgetMm / (studentsPerPage || 15)) * 10) / 10).toFixed(1);
+  const registerTbodyHeightMm = (parseFloat(registerRowHeightMm) * (studentsPerPage || 15)).toFixed(1);
+  const registerTableHeightMm = (11.0 + parseFloat(registerTbodyHeightMm)).toFixed(1);
 
   // Sentup Roll Sheet budget: Header (10mm) + margin (1mm) + thead (6.5mm) + signatures (8.0mm) + margin (1mm) = 26.5mm.
   // Rows budget: Legal = 166.0mm (16.6mm/row for 10 rows, total sheet ~192.5mm <= 195.58mm printable area).
@@ -5013,17 +5015,28 @@ export default function AdmissionRegisterSuite({
             padding: 0 !important;
           }
 
-          .register-ledger-page .admission-spread-table {
+          .register-ledger-page .admission-spread-table,
+          .admission-spread-table {
             display: table !important;
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
+            height: ${registerTableHeightMm}mm !important;
+            min-height: ${registerTableHeightMm}mm !important;
+            max-height: ${registerTableHeightMm}mm !important;
             table-layout: fixed !important;
             border-collapse: collapse !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '6.5px' : '7.2px'} !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           .register-ledger-page .admission-spread-table tbody {
-            height: auto !important;
+            height: ${registerTbodyHeightMm}mm !important;
+            min-height: ${registerTbodyHeightMm}mm !important;
+            max-height: ${registerTbodyHeightMm}mm !important;
+            box-sizing: border-box !important;
           }
 
           /* Header locked strictly to 10mm on Part 1 and Part 2 */
@@ -5056,19 +5069,6 @@ export default function AdmissionRegisterSuite({
           }
 
           /* Thead locked strictly to 11mm (5.5mm per row) on both Part 1 and Part 2 */
-          .admission-spread-table {
-            display: table !important;
-            table-layout: fixed !important;
-            width: 100% !important;
-            min-width: 100% !important;
-            max-width: 100% !important;
-            border-collapse: collapse !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '6.5px' : '7.2px'} !important;
-            box-sizing: border-box !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-
           .register-ledger-page .admission-spread-table thead {
             height: 11mm !important;
             min-height: 11mm !important;
@@ -5148,24 +5148,35 @@ export default function AdmissionRegisterSuite({
             overflow-wrap: normal !important;
           }
 
-          /* General cell inner element containment to prevent row stretching */
+          /* General cell inner element containment to prevent row stretching on Part 1 and Part 2 */
           .admission-spread-table tbody tr > td > div:not(.register-photo-inner),
           .admission-spread-table tbody tr > td > span {
             max-height: calc(${registerRowHeightMm}mm - 0.2mm) !important;
             overflow: hidden !important;
             line-height: 1.02 !important;
+            box-sizing: border-box !important;
           }
 
-          /* Compact 2-line cells in Part 1 and Part 2 (DOB words, online status, receipt, subs) */
+          /* Reset margins on all cell divs to prevent row expansion in print */
+          .admission-spread-table tbody tr > td div {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+          }
+
+          /* Compact multi-line cells in Part 1 and Part 2 (DOB words, online status, receipt, subs, account, prevSchool, remarks) */
+          .admission-spread-table td .line-clamp-2,
+          .admission-spread-table td div.truncate {
+            line-height: 1.02 !important;
+            max-height: calc(${registerRowHeightMm}mm - 0.3mm) !important;
+            overflow: hidden !important;
+          }
+
           .admission-spread-table td .line-clamp-2 {
             display: -webkit-box !important;
             -webkit-line-clamp: 2 !important;
             -webkit-box-orient: vertical !important;
-            overflow: hidden !important;
             white-space: normal !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.5px'} !important;
-            line-height: 1.0 !important;
-            max-height: calc(${registerRowHeightMm}mm - 0.3mm) !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.4px'} !important;
           }
 
           /* Board Registration formatting in Print */
