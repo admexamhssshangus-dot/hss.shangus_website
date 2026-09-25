@@ -4820,11 +4820,13 @@ export default function AdmissionRegisterSuite({
   const registerTbodyHeightMm = (parseFloat(registerRowHeightMm) * (studentsPerPage || 15)).toFixed(1);
   const registerTableHeightMm = (11.0 + parseFloat(registerTbodyHeightMm)).toFixed(1);
 
-  // Sentup Roll Sheet budget: Header (10mm) + margin (1mm) + thead (6.5mm) + signatures (8.0mm) + margin (1mm) = 26.5mm.
-  // Rows budget: Legal = 166.0mm (16.6mm/row for 10 rows, total sheet ~192.5mm <= 195.58mm printable area).
-  //              A4    = 160.0mm (16.0mm/row for 10 rows, total sheet ~186.5mm <= 189.68mm printable area).
-  const sentupRowsBudgetMm = isA4 ? 160.0 : 166.0;
+  // Sentup Roll Sheet budget: Header (10mm) + margin (1mm) + thead (6.0mm) + signatures (7.5mm) + margin (1mm) = 25.5mm.
+  // Rows budget: Legal = 156.0mm (15.6mm/row for 10 rows, total sheet ~181.5mm <= 195.58mm printable area).
+  //              A4    = 151.0mm (15.1mm/row for 10 rows, total sheet ~176.5mm <= 189.68mm printable area).
+  const sentupRowsBudgetMm = isA4 ? 151.0 : 156.0;
   const sentupRowHeightMm = Math.max(6.0, Math.floor((sentupRowsBudgetMm / (sentupStudentsPerPage || 10)) * 10) / 10).toFixed(1);
+  const sentupTbodyHeightMm = (parseFloat(sentupRowHeightMm) * (sentupStudentsPerPage || 10)).toFixed(1);
+  const sentupTableHeightMm = (6.0 + parseFloat(sentupTbodyHeightMm)).toFixed(1);
 
   const calculatedRowHeightMm = activeTab === 'sentup' ? sentupRowHeightMm : registerRowHeightMm;
 
@@ -5513,6 +5515,9 @@ export default function AdmissionRegisterSuite({
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
+            height: ${sentupTableHeightMm}mm !important;
+            min-height: ${sentupTableHeightMm}mm !important;
+            max-height: ${sentupTableHeightMm}mm !important;
             border-collapse: collapse !important;
             font-size: 7.5px !important;
             line-height: 1.1 !important;
@@ -5523,11 +5528,15 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table thead {
             display: table-header-group !important;
+            height: 6mm !important;
+            min-height: 6mm !important;
+            max-height: 6mm !important;
             flex-shrink: 0 !important;
           }
 
           .sentup-table thead tr {
             height: 6mm !important;
+            min-height: 6mm !important;
             max-height: 6mm !important;
           }
 
@@ -5542,7 +5551,10 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table tbody {
             display: table-row-group !important;
-            height: auto !important;
+            height: ${sentupTbodyHeightMm}mm !important;
+            min-height: ${sentupTbodyHeightMm}mm !important;
+            max-height: ${sentupTbodyHeightMm}mm !important;
+            box-sizing: border-box !important;
           }
 
           .sentup-table tbody tr,
@@ -5661,9 +5673,9 @@ export default function AdmissionRegisterSuite({
           .sentup-table .st-boardreg-cell div,
           .sentup-table .st-boardreg-cell span {
             width: 28mm !important;
-            font-size: 10pt !important;
+            font-size: 8.5pt !important;
             font-weight: 900 !important;
-            line-height: 1.15 !important;
+            line-height: 1.05 !important;
             letter-spacing: 0.01em !important;
           }
 
@@ -8644,7 +8656,7 @@ export default function AdmissionRegisterSuite({
                 return (
                   <div
                     key={overallPageNum}
-                    className={`page-container sentup-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none print:w-full print:min-w-full print:max-w-none print:m-0 max-w-[355.6mm] mx-auto ${idx < pageChunks.length - 1 ? 'page-break-after' : ''}`}
+                    className="page-container sentup-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none print:w-full print:min-w-full print:max-w-none print:m-0 max-w-[355.6mm] mx-auto"
                     style={{ padding: `${printMargin}in` }}
                   >
                     {/* Header */}
