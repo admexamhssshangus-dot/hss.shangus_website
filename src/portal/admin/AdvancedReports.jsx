@@ -2842,70 +2842,6 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     });
   };
 
-  const handleMarkProvisional = (e) => {
-    e.stopPropagation();
-    setIsOpen(false);
-    setDialogConfig({
-      type: 'confirm',
-      title: 'Mark as Provisional Admission',
-      message: `Mark admission application for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) as Provisional?\n\nThis marks the candidate as provisionally accepted pending submission of physical documents or verification.`,
-      icon: CheckCircle,
-      iconColor: 'text-indigo-600 dark:text-indigo-400',
-      btnColor: 'bg-indigo-700 hover:bg-indigo-600 text-white',
-      confirmText: 'Confirm Provisional',
-      submittingText: 'Updating to Provisional...',
-      onConfirm: async () => {
-        try {
-          setIsSubmitting(true);
-          await updateStudentDocument(student, {
-            'Status': 'Provisional',
-            'status': 'Provisional',
-            'provisionalAt': new Date().toISOString(),
-            'provisionalBy': 'Admin',
-            'Class Roll No': '',
-            'Class R.No.': '',
-            classRollNo: '',
-            rollNo: '',
-            isApproved: false,
-            approvedAt: null
-          });
-          setLocalStatus('Provisional');
-          setLocalRoll('');
-          if (student) {
-            student.status = 'Provisional';
-            student.Status = 'Provisional';
-            student.classRollNo = '';
-            student.rollNo = '';
-            student['Class Roll No'] = '';
-            student.isApproved = false;
-            student.approvedAt = null;
-          }
-          if (onRefresh) onRefresh();
-          setDialogConfig({
-            type: 'alert',
-            title: 'Marked as Provisional',
-            message: `Application for ${student?.studentName || 'student'} is now marked as Provisional Admission.`,
-            icon: CheckCircle2,
-            iconColor: 'text-indigo-600 dark:text-indigo-400',
-            btnColor: 'bg-indigo-700 hover:bg-indigo-600 text-white'
-          });
-        } catch (err) {
-          console.error('Mark provisional error:', err);
-          setDialogConfig({
-            type: 'alert',
-            title: 'Update Failed',
-            message: err?.message || 'Could not update student status to Provisional.',
-            icon: AlertOctagon,
-            iconColor: 'text-rose-600 dark:text-rose-400',
-            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
-          });
-        } finally {
-          setIsSubmitting(false);
-        }
-      }
-    });
-  };
-
   const handleMarkSubmitted = (e) => {
     e.stopPropagation();
     setIsOpen(false);
@@ -3297,17 +3233,6 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               >
                 <AlertOctagon size={13} className="text-rose-600 dark:text-rose-400" />
                 <span>Reject Application</span>
-              </button>
-            )}
-
-            {!isProv && !isWithdrawn && (
-              <button
-                type="button"
-                onClick={handleMarkProvisional}
-                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-indigo-500/15 dark:hover:bg-indigo-500/25 border border-transparent hover:border-indigo-500/30 text-indigo-700 dark:text-indigo-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
-              >
-                <CheckCircle size={13} className="text-indigo-600 dark:text-indigo-400" />
-                <span>Mark as Provisional</span>
               </button>
             )}
 
