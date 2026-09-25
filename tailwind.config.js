@@ -12,6 +12,7 @@ module.exports = {
         slogan: ['Outfit', 'sans-serif'],
         title: ['Cinzel', 'serif'],
         serif: ['"Playfair Display"', 'Georgia', 'serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', '"Liberation Mono"', '"Courier New"', 'monospace'],
       },
     },
   },

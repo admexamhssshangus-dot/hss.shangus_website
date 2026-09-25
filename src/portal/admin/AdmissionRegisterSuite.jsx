@@ -4834,6 +4834,9 @@ export default function AdmissionRegisterSuite({
     <div ref={suiteRootRef} className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       {/* ─── DYNAMIC PRINT CSS STYLESHEET (STRICT CLEAN 13.7" x 8.5" JKBOSE / LEGAL LANDSCAPE) ─── */}
       <style>{`
+        /* ─── PREMIUM TYPOGRAPHY SYSTEM ─── */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700;800&family=Merriweather:wght@400;700;900&display=swap');
+
         @page {
           size: ${pageSizeCss};
           margin: ${printMargin}in;
@@ -6217,9 +6220,6 @@ export default function AdmissionRegisterSuite({
         .dark .register-popover-panel input[type="number"]::placeholder {
           color: #94a3b8 !important;
         }
-
-        /* ─── PREMIUM TYPOGRAPHY SYSTEM ─── */
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700;800&family=Merriweather:wght@400;700;900&display=swap');
 
         .school-header-font {
           font-family: 'Cinzel', 'Merriweather', serif !important;
