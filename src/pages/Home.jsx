@@ -6,33 +6,43 @@ import Slideshow from '../components/Slideshow';
 import SEO from '../components/SEO';
 import { formatTitleWithBrackets } from '../utils/textFormatting';
 import { DEFAULT_HERO_BUTTONS, getCachedSiteSettings } from '../utils/settingsLoader';
+import { scheduleIdleWork } from '../utils/scheduleIdleWork';
 
 const Hero3DExperience = React.lazy(() => import('../components/3d/Hero3DExperience'));
 
-// Modern Counter Animation Component
+const formatCounterVal = (val, endVal, compact) => {
+  if (compact) {
+    if (val >= 1000000) return (val / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (val >= 1000) return (val / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    if (endVal >= 1000) return (val / 1000).toFixed(1) + 'K';
+    return String(val);
+  }
+  return val > 999 ? val.toLocaleString() : String(val);
+};
+
+// Modern Counter Animation Component - Direct DOM animation without React re-rendering thrash
 const AnimatedCounter = ({ end, prefix = '', suffix = '', compact = false }) => {
-  const [count, setCount] = useState(0);
-  const elementRef = useRef(null);
+  const valueSpanRef = useRef(null);
+  const animatedRef = useRef(false);
 
   useEffect(() => {
-    const el = elementRef.current;
-    if (!el) return;
+    const span = valueSpanRef.current;
+    if (!span) return;
 
     let animationFrameId = null;
 
     const startAnimation = () => {
       let startTime = null;
-      const duration = 2000; // 2 seconds animation duration
+      const duration = 1500;
 
       const animate = (timestamp) => {
         if (!startTime) startTime = timestamp;
         const progress = Math.min((timestamp - startTime) / duration, 1);
-        
-        // Smooth ease-out animation formula
-        const easeOut = 1 - Math.pow(1 - progress, 4);
-        
-        setCount(Math.floor(easeOut * end));
-
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const currentVal = Math.floor(easeOut * end);
+        if (span) {
+          span.textContent = formatCounterVal(currentVal, end, compact);
+        }
         if (progress < 1) {
           animationFrameId = window.requestAnimationFrame(animate);
         }
@@ -43,51 +53,30 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '', compact = false }) => 
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          // Reset count and start animation when it enters viewport
-          setCount(0);
-          if (animationFrameId) {
-            window.cancelAnimationFrame(animationFrameId);
-          }
+        if (entry.isIntersecting && !animatedRef.current) {
+          animatedRef.current = true;
           startAnimation();
-        } else {
-          // Reset count when it goes out of view, so it animates again next time
-          setCount(0);
-          if (animationFrameId) {
-            window.cancelAnimationFrame(animationFrameId);
-          }
+          observer.disconnect();
         }
       },
       { threshold: 0.1 }
     );
 
-    observer.observe(el);
+    observer.observe(span);
 
     return () => {
-      observer.unobserve(el);
-      if (animationFrameId) {
-        window.cancelAnimationFrame(animationFrameId);
-      }
+      observer.disconnect();
+      if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
     };
-  }, [end]);
+  }, [end, compact]);
 
-  const formattedValue = (() => {
-    if (compact) {
-      if (count >= 1000000) {
-        return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-      }
-      if (count >= 1000) {
-        return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-      }
-      if (end >= 1000) {
-        return (count / 1000).toFixed(1) + 'K';
-      }
-      return count;
-    }
-    return count > 999 ? count.toLocaleString() : count;
-  })();
-
-  return <span ref={elementRef}>{prefix}{formattedValue}{suffix}</span>;
+  return (
+    <span>
+      {prefix}
+      <span ref={valueSpanRef}>{formatCounterVal(end, end, compact)}</span>
+      {suffix}
+    </span>
+  );
 };
 
 const parseNoticeDate = (dateStr) => {
@@ -240,14 +229,26 @@ export default function Home() {
 
   // Hide Latest Updates ticker on desktop when user scrolls down and Latest Notices / Briefing becomes visible
   useEffect(() => {
+    let ticking = false;
+    let cachedBriefingEl = null;
+
     const handleScroll = () => {
-      const briefingEl = document.getElementById('home-briefing');
-      if (briefingEl) {
-        const rect = briefingEl.getBoundingClientRect();
-        // Hide ticker as soon as the Latest Notices card enters within 100px of the viewport
-        setTickerHidden(rect.top < window.innerHeight - 80);
-      } else {
-        setTickerHidden(window.scrollY > 120);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          if (!cachedBriefingEl) {
+            cachedBriefingEl = document.getElementById('home-briefing');
+          }
+          let shouldHide = false;
+          if (cachedBriefingEl) {
+            const rect = cachedBriefingEl.getBoundingClientRect();
+            shouldHide = rect.top < window.innerHeight - 80;
+          } else {
+            shouldHide = window.scrollY > 120;
+          }
+          setTickerHidden((prev) => (prev !== shouldHide ? shouldHide : prev));
+          ticking = false;
+        });
+        ticking = true;
       }
     };
 
@@ -257,107 +258,112 @@ export default function Home() {
   }, []);
 
   // Real-time synchronization for site content directly from Firebase Firestore
+  // Hydrated non-critically during idle frame (TBT optimization)
   useEffect(() => {
     let active = true;
     let unsubscribeNotices = null;
     let unsubscribeSlides = null;
     let unsubscribeTraffic = null;
 
-    // Record session visit once
-    try {
-      if (!sessionStorage.getItem('hss_visit_recorded')) {
-        sessionStorage.setItem('hss_visit_recorded', '1');
-        fetch('/.netlify/functions/public-traffic', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'visit' }),
-        }).catch(() => {});
-      }
-    } catch (_) {}
+    const cancelIdle = scheduleIdleWork(async () => {
+      if (!active) return;
 
-    // 1. Site Settings (reads fresh Firestore settings in background)
-    import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
-      if (active) loadSiteSettings({ forceFirestore: true }).then(setSettings);
-    }).catch(() => {});
-
-    // Helper: Static traffic fallback
-    const fetchStaticTrafficFallback = async () => {
+      // Record session visit once
       try {
-        const res = await fetch('/.netlify/functions/public-traffic', { cache: 'no-cache' });
-        if (res.ok && active) {
-          const data = await res.json();
-          if (data && typeof data.visitors === 'number') {
-            const stats = {
-              visitors: Number(data.visitors || 1900),
-              interactions: Number(data.interactions || data.clicks || 724),
-              searches: Number(data.searches || 1900),
-              clicks: Number(data.clicks || 724),
-            };
-            setTrafficStats(stats);
-            try { localStorage.setItem('site_traffic_stats', JSON.stringify(stats)); } catch (_) {}
-          }
+        if (!sessionStorage.getItem('hss_visit_recorded')) {
+          sessionStorage.setItem('hss_visit_recorded', '1');
+          fetch('/.netlify/functions/public-traffic', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'visit' }),
+          }).catch(() => {});
         }
-      } catch (e) {
-        console.warn('Static traffic fallback failed:', e);
-      }
-    };
+      } catch (_) {}
 
-    // Helper: Static notices fallback
-    const fetchStaticNoticesFallback = async () => {
-      try {
-        const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
-        if (res.ok && active) {
-          const text = await res.text();
-          if (!text.trim().startsWith('<')) {
-            const parsed = parseNotices(text);
-            if (parsed.length > 0) {
-              setNotices(parsed);
-              try { localStorage.setItem('site_notices', text); } catch (_) {}
+      // 1. Site Settings (reads fresh Firestore settings in background)
+      import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
+        if (active) loadSiteSettings({ forceFirestore: true }).then(setSettings);
+      }).catch(() => {});
+
+      // Helper: Static traffic fallback
+      const fetchStaticTrafficFallback = async () => {
+        try {
+          const res = await fetch('/.netlify/functions/public-traffic', { cache: 'no-cache' });
+          if (res.ok && active) {
+            const data = await res.json();
+            if (data && typeof data.visitors === 'number') {
+              const stats = {
+                visitors: Number(data.visitors || 1900),
+                interactions: Number(data.interactions || data.clicks || 724),
+                searches: Number(data.searches || 1900),
+                clicks: Number(data.clicks || 724),
+              };
+              setTrafficStats(stats);
+              try { localStorage.setItem('site_traffic_stats', JSON.stringify(stats)); } catch (_) {}
             }
           }
+        } catch (e) {
+          console.warn('Static traffic fallback failed:', e);
         }
-      } catch (e) {
-        console.warn('Static notices fallback failed:', e);
-      }
-    };
+      };
 
-    // Helper: Static slides fallback
-    const fetchStaticSlidesFallback = async () => {
-      try {
-        const res = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
-        if (res.ok && active) {
-          const text = await res.text();
-          if (!text.trim().startsWith('<')) {
-            const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-            const mapped = lines.map((line, idx) => {
-              const parts = line.split(',');
-              if (parts[0] && parts[0].includes('.')) {
-                const image = parts[0].trim();
-                const title = (parts[1] || '').trim();
-                const caption = (parts.slice(2).join(',') || '').trim();
-                return { image: '/slides/' + image, title, caption, fit: 'cover', animation: 'kenburns' };
+      // Helper: Static notices fallback
+      const fetchStaticNoticesFallback = async () => {
+        try {
+          const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
+          if (res.ok && active) {
+            const text = await res.text();
+            if (!text.trim().startsWith('<')) {
+              const parsed = parseNotices(text);
+              if (parsed.length > 0) {
+                setNotices(parsed);
+                try { localStorage.setItem('site_notices', text); } catch (_) {}
               }
-              const title = (parts[0] || '').trim();
-              const caption = (parts.slice(1).join(',') || '').trim();
-              const image = `/slides/${idx + 1}.jpg`;
-              return { image, title, caption, fit: 'cover', animation: 'kenburns' };
-            });
-            if (mapped.length > 0) {
-              setSlides(mapped);
-              try { localStorage.setItem('site_slides', JSON.stringify(mapped)); } catch (_) {}
             }
           }
+        } catch (e) {
+          console.warn('Static notices fallback failed:', e);
         }
-      } catch (e) {
-        console.warn('Static slides fallback failed:', e);
-      }
-    };
+      };
 
-    // 2. Real-time Firebase Firestore listeners for Notices and Slideshow
-    (async () => {
+      // Helper: Static slides fallback
+      const fetchStaticSlidesFallback = async () => {
+        try {
+          const res = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
+          if (res.ok && active) {
+            const text = await res.text();
+            if (!text.trim().startsWith('<')) {
+              const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+              const mapped = lines.map((line, idx) => {
+                const parts = line.split(',');
+                if (parts[0] && parts[0].includes('.')) {
+                  const image = parts[0].trim();
+                  const title = (parts[1] || '').trim();
+                  const caption = (parts.slice(2).join(',') || '').trim();
+                  return { image: '/slides/' + image, title, caption, fit: 'cover', animation: 'kenburns' };
+                }
+                const title = (parts[0] || '').trim();
+                const caption = (parts.slice(1).join(',') || '').trim();
+                const image = `/slides/${idx + 1}.jpg`;
+                return { image, title, caption, fit: 'cover', animation: 'kenburns' };
+              });
+              if (mapped.length > 0) {
+                setSlides(mapped);
+                try { localStorage.setItem('site_slides', JSON.stringify(mapped)); } catch (_) {}
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Static slides fallback failed:', e);
+        }
+      };
+
+      // 2. Real-time Firebase Firestore listeners for Notices and Slideshow
       try {
         const { db } = await import('../firebase');
         const { doc, onSnapshot, getDoc } = await import('firebase/firestore');
+
+        if (!active) return;
 
         // Faculty summary
         getDoc(doc(db, 'site', 'facultySummary')).then((snapshot) => {
@@ -450,10 +456,11 @@ export default function Home() {
         fetchStaticSlidesFallback();
         fetchStaticTrafficFallback();
       }
-    })();
+    }, 1500);
 
     return () => {
       active = false;
+      cancelIdle();
       if (typeof unsubscribeNotices === 'function') unsubscribeNotices();
       if (typeof unsubscribeSlides === 'function') unsubscribeSlides();
       if (typeof unsubscribeTraffic === 'function') unsubscribeTraffic();
@@ -831,7 +838,7 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3.5 sm:gap-6 relative z-10">
                 {/* Principal Portrait Frame */}
                 <div className="w-24 h-24 xs:w-28 xs:h-28 sm:w-36 sm:h-40 flex-shrink-0 rounded-2xl overflow-hidden shadow-md border-2 border-teal-600/50 group-hover:border-teal-600 transition-colors relative">
-                  <img src="/slides/Principal.jpg" alt={`Principal ${principalName}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                  <img src="/slides/Principal.jpg" alt={`Principal ${principalName}`} width="144" height="160" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/60 to-transparent pt-3 pb-1.5 px-2 text-center">
                     <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-teal-200">Principal</span>
                   </div>

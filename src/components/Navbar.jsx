@@ -213,10 +213,13 @@ export default function Navbar() {
       const rawH = el.getBoundingClientRect().height - menuHeight;
       // Use Math.floor with -0.5px offset to ensure hero container snaps 100% flush to header bottom border without sub-pixel white gap
       const h = Math.max(0, Math.floor(rawH - 0.5));
-      document.documentElement.style.setProperty('--site-header-height', `${h}px`);
+      const currentH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--site-header-height'), 10);
+      if (isNaN(currentH) || Math.abs(currentH - h) >= 1) {
+        document.documentElement.style.setProperty('--site-header-height', `${h}px`);
+      }
     }
     updateHeaderHeight();
-    window.addEventListener('resize', updateHeaderHeight);
+    window.addEventListener('resize', updateHeaderHeight, { passive: true });
     return () => window.removeEventListener('resize', updateHeaderHeight);
   }, [mobileOpen]);
 

@@ -136,8 +136,7 @@ function App() {
         {/* The Navbar will always show on every page */}
         <Navbar /> 
         
-        {/* Main Content Area */}
-        <main id="main-content" tabIndex="-1" className="flex-grow flex flex-col w-full max-w-full print:pt-0 print:p-0 print:m-0 print:bg-white" style={{ paddingTop: 'var(--site-header-height, 64px)', backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
+        <main id="main-content" tabIndex="-1" className="flex-grow flex flex-col w-full max-w-full print:pt-0 print:p-0 print:m-0 print:bg-white" style={{ backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
           <Suspense fallback={<LazyFallback />}>
           <Routes>
             <Route path="/" element={<Home />} />

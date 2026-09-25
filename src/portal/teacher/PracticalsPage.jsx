@@ -2706,9 +2706,33 @@ export default function PracticalsPage() {
 
       if (targetIdx < 0 || targetIdx >= prev.length) return prev;
       const updated = [...prev];
+      const curRec = updated[targetIdx];
+      const isExplicitAbs = rawVal === 'A' || rawVal === 'AB' || rawVal === 'ABS' || rawVal === 'ABSENT';
+      const isNumeric = rawVal !== '' && !isExplicitAbs && !isNaN(Number(rawVal));
+
+      let newV = curRec.vivaMarks;
+      let newP = curRec.practicalMarks;
+
+      if (field === 'practicalMarks') {
+        newP = rawVal;
+        if (isExplicitAbs) {
+          newV = 'AB';
+        } else if (isNumeric) {
+          if (newV === 'AB' || newV === 'A' || newV === 'ABS' || newV === 'ABSENT') {
+            newV = '';
+          }
+        }
+      } else if (field === 'vivaMarks') {
+        newV = rawVal;
+        if (isExplicitAbs) {
+          newP = 'AB';
+        }
+      }
+
       updated[targetIdx] = {
-        ...updated[targetIdx],
-        [field]: rawVal,
+        ...curRec,
+        practicalMarks: newP,
+        vivaMarks: newV,
       };
       return updated;
     });
@@ -2780,27 +2804,29 @@ export default function PracticalsPage() {
         const pRaw = String(s.practicalMarks !== undefined && s.practicalMarks !== null ? s.practicalMarks : '').trim().toUpperCase();
         const vRaw = String(s.vivaMarks !== undefined && s.vivaMarks !== null ? s.vivaMarks : '').trim().toUpperCase();
 
-        const isAbsent = pRaw === 'A' || vRaw === 'A' || pRaw === 'AB' || vRaw === 'AB';
-        const isFilled = pRaw !== '' || vRaw !== '';
+        const pIsNum = !isNaN(Number(pRaw)) && pRaw !== '';
+        const vIsNum = !isNaN(Number(vRaw)) && vRaw !== '';
+        const pIsAbs = pRaw === 'A' || pRaw === 'AB' || pRaw === 'ABS' || pRaw === 'ABSENT';
+        const vIsAbs = vRaw === 'A' || vRaw === 'AB' || vRaw === 'ABS' || vRaw === 'ABSENT';
 
         let pMarks = '';
         let vMarks = '';
         let totalMarks = '';
 
-        if (isAbsent) {
-          pMarks = 'AB';
-          vMarks = 'AB';
-          totalMarks = 'AB';
-        } else if (isFilled) {
-          let pVal = isNaN(Number(pRaw)) ? 0 : Number(pRaw);
-          let vVal = isNaN(Number(vRaw)) ? 0 : Number(vRaw);
+        if (pIsNum || vIsNum) {
+          let pVal = pIsNum ? Number(pRaw) : 0;
+          let vVal = (vIsNum && !vIsAbs) ? Number(vRaw) : 0;
           if (pVal < 0) pVal = 0;
           if (pVal > subjectMaxMarks) pVal = subjectMaxMarks;
           if (vVal < 0) vVal = 0;
           if (vVal > subjectMaxMarks) vVal = subjectMaxMarks;
-          pMarks = pRaw;
-          vMarks = vRaw;
+          pMarks = pIsNum ? String(pVal) : '';
+          vMarks = vIsNum ? String(vVal) : '';
           totalMarks = Math.min(subjectMaxMarks, pVal + vVal);
+        } else if (pIsAbs || vIsAbs) {
+          pMarks = 'AB';
+          vMarks = 'AB';
+          totalMarks = 'AB';
         }
 
         return {
@@ -2912,7 +2938,8 @@ export default function PracticalsPage() {
     const incompleteList = [];
 
     studentMarks.forEach(st => {
-      const isAbsent = st.practicalMarks === 'A' || st.vivaMarks === 'A' || st.practicalMarks === 'AB' || st.vivaMarks === 'AB';
+      const hasNumeric = (!isNaN(Number(st.practicalMarks)) && String(st.practicalMarks).trim() !== '') || (!isNaN(Number(st.vivaMarks)) && String(st.vivaMarks).trim() !== '');
+      const isAbsent = !hasNumeric && (st.practicalMarks === 'A' || st.vivaMarks === 'A' || st.practicalMarks === 'AB' || st.vivaMarks === 'AB');
       const isFilled = st.practicalMarks !== '' || st.vivaMarks !== '';
 
       if (isAbsent) {
@@ -2961,16 +2988,30 @@ export default function PracticalsPage() {
           }
         }
 
-        const isAbsent = pMarks === 'A' || vMarks === 'A' || pMarks === 'AB' || vMarks === 'AB';
-        const isBlank = pMarks === '' && vMarks === '';
-        let pVal = isNaN(Number(pMarks)) ? 0 : Number(pMarks);
-        let vVal = isNaN(Number(vMarks)) ? 0 : Number(vMarks);
-        if (pVal < 0) pVal = 0;
-        if (pVal > subjectMaxMarks) pVal = subjectMaxMarks;
-        if (vVal < 0) vVal = 0;
-        if (vVal > subjectMaxMarks) vVal = subjectMaxMarks;
+        const pIsNum = !isNaN(Number(pMarks)) && pMarks !== '';
+        const vIsNum = !isNaN(Number(vMarks)) && vMarks !== '';
+        const pIsAbs = pMarks === 'A' || pMarks === 'AB' || pMarks === 'ABS' || pMarks === 'ABSENT';
+        const vIsAbs = vMarks === 'A' || vMarks === 'AB' || vMarks === 'ABS' || vMarks === 'ABSENT';
 
-        const total = isAbsent ? 'AB' : (isBlank ? '' : Math.min(subjectMaxMarks, pVal + vVal));
+        let finalP = pMarks;
+        let finalV = vMarks;
+        let total = '';
+
+        if (pIsNum || vIsNum) {
+          let pVal = pIsNum ? Number(pMarks) : 0;
+          let vVal = (vIsNum && !vIsAbs) ? Number(vMarks) : 0;
+          if (pVal < 0) pVal = 0;
+          if (pVal > subjectMaxMarks) pVal = subjectMaxMarks;
+          if (vVal < 0) vVal = 0;
+          if (vVal > subjectMaxMarks) vVal = subjectMaxMarks;
+          finalP = pIsNum ? String(pVal) : '';
+          finalV = vIsNum ? String(vVal) : '';
+          total = Math.min(subjectMaxMarks, pVal + vVal);
+        } else if (pIsAbs || vIsAbs) {
+          finalP = 'AB';
+          finalV = 'AB';
+          total = 'AB';
+        }
 
         return {
           rollNo: String(s.rollNo || '').trim(),
@@ -2978,10 +3019,10 @@ export default function PracticalsPage() {
           formNo: String(s.formNo || '').trim().slice(0, 50),
           regNo: String(s.regNo || s.boardRegNo || '').trim().slice(0, 50),
           examRollNo: String(s.examRollNo || '').trim().slice(0, 50),
-          practicalMarks: isAbsent ? 'AB' : pMarks,
-          vivaMarks: isAbsent ? 'AB' : vMarks,
+          practicalMarks: finalP,
+          vivaMarks: finalV,
           totalMarks: total,
-          marksInWords: isAbsent ? 'Absent' : (isBlank ? '' : numberToWords(total)),
+          marksInWords: total === 'AB' ? 'Absent' : (total === '' ? '' : numberToWords(total)),
         };
       });
 
@@ -3208,9 +3249,10 @@ export default function PracticalsPage() {
 
   const displayedStudents = showFailOnly
     ? sortedStudents.filter((s) => {
-        const isAbsent = s.practicalMarks === 'A' || s.vivaMarks === 'A' || s.practicalMarks === 'AB' || s.vivaMarks === 'AB';
+        const hasNumeric = (!isNaN(Number(s.practicalMarks)) && String(s.practicalMarks).trim() !== '') || (!isNaN(Number(s.vivaMarks)) && String(s.vivaMarks).trim() !== '');
+        const isAbsent = !hasNumeric && (s.practicalMarks === 'A' || s.vivaMarks === 'A' || s.practicalMarks === 'AB' || s.vivaMarks === 'AB');
         if (isAbsent) return true;
-        if (s.practicalMarks === '' || s.vivaMarks === '') return true;
+        if (s.practicalMarks === '' && s.vivaMarks === '') return true;
         const total = (Number(s.practicalMarks) || 0) + (Number(s.vivaMarks) || 0);
         return total < minPassMarks;
       })
