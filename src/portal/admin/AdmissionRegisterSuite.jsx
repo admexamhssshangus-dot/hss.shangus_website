@@ -4810,15 +4810,19 @@ export default function AdmissionRegisterSuite({
 
   const currentStudentsPerPage = activeTab === 'sentup' ? (sentupStudentsPerPage || 10) : (studentsPerPage || 15);
 
-  // Strict page height budget: A4 is 210mm high, Legal is 215.9mm high.
-  // We budget ~175mm total height so that both Part 1, Part 2, and Sentup sheets NEVER overflow onto 2 pages.
-  // Admission Register budget: Header (10.5mm) + margin (1mm) + thead (11mm) + signatures (10.5mm) + margin (1mm) = 34mm.
-  // Printable body budget = 145.5mm. For 15 rows: 9.7mm per row. Total = 179.5mm (fits cleanly on 189.68mm printable A4).
-  const registerRowHeightMm = Math.max(5.5, Math.floor((145.5 / (studentsPerPage || 15)) * 10) / 10).toFixed(1);
+  // Extended page height budget: A4 is 210mm high, Legal is 215.9mm high.
+  // Target total sheet height extends close to bottom: ~186.5mm for A4, ~192.5mm for Legal (comfortably within printable boundary).
+  // Admission Register budget: Header (10mm) + margin (1mm) + thead (11mm) + signatures (10.5mm) + margin (1mm) = 33.5mm.
+  // Rows budget: Legal = 159.0mm (10.6mm/row for 15 rows, total sheet ~192.5mm <= 195.58mm printable area).
+  //              A4    = 153.0mm (10.2mm/row for 15 rows, total sheet ~186.5mm <= 189.68mm printable area).
+  const registerRowsBudgetMm = isA4 ? 153.0 : 159.0;
+  const registerRowHeightMm = Math.max(5.5, Math.floor((registerRowsBudgetMm / (studentsPerPage || 15)) * 10) / 10).toFixed(1);
 
-  // Sentup Roll Sheet budget: Header (10.5mm) + margin (1mm) + thead (6mm) + signatures (8.0mm) + margin (1mm) = 26.5mm.
-  // Printable body budget = 148mm. For 10 rows: 14.8mm per row. Total = 174.5mm (fits cleanly on 189.68mm printable A4).
-  const sentupRowHeightMm = Math.max(6.0, Math.floor((148.0 / (sentupStudentsPerPage || 10)) * 10) / 10).toFixed(1);
+  // Sentup Roll Sheet budget: Header (10mm) + margin (1mm) + thead (6.5mm) + signatures (8.0mm) + margin (1mm) = 26.5mm.
+  // Rows budget: Legal = 166.0mm (16.6mm/row for 10 rows, total sheet ~192.5mm <= 195.58mm printable area).
+  //              A4    = 160.0mm (16.0mm/row for 10 rows, total sheet ~186.5mm <= 189.68mm printable area).
+  const sentupRowsBudgetMm = isA4 ? 160.0 : 166.0;
+  const sentupRowHeightMm = Math.max(6.0, Math.floor((sentupRowsBudgetMm / (sentupStudentsPerPage || 10)) * 10) / 10).toFixed(1);
 
   const calculatedRowHeightMm = activeTab === 'sentup' ? sentupRowHeightMm : registerRowHeightMm;
 
@@ -5602,11 +5606,11 @@ export default function AdmissionRegisterSuite({
             letter-spacing: -0.01em !important;
           }
 
-          /* Snug proportional width and crisp print font for BOARD REG. NO. */
+          /* Proportional width and prominent print font for BOARD REG. NO. */
           .sentup-table th[data-col="st_boardReg"],
           .sentup-table th.th-col-st_boardReg {
-            width: 26mm !important;
-            font-size: 7.5px !important;
+            width: 28mm !important;
+            font-size: 8px !important;
             font-weight: 900 !important;
             line-height: 1.05 !important;
             letter-spacing: 0.01em !important;
@@ -5616,18 +5620,18 @@ export default function AdmissionRegisterSuite({
           .sentup-table .st-boardreg-cell,
           .sentup-table .st-boardreg-cell div,
           .sentup-table .st-boardreg-cell span {
-            width: 26mm !important;
-            font-size: 8px !important;
+            width: 28mm !important;
+            font-size: 10pt !important;
             font-weight: 900 !important;
-            line-height: 1.05 !important;
-            letter-spacing: -0.01em !important;
+            line-height: 1.15 !important;
+            letter-spacing: 0.01em !important;
           }
 
-          /* Generous width and larger print font for STUDENT'S NAME */
+          /* Generous width and print font for STUDENT'S NAME */
           .sentup-table th[data-col="st_name"],
           .sentup-table th.th-col-st_name {
-            width: 65mm !important;
-            min-width: 50mm !important;
+            width: 63mm !important;
+            min-width: 48mm !important;
             font-size: 8.5px !important;
             font-weight: 900 !important;
             line-height: 1.05 !important;
@@ -5636,8 +5640,8 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table td.st-name-cell,
           .sentup-table .st-name-cell {
-            width: 65mm !important;
-            min-width: 50mm !important;
+            width: 63mm !important;
+            min-width: 48mm !important;
             overflow: hidden !important;
           }
 
@@ -8727,7 +8731,7 @@ export default function AdmissionRegisterSuite({
                                   </td>
                                 )}
                                 {isSentupColVisible('st_boardReg') && (
-                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font text-[13px] font-black st-boardreg-cell">{formatBoardRegSplit(s.boardReg)}</td>
+                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font text-[14px] sm:text-[15px] font-black st-boardreg-cell">{formatBoardRegSplit(s.boardReg)}</td>
                                 )}
                                 {isSentupColVisible('st_name') && (
                                   <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[14px] st-name-cell">
