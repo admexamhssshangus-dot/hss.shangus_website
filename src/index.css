@@ -639,6 +639,63 @@ html, body, #root {
   border-color: var(--border-ui) !important;
 }
 
+/* ==========================================================================
+   PORTAL AUTH PAGES: High-Contrast Support for All Dark & Themed Modes
+   ========================================================================== */
+.portal-loading-overlay {
+  background-color: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.dark .portal-loading-overlay,
+.theme-dark .portal-loading-overlay,
+.theme-royal .portal-loading-overlay,
+.theme-forest .portal-loading-overlay,
+.theme-midnight .portal-loading-overlay {
+  background-color: rgba(10, 15, 30, 0.94) !important;
+  color: #f8fafc !important;
+}
+
+.theme-royal .portal-loading-overlay {
+  background-color: rgba(10, 17, 40, 0.95) !important;
+}
+
+.theme-forest .portal-loading-overlay {
+  background-color: rgba(6, 46, 27, 0.95) !important;
+}
+
+.theme-midnight .portal-loading-overlay {
+  background-color: rgba(5, 5, 10, 0.97) !important;
+}
+
+/* Auth card background & text contrast across all themes */
+.theme-dark .portal-auth-card,
+.theme-royal .portal-auth-card,
+.theme-forest .portal-auth-card,
+.theme-midnight .portal-auth-card {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-ui) !important;
+  color: var(--text-main) !important;
+}
+
+.theme-dark .portal-auth-card input:not([type="checkbox"]):not([type="radio"]),
+.theme-royal .portal-auth-card input:not([type="checkbox"]):not([type="radio"]),
+.theme-forest .portal-auth-card input:not([type="checkbox"]):not([type="radio"]),
+.theme-midnight .portal-auth-card input:not([type="checkbox"]):not([type="radio"]) {
+  background-color: var(--bg-input, #0f172a) !important;
+  color: var(--text-main, #f8fafc) !important;
+  border-color: var(--border-ui, #334155) !important;
+}
+
+.theme-dark .portal-auth-card input::placeholder,
+.theme-royal .portal-auth-card input::placeholder,
+.theme-forest .portal-auth-card input::placeholder,
+.theme-midnight .portal-auth-card input::placeholder {
+  color: var(--text-muted, #94a3b8) !important;
+}
+
+
 /* Custom Primary Button styling for perfect theme integration */
 .btn-primary-custom {
   background-color: var(--teal-accent) !important;
