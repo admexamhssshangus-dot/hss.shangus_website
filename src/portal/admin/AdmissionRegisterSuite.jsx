@@ -4885,7 +4885,8 @@ export default function AdmissionRegisterSuite({
           .admission-suite-root header, .admission-suite-root nav, .admission-suite-root footer,
           .admission-suite-root aside, .admission-suite-root .no-print, .admission-suite-root button,
           .admission-suite-root select, .admission-suite-root input, .admission-suite-root .screen-only,
-          .admission-suite-root .fixed, .admission-suite-root .sticky, .global-hud {
+          .admission-suite-root .fixed, .admission-suite-root .sticky, .global-hud,
+          .admission-suite-root .print\\:hidden, [class*="print:hidden"] {
             display: none !important;
           }
 
@@ -5118,7 +5119,7 @@ export default function AdmissionRegisterSuite({
           }
 
           /* Every student row strictly locked to EXACT calculatedRowHeightMm on both Part 1 and Part 2 */
-          .register-resizable-row,
+          .admission-spread-table .register-resizable-row,
           .admission-spread-table tbody tr {
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
@@ -5128,7 +5129,7 @@ export default function AdmissionRegisterSuite({
             break-inside: avoid !important;
           }
 
-          .register-resizable-row > td,
+          .admission-spread-table .register-resizable-row > td,
           .admission-spread-table tbody tr > td {
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
@@ -5497,7 +5498,8 @@ export default function AdmissionRegisterSuite({
             height: auto !important;
           }
 
-          .sentup-table tbody tr {
+          .sentup-table tbody tr,
+          .sentup-table .register-resizable-row {
             display: table-row !important;
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
@@ -5506,6 +5508,8 @@ export default function AdmissionRegisterSuite({
             break-inside: avoid !important;
           }
 
+          .sentup-table tbody tr > td,
+          .sentup-table .register-resizable-row > td,
           .sentup-table td {
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
@@ -5516,6 +5520,18 @@ export default function AdmissionRegisterSuite({
             vertical-align: middle !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
+          }
+
+          .sentup-table th[data-col="st_photo"],
+          .sentup-table td.sentup-photo-cell {
+            width: 12mm !important;
+            min-width: 10mm !important;
+            max-width: 14mm !important;
+            padding: 0.2mm !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
           }
 
           .sentup-table .sentup-photo-cell img,
@@ -5637,6 +5653,7 @@ export default function AdmissionRegisterSuite({
             overflow: hidden !important;
           }
 
+          .sentup-table th[data-col="st_rollNo"],
           .sentup-table td.st-rollno-cell,
           .sentup-table .st-rollno-cell {
             width: 12mm !important;
