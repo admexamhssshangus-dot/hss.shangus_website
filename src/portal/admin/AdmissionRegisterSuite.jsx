@@ -371,7 +371,8 @@ function renderOnlineSubmCell(status) {
   const str = String(status).trim();
   const parts = str.split(' ');
   if (parts.length >= 2) {
-    const datePart = parts[0];
+    const rawDatePart = parts[0];
+    const datePart = formatRegisterDate(rawDatePart) || rawDatePart;
     const timePart = parts.slice(1).join(' ');
     return (
       <div className="flex flex-col justify-center items-start leading-[1.05] overflow-hidden">
@@ -380,7 +381,8 @@ function renderOnlineSubmCell(status) {
       </div>
     );
   }
-  return <span className="whitespace-nowrap font-medium text-[7px] truncate">{str}</span>;
+  const formatted = formatRegisterDate(str);
+  return <span className="whitespace-nowrap font-medium text-[7px] truncate">{formatted || str}</span>;
 }
 
 function renderAdmDateCell(date) {
@@ -410,7 +412,8 @@ function renderAdmittedVideCell(val) {
   if (str.includes(';')) {
     const parts = str.split(';');
     const noPart = parts[0].trim();
-    const datePart = parts.slice(1).join(';').trim();
+    const rawDatePart = parts.slice(1).join(';').trim();
+    const datePart = formatRegisterDate(rawDatePart) || rawDatePart;
     return (
       <div className="flex flex-col items-center justify-center leading-[1.05] overflow-hidden">
         <span className="font-bold text-[6.8px] leading-tight truncate">{noPart}{datePart ? ';' : ''}</span>
@@ -1609,14 +1612,7 @@ export default function AdmissionRegisterSuite({
 
       setIsLayoutModified(false);
       if (firebaseSaved) {
-        setTaskProgress({
-          title: 'Cloud Configuration Synchronized',
-          step: 'Verified settings saved to cloud & persistent storage!',
-          progress: 100,
-          status: 'success',
-          icon: 'cloud'
-        });
-        setTimeout(() => setTaskProgress(null), 700);
+        setTaskProgress(null);
         setToast({
           message: '✅ Table layout & subject key saved to Cloud and browser storage!',
           type: 'success'
@@ -1630,14 +1626,7 @@ export default function AdmissionRegisterSuite({
           });
         } catch (_) {}
       } else {
-        setTaskProgress({
-          title: 'Preserved Locally',
-          step: 'Table layout preserved permanently on your browser device!',
-          progress: 100,
-          status: 'success',
-          icon: 'cloud'
-        });
-        setTimeout(() => setTaskProgress(null), 700);
+        setTaskProgress(null);
         setToast({
           message: '💾 Table layout preserved permanently on your browser device!',
           type: 'info'
@@ -1699,14 +1688,7 @@ export default function AdmissionRegisterSuite({
       }
 
       if (cloudSaved) {
-        setTaskProgress({
-          title: 'Subject Directory Synced',
-          step: `${updatedList.length} subject abbreviations saved to Cloud!`,
-          progress: 100,
-          status: 'success',
-          icon: 'cloud'
-        });
-        setTimeout(() => setTaskProgress(null), 700);
+        setTaskProgress(null);
         setToast({
           message: '☁️ Subject abbreviations saved to cloud!',
           type: 'success'
@@ -1720,14 +1702,7 @@ export default function AdmissionRegisterSuite({
           });
         } catch (_) {}
       } else {
-        setTaskProgress({
-          title: 'Preserved Locally',
-          step: 'Subject abbreviations preserved in browser storage.',
-          progress: 100,
-          status: 'success',
-          icon: 'cloud'
-        });
-        setTimeout(() => setTaskProgress(null), 700);
+        setTaskProgress(null);
         setToast({
           message: '💾 Subject abbreviations preserved in browser storage.',
           type: 'info'
@@ -1763,7 +1738,8 @@ export default function AdmissionRegisterSuite({
 
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 4000);
+    const duration = toast.type === 'error' ? 3500 : 1600;
+    const timer = setTimeout(() => setToast(null), duration);
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -3951,26 +3927,14 @@ export default function AdmissionRegisterSuite({
         });
       });
 
-      try {
-        await logAdminActivity({
-          actionType: 'batch_id_assign',
-          actionTitle: 'Bulk Assigned Admission Numbers',
-          details: `Assigned admission numbers to ${count} students in session ${assignSessionFilter}.`,
-          metadata: { count, session: assignSessionFilter }
-        });
-      } catch (_) {}
+      logAdminActivity({
+        actionType: 'batch_id_assign',
+        actionTitle: 'Bulk Assigned Admission Numbers',
+        details: `Assigned admission numbers to ${count} students in session ${assignSessionFilter}.`,
+        metadata: { count, session: assignSessionFilter }
+      }).catch(() => {});
 
-      setTaskProgress({
-        title: 'Assignment Complete',
-        step: `✨ Successfully assigned admission numbers to ${count} students!`,
-        progress: 100,
-        status: 'success',
-        current: count,
-        total: totalCount,
-        icon: 'assign'
-      });
-      setTimeout(() => setTaskProgress(null), 900);
-
+      setTaskProgress(null);
       setToast({ message: `✨ Successfully assigned Admission Numbers to ${count} students!`, type: 'success' });
       if (onDataUpdated) onDataUpdated();
     } catch (err) {
@@ -4533,7 +4497,7 @@ export default function AdmissionRegisterSuite({
 
     setTaskProgress({
       title: `Bulk Assigning ${fieldLabel}`,
-      step: `Preparing to assign date (${assignDateValue}) to ${totalCount} students...`,
+      step: `Preparing to assign date (${formatRegisterDate(assignDateValue) || assignDateValue}) to ${totalCount} students...`,
       progress: 5,
       current: 0,
       total: totalCount,
@@ -4547,7 +4511,7 @@ export default function AdmissionRegisterSuite({
     try {
       const fieldKey = assignDateField === 'admDate' ? 'Adm. Date' : 'Online Subm. Date';
       const aliasKey = assignDateField === 'admDate' ? 'admDate' : 'onlineSubmDate';
-      const dateToSave = assignDateField === 'admDate' ? formatRegisterDate(assignDateValue) : assignDateValue;
+      const dateToSave = formatRegisterDate(assignDateValue) || assignDateValue;
 
       for (let b = 0; b < totalBatches; b++) {
         const batchSlice = effectiveTargetStudents.slice(b * batchSize, (b + 1) * batchSize);
@@ -4578,51 +4542,34 @@ export default function AdmissionRegisterSuite({
         await batch.commit();
       }
 
-      setTaskProgress({
-        title: `Bulk Assigning ${fieldLabel}`,
-        step: 'Synchronizing local dataset & table state...',
-        progress: 90,
-        current: count,
-        total: totalCount,
-        icon: 'calendar'
-      });
-
-      // Update local dataset state so table reflects new date immediately
+      // Update local dataset state immediately with DD-MM-YYYY date so table updates in real-time
       setDataset(prev => {
         const idSet = new Set(effectiveTargetStudents.map(s => s.id));
         return prev.map(item => {
           if (idSet.has(item.id)) {
             return {
               ...item,
-              [fieldKey]: assignDateValue,
-              [aliasKey]: assignDateValue
+              [fieldKey]: dateToSave,
+              [aliasKey]: dateToSave
             };
           }
           return item;
         });
       });
 
-      try {
-        await logAdminActivity({
-          actionType: 'batch_date_assign',
-          actionTitle: `Bulk Assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Submission Date'}`,
-          details: `Assigned date ${assignDateValue} to ${effectiveTargetStudents.length} students.`,
-          metadata: { date: assignDateValue, count: effectiveTargetStudents.length }
-        });
-      } catch (_) {}
+      // Non-blocking activity logging
+      logAdminActivity({
+        actionType: 'batch_date_assign',
+        actionTitle: `Bulk Assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Submission Date'}`,
+        details: `Assigned date ${dateToSave} to ${effectiveTargetStudents.length} students.`,
+        metadata: { date: dateToSave, count: effectiveTargetStudents.length }
+      }).catch(() => {});
 
-      setTaskProgress({
-        title: 'Date Assignment Complete',
-        step: `✨ Successfully applied date (${assignDateValue}) to ${totalCount} records!`,
-        progress: 100,
-        status: 'success',
-        current: count,
-        total: totalCount,
-        icon: 'calendar'
-      });
-      setTimeout(() => setTaskProgress(null), 900);
+      // Immediately clear progress modal for instant responsiveness
+      setTaskProgress(null);
 
-      setToast({ message: `✨ Applied date (${assignDateValue}) to ${effectiveTargetStudents.length} records!`, type: 'success' });
+      // Snappy toast showing date in DD-MM-YYYY format
+      setToast({ message: `✨ Applied date (${dateToSave}) to ${effectiveTargetStudents.length} records!`, type: 'success' });
       if (onDataUpdated) onDataUpdated();
     } catch (err) {
       console.error('Assign Dates error:', err);
@@ -4680,8 +4627,8 @@ export default function AdmissionRegisterSuite({
           s.formNo || '',
           s.status || '',
           s.isReadmission ? 'Re-admission' : 'Fresh',
-          s.onlineStatus || '',
-          s.admDate || '',
+          formatRegisterDate(s.onlineStatus) || s.onlineStatus || '',
+          formatRegisterDate(s.admDate) || s.admDate || '',
           s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' ? `${s.admNo || ''} (${s.oldAdmNo})` : (s.admNo || ''),
           s.oldAdmNo || '',
           s.class || '',
@@ -4689,7 +4636,7 @@ export default function AdmissionRegisterSuite({
           s.name || '',
           s.father || '',
           s.mother || '',
-          s.dobFigures || '',
+          formatRegisterDate(s.dobFigures) || s.dobFigures || '',
           s.dobWords || '',
           s.gender || '',
           s.village || '',
@@ -4711,7 +4658,7 @@ export default function AdmissionRegisterSuite({
           s.prevRoll || '',
           s.prevResult || '',
           s.prevCC || '',
-          s.withdrawal || '',
+          formatRegisterDate(s.withdrawal) || s.withdrawal || '',
           s.issuedCC || '',
           s.receipt || '',
           s.remarks || ''
@@ -4739,7 +4686,7 @@ export default function AdmissionRegisterSuite({
           { key: 'st_name', label: "Student's Name", get: s => s.name || '' },
           { key: 'st_parentage', label: "Father's Name", get: s => s.father || '' },
           { key: 'st_parentage', label: "Mother's Name", get: s => s.mother || '' },
-          { key: 'st_dob', label: 'Date of Birth', get: s => s.dobFigures || '' },
+          { key: 'st_dob', label: 'Date of Birth', get: s => formatRegisterDate(s.dobFigures) || s.dobFigures || '' },
           { key: 'st_subs', label: 'Subjects', get: s => s.subs || '' },
           { key: 'st_boardRoll', label: 'Board Roll No.', get: s => s.boardRollNo || '' },
           { key: 'st_result', label: 'Result', get: s => s.currentResult || '' },
@@ -4778,14 +4725,7 @@ export default function AdmissionRegisterSuite({
         XLSX.writeFile(wb, filename);
       }
 
-      setTaskProgress({
-        title: 'Export Complete',
-        step: 'Workbook downloaded successfully!',
-        progress: 100,
-        status: 'success',
-        icon: 'excel'
-      });
-      setTimeout(() => setTaskProgress(null), 700);
+      setTaskProgress(null);
       setToast({ message: '📊 Excel spreadsheet downloaded successfully!', type: 'success' });
     } catch (err) {
       console.error('Excel Export Error:', err);
@@ -7221,16 +7161,29 @@ export default function AdmissionRegisterSuite({
 
       {/* ─── TOAST NOTIFICATION ─── */}
       {toast && (
-        <div className="no-print fixed top-12 right-4 z-[9999] animate-bounce">
-          <div className={`px-3.5 py-2 rounded-xl shadow-xl border text-xs font-bold flex items-center gap-2 ${
+        <div
+          onClick={() => setToast(null)}
+          className="no-print fixed top-12 right-4 z-[9999] cursor-pointer transition-all animate-in fade-in slide-in-from-top-2 duration-150 select-none hover:opacity-95 active:scale-95"
+          title="Click to dismiss notification immediately"
+        >
+          <div className={`px-3 py-1.5 rounded-xl shadow-2xl border text-xs font-bold flex items-center gap-2 ${
             toast.type === 'success'
-              ? 'bg-emerald-600 text-white border-emerald-500'
+              ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-950/30'
               : toast.type === 'info'
-              ? 'bg-indigo-600 text-white border-indigo-500'
-              : 'bg-rose-600 text-white border-rose-500'
+              ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-950/30'
+              : 'bg-rose-600 text-white border-rose-500 shadow-rose-950/30'
           }`}>
             <span>{toast.message || toast.title || toast.desc}</span>
-            <button type="button" onClick={() => setToast(null)} className="opacity-80 hover:opacity-100 cursor-pointer ml-1">✕</button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setToast(null);
+              }}
+              className="opacity-75 hover:opacity-100 cursor-pointer ml-1 p-0.5 rounded hover:bg-black/20 text-xs"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
@@ -7741,7 +7694,7 @@ export default function AdmissionRegisterSuite({
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.father}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.mother}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.dobFigures}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{formatRegisterDate(s.dobFigures) || s.dobFigures || '—'}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-serif overflow-hidden">
                                       <div className="line-clamp-2 leading-tight">{s.dobWords}</div>
                                     </td>
@@ -7875,7 +7828,7 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7px] bg-emerald-50">
                                     {renderAdmittedVideCell(s.prevCC)}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{s.withdrawal}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{formatRegisterDate(s.withdrawal) || s.withdrawal || '—'}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden align-middle">
                                     {s.issuedCC ? (
                                       <div className="text-[6.5px] leading-tight font-medium line-clamp-2">{s.issuedCC}</div>
@@ -8675,7 +8628,7 @@ export default function AdmissionRegisterSuite({
                                 )}
                                 {isSentupColVisible('st_dob') && (
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">
-                                    <div className="font-bold text-[11px] text-slate-900">{s.dobFigures || '—'}</div>
+                                    <div className="font-bold text-[11px] text-slate-900">{formatRegisterDate(s.dobFigures) || s.dobFigures || '—'}</div>
                                     {s.inheritedSource?.fields?.includes('dob') && (
                                       <div className="text-[7.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight print:hidden">
                                         From {s.inheritedSource.class || 'Prev'}
@@ -9572,7 +9525,7 @@ export default function AdmissionRegisterSuite({
                                     {st.boardReg || '—'}
                                   </td>
                                   <td className="py-1 px-2 text-center font-mono text-[10.5px] text-slate-600 dark:text-slate-400">
-                                    {st.admDate || '—'}
+                                    {formatRegisterDate(st.admDate) || st.admDate || '—'}
                                   </td>
                                   <td className="py-1 px-2 text-center">
                                     <span className={`px-1.5 py-0.5 rounded text-[9.5px] font-black ${
@@ -9689,20 +9642,30 @@ export default function AdmissionRegisterSuite({
                 <div>
                   <div className="flex items-center justify-between mb-0.5">
                     <label className="text-[10.5px] font-bold text-slate-500">Select Date:</label>
-                    <button
-                      type="button"
-                      onClick={() => setAssignDateValue(new Date().toISOString().split('T')[0])}
-                      className="text-[9.5px] text-indigo-600 hover:underline cursor-pointer font-bold"
-                    >
-                      Today
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {assignDateValue && (
+                        <span className="text-[9.5px] font-mono font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950 px-1.5 py-0.2 rounded border border-indigo-200 dark:border-indigo-800" title="Selected Date in DD-MM-YYYY format">
+                          {formatRegisterDate(assignDateValue) || assignDateValue}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setAssignDateValue(new Date().toISOString().split('T')[0])}
+                        className="text-[9.5px] text-indigo-600 hover:underline cursor-pointer font-bold"
+                      >
+                        Today
+                      </button>
+                    </div>
                   </div>
                   <input
                     type="date"
                     value={assignDateValue}
                     onChange={(e) => setAssignDateValue(e.target.value)}
-                    className="w-full py-1 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold font-mono text-center"
+                    className="w-full py-1 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold font-mono text-center cursor-pointer"
                   />
+                  <div className="text-[9.5px] text-center text-slate-500 dark:text-slate-400 font-mono mt-0.5 font-bold">
+                    Target: <strong className="text-indigo-700 dark:text-indigo-300 font-black">{formatRegisterDate(assignDateValue) || 'DD-MM-YYYY'}</strong> (DD-MM-YYYY)
+                  </div>
                 </div>
 
                 <div>
@@ -10037,13 +10000,15 @@ export default function AdmissionRegisterSuite({
                               <td className="py-1 px-2 text-center font-mono ledger-mono-font text-slate-600 dark:text-slate-400">
                                 {st.admNo || '—'}
                               </td>
-                              <td className="py-1 px-2 font-mono text-slate-500 ledger-mono-font">
-                                {assignDateField === 'admDate' ? (st.admDate || '—') : (st.onlineStatus || '—')}
+                              <td className="py-1 px-2 font-mono text-slate-600 dark:text-slate-300 ledger-mono-font">
+                                {assignDateField === 'admDate'
+                                  ? (formatRegisterDate(st.admDate) || st.admDate || '—')
+                                  : (formatRegisterDate(st.onlineStatus) || st.onlineStatus || '—')}
                               </td>
                               <td className="py-1 px-2 text-right font-mono font-bold ledger-mono-font">
                                 {isSelected ? (
                                   <span className="text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
-                                    <span>{assignDateValue}</span>
+                                    <span className="font-mono font-black">{formatRegisterDate(assignDateValue) || assignDateValue}</span>
                                     <span className="px-1 py-0.2 rounded text-[9.5px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
                                       Will Apply
                                     </span>
