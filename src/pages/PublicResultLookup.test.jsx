@@ -836,6 +836,126 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(result.totalObtained).toBe(43);
     expect(result.evaluatedCount).toBe(2);
   });
+
+  test('computeScorecardSubjects renders correct Higher Secondary Science subjects and submitted awards for Muzamil Imtiyaz Bond (12th Science)', () => {
+    const verifiedCatalog = require('../data/verifiedStudentsCatalog.json');
+    const muzamil = verifiedCatalog.find(s => s.fNo === '250051');
+    expect(muzamil).toBeDefined();
+    expect(muzamil.name).toBe('Muzamil Imtiyaz Bond');
+    expect(muzamil.className).toBe('12th');
+    expect(muzamil.stream).toBe('Science');
+
+    // Must NOT have Class 10th Science or Social Science
+    expect(isSubjectCompatibleWithStream('SC', 'Science', 'Science', '12th')).toBe(false);
+    expect(isSubjectCompatibleWithStream('SS', 'Social Science', 'Science', '12th')).toBe(false);
+
+    const rawDocs = [
+      {
+        id: '12th_General English_Pre-Board Test_2025-26',
+        className: '12th',
+        subjectCode: 'EN',
+        subjectName: 'General English',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        status: 'approved',
+        maxMarks: 50,
+        records: [
+          { rollNo: '63', formNo: '250051', regNo: '2301000000610008', name: 'Muzamil Imtiyaz Bond', totalMarks: 31, practicalMarks: '31' }
+        ]
+      },
+      {
+        id: '12th_Physics_Pre-Board Test_2025-26',
+        className: '12th',
+        subjectCode: 'PH',
+        subjectName: 'Physics',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        status: 'approved',
+        maxMarks: 50,
+        records: [
+          { rollNo: '63', formNo: '250051', regNo: '2301000000610008', name: 'Muzamil Imtiyaz Bond', totalMarks: 27, practicalMarks: '27' }
+        ]
+      },
+      {
+        id: '12th_Chemistry_Pre-Board Test_2025-26',
+        className: '12th',
+        subjectCode: 'CH',
+        subjectName: 'Chemistry',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        status: 'approved',
+        maxMarks: 50,
+        records: [
+          { rollNo: '63', formNo: '250051', regNo: '2301000000610008', name: 'Muzamil Imtiyaz Bond', totalMarks: 19, practicalMarks: '19' }
+        ]
+      },
+      {
+        id: '12th_Botany_Pre-Board Test_2025-26',
+        className: '12th',
+        subjectCode: 'BO',
+        subjectName: 'Botany',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        status: 'approved',
+        maxMarks: 25,
+        records: [
+          { rollNo: '63', formNo: '250051', regNo: '2301000000610008', name: 'Muzamil Imtiyaz Bond', totalMarks: 14, practicalMarks: '14' }
+        ]
+      },
+      {
+        id: '12th_Healthcare_Pre-Board Test_2025-26',
+        className: '12th',
+        subjectCode: 'HTC',
+        subjectName: 'Healthcare',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        status: 'approved',
+        maxMarks: 50,
+        records: [
+          { rollNo: '63', formNo: '250051', regNo: '2301000000610008', name: 'Muzamil Imtiyaz Bond', totalMarks: 27, practicalMarks: '27' }
+        ]
+      }
+    ];
+
+    const deduplicated = filterAndDeduplicateSections(rawDocs, '12th', '2025-26', 'Pre-Board Test');
+    const matchRecord = (rec) => rec.formNo === '250051' || rec.rollNo === '63' || rec.regNo === '2301000000610008';
+
+    const result = computeScorecardSubjects({
+      matchedStudent: muzamil,
+      streamName: 'Science',
+      matchingSections: deduplicated,
+      matchRecord,
+      biologyDisplayMode: 'combined'
+    });
+
+    const subjectCodes = result.subjects.map(s => s.subjectCode);
+    expect(subjectCodes).not.toContain('SC');
+    expect(subjectCodes).not.toContain('SS');
+    expect(subjectCodes).toContain('EN');
+    expect(subjectCodes).toContain('BI');
+    expect(subjectCodes).toContain('PH');
+    expect(subjectCodes).toContain('CH');
+    expect(subjectCodes).toContain('HTC');
+
+    const eng = result.subjects.find(s => s.subjectCode === 'EN');
+    expect(eng.marksObtained).toBe(31);
+
+    const bio = result.subjects.find(s => s.subjectCode === 'BI');
+    expect(bio.marksObtained).toBe(14);
+    expect(bio.status).toContain('Good');
+
+    const phy = result.subjects.find(s => s.subjectCode === 'PH');
+    expect(phy.marksObtained).toBe(27);
+
+    const chem = result.subjects.find(s => s.subjectCode === 'CH');
+    expect(chem.marksObtained).toBe(19);
+
+    const htc = result.subjects.find(s => s.subjectCode === 'HTC');
+    expect(htc.marksObtained).toBe(27);
+
+    expect(result.totalObtained).toBe(118);
+    expect(result.evaluatedCount).toBe(5);
+  });
 });
 
 

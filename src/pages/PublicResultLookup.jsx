@@ -75,10 +75,25 @@ const SCIENCE_ONLY_SUBJECT_NAMES = ['physics', 'chemistry', 'botany', 'zoology',
 const HUMANITIES_ONLY_SUBJECT_CODES = new Set(['HT', 'PS', 'ED', 'SO', 'HS', 'PHIL', 'PSY', 'GEO']);
 const HUMANITIES_ONLY_SUBJECT_NAMES = ['history', 'political', 'education', 'sociology', 'philosophy', 'psychology', 'geography'];
 
-export const isSubjectCompatibleWithStream = (code, name, stream) => {
+export const isSubjectCompatibleWithStream = (code, name, stream, className) => {
   const normStream = String(stream || '').toLowerCase();
   const c = String(code || '').toUpperCase().trim();
   const n = String(name || '').toLowerCase();
+  const normClass = String(className || '').toLowerCase().trim();
+  const isSecondary = ['10th', '9th', '10', '9', 'x', 'ix'].includes(classKey(normClass)) || normClass.includes('10') || normClass.includes('9');
+
+  // Secondary-only subjects (SC: General Science, SS: Social Science) must NEVER be assigned to Higher Secondary (11th/12th)
+  // students or Higher Secondary streams (Science / Humanities)
+  if (!isSecondary && (normStream.includes('scien') || normStream.includes('human') || normStream.includes('art') || normClass.includes('11') || normClass.includes('12'))) {
+    if (c === 'SC' || c === 'SS' || n === 'science' || n === 'social science' || n === 'general science' || n.includes('class 10') || n.includes('class 9') || n.includes('social studies')) {
+      return false;
+    }
+  }
+
+  // Secondary (Class 9th/10th) students cannot take Higher Secondary specific stream subjects
+  if (isSecondary) {
+    if (['PH', 'CH', 'BO', 'ZO', 'PS', 'ED', 'HT', 'SO', 'EC'].includes(c)) return false;
+  }
 
   const isScienceSubj = SCIENCE_ONLY_SUBJECT_CODES.has(c) || SCIENCE_ONLY_SUBJECT_NAMES.some(s => n.includes(s));
   const isHumanitiesSubj = HUMANITIES_ONLY_SUBJECT_CODES.has(c) || HUMANITIES_ONLY_SUBJECT_NAMES.some(s => n.includes(s));
@@ -93,17 +108,28 @@ export const isSubjectCompatibleWithStream = (code, name, stream) => {
 };
 
 export const isSubjectEnrolledByStudent = (secCode, secName, student) => {
-  if (!Array.isArray(student?.subjects) || student.subjects.length === 0) {
-    const stream = student?.stream || (['11th', '12th'].includes(student?.className) ? 'Humanities' : 'General');
-    return isSubjectCompatibleWithStream(secCode, secName, stream);
-  }
-
+  const stream = student?.stream || (['11th', '12th'].includes(student?.className) ? 'Humanities' : 'General');
+  const cls = student?.className;
+  const isSec = ['10th', '9th', '10', '9', 'x', 'ix'].includes(classKey(cls));
   const c = String(secCode || '').toUpperCase().trim();
   const n = String(secName || '').toLowerCase();
 
-  return student.subjects.some(sub => {
-    const sCode = String(sub.code || '').toUpperCase().trim();
-    const sName = String(sub.name || '').toLowerCase();
+  // If subject is incompatible with stream or class, reject immediately
+  if (!isSubjectCompatibleWithStream(c, n, stream, cls)) return false;
+
+  // For Higher Secondary Science students, core subjects General English (EN), Physics (PH), and Chemistry (CH) are always enrolled
+  if (!isSec && String(stream).toLowerCase().includes('scien')) {
+    if (c === 'PH' || c === 'CH' || c === 'EN' || c === 'GE') return true;
+  }
+
+  const enrolled = extractEnrolledSubjects(student);
+  if (!Array.isArray(enrolled) || enrolled.length === 0) {
+    return isSubjectCompatibleWithStream(secCode, secName, stream, cls);
+  }
+
+  return enrolled.some(sub => {
+    const sCode = String(typeof sub === 'object' ? sub.code : sub || '').toUpperCase().trim();
+    const sName = String(typeof sub === 'object' ? sub.name : sub || '').toLowerCase();
 
     if (sCode === c) return true;
     if (sName === n) return true;
@@ -351,48 +377,89 @@ export function normalizeMarksToScale(rawMarks, rawMax = 50, targetMax = 50) {
 export function extractEnrolledSubjects(student) {
   if (!student || typeof student !== 'object') return [];
 
+  const normClass = String(student.className || student.Class || student.class || '').toLowerCase().trim();
+  const isSecondary = ['10th', '9th', '10', '9', 'x', 'ix'].includes(classKey(normClass)) || normClass.includes('10') || normClass.includes('9');
+
+  const sanitizeSubjList = (list) => {
+    if (!Array.isArray(list)) return [];
+    return list.filter(sub => {
+      const code = String(typeof sub === 'object' ? sub.code : sub || '').toUpperCase().trim();
+      const name = String(typeof sub === 'object' ? sub.name : sub || '').toLowerCase();
+      // If student is in Class 11th or 12th, Class 10th subjects SC and SS are invalid
+      if (!isSecondary) {
+        if (code === 'SC' || code === 'SS' || name.includes('class 10th') || name.includes('class 9th') || name === 'science' || name === 'social science' || name.includes('social studies')) {
+          return false;
+        }
+      }
+      return true;
+    });
+  };
+
   // 1. Direct array of objects or strings
+  let rawList = [];
   if (Array.isArray(student.subjects) && student.subjects.length > 0) {
-    return student.subjects;
+    rawList = student.subjects;
+  } else if (Array.isArray(student.selectedSubjects) && student.selectedSubjects.length > 0) {
+    rawList = student.selectedSubjects;
+  } else if (Array.isArray(student.expectedSubjectCodes) && student.expectedSubjectCodes.length > 0) {
+    rawList = student.expectedSubjectCodes;
   }
-  if (Array.isArray(student.selectedSubjects) && student.selectedSubjects.length > 0) {
-    return student.selectedSubjects;
-  }
-  if (Array.isArray(student.expectedSubjectCodes) && student.expectedSubjectCodes.length > 0) {
-    return student.expectedSubjectCodes;
+
+  // Check 11th/12th admission form subjects if student is in 11th/12th and rawList is empty or contaminated with 10th subjects
+  const isContaminatedWithSecondary = !isSecondary && rawList.some(s => {
+    const c = String(typeof s === 'object' ? s.code : s || '').toUpperCase().trim();
+    return c === 'SC' || c === 'SS';
+  });
+
+  if (rawList.length === 0 || isContaminatedWithSecondary) {
+    const altSubs = student['Subjects Studied in Class 11th'] ||
+                    student['Subjects to be taken in Class 12th'] ||
+                    student['Subjects to be taken in Class 11th'] ||
+                    (student['Stream & Subjects for Class 12th'] && !/same as/i.test(student['Stream & Subjects for Class 12th']) ? student['Stream & Subjects for Class 12th'] : '');
+    if (typeof altSubs === 'string' && altSubs.trim()) {
+      const parts = altSubs.split(/[,;|+]/).map(s => s.trim()).filter(Boolean);
+      if (parts.length > 0) {
+        rawList = parts;
+      }
+    }
   }
 
   // 2. Individual numbered slots (subjects1..subjects6, subject1..subject6, Subject 1..Subject 6, etc.)
-  const slotValues = [];
-  for (let i = 1; i <= 6; i++) {
-    const val = student[`subjects${i}`] || student[`Subjects${i}`] ||
-                student[`subject${i}`] || student[`Subject${i}`] ||
-                student[`Subject ${i}`] || student[`sub${i}`] || student[`Sub${i}`] ||
-                student[`subject_${i}`] || student[`subjects_${i}`];
-    if (val && typeof val === 'string' && val.trim() && val.trim() !== '-' && val.trim() !== '—') {
-      slotValues.push(val.trim());
+  if (rawList.length === 0) {
+    const slotValues = [];
+    for (let i = 1; i <= 6; i++) {
+      const val = student[`subjects${i}`] || student[`Subjects${i}`] ||
+                  student[`subject${i}`] || student[`Subject${i}`] ||
+                  student[`Subject ${i}`] || student[`sub${i}`] || student[`Sub${i}`] ||
+                  student[`subject_${i}`] || student[`subjects_${i}`];
+      if (val && typeof val === 'string' && val.trim() && val.trim() !== '-' && val.trim() !== '—') {
+        slotValues.push(val.trim());
+      }
     }
-  }
-  if (slotValues.length > 0) {
-    return slotValues;
+    if (slotValues.length > 0) {
+      rawList = slotValues;
+    }
   }
 
   // 3. Delimited string fields: subjects, subs, 'Subjects to be taken in Class 10th', etc.
-  const combinedRaw = student.subjects || student.Subjects || student.subs || student.Subs ||
-                      student.selectedSubjects || student.subjectList ||
-                      student['Subjects to be taken in Class 10th'] ||
-                      student['Subjects to be taken in Class 11th'] ||
-                      student['Subjects to be taken in Class 12th'] ||
-                      student['Subjects Studied in Class 10th'] ||
-                      student['Subjects Offered'] || '';
-  if (typeof combinedRaw === 'string' && combinedRaw.trim()) {
-    const parts = combinedRaw.split(/[,;|+]/).map(s => s.trim()).filter(Boolean);
-    if (parts.length > 0) {
-      return parts;
+  if (rawList.length === 0) {
+    const combinedRaw = student.subjects || student.Subjects || student.subs || student.Subs ||
+                        student.selectedSubjects || student.subjectList ||
+                        student['Subjects Studied in Class 11th'] ||
+                        student['Subjects to be taken in Class 12th'] ||
+                        student['Subjects to be taken in Class 11th'] ||
+                        student['Subjects to be taken in Class 10th'] ||
+                        student['Subjects Studied in Class 10th'] ||
+                        student['Subjects Offered'] || '';
+    if (typeof combinedRaw === 'string' && combinedRaw.trim()) {
+      const parts = combinedRaw.split(/[,;|+]/).map(s => s.trim()).filter(Boolean);
+      if (parts.length > 0) {
+        rawList = parts;
+      }
     }
   }
 
-  return [];
+  return sanitizeSubjList(rawList);
 }
 
 /**
@@ -647,6 +714,35 @@ export function computeScorecardSubjects({
         defaultMax
       };
     });
+
+    if (!isSecondary) {
+      // 1. Strictly purge secondary-only subjects (SC and SS) from Higher Secondary student templates
+      rawTemplate = rawTemplate.filter(t => t.code !== 'SC' && t.code !== 'SS' && !/class 10|class 9|social science/i.test(t.name || ''));
+
+      // 2. Guarantee mandatory core Higher Secondary subjects for Science stream
+      if (isScience) {
+        const hasEN = rawTemplate.some(t => t.code === 'EN' || t.code === 'GE' || /english/i.test(t.name || ''));
+        const hasPH = rawTemplate.some(t => t.code === 'PH' || /physics/i.test(t.name || ''));
+        const hasCH = rawTemplate.some(t => t.code === 'CH' || /chemistry/i.test(t.name || ''));
+        if (!hasEN) rawTemplate.unshift({ code: 'EN', name: 'General English', defaultMax: 50 });
+        if (!hasPH) rawTemplate.push({ code: 'PH', name: 'Physics', defaultMax: 50 });
+        if (!hasCH) rawTemplate.push({ code: 'CH', name: 'Chemistry', defaultMax: 50 });
+      }
+
+      // 3. Fallback if rawTemplate became empty after purging
+      if (rawTemplate.length === 0) {
+        if (isScience) {
+          rawTemplate = [
+            { code: 'EN', name: 'General English', defaultMax: 50 },
+            { code: 'PH', name: 'Physics', defaultMax: 50 },
+            { code: 'CH', name: 'Chemistry', defaultMax: 50 },
+            { code: 'ES', name: 'Environmental Science', defaultMax: 50 }
+          ];
+        } else {
+          rawTemplate = (STANDARD_STREAM_SUBJECTS.Humanities || []).map(s => ({ ...s }));
+        }
+      }
+    }
 
     if (isSecondary) {
       const hasVocational = rawTemplate.some(t =>
@@ -1028,15 +1124,17 @@ export function computeScorecardSubjects({
       const hasEnglishAlready = finalSubjectsList.some(s => s.subjectCode === 'EN' || s.subjectCode === 'GE' || /english/i.test(s.subjectName || ''));
       if (isEnglishSec && hasEnglishAlready) return;
 
-      if (!isSubjectCompatibleWithStream(secCode, secName, streamName)) return;
-
-      if (Array.isArray(matchedStudent?.subjects) && matchedStudent.subjects.length > 0) {
-        if (!isSubjectEnrolledByStudent(secCode, secName, matchedStudent)) return;
-      }
+      if (!isSubjectCompatibleWithStream(secCode, secName, streamName, normClass)) return;
 
       const rec = (sec.records || []).find(matchRecord);
-      if (rec) {
-        const rawMark = rec.totalMarks ?? rec.practicalMarks;
+      if (!rec) return;
+
+      const rawMark = rec.totalMarks ?? rec.practicalMarks;
+      const hasTeacherMark = rawMark !== null && rawMark !== undefined && rawMark !== '';
+
+      if (Array.isArray(matchedStudent?.subjects) && matchedStudent.subjects.length > 0) {
+        if (!hasTeacherMark && !isSubjectEnrolledByStudent(secCode, secName, matchedStudent)) return;
+      }
         const docMax = Number(sec.maxMarks) || 50;
         const norm = normalizeMarksToScale(rawMark, docMax, 50);
         const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
@@ -1060,7 +1158,6 @@ export function computeScorecardSubjects({
           badgeClass: desc.badgeClass,
           componentNote: norm.rawScore && docMax !== 50 ? `Raw Paper: ${norm.rawScore}` : null
         });
-      }
     }
   });
 

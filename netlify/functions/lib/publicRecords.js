@@ -39,7 +39,11 @@ function studentProjection(data) {
     className: first(data, ['classCanonical', 'Admission sought for class', 'Class', 'className', 'class']),
     session: first(data, ['sessionCanonical', 'Session', 'session', 'Academic Session']),
     stream: first(data, ['Stream', 'stream', 'Stream for Class 11th', 'Stream for Class 12th']),
-    subjects: first(data, ['Subjects', 'subjects', 'selectedSubjects', 'subs', 'Subs', 'Subjects to be taken in Class 10th', 'Subjects to be taken in Class 11th', 'Subjects to be taken in Class 12th', 'Subjects Studied in Class 10th', 'Subjects Offered']) ||
+    subjects: first(data, [
+      'Subjects', 'subjects', 'selectedSubjects', 'subs', 'Subs',
+      'Subjects to be taken in Class 12th', 'Subjects Studied in Class 11th', 'Subjects to be taken in Class 11th',
+      'Subjects to be taken in Class 10th', 'Subjects Studied in Class 10th', 'Subjects Offered'
+    ]) ||
       Array.from({ length: 6 }, (_, index) => data[`Subjects${index + 1}`] || data[`subject${index + 1}`] || data[`Subject ${index + 1}`] || data[`subjects${index + 1}`]).filter(Boolean)
   };
 }
