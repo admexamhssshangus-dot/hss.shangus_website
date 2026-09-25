@@ -22,23 +22,41 @@ export default function Slideshow({
     }
     return [];
   });
-  const [loadedIndices, setLoadedIndices] = useState(() => new Set([0, 1]));
+  const [loadedIndices, setLoadedIndices] = useState(() => new Set([0]));
 
   // Reset loaded indices if slides list changes
   useEffect(() => {
-    setLoadedIndices(new Set([0, 1]));
+    setLoadedIndices(new Set([0]));
   }, [slides]);
 
-  // Track loaded indices to lazy load images (current and next slide)
+  // Track loaded indices to lazy load next slide in idle time without competing with initial LCP
   useEffect(() => {
-    if (slides && slides.length > 0) {
-      setLoadedIndices((prev) => {
-        const nextSet = new Set(prev);
-        nextSet.add(index);
-        nextSet.add((index + 1) % slides.length);
-        return nextSet.size === prev.size ? prev : nextSet;
-      });
+    let timerId = null;
+    let idleId = null;
+
+    const preloadNext = () => {
+      if (slides && slides.length > 0) {
+        setLoadedIndices((prev) => {
+          const nextSet = new Set(prev);
+          nextSet.add(index);
+          nextSet.add((index + 1) % slides.length);
+          return nextSet.size === prev.size ? prev : nextSet;
+        });
+      }
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(preloadNext, { timeout: 2500 });
+    } else if (typeof window !== 'undefined') {
+      timerId = setTimeout(preloadNext, 2000);
     }
+
+    return () => {
+      if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timerId) clearTimeout(timerId);
+    };
   }, [index, slides]);
 
   // Build slides from customSlides if provided
@@ -224,7 +242,7 @@ export default function Slideshow({
                         src={s.image}
                         alt={s.title || "Govt HSS Shangus"}
                         fetchPriority={i === 0 ? "high" : "auto"}
-                        decoding={i === 0 ? "sync" : "async"}
+                        decoding="async"
                         loading={i === 0 ? "eager" : "lazy"}
                         className={`max-w-full max-h-full object-contain rounded-md sm:rounded-lg shadow-[0_15px_40px_rgba(0,0,0,0.85)] drop-shadow-2xl border border-white/10 ${imageAnimClass}`}
                       />
@@ -239,7 +257,7 @@ export default function Slideshow({
                       src={s.image}
                       alt={s.title || "Govt HSS Shangus"}
                       fetchPriority={i === 0 ? "high" : "auto"}
-                      decoding={i === 0 ? "sync" : "async"}
+                      decoding="async"
                       loading={i === 0 ? "eager" : "lazy"}
                       className={`w-full h-full object-cover object-center ${imageAnimClass}`}
                     />
@@ -253,7 +271,7 @@ export default function Slideshow({
                       src={s.image}
                       alt={s.title || "Govt HSS Shangus"}
                       fetchPriority={i === 0 ? "high" : "auto"}
-                      decoding={i === 0 ? "sync" : "async"}
+                      decoding="async"
                       loading={i === 0 ? "eager" : "lazy"}
                       className={`max-w-full max-h-full object-contain rounded-md shadow-2xl ${imageAnimClass}`}
                     />
@@ -267,7 +285,7 @@ export default function Slideshow({
                       src={s.image}
                       alt={s.title || "Govt HSS Shangus"}
                       fetchPriority={i === 0 ? "high" : "auto"}
-                      decoding={i === 0 ? "sync" : "async"}
+                      decoding="async"
                       loading={i === 0 ? "eager" : "lazy"}
                       className={`w-full h-full object-fill ${imageAnimClass}`}
                     />

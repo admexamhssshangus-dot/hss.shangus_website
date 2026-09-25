@@ -516,8 +516,6 @@ export default function Home() {
   return (
     <div className="public-page w-full">
       <SEO title="Home" description="Official website of Govt. Higher Secondary School Shangus. Explore latest notices, school admissions process, ERP portals, and details from Principal." image="/slides/searchtn.jpg" />
-      {/* Hidden img tag to prompt search engine snippet crawlers to prioritize the school building image */}
-      <img src="/slides/searchtn.jpg" alt="Govt. Higher Secondary School Shangus Campus" className="sr-only" aria-hidden="true" loading="lazy" decoding="async" />
       <div className="hero-container relative w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden isolate">
         
         {/* Background slideshow: using dynamic config with public fallback */}

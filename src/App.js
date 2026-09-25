@@ -2,8 +2,6 @@ import React, { useEffect, Suspense } from 'react';
 import { portalArea } from './utils/portalRole';
 import { Routes, Route, Navigate, useLocation, useOutletContext } from 'react-router-dom';
 import Navbar from './components/Navbar';
-import Footer from './components/Footer';
-import ThemeSelector from './components/ThemeSelector';
 import PublicPageSkeleton from './components/PublicPageSkeleton';
 import SEOHead from './components/SEOHead';
 import GlobalToast from './components/common/GlobalToast';
@@ -14,6 +12,9 @@ import './styles/ui-system.css';
 
 // Lazy-loaded route components with chunk recovery
 import { lazyWithChunkRecovery } from './utils/lazyWithChunkRecovery';
+
+const Footer = lazyWithChunkRecovery(() => import('./components/Footer'), 'footer');
+const ThemeSelector = lazyWithChunkRecovery(() => import('./components/ThemeSelector'), 'theme-selector');
 
 const Home = lazyWithChunkRecovery(() => import('./pages/Home'), 'home');
 const About = lazyWithChunkRecovery(() => import('./pages/About'), 'about');
@@ -188,10 +189,14 @@ function App() {
         </main>
 
         {/* The Footer will always show at the bottom */}
-        <Footer />
+        <Suspense fallback={null}>
+          <Footer />
+        </Suspense>
         
         {/* Floating Theme Selector Toggle */}
-        <ThemeSelector />
+        <Suspense fallback={null}>
+          <ThemeSelector />
+        </Suspense>
 
         {/* Universal Application Toast / Alert Container */}
         <GlobalToast />
