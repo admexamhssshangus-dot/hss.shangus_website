@@ -4812,13 +4812,13 @@ export default function AdmissionRegisterSuite({
 
   // Strict page height budget: A4 is 210mm high, Legal is 215.9mm high.
   // We budget ~175mm total height so that both Part 1, Part 2, and Sentup sheets NEVER overflow onto 2 pages.
-  // Admission Register budget: Header (10mm) + margin (1mm) + thead (11mm) + signatures (10.5mm) + margin (1mm) = 33.5mm.
-  // Printable body budget = 141mm. For 15 rows: 9.4mm per row. Total = 174.5mm (fits cleanly on 180mm page).
-  const registerRowHeightMm = Math.max(5.5, Math.floor((141.0 / (studentsPerPage || 15)) * 10) / 10).toFixed(1);
+  // Admission Register budget: Header (10.5mm) + margin (1mm) + thead (11mm) + signatures (10.5mm) + margin (1mm) = 34mm.
+  // Printable body budget = 145.5mm. For 15 rows: 9.7mm per row. Total = 179.5mm (fits cleanly on 189.68mm printable A4).
+  const registerRowHeightMm = Math.max(5.5, Math.floor((145.5 / (studentsPerPage || 15)) * 10) / 10).toFixed(1);
 
-  // Sentup Roll Sheet budget: Header (10mm) + margin (1mm) + thead (6mm) + signatures (7.5mm) + margin (1mm) = 25.5mm.
-  // Printable body budget = 146mm. For 10 rows: 14.6mm per row. Total = 171.5mm (fits cleanly on 180mm page).
-  const sentupRowHeightMm = Math.max(6.0, Math.floor((146.0 / (sentupStudentsPerPage || 10)) * 10) / 10).toFixed(1);
+  // Sentup Roll Sheet budget: Header (10.5mm) + margin (1mm) + thead (6mm) + signatures (8.0mm) + margin (1mm) = 26.5mm.
+  // Printable body budget = 148mm. For 10 rows: 14.8mm per row. Total = 174.5mm (fits cleanly on 189.68mm printable A4).
+  const sentupRowHeightMm = Math.max(6.0, Math.floor((148.0 / (sentupStudentsPerPage || 10)) * 10) / 10).toFixed(1);
 
   const calculatedRowHeightMm = activeTab === 'sentup' ? sentupRowHeightMm : registerRowHeightMm;
 
@@ -4828,7 +4828,7 @@ export default function AdmissionRegisterSuite({
       <style>{`
         @page {
           size: ${pageSizeCss};
-          margin: 4mm 5mm;
+          margin: ${printMargin}in;
         }
         @media print {
           *, *::before, *::after {
@@ -4944,7 +4944,8 @@ export default function AdmissionRegisterSuite({
             min-width: 100% !important;
             max-width: 100% !important;
             height: auto !important;
-            max-height: 178mm !important;
+            min-height: 0 !important;
+            max-height: none !important;
             padding: 0 !important;
             margin: 0 !important;
             border: none !important;
@@ -4956,7 +4957,7 @@ export default function AdmissionRegisterSuite({
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
             background: #ffffff !important;
-            overflow: hidden !important;
+            overflow: visible !important;
           }
 
           /* ─── DUAL-PART ADMISSION REGISTER (PART 1 & PART 2 IDENTICAL SUB-MILLIMETER ROW ALIGNMENT) ─── */
@@ -4966,14 +4967,15 @@ export default function AdmissionRegisterSuite({
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
-            height: 178mm !important;
-            max-height: 178mm !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
             box-sizing: border-box !important;
             padding: 0 !important;
             margin: 0 !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
 
@@ -5143,7 +5145,7 @@ export default function AdmissionRegisterSuite({
           }
 
           /* General cell inner element containment to prevent row stretching */
-          .admission-spread-table tbody tr > td > div,
+          .admission-spread-table tbody tr > td > div:not(.register-photo-inner),
           .admission-spread-table tbody tr > td > span {
             max-height: calc(${registerRowHeightMm}mm - 0.2mm) !important;
             overflow: hidden !important;
@@ -5223,15 +5225,20 @@ export default function AdmissionRegisterSuite({
             text-align: center !important;
           }
 
-          .register-photo-cell > div {
+          .register-photo-inner {
             height: ${registerRowHeightMm}mm !important;
             max-height: ${registerRowHeightMm}mm !important;
+            width: 100% !important;
             overflow: hidden !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             padding: 0.1mm !important;
             box-sizing: border-box !important;
+          }
+
+          .photo-fallback.hidden {
+            display: none !important;
           }
 
           .admission-spread-table th[data-col="sno"],
@@ -5355,9 +5362,9 @@ export default function AdmissionRegisterSuite({
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
-            height: 176mm !important;
+            height: auto !important;
             min-height: 0 !important;
-            max-height: 176mm !important;
+            max-height: none !important;
             box-sizing: border-box !important;
             padding: 0 !important;
             margin: 0 !important;
@@ -5365,7 +5372,7 @@ export default function AdmissionRegisterSuite({
             break-inside: avoid-page !important;
             page-break-after: always !important;
             break-after: page !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
 
@@ -5518,7 +5525,7 @@ export default function AdmissionRegisterSuite({
             overflow: hidden !important;
           }
 
-          .sentup-table tbody tr > td > div:not(.st-receipt-inner),
+          .sentup-table tbody tr > td > div:not(.st-receipt-inner):not(.sentup-photo-inner),
           .sentup-table tbody tr > td > span {
             max-height: calc(${sentupRowHeightMm}mm - 0.4mm) !important;
             overflow: hidden !important;
@@ -5530,10 +5537,25 @@ export default function AdmissionRegisterSuite({
             width: 12mm !important;
             min-width: 10mm !important;
             max-width: 14mm !important;
-            padding: 0.1mm !important;
+            height: ${sentupRowHeightMm}mm !important;
+            min-height: ${sentupRowHeightMm}mm !important;
+            max-height: ${sentupRowHeightMm}mm !important;
+            padding: 0 !important;
             text-align: center !important;
             vertical-align: middle !important;
             overflow: hidden !important;
+            box-sizing: border-box !important;
+          }
+
+          .sentup-photo-inner {
+            height: ${sentupRowHeightMm}mm !important;
+            max-height: ${sentupRowHeightMm}mm !important;
+            width: 100% !important;
+            overflow: hidden !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0.1mm !important;
             box-sizing: border-box !important;
           }
 
@@ -7744,8 +7766,8 @@ export default function AdmissionRegisterSuite({
                                   <ResizableDataRow key={`chunk_row_p1_${s.id || ''}_${idx}`} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50 group">
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.sno}</td>
                                     <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined }}>
-                                      {photoSrc ? (
-                                        <div className="w-full h-full flex items-center justify-center p-0.5">
+                                      <div className="register-photo-inner w-full h-full flex items-center justify-center p-0.5 overflow-hidden">
+                                        {photoSrc ? (
                                           <img
                                             src={photoSrc}
                                             alt={s.name}
@@ -7754,15 +7776,14 @@ export default function AdmissionRegisterSuite({
                                             loading="eager"
                                             onError={(e) => {
                                               e.currentTarget.style.display = 'none';
-                                              if (e.currentTarget.parentElement && e.currentTarget.parentElement.nextElementSibling) {
-                                                e.currentTarget.parentElement.nextElementSibling.style.display = 'flex';
-                                              }
+                                              const fb = e.currentTarget.parentElement?.querySelector('.photo-fallback');
+                                              if (fb) fb.classList.remove('hidden');
                                             }}
                                           />
-                                        </div>
-                                      ) : null}
-                                      <div className={`w-full h-full items-center justify-center text-[7px] text-slate-400 font-bold ${photoSrc ? 'hidden' : 'flex'}`}>
-                                        Photo
+                                        ) : null}
+                                        <span className={`photo-fallback text-[7px] text-slate-400 font-bold select-none ${photoSrc ? 'hidden' : 'block'}`}>
+                                          Photo
+                                        </span>
                                       </div>
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700 ledger-mono-font">{s.rollNo}</td>
@@ -8684,8 +8705,8 @@ export default function AdmissionRegisterSuite({
                                 )}
                                 {isSentupColVisible('st_photo') && (
                                   <td className="sentup-photo-cell register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined, height: `${rowHeight}px` }}>
-                                    {photoSrc ? (
-                                      <div className="w-full h-full flex items-center justify-center p-0.5">
+                                    <div className="sentup-photo-inner w-full h-full flex items-center justify-center p-0.5 overflow-hidden">
+                                      {photoSrc ? (
                                         <img
                                           src={photoSrc}
                                           alt={s.name}
@@ -8694,15 +8715,14 @@ export default function AdmissionRegisterSuite({
                                           loading="eager"
                                           onError={(e) => {
                                             e.currentTarget.style.display = 'none';
-                                            if (e.currentTarget.parentElement && e.currentTarget.parentElement.nextElementSibling) {
-                                              e.currentTarget.parentElement.nextElementSibling.style.display = 'flex';
-                                            }
+                                            const fb = e.currentTarget.parentElement?.querySelector('.photo-fallback');
+                                            if (fb) fb.classList.remove('hidden');
                                           }}
                                         />
-                                      </div>
-                                    ) : null}
-                                    <div className={`w-full h-full items-center justify-center text-[8.5px] text-slate-400 font-bold ${photoSrc ? 'hidden' : 'flex'}`}>
-                                      Photo
+                                      ) : null}
+                                      <span className={`photo-fallback text-[8.5px] text-slate-400 font-bold select-none ${photoSrc ? 'hidden' : 'block'}`}>
+                                        Photo
+                                      </span>
                                     </div>
                                   </td>
                                 )}
