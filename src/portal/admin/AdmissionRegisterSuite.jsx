@@ -1191,6 +1191,7 @@ export default function AdmissionRegisterSuite({
   const [showSentupColsPopover, setShowSentupColsPopover] = useState(false);
   const filtersPopoverRef = useRef(null);
   const viewPopoverRef = useRef(null);
+  const viewModalPanelRef = useRef(null);
   const sentupColsPopoverRef = useRef(null);
 
   // Sentup Table Column Visibility State (Persisted in Local Storage)
@@ -1759,7 +1760,11 @@ export default function AdmissionRegisterSuite({
       if (filtersPopoverRef.current && !filtersPopoverRef.current.contains(e.target)) {
         setShowFiltersPopover(false);
       }
-      if (viewPopoverRef.current && !viewPopoverRef.current.contains(e.target)) {
+      if (
+        viewPopoverRef.current &&
+        !viewPopoverRef.current.contains(e.target) &&
+        (!viewModalPanelRef.current || !viewModalPanelRef.current.contains(e.target))
+      ) {
         setShowViewPopover(false);
       }
       if (sentupColsPopoverRef.current && !sentupColsPopoverRef.current.contains(e.target)) {
@@ -4743,18 +4748,17 @@ export default function AdmissionRegisterSuite({
   const pageSizeCss = isA4 ? 'a4 landscape' : (isStandardLegal ? 'legal landscape' : '13.7in 8.5in');
 
   const printMarginMm = Math.max(2.5, Math.min(20, printMargin * 25.4));
-  // Account for browser print engine margins (such as Chrome Save as PDF default margins of ~10-12mm)
-  const effectiveMarginMm = Math.max(12.0, printMarginMm);
-  const printableHeightMm = Math.max(130, paperHeightMm - (effectiveMarginMm * 2) - 4.0);
+  // Total printable height inside the @page margins with safety threshold
+  const printableHeightMm = Math.max(130, paperHeightMm - (printMarginMm * 2) - 1.5);
 
   const currentStudentsPerPage = activeTab === 'sentup' ? (sentupStudentsPerPage || 10) : (studentsPerPage || 15);
   // Allowance for top school header, thead, and signature footer:
-  // Sentup: sentup-header (12mm) + margin (1.2mm) + thead (6.5mm) + signature-footer (8.5mm) + margin (1.5mm) + borders (2mm) = 31.7mm -> safe allowance 36mm
-  // Register: register-header (12mm) + margin (1.5mm) + thead (14mm) + signature-footer (13.5mm) + margin (1.5mm) + borders (2mm) = 44.5mm -> safe allowance 50mm
-  const headerFooterAllowanceMm = activeTab === 'sentup' ? 36.0 : 50.0;
+  // Sentup: sentup-header (12mm) + margin (1.2mm) + thead (6.5mm) + signature-footer (8.5mm) + margin (1.5mm) + borders (1.5mm) = 31.2mm -> allowance 32.5mm
+  // Register: register-header (12mm) + margin (1.5mm) + thead (14mm) + signature-footer (13.5mm) + margin (1.5mm) + borders (1.5mm) = 42.5mm -> allowance 44.0mm
+  const headerFooterAllowanceMm = activeTab === 'sentup' ? 32.5 : 44.0;
   const maxFittingRowMm = (printableHeightMm - headerFooterAllowanceMm) / currentStudentsPerPage;
-  // Floor to 1 decimal place with 0.3mm safety buffer to guarantee zero page overflow in Blink:
-  const calculatedRowHeightMm = Math.max(5.5, Math.floor((maxFittingRowMm - 0.3) * 10) / 10).toFixed(1);
+  // Floor to 1 decimal place with a tiny 0.05mm safety buffer to guarantee zero page overflow in Blink:
+  const calculatedRowHeightMm = Math.max(6.0, Math.floor((maxFittingRowMm - 0.05) * 10) / 10).toFixed(1);
 
   return (
     <div ref={suiteRootRef} className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
@@ -5081,7 +5085,7 @@ export default function AdmissionRegisterSuite({
           /* General cell inner element containment to prevent row stretching */
           .admission-spread-table tbody tr > td > div,
           .admission-spread-table tbody tr > td > span {
-            max-height: calc(${calculatedRowHeightMm}mm - 0.3mm) !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 0.2mm) !important;
             overflow: hidden !important;
             line-height: 1.05 !important;
           }
@@ -5093,28 +5097,60 @@ export default function AdmissionRegisterSuite({
             -webkit-box-orient: vertical !important;
             overflow: hidden !important;
             white-space: normal !important;
-            font-size: 6.2px !important;
-            line-height: 1.05 !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '5.2px' : '5.8px'} !important;
+            line-height: 1.02 !important;
             max-height: calc(${calculatedRowHeightMm}mm - 0.3mm) !important;
           }
 
           /* Board Registration formatting in Print */
           .admission-spread-table .st-reg-split,
           .admission-spread-table .st-reg-split span {
-            font-size: ${currentStudentsPerPage >= 16 ? '6.0px' : '6.8px'} !important;
-            line-height: 1.02 !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '5.6px' : '6.2px'} !important;
+            line-height: 1.0 !important;
             white-space: nowrap !important;
           }
 
           /* Form No & Online status sizing in Print */
-          .admission-spread-table td div.font-bold {
-            font-size: 6.8px !important;
-            line-height: 1.02 !important;
+          .admission-spread-table tbody tr > td:nth-child(4) div.font-bold {
+            font-size: ${currentStudentsPerPage >= 16 ? '5.8px' : '6.5px'} !important;
+            line-height: 1.0 !important;
+          }
+
+          .admission-spread-table tbody tr > td:nth-child(4) div.text-\[6\.5px\] {
+            font-size: ${currentStudentsPerPage >= 16 ? '5.0px' : '5.6px'} !important;
+            line-height: 1.0 !important;
+            margin-top: 0 !important;
+          }
+
+          .admission-spread-table tbody tr > td:nth-child(4) span {
+            font-size: ${currentStudentsPerPage >= 16 ? '5.0px' : '5.6px'} !important;
+            line-height: 1.0 !important;
+          }
+
+          /* Admission No and Old Adm No in Print */
+          .admission-spread-table tbody tr > td:nth-child(6) div.ledger-mono-font {
+            font-size: ${currentStudentsPerPage >= 16 ? '6.5px' : '7.2px'} !important;
+            line-height: 1.0 !important;
+          }
+
+          .admission-spread-table tbody tr > td:nth-child(6) div.text-\[7\.5px\] {
+            font-size: ${currentStudentsPerPage >= 16 ? '5.2px' : '5.8px'} !important;
+            line-height: 1.0 !important;
+          }
+
+          /* Candidate Name cell in Print */
+          .admission-spread-table td.group\/name-cell > div,
+          .admission-spread-table td div.font-black.uppercase {
+            font-size: ${currentStudentsPerPage >= 16 ? '6.0px' : '6.8px'} !important;
+            line-height: 1.05 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
           }
 
           /* Photo cell strict containment on Part 1 */
           .register-photo-cell {
-            padding: 0.1mm !important;
+            padding: 0 !important;
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
             max-height: ${calculatedRowHeightMm}mm !important;
@@ -5128,13 +5164,14 @@ export default function AdmissionRegisterSuite({
           }
 
           .register-photo-cell > div {
-            height: 100% !important;
-            max-height: calc(${calculatedRowHeightMm}mm - 0.2mm) !important;
+            height: ${calculatedRowHeightMm}mm !important;
+            max-height: ${calculatedRowHeightMm}mm !important;
             overflow: hidden !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            padding: 0 !important;
+            padding: 0.2mm !important;
+            box-sizing: border-box !important;
           }
 
           .admission-spread-table th[data-col="sno"],
@@ -5146,10 +5183,10 @@ export default function AdmissionRegisterSuite({
           }
 
           .register-photo-cell img {
+            height: calc(${calculatedRowHeightMm}mm - 0.6mm) !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 0.6mm) !important;
             width: auto !important;
-            max-width: 100% !important;
-            height: auto !important;
-            max-height: calc(${calculatedRowHeightMm}mm - 0.4mm) !important;
+            max-width: 9.5mm !important;
             object-fit: contain !important;
             object-position: center center !important;
             display: block !important;
@@ -6427,6 +6464,7 @@ export default function AdmissionRegisterSuite({
                       }}
                     >
                       <div
+                        ref={viewModalPanelRef}
                         className="register-popover-panel relative w-full max-w-2xl lg:max-w-3xl my-auto max-h-[92vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-300 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 text-slate-900 dark:text-slate-100"
                         onClick={(e) => e.stopPropagation()}
                       >
