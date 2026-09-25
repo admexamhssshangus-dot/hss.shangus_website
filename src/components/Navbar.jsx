@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Phone, Mail, X, Menu, Lock, LogOut, User } from 'lucide-react';
 import { sessionManager } from '../services/sessionManager';
-import ConfirmModal from '../portal/components/ConfirmModal';
 import { showToast } from './common/GlobalToast';
 
 // 1. IMPORT YOUR LOCAL LOGO HERE 
 import schoolLogo from '../images/logo.png';
+
+const ConfirmModal = React.lazy(() => import('../portal/components/ConfirmModal'));
 
 // WhatsApp SVG Icon component
 function WhatsAppIcon({ size = 12, className = '' }) {
@@ -607,17 +608,21 @@ export default function Navbar() {
       </header>
 
       {/* Sleek Custom Logout Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showLogoutModal}
-        onClose={() => setShowLogoutModal(false)}
-        onConfirm={executeGlobalLogout}
-        title="Sign Out of Session"
-        message="Are you sure you want to log out of your active workspace session?"
-        confirmText="Sign Out"
-        cancelText="Cancel"
-        type="logout"
-        loading={isLoggingOut}
-      />
+      {showLogoutModal && (
+        <React.Suspense fallback={null}>
+          <ConfirmModal
+            isOpen={showLogoutModal}
+            onClose={() => setShowLogoutModal(false)}
+            onConfirm={executeGlobalLogout}
+            title="Sign Out of Session"
+            message="Are you sure you want to log out of your active workspace session?"
+            confirmText="Sign Out"
+            cancelText="Cancel"
+            type="logout"
+            loading={isLoggingOut}
+          />
+        </React.Suspense>
+      )}
     </>
   );
 }

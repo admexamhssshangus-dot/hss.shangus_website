@@ -576,3 +576,14 @@ button, input, select, textarea { font: inherit; }
   .ui-touch-target:not(.aspect-square):not(.rounded-full),
   .portal-auth-page button { min-height: 2.75rem; }
 }
+
+/* Core Web Vitals (TBT/FID): Defer layout & rendering of below-the-fold elements */
+.home-briefing {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 650px;
+}
+
+footer.site-footer {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 450px;
+}
