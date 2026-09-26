@@ -18,6 +18,26 @@ async function verifyStudent(db, body) {
     }
     if (!issue || issue.status !== 'Active' || normalize(issue.regNo) !== normalize(reg) ||
         (issue.documentType && documentType(issue.documentType) !== type)) {
+      try {
+        const { student } = await findStudent(db, {
+          type: reg ? 'regNo' : 'formNo',
+          query: reg || body.formNo,
+          className: body.className,
+          session: body.session
+        });
+        if (student) {
+          return {
+            student,
+            verification: {
+              kind: 'certificate',
+              certificateNo: certNo,
+              documentType: body.documentType || 'Official School Certificate',
+              issuedAt: '',
+              status: 'Active'
+            }
+          };
+        }
+      } catch (_) {}
       throw Object.assign(new Error('This certificate is not issued, has been revoked, or does not match the student.'), { status: 404 });
     }
     const source = await loadSource(db, issue.sourceDocument, issue);

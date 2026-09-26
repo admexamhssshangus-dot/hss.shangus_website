@@ -2328,7 +2328,7 @@ export default function PracticalsPage() {
       // Format final student practical roster — STRICT CLASS ROLL FIRST
       const formatted = subjectFiltered
         .filter(st => hasAssignedClassRoll(st))
-        .map((st) => {
+        .map((st, sIdx) => {
           const roll = String(
             st['Class Roll No'] ||
             st['Class Roll No.'] ||
@@ -2370,16 +2370,22 @@ export default function PracticalsPage() {
             ? vDraft
             : (vSaved !== undefined ? vSaved : (vDraft !== undefined ? vDraft : ''));
 
+          const studentFormNo = (st.formNo && String(st.formNo) !== String(roll) && String(st.formNo).length > 3)
+            ? st.formNo
+            : (st['Form No.'] || st['Form No'] || st['Form Number'] || st.form_no || '');
+          const studentRegNo = getRegNo(st) || st.regNo || '';
+          const uniqueId = st.id || `prac_${roll || 'noroll'}_${studentFormNo || 'noform'}_${sIdx}`;
+
           return {
+            _uid: uniqueId,
+            id: st.id || uniqueId,
             rollNo: roll,
             name: name,
             examRollNo: examRollVal,
             subjectsAbbr: subsAbbr,
             rawSubjects: rawSubjFull,
-            formNo: (st.formNo && String(st.formNo) !== String(roll) && String(st.formNo).length > 3)
-              ? st.formNo
-              : (st['Form No.'] || st['Form No'] || st['Form Number'] || st.form_no || ''),
-            regNo: getRegNo(st) || st.regNo || '',
+            formNo: studentFormNo,
+            regNo: studentRegNo,
             practicalMarks: pMarkVal,
             vivaMarks: vMarkVal,
           };
@@ -2493,17 +2499,22 @@ export default function PracticalsPage() {
             return st;
           });
         }
-        return item.records.map(r => ({
-          rollNo: String(r.rollNo || r.classRollNo || ''),
-          name: r.name || r.studentName || '',
-          examRollNo: r.examRollNo || r.boardRollNo || '',
-          subjectsAbbr: r.subjectsAbbr || subj,
-          rawSubjects: r.rawSubjects || subj,
-          formNo: r.formNo || '',
-          regNo: r.regNo || '',
-          practicalMarks: r.practicalMarks !== undefined && r.practicalMarks !== null ? String(r.practicalMarks) : '',
-          vivaMarks: r.vivaMarks !== undefined && r.vivaMarks !== null ? String(r.vivaMarks) : ''
-        }));
+        return item.records.map((r, rIdx) => {
+          const uId = r._uid || r.id || `rec_${r.rollNo || r.classRollNo || 'noroll'}_${r.formNo || 'noform'}_${rIdx}`;
+          return {
+            _uid: uId,
+            id: r.id || uId,
+            rollNo: String(r.rollNo || r.classRollNo || ''),
+            name: r.name || r.studentName || '',
+            examRollNo: r.examRollNo || r.boardRollNo || '',
+            subjectsAbbr: r.subjectsAbbr || subj,
+            rawSubjects: r.rawSubjects || subj,
+            formNo: r.formNo || '',
+            regNo: r.regNo || '',
+            practicalMarks: r.practicalMarks !== undefined && r.practicalMarks !== null ? String(r.practicalMarks) : '',
+            vivaMarks: r.vivaMarks !== undefined && r.vivaMarks !== null ? String(r.vivaMarks) : ''
+          };
+        });
       });
     }
 
@@ -2665,7 +2676,7 @@ export default function PracticalsPage() {
   // Handle Mark Change — full range 0 to subjectMaxMarks allowed
   const handleMarkChange = (studentOrIdx, field, val) => {
     const rawVal = val.trim().toUpperCase();
-    if (rawVal !== '' && rawVal !== 'A' && rawVal !== 'AB' && rawVal !== 'ABSENT') {
+    if (rawVal !== '' && rawVal !== 'A' && rawVal !== 'AB' && rawVal !== 'ABS' && rawVal !== 'ABSENT') {
       const num = Number(rawVal);
       // Allow full range 0 to max (not split 70/30)
       if (isNaN(num) || num < 0 || num > subjectMaxMarks) {
@@ -2678,30 +2689,64 @@ export default function PracticalsPage() {
       if (typeof studentOrIdx === 'number') {
         targetIdx = studentOrIdx;
       } else if (studentOrIdx && typeof studentOrIdx === 'object') {
-        // Multi-factor lookup in prev array
+        const targetUid = studentOrIdx._uid || studentOrIdx.id;
         const targetRoll = studentOrIdx.rollNo !== undefined && studentOrIdx.rollNo !== null ? String(studentOrIdx.rollNo).trim() : '';
         const targetName = (studentOrIdx.name || studentOrIdx.studentName || '').toLowerCase().trim();
         const targetReg = studentOrIdx.registrationNumber || studentOrIdx.regNo || studentOrIdx.registration_no || '';
         const cleanReg = targetReg ? String(targetReg).replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
+        const isPlaceholderReg = !cleanReg || cleanReg.length < 4 || /^(na|nil|none|pending|null)$/.test(cleanReg);
         const targetForm = studentOrIdx.formNo ? String(studentOrIdx.formNo).trim() : '';
-        const targetId = studentOrIdx.id;
+        const isPlaceholderForm = !targetForm || targetForm.length < 3 || /^(0|na|nil|null|-)$/i.test(targetForm);
 
-        targetIdx = prev.findIndex(s => {
-          if (targetId && s.id && s.id === targetId) return true;
-          const sReg = s.registrationNumber || s.regNo || s.registration_no || '';
-          if (cleanReg && sReg) {
-            const sClean = String(sReg).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            if (sClean === cleanReg) return true;
-          }
-          const sRoll = s.rollNo !== undefined && s.rollNo !== null ? String(s.rollNo).trim() : '';
-          const sName = (s.name || s.studentName || '').toLowerCase().trim();
-          if (targetRoll && sRoll && targetRoll === sRoll) {
-            if (!targetName || !sName || targetName === sName) return true;
-          }
-          if (targetForm && s.formNo && String(s.formNo).trim() === targetForm) return true;
-          if (targetName && sName && targetName === sName) return true;
-          return false;
-        });
+        // 1. Primary check: Exact unique identifier (_uid or id)
+        if (targetUid) {
+          targetIdx = prev.findIndex(s => (s._uid && s._uid === targetUid) || (s.id && s.id === targetUid));
+        }
+
+        // 2. Strict Roll Number matching
+        if (targetIdx < 0 && targetRoll) {
+          targetIdx = prev.findIndex(s => {
+            const sRoll = s.rollNo !== undefined && s.rollNo !== null ? String(s.rollNo).trim() : '';
+            if (sRoll && sRoll === targetRoll) {
+              const sName = (s.name || s.studentName || '').toLowerCase().trim();
+              if (!targetName || !sName || targetName === sName) return true;
+            }
+            return false;
+          });
+        }
+
+        // 3. Verified Board Registration Number matching (ONLY if real, non-placeholder registration number)
+        if (targetIdx < 0 && !isPlaceholderReg) {
+          targetIdx = prev.findIndex(s => {
+            const sReg = s.registrationNumber || s.regNo || s.registration_no || '';
+            const sClean = sReg ? String(sReg).replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
+            if (sClean && sClean.length >= 4 && sClean === cleanReg) {
+              const sRoll = s.rollNo !== undefined && s.rollNo !== null ? String(s.rollNo).trim() : '';
+              if (!targetRoll || !sRoll || targetRoll === sRoll) return true;
+            }
+            return false;
+          });
+        }
+
+        // 4. Form Number matching (ONLY if valid, non-placeholder form number)
+        if (targetIdx < 0 && !isPlaceholderForm) {
+          targetIdx = prev.findIndex(s => {
+            const sForm = s.formNo ? String(s.formNo).trim() : '';
+            if (sForm && sForm === targetForm) {
+              const sRoll = s.rollNo !== undefined && s.rollNo !== null ? String(s.rollNo).trim() : '';
+              if (!targetRoll || !sRoll || targetRoll === sRoll) return true;
+            }
+            return false;
+          });
+        }
+
+        // 5. Exact Student Name match as last resort
+        if (targetIdx < 0 && targetName) {
+          targetIdx = prev.findIndex(s => {
+            const sName = (s.name || s.studentName || '').toLowerCase().trim();
+            return sName && targetName === sName;
+          });
+        }
       }
 
       if (targetIdx < 0 || targetIdx >= prev.length) return prev;
@@ -2714,7 +2759,7 @@ export default function PracticalsPage() {
       let newP = curRec.practicalMarks;
 
       if (field === 'practicalMarks') {
-        newP = rawVal;
+        newP = isExplicitAbs ? 'AB' : rawVal;
         if (isExplicitAbs) {
           newV = 'AB';
         } else if (isNumeric) {
@@ -2723,7 +2768,7 @@ export default function PracticalsPage() {
           }
         }
       } else if (field === 'vivaMarks') {
-        newV = rawVal;
+        newV = isExplicitAbs ? 'AB' : rawVal;
         if (isExplicitAbs) {
           newP = 'AB';
         }
@@ -3260,7 +3305,7 @@ export default function PracticalsPage() {
 
   // ── Multi-Select & Bulk Fill Calculations ──
   const getStudentKey = useCallback((st) => {
-    return String(st.rollNo || st.formNo || st.regNo || st.name);
+    return String(st._uid || st.id || (st.rollNo ? `roll_${st.rollNo}` : '') || st.formNo || st.regNo || st.name);
   }, []);
 
   const emptyCount = useMemo(() => {
@@ -4633,8 +4678,27 @@ export default function PracticalsPage() {
                                 value={st.practicalMarks}
                                 disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                                 onChange={(e) => handleMarkChange(st, 'practicalMarks', e.target.value)}
-                                className="w-20 px-2 py-0 rounded-md border text-[11px] font-black h-5.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase text-center leading-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`w-20 px-2 py-0 rounded-md border text-[11px] font-black h-6 focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase text-center leading-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  isAbsent
+                                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
+                                    : st.practicalMarks !== ''
+                                    ? 'bg-indigo-50/50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-bold'
+                                    : 'bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white'
+                                }`}
                               />
+                              <button
+                                type="button"
+                                disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                                onClick={() => handleMarkChange(st, 'practicalMarks', isAbsent ? '' : 'AB')}
+                                className={`h-6 px-1.5 rounded-md font-mono text-[10px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  isAbsent
+                                    ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
+                                }`}
+                                title="Toggle Absent (AB)"
+                              >
+                                AB
+                              </button>
                               {inWords ? (
                                 <span className="px-1.5 py-0.2 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[9.5px] font-black whitespace-nowrap">
                                   {inWords} {(!isNaN(parseInt(valToConvert, 10)) && parseInt(valToConvert, 10) > 0) ? 'Only' : ''}

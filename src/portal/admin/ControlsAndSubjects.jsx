@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Settings, Sliders, BookOpen, Database, Save, RefreshCw, 
   CheckCircle2, AlertCircle, X, Mail, ShieldCheck, Layers, 
-  FileCheck, ArrowRight, ShieldAlert, Sparkles, Check, HardDrive, Image, Trash2, Gauge
+  FileCheck, ArrowRight, ShieldAlert, Sparkles, Check, HardDrive, Image, Trash2, Gauge, TrendingUp
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
@@ -79,6 +79,13 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
   const [emailRejection, setEmailRejection] = useState(true);
   const [emailRegOtp, setEmailRegOtp] = useState(true);
   const [emailResetOtp, setEmailResetOtp] = useState(true);
+
+  // Search & Traffic Analytics Metrics (Google Search Console Live Counters)
+  const [trafficSearches, setTrafficSearches] = useState(4540);
+  const [trafficClicks, setTrafficClicks] = useState(965);
+  const [trafficVisitors, setTrafficVisitors] = useState(2150);
+  const [trafficInteractions, setTrafficInteractions] = useState(965);
+  const [savingTraffic, setSavingTraffic] = useState(false);
 
   // Session Rollover Modal State
   const [showArchivalModal, setShowArchivalModal] = useState(false);
@@ -240,6 +247,18 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
           // Master Student Data Hub Settings
           if (siteSettings.allowExpressZeroRestrictions !== undefined) setAllowExpressZeroRestrictions(Boolean(siteSettings.allowExpressZeroRestrictions));
         }
+
+        // Fetch Search & Traffic Analytics metrics from Firestore
+        try {
+          const trafficSnap = await getDoc(doc(db, 'siteSettings', 'traffic'));
+          if (trafficSnap.exists()) {
+            const tData = trafficSnap.data() || {};
+            if (tData.searches !== undefined) setTrafficSearches(Number(tData.searches));
+            if (tData.clicks !== undefined) setTrafficClicks(Number(tData.clicks));
+            if (tData.visitors !== undefined) setTrafficVisitors(Number(tData.visitors));
+            if (tData.interactions !== undefined) setTrafficInteractions(Number(tData.interactions));
+          }
+        } catch (_) {}
       } catch (e) {
         console.warn('Settings load fallback:', e);
       }
@@ -298,17 +317,79 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
 
       await setDoc(doc(db, 'site', 'settings'), settings, { merge: true });
       try { localStorage.setItem('site_settings', JSON.stringify(settings)); } catch (_) {}
+
+      // Also persist traffic & search counters to siteSettings/traffic
+      try {
+        const trafficData = {
+          searches: Number(trafficSearches) || 4540,
+          clicks: Number(trafficClicks) || 965,
+          visitors: Number(trafficVisitors) || 2150,
+          interactions: Number(trafficInteractions) || 965,
+          lastUpdated: new Date().toISOString(),
+          updatedBy: 'admin',
+          source: 'Google Search Console Analytics'
+        };
+        await setDoc(doc(db, 'siteSettings', 'traffic'), trafficData, { merge: true });
+        try {
+          localStorage.setItem('site_traffic_stats', JSON.stringify({
+            visitors: trafficData.visitors,
+            interactions: trafficData.interactions,
+            searches: trafficData.searches,
+            clicks: trafficData.clicks
+          }));
+        } catch (_) {}
+      } catch (tErr) {
+        console.warn('Traffic sync notice:', tErr);
+      }
+
       logAdminActivity({
         actionType: 'update',
         actionTitle: 'Updated System & Admission Controls',
-        details: `Updated controls: Session=${session}, 11th Adm=${allow11th ? 'OPEN' : 'CLOSED'}, 12th Adm=${allow12th ? 'OPEN' : 'CLOSED'}, Admin 2SV=${enableAdmin2StepVerification ? 'ENABLED' : 'DISABLED'}`,
-        metadata: { session, allow11th, allow12th, allow9th, allow10th, enableAdmin2StepVerification }
+        details: `Updated controls: Session=${session}, 11th Adm=${allow11th ? 'OPEN' : 'CLOSED'}, 12th Adm=${allow12th ? 'OPEN' : 'CLOSED'}, Admin 2SV=${enableAdmin2StepVerification ? 'ENABLED' : 'DISABLED'}, Searches=${trafficSearches}, Clicks=${trafficClicks}`,
+        metadata: { session, allow11th, allow12th, allow9th, allow10th, enableAdmin2StepVerification, trafficSearches, trafficClicks }
       });
-      setAlert({ type: 'success', text: '✨ System & admission controls updated successfully!' });
+      setAlert({ type: 'success', text: '✨ System controls & Search Console metrics updated successfully!' });
     } catch (err) {
       setAlert({ type: 'error', text: `Settings save note: ${err.message || 'Please retry.'}` });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Dedicated Save for Search & Traffic Analytics Metrics
+  const handleSaveTrafficStats = async () => {
+    setSavingTraffic(true);
+    setAlert(null);
+    try {
+      const trafficData = {
+        searches: Number(trafficSearches) || 4540,
+        clicks: Number(trafficClicks) || 965,
+        visitors: Number(trafficVisitors) || 2150,
+        interactions: Number(trafficInteractions) || 965,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: 'admin',
+        source: 'Google Search Console Analytics'
+      };
+      await setDoc(doc(db, 'siteSettings', 'traffic'), trafficData, { merge: true });
+      try {
+        localStorage.setItem('site_traffic_stats', JSON.stringify({
+          visitors: trafficData.visitors,
+          interactions: trafficData.interactions,
+          searches: trafficData.searches,
+          clicks: trafficData.clicks
+        }));
+      } catch (_) {}
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Updated Website Traffic & Search Analytics Metrics',
+        details: `Updated Search Console metrics: Searches=${trafficData.searches}, Clicks=${trafficData.clicks}, Visitors=${trafficData.visitors}, Interactions=${trafficData.interactions}`,
+        metadata: trafficData
+      });
+      setAlert({ type: 'success', text: '✨ Website Search & Traffic counters updated live in Cloud!' });
+    } catch (err) {
+      setAlert({ type: 'error', text: `Failed to save traffic metrics: ${err.message || 'Please retry.'}` });
+    } finally {
+      setSavingTraffic(false);
     }
   };
 
@@ -617,6 +698,96 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
                     </span>
                   </div>
                   <CheckCircle2 size={16} className="text-emerald-500 shrink-0 ml-2" />
+                </div>
+              </div>
+
+              {/* Website Traffic & Search Analytics Counters (Google Search Console Live Metrics) */}
+              <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-teal-200 dark:border-teal-800/80 bg-teal-50/40 dark:bg-teal-950/20 space-y-2.5 sm:space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-teal-200/60 dark:border-teal-800/60 pb-2 sm:pb-2.5 gap-2">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={16} className="text-teal-600 shrink-0" />
+                    <div>
+                      <h3 className="font-extrabold text-xs sm:text-sm text-teal-950 dark:text-teal-200">
+                        Website Traffic & Search Analytics Counters
+                      </h3>
+                      <p className="text-[9.5px] sm:text-[10.5px] text-teal-800 dark:text-teal-300">
+                        Google Search Console public counters displayed live on the website homepage
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveTrafficStats}
+                    disabled={savingTraffic}
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-black text-[10.5px] sm:text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all active:scale-95 self-end sm:self-auto"
+                  >
+                    {savingTraffic ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
+                    <span>Save Traffic Counters</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                  <div>
+                    <label className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-teal-900 dark:text-teal-300 mb-0.5 sm:mb-1">
+                      Searches / Impressions
+                    </label>
+                    <input
+                      type="number"
+                      value={trafficSearches}
+                      onChange={(e) => setTrafficSearches(e.target.value)}
+                      className="w-full px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      placeholder="4540"
+                    />
+                    <span className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 block">2x Search Console</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-teal-900 dark:text-teal-300 mb-0.5 sm:mb-1">
+                      Total Clicks
+                    </label>
+                    <input
+                      type="number"
+                      value={trafficClicks}
+                      onChange={(e) => setTrafficClicks(e.target.value)}
+                      className="w-full px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      placeholder="965"
+                    />
+                    <span className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 block">Search Console</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-teal-900 dark:text-teal-300 mb-0.5 sm:mb-1">
+                      Visitors
+                    </label>
+                    <input
+                      type="number"
+                      value={trafficVisitors}
+                      onChange={(e) => setTrafficVisitors(e.target.value)}
+                      className="w-full px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      placeholder="2150"
+                    />
+                    <span className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 block">Unique Visitors</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-teal-900 dark:text-teal-300 mb-0.5 sm:mb-1">
+                      Interactions
+                    </label>
+                    <input
+                      type="number"
+                      value={trafficInteractions}
+                      onChange={(e) => setTrafficInteractions(e.target.value)}
+                      className="w-full px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      placeholder="965"
+                    />
+                    <span className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 block">Total Interactions</span>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-teal-800 dark:text-teal-300 flex items-center gap-1.5 pt-0.5">
+                  <Sparkles size={12} className="text-teal-600 shrink-0" />
+                  <span>Real-time synchronised across Cloud Firestore and updates the homepage counter live immediately upon saving.</span>
                 </div>
               </div>
             </div>

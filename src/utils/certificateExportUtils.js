@@ -276,6 +276,9 @@ export function sanitizeTemplateObject(tpl) {
   }
   return {
     ...tpl,
+    certificateTitle: (tpl.certificateTitle && tpl.certificateTitle !== 'CERTIFICATE')
+      ? tpl.certificateTitle
+      : (tpl.name ? tpl.name.trim() : 'CERTIFICATE'),
     bodyHtml: retokenizeCertificateBody(tpl.bodyHtml)
   };
 }
@@ -1064,7 +1067,8 @@ export function printStudentCertificate({
     name: metaDetails.name || metaDetails.studentName || '',
     father: metaDetails.fatherName || metaDetails.parentName || '',
     className: metaDetails.className || metaDetails.selectedClass || '',
-    session: metaDetails.session || metaDetails.sessionYear || ''
+    session: metaDetails.session || metaDetails.sessionYear || '',
+    stream: metaDetails.stream || metaDetails.selectedStream || ''
   });
   const qrSvg = createQrSvg(verifyUrl, { margin: 2, errorCorrectionLevel: 'M', darkColor: '#000000', lightColor: '#ffffff' });
 
@@ -1958,7 +1962,8 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       name: metaDetails.name || metaDetails.studentName || student?.name || student?.studentName || '',
       father: metaDetails.fatherName || metaDetails.parentName || student?.fatherName || student?.parentName || '',
       className: metaDetails.className || metaDetails.selectedClass || student?.className || '',
-      session: metaDetails.session || metaDetails.sessionYear || student?.session || ''
+      session: metaDetails.session || metaDetails.sessionYear || student?.session || '',
+      stream: metaDetails.stream || student?.stream || ''
     });
     const qrSvg = createQrSvg(verifyUrl, { margin: 2, errorCorrectionLevel: 'M', darkColor: '#000000', lightColor: '#ffffff' });
     const photoUrl = showPhoto ? (student?.photo || null) : null;
