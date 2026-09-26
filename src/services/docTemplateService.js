@@ -150,7 +150,21 @@ export async function saveCloudDocTemplate({ type = 'letter', template, makeDefa
     copyTo: template.copyTo || '',
     isCustom: true,
     createdAt: template.createdAt || nowIso,
-    updatedAt: nowIso
+    updatedAt: nowIso,
+    ...(type === 'certificate' ? {
+      certificateTitle: template.certificateTitle?.trim() || template.name?.trim() || 'CERTIFICATE',
+      officeTitle: template.officeTitle?.trim() || '',
+      institutionName: template.institutionName?.trim() || '',
+      institutionAddress: template.institutionAddress?.trim() || '',
+      signatoryLeft: template.signatoryLeft?.trim() || '',
+      signatoryCenter: template.signatoryCenter?.trim() || '',
+      signatoryRight: template.signatoryRight?.trim() || '',
+      refPrefix: template.refPrefix?.trim() || '',
+      showPhoto: Boolean(template.showPhoto),
+      watermark: template.watermark !== undefined ? Boolean(template.watermark) : true,
+      includeSalutations: Boolean(template.includeSalutations),
+      isTcDc: Boolean(template.isTcDc)
+    } : {})
   };
 
   const localCacheKey = type === 'letter' ? 'hss_custom_letter_templates' : 'hss_custom_certificate_templates';

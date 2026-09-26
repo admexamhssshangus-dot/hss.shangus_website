@@ -107,6 +107,53 @@ function formatFormNo(fNo, fallbackClean) {
   return val.startsWith('#') ? val : `#${val}`;
 }
 
+function normalizeNameForCompare(str) {
+  return String(str || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').trim().replace(/\s+/g, ' ');
+}
+
+function areNamesCompatible(nameA, nameB) {
+  if (!nameA || !nameB) return true;
+  const nA = normalizeNameForCompare(nameA);
+  const nB = normalizeNameForCompare(nameB);
+  if (!nA || !nB) return true;
+  if (nA === nB || nA.includes(nB) || nB.includes(nA)) return true;
+  const tokensA = nA.split(' ').filter(t => t.length > 2);
+  const tokensB = nB.split(' ').filter(t => t.length > 2);
+  return tokensA.some(t => tokensB.includes(t));
+}
+
+function areSessionsCompatible(sessionA, sessionB) {
+  if (!sessionA || !sessionB) return true;
+  const getSessionKey = (s) => {
+    const text = String(s || '').toLowerCase();
+    const m = text.match(/(20\d{2})\s*[-/]?\s*(\d{2,4})/);
+    if (m) {
+      const y1 = m[1];
+      const y2 = m[2].length === 2 ? `20${m[2]}` : m[2];
+      return `${y1}-${y2}`;
+    }
+    const singleYear = text.match(/\b(20\d{2})\b/);
+    if (singleYear) return singleYear[1];
+    return null;
+  };
+  const keyA = getSessionKey(sessionA);
+  const keyB = getSessionKey(sessionB);
+  if (keyA && keyB) {
+    return keyA === keyB;
+  }
+  const cleanA = String(sessionA).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanB = String(sessionB).toLowerCase().replace(/[^a-z0-9]/g, '');
+  return cleanA === cleanB || cleanA.includes(cleanB) || cleanB.includes(cleanA);
+}
+
+function areClassesCompatible(classA, classB) {
+  if (!classA || !classB) return true;
+  const cA = String(classA).replace(/[^0-9]/g, '');
+  const cB = String(classB).replace(/[^0-9]/g, '');
+  if (cA && cB) return cA === cB;
+  return true;
+}
+
 export default function StudentVerificationPage() {
   const [searchParams] = useSearchParams();
 
@@ -121,6 +168,7 @@ export default function StudentVerificationPage() {
   const rawFather = searchParams.get('father') || searchParams.get('fatherName') || '';
   const rawClass = searchParams.get('class') || searchParams.get('className') || '';
   const rawSession = searchParams.get('session') || searchParams.get('academicSession') || '';
+  const rawStream = searchParams.get('stream') || '';
 
   const cleanReg = sanitizeVerificationField(rawReg);
   const cleanRoll = sanitizeVerificationField(rawRoll);
@@ -260,24 +308,33 @@ export default function StudentVerificationPage() {
 
       let matchInCatalog = null;
       if (Array.isArray(verifiedCatalog) && (cFNo || cReg || cRoll)) {
+        const isEligible = (s) => {
+          if (rawName && !areNamesCompatible(s.name, rawName)) return false;
+          if (rawSession && !areSessionsCompatible(s.session, rawSession)) return false;
+          if (rawClass && !areClassesCompatible(s.className, rawClass)) return false;
+          return true;
+        };
+
         if (cFNo) {
-          matchInCatalog = verifiedCatalog.find(s => String(s.fNo || '').trim().toLowerCase() === cFNo);
+          matchInCatalog = verifiedCatalog.find(s => String(s.fNo || '').trim().toLowerCase() === cFNo && isEligible(s));
         }
         if (!matchInCatalog && cReg && cRoll) {
           matchInCatalog = verifiedCatalog.find(s =>
             String(s.boardRegNo || '').trim().toLowerCase() === cReg &&
-            String(s.classRollNo || '').trim().toLowerCase() === cRoll
+            String(s.classRollNo || '').trim().toLowerCase() === cRoll &&
+            isEligible(s)
           );
         }
         if (!matchInCatalog && cReg) {
           matchInCatalog = verifiedCatalog.find(s =>
-            String(s.boardRegNo || '').trim().toLowerCase() === cReg
+            String(s.boardRegNo || '').trim().toLowerCase() === cReg &&
+            isEligible(s)
           );
         }
         if (!matchInCatalog && cRoll && rawClass) {
           matchInCatalog = verifiedCatalog.find(s =>
             String(s.classRollNo || '').trim().toLowerCase() === cRoll &&
-            String(s.className || '').trim().toLowerCase().includes(rawClass.toLowerCase())
+            isEligible(s)
           );
         }
       }
@@ -293,7 +350,7 @@ export default function StudentVerificationPage() {
             boardRegNo: matchInCatalog.boardRegNo || cleanReg || '—',
             formNo: matchInCatalog.fNo || cleanFNo || '—',
             session: matchInCatalog.session || rawSession || '2025-26',
-            stream: matchInCatalog.stream || 'General / Academics',
+            stream: matchInCatalog.stream || rawStream || 'General / Academics',
             photoUrl: matchInCatalog.photoUrl || null
           },
           verification: {
@@ -314,7 +371,10 @@ export default function StudentVerificationPage() {
           const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
           if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
             for (const section of CLEAN_PRACTICALS_SEED_DATA) {
+              if (rawSession && !areSessionsCompatible(section.sessionText, rawSession)) continue;
+              if (rawClass && !areClassesCompatible(section.className, rawClass)) continue;
               for (const rec of section.records || []) {
+                if (rawName && !areNamesCompatible(rec.name, rawName)) continue;
                 const rReg = String(rec.boardRegNo || '').trim().toLowerCase();
                 const rRoll = String(rec.classRollNo || rec.examRollNo || '').trim().toLowerCase();
                 if ((cReg && rReg === cReg) || (cRoll && rRoll === cRoll)) {
@@ -328,7 +388,7 @@ export default function StudentVerificationPage() {
                       boardRegNo: rec.boardRegNo || cleanReg || '—',
                       formNo: cleanFNo || '—',
                       session: section.sessionText || rawSession || '2024-26',
-                      stream: rec.stream || 'Science',
+                      stream: rec.stream || rawStream || 'Science',
                       photoUrl: null
                     },
                     verification: {
@@ -364,7 +424,7 @@ export default function StudentVerificationPage() {
             boardRegNo: cleanReg || '—',
             formNo: cleanFNo || '—',
             session: rawSession || '2025-26',
-            stream: 'General / Academics',
+            stream: rawStream || 'General / Academics',
             photoUrl: null
           },
           verification: {
@@ -392,7 +452,7 @@ export default function StudentVerificationPage() {
             boardRegNo: cleanReg || '—',
             formNo: cleanFNo || '—',
             session: rawSession || '2025-26',
-            stream: 'General / Academics',
+            stream: rawStream || 'General / Academics',
             photoUrl: null
           },
           verification: {

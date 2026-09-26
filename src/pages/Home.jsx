@@ -209,10 +209,10 @@ export default function Home() {
       }
     } catch (_) {}
     return {
-      visitors: 1900,
-      interactions: 724,
-      searches: 1900,
-      clicks: 724,
+      visitors: 2150,
+      interactions: 965,
+      searches: 4540,
+      clicks: 965,
     };
   });
 
@@ -293,10 +293,10 @@ export default function Home() {
             const data = await res.json();
             if (data && typeof data.visitors === 'number') {
               const stats = {
-                visitors: Number(data.visitors || 1900),
-                interactions: Number(data.interactions || data.clicks || 724),
-                searches: Number(data.searches || 1900),
-                clicks: Number(data.clicks || 724),
+                visitors: Number(data.visitors || 2150),
+                interactions: Number(data.interactions || data.clicks || 965),
+                searches: Number(data.searches || 4540),
+                clicks: Number(data.clicks || 965),
               };
               setTrafficStats(stats);
               try { localStorage.setItem('site_traffic_stats', JSON.stringify(stats)); } catch (_) {}
@@ -430,10 +430,10 @@ export default function Home() {
             if (snap.exists()) {
               const data = snap.data();
               if (data) {
-                const visitors = Number(data.visitors || 1900);
-                const clicks = Number(data.clicks || 724);
-                const searches = Number(data.searches || 1900);
-                const interactions = Number(data.interactions || clicks || 724);
+                const visitors = Number(data.visitors || 2150);
+                const clicks = Number(data.clicks || 965);
+                const searches = Number(data.searches || 4540);
+                const interactions = Number(data.interactions || clicks || 965);
                 const stats = { visitors, interactions, searches, clicks };
                 setTrafficStats(stats);
                 try { localStorage.setItem('site_traffic_stats', JSON.stringify(stats)); } catch (_) {}

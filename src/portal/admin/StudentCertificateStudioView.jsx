@@ -28,7 +28,17 @@ import {
 import { buildCertificateVerificationUrl, createQrSvgDataUri } from '../../utils/qrSvgGenerator';
 import { getStudentRollVal } from '../../utils/idCardRenderer';
 import ConfirmModal from '../components/ConfirmModal';
-import { fetchLastIssuedCertificateNumber, extractCertificateSerial, commitIssuedCertificateBatch, revokeCertificateNumberBatch } from '../../services/certificateRegistryService';
+import {
+  fetchLastIssuedCertificateNumber,
+  extractCertificateSerial,
+  commitIssuedCertificateBatch,
+  revokeCertificateNumberBatch,
+  fetchLastGeneralCertificateRef,
+  commitGeneralCertificateRef,
+  parseGeneralRefNo,
+  formatGeneralRefNo,
+  DEFAULT_INITIAL_GENERAL_REF_SERIAL
+} from '../../services/certificateRegistryService';
 import {
   normalizeResultStatus,
   calculateDivision,
@@ -878,14 +888,18 @@ export default function StudentCertificateStudioView({
   const [institutionAddress, setInstitutionAddress] = useState('District Anantnag, Kashmir — 192201 (J&K)');
   const [certificateTitle, setCertificateTitle] = useState(() => {
     try {
-      return localStorage.getItem('hss_certificate_studio_title') || 'BONAFIDE CERTIFICATE';
+      const saved = localStorage.getItem('hss_certificate_studio_title');
+      return (saved && saved !== 'CERTIFICATE') ? saved : 'BONAFIDE CERTIFICATE';
     } catch {
       return 'BONAFIDE CERTIFICATE';
     }
   });
   const [isSavingCertTitle, setIsSavingCertTitle] = useState(false);
   const [certTitleSavedStatus, setCertTitleSavedStatus] = useState(false);
-  const [refNo, setRefNo] = useState('HSS/SHG/Bonafide/2026/01');
+  const [refNo, setRefNo] = useState('HSS/SHG/1454/2026');
+  const [generalRefSerial, setGeneralRefSerial] = useState(DEFAULT_INITIAL_GENERAL_REF_SERIAL);
+  const [generalRefPrefix, setGeneralRefPrefix] = useState('HSS/SHG');
+  const [generalRefYear, setGeneralRefYear] = useState(() => String(new Date().getFullYear()));
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleDateString('en-GB'));
   const [showPhoto, setShowPhoto] = useState(false);
   const [watermark, setWatermark] = useState(true);
@@ -895,7 +909,32 @@ export default function StudentCertificateStudioView({
   const [signatoryRight, setSignatoryRight] = useState('Principal');
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
-  // Cloud Persistence for Certificate Title Banner on Firebase
+  // Initialize general certificate reference sequence from Cloud/localStorage (1454 -> 1455 -> 1456...)
+  useEffect(() => {
+    let isMounted = true;
+    const initGeneralRef = async () => {
+      try {
+        const genRef = await fetchLastGeneralCertificateRef();
+        if (isMounted && genRef) {
+          setGeneralRefSerial(genRef.serial);
+          setGeneralRefPrefix(genRef.prefix);
+          setGeneralRefYear(genRef.year);
+          setRefNo(prev => {
+            if (!prev || prev.includes('Bonafide/2026/01') || prev.includes('1454')) {
+              return genRef.fullRef || formatGeneralRefNo(genRef.prefix, genRef.serial, genRef.year);
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.warn('Could not initialize general certificate reference:', err);
+      }
+    };
+    initGeneralRef();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Cloud Persistence for Certificate Title Banner on Firebase (guarded against generic 'CERTIFICATE')
   useEffect(() => {
     let isMounted = true;
     const loadCertificateBannerFromCloud = async () => {
@@ -904,7 +943,7 @@ export default function StudentCertificateStudioView({
         if (docSnap.exists() && isMounted) {
           const data = docSnap.data();
           const cloudBanner = data.defaultCertificateTitle || data.certificateTitle;
-          if (cloudBanner && typeof cloudBanner === 'string' && cloudBanner.trim()) {
+          if (cloudBanner && typeof cloudBanner === 'string' && cloudBanner.trim() && cloudBanner.trim() !== 'CERTIFICATE') {
             setCertificateTitle(cloudBanner.trim());
             try { localStorage.setItem('hss_certificate_studio_title', cloudBanner.trim()); } catch {}
           }
@@ -945,6 +984,59 @@ export default function StudentCertificateStudioView({
     }, 1200);
     return () => clearTimeout(timer);
   }, [certificateTitle, saveCertificateTitleToCloud]);
+
+  // Advance sequential reference number for general certificates (1454 -> 1455 -> ...)
+  const advanceGeneralRefNumber = useCallback(async (currentRef = null) => {
+    const targetRef = currentRef || refNo;
+    const parsed = parseGeneralRefNo(targetRef);
+    const nextSerial = (parsed.serial || generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL) + 1;
+    const nextYear = parsed.year || generalRefYear || String(new Date().getFullYear());
+    const nextPrefix = parsed.prefix || generalRefPrefix || 'HSS/SHG';
+    const nextFormatted = formatGeneralRefNo(nextPrefix, nextSerial, nextYear);
+
+    setGeneralRefSerial(nextSerial);
+    setGeneralRefPrefix(nextPrefix);
+    setGeneralRefYear(nextYear);
+    setRefNo(nextFormatted);
+
+    await commitGeneralCertificateRef({
+      serial: nextSerial,
+      prefix: nextPrefix,
+      year: nextYear,
+      fullRef: nextFormatted
+    });
+
+    return { nextSerial, nextFormatted };
+  }, [refNo, generalRefSerial, generalRefPrefix, generalRefYear]);
+
+  const handleIncrementGeneralRef = async () => {
+    try {
+      const { nextSerial, nextFormatted } = await advanceGeneralRefNumber();
+      showToast(`Reference number advanced to #${nextSerial} (${nextFormatted})`, 'success');
+    } catch (err) {
+      showToast('Could not advance reference number: ' + err.message, 'error');
+    }
+  };
+
+  const handleGeneralRefChange = (newVal) => {
+    setRefNo(newVal);
+  };
+
+  const handleGeneralRefBlur = async () => {
+    if (!refNo) return;
+    const parsed = parseGeneralRefNo(refNo);
+    if (parsed.serial && parsed.serial > 0) {
+      setGeneralRefSerial(parsed.serial);
+      setGeneralRefPrefix(parsed.prefix);
+      setGeneralRefYear(parsed.year);
+      await commitGeneralCertificateRef({
+        serial: parsed.serial,
+        prefix: parsed.prefix,
+        year: parsed.year,
+        fullRef: refNo
+      });
+    }
+  };
 
   // Sync external Setup toggle from Top Sub-Nav bar
   useEffect(() => {
@@ -1066,9 +1158,10 @@ export default function StudentCertificateStudioView({
       name: studentName || '',
       father: fatherName || '',
       className: className || '',
-      session: session || ''
+      session: session || '',
+      stream: stream || ''
     });
-  }, [regNo, rollNo, selectedStudent, refNo, certificateTitle, studentName, fatherName, className, session]);
+  }, [regNo, rollNo, selectedStudent, refNo, certificateTitle, studentName, fatherName, className, session, stream]);
 
   const canvasQrUri = useMemo(() => {
     return createQrSvgDataUri(canvasVerifyUrl, 140);
@@ -1451,12 +1544,10 @@ export default function StudentCertificateStudioView({
     if (isTcDcTemplate) {
       setCertificateTitle('Discharge/Transfer cum Character Certificate');
     } else {
-      const savedBanner = typeof localStorage !== 'undefined' ? localStorage.getItem('hss_certificate_studio_title') : null;
-      if (savedBanner) {
-        setCertificateTitle(savedBanner);
-      } else if (activeTpl.certificateTitle) {
-        setCertificateTitle(activeTpl.certificateTitle);
-      }
+      const canonicalTplTitle = (activeTpl.certificateTitle && activeTpl.certificateTitle !== 'CERTIFICATE')
+        ? activeTpl.certificateTitle
+        : (activeTpl.name || 'BONAFIDE CERTIFICATE');
+      setCertificateTitle(canonicalTplTitle);
     }
 
     // Auto-update Ref No immediately if known from raw record
@@ -1660,14 +1751,28 @@ export default function StudentCertificateStudioView({
     } else if (isPreviewOnly) {
       setRefNo('');
     } else {
-      let lastNo = 1367;
-      try {
-        lastNo = await fetchLastIssuedCertificateNumber();
-      } catch (_) {}
-      if (selectionRequestRef.current !== requestId) return;
-      lastIssuedCertificateRef.current = lastNo;
-      const nextNo = lastNo + 1;
-      setRefNo(finalIsTcDc ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`);
+      if (finalIsTcDc) {
+        let lastNo = 1367;
+        try {
+          lastNo = await fetchLastIssuedCertificateNumber();
+        } catch (_) {}
+        if (selectionRequestRef.current !== requestId) return;
+        lastIssuedCertificateRef.current = lastNo;
+        const nextNo = lastNo + 1;
+        setRefNo(String(nextNo));
+      } else {
+        // Distinct sequential numbering for certificates other than TC/DC (1454 -> 1455 -> ...)
+        let genSeq = { serial: generalRefSerial, prefix: generalRefPrefix, year: generalRefYear };
+        try {
+          genSeq = await fetchLastGeneralCertificateRef();
+          setGeneralRefSerial(genSeq.serial);
+          setGeneralRefPrefix(genSeq.prefix);
+          setGeneralRefYear(genSeq.year);
+        } catch (_) {}
+        if (selectionRequestRef.current !== requestId) return;
+        const assignedRef = formatGeneralRefNo(activeTpl.refPrefix || genSeq.prefix || 'HSS/SHG', genSeq.serial, genSeq.year);
+        setRefNo(assignedRef);
+      }
     }
   };
 
@@ -1813,7 +1918,9 @@ export default function StudentCertificateStudioView({
     setTemplateBody(cleanBody);
     setCustomCanvasHtml(null);
 
-    const canonicalTitle = sanitizedTpl.certificateTitle || BUILTIN_CERTIFICATE_TEMPLATES.find(b => b.id === sanitizedTpl.id)?.certificateTitle || 'CERTIFICATE';
+    const canonicalTitle = (sanitizedTpl.certificateTitle && sanitizedTpl.certificateTitle !== 'CERTIFICATE')
+      ? sanitizedTpl.certificateTitle
+      : (BUILTIN_CERTIFICATE_TEMPLATES.find(b => b.id === sanitizedTpl.id)?.certificateTitle || sanitizedTpl.name || 'CERTIFICATE');
     setCertificateTitle(canonicalTitle);
 
     const raw = selectedStudent?.raw || selectedStudent || {};
@@ -2206,7 +2313,7 @@ export default function StudentCertificateStudioView({
       id: selectedTemplateId,
       name: activeTpl.name || 'Bonafide Certificate',
       category: activeTpl.category || 'Bonafide & Age Certificates',
-      certificateTitle: activeTpl.certificateTitle || certificateTitle || 'BONAFIDE CERTIFICATE',
+      certificateTitle: (certificateTitle && certificateTitle !== 'CERTIFICATE') ? certificateTitle : (activeTpl.certificateTitle || activeTpl.name || 'BONAFIDE CERTIFICATE'),
       officeTitle: officeTitle || 'OFFICE OF THE PRINCIPAL',
       institutionName: institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
       institutionAddress: institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)',
@@ -3603,6 +3710,7 @@ export default function StudentCertificateStudioView({
         setIsExportingDocx(false);
         return;
       }
+      advanceGeneralRefNumber(effectiveRefNo).catch(() => {});
     }
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
@@ -3733,6 +3841,7 @@ export default function StudentCertificateStudioView({
         setIsExportingDocx(false);
         return;
       }
+      advanceGeneralRefNumber(effectiveRefNo).catch(() => {});
     }
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
@@ -4560,12 +4669,25 @@ export default function StudentCertificateStudioView({
 
             {/* Ref No */}
             <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Reference Number</label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block text-[9.5px] font-black uppercase text-slate-500">Reference Number</label>
+                {!isTcDcActive && (
+                  <button
+                    type="button"
+                    onClick={handleIncrementGeneralRef}
+                    className="text-[9px] font-bold text-teal-600 dark:text-teal-400 hover:text-teal-800 bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 border border-teal-200 dark:border-teal-800 rounded px-1.5 py-0.5"
+                    title="Advance to next sequential reference number (e.g. 1454 -> 1455)"
+                  >
+                    +1 Next
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 value={refNo}
-                onChange={(e) => setRefNo(e.target.value)}
-                placeholder="HSS/SHG/Bonafide/2026/01"
+                onChange={(e) => handleGeneralRefChange(e.target.value)}
+                onBlur={handleGeneralRefBlur}
+                placeholder="HSS/SHG/1454/2026"
                 className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
               />
             </div>
@@ -6375,8 +6497,9 @@ export default function StudentCertificateStudioView({
                     <input
                       type="text"
                       value={refNo}
-                      onChange={(e) => setRefNo(e.target.value)}
-                      placeholder="e.g. HSS/SHG/Bonafide/2026/01"
+                      onChange={(e) => handleGeneralRefChange(e.target.value)}
+                      onBlur={handleGeneralRefBlur}
+                      placeholder="e.g. HSS/SHG/1454/2026"
                       title="Click to directly edit Certificate Reference Number"
                       aria-label="Certificate Reference Number"
                       className="studio-inline-input font-mono font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[130px] sm:max-w-[280px] truncate text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0"
