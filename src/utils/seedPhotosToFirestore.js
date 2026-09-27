@@ -69,8 +69,19 @@ export async function seedPhotosToFirestore(files, onProgress = null) {
     if (studentMatch) {
       matchedCount++;
       try {
-        // Compress photo to ~5-10 KB JPEG
-        const dataUrl = await compressStudentPhoto(file, 300, 360, 0.75);
+        // Smart Compression Decision: Bypass if already <= 15 KB to preserve original crispness
+        let dataUrl;
+        if (file.size <= 15 * 1024) {
+          dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        } else {
+          // File exceeds 15 KB: Auto-compress using in-browser canvas
+          dataUrl = await compressStudentPhoto(file, 300, 360, 0.75);
+        }
 
         // Update Firestore student record
         await setDoc(doc(db, 'admissions', studentMatch.docId), {
