@@ -16746,7 +16746,7 @@ export default function AdvancedReports({
       <SessionArchivalModal
         isOpen={showArchivalModal}
         onClose={() => setShowArchivalModal(false)}
-        currentSession="2025-26"
+        currentSession={siteSettings?.session || '2025-26'}
         onArchivalComplete={() => {
           loadReportsData(true);
           setShowArchivalModal(false);
