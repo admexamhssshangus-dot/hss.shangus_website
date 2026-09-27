@@ -329,9 +329,70 @@ function escapeRegex(str) {
 }
 
 /**
+ * Intelligent locality parser for GHSS Shangus students.
+ * Resolves village, tehsil, and district from student raw records and addresses
+ * with accurate local geographical fallbacks (Shangus / Anantnag) instead of blank dashes.
+ */
+export function resolveStudentLocality(st = {}, rawRecord = {}, addressStr = '') {
+  const raw = rawRecord?.raw || rawRecord || st?.raw || st || {};
+  const addr = String(addressStr || extractFullAddress(raw) || st?.address || '').trim();
+
+  // 1. Tehsil
+  let tehsil = raw.Tehsil || raw.tehsil || raw.Block || raw.block || st?.tehsil || '';
+  if (!tehsil || tehsil === '—' || tehsil === '-' || /^(null|undefined|n\/a)$/i.test(String(tehsil).trim())) {
+    if (/shang[ua]s/i.test(addr)) tehsil = 'Shangus';
+    else if (/achabal/i.test(addr)) tehsil = 'Achabal';
+    else if (/kokernag/i.test(addr)) tehsil = 'Kokernag';
+    else if (/dooru|shahabad/i.test(addr)) tehsil = 'Dooru';
+    else if (/anantnag/i.test(addr)) tehsil = 'Anantnag';
+    else tehsil = 'Shangus'; // Default institutional tehsil
+  }
+
+  // 2. District
+  let district = raw.District || raw.district || st?.district || '';
+  if (!district || district === '—' || district === '-' || /^(null|undefined|n\/a)$/i.test(String(district).trim())) {
+    if (/anantnag/i.test(addr)) district = 'Anantnag';
+    else if (/kulgam/i.test(addr)) district = 'Kulgam';
+    else if (/srinagar/i.test(addr)) district = 'Srinagar';
+    else if (/pulwama/i.test(addr)) district = 'Pulwama';
+    else district = 'Anantnag'; // Default institutional district
+  }
+
+  // 3. Village
+  let rawVillage = raw['Village/Town'] || raw['Name of your village'] || raw.village || raw.town || raw.Village || st?.village || '';
+  let village = '';
+  if (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(String(rawVillage).trim())) {
+    village = String(rawVillage).trim();
+  }
+
+  if (!village && addr) {
+    const firstPart = addr.split(/[,;\n]/)[0].trim();
+    if (firstPart && !/^(anantnag|shangus|j&k|kashmir)$/i.test(firstPart)) {
+      village = firstPart;
+    } else {
+      village = addr;
+    }
+  }
+
+  if (village && village.includes(',')) {
+    const segments = village.split(',').map(s => s.trim()).filter(Boolean);
+    const nonDistrict = segments.filter(s => !/^(anantnag|kashmir|\(j&k\)|j&k|192\d{3}|shangus|tehsil|district)/i.test(s));
+    if (nonDistrict.length > 0) {
+      village = nonDistrict.join(', ');
+    }
+  }
+
+  return {
+    village: village || (addr ? addr.split(',')[0].trim() : 'Shangus'),
+    tehsil: tehsil || 'Shangus',
+    district: district || 'Anantnag'
+  };
+}
+
+/**
  * Converts hardcoded student details, sample values (e.g. MOHAMMAD TAHIR WANI),
  * or previously baked-in text back into reusable template tokens.
- * This guarantees custom-saved templates never burn in static student names.
+ * This guarantees custom-saved and duplicated templates never burn in static student details.
  */
 export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   if (!templateHtml || typeof templateHtml !== 'string') return templateHtml || '';
@@ -343,40 +404,45 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   res = res.replace(/HisThis/g, 'This');
   res = res.replace(/HerThis/g, 'This');
 
+  // Helper to replace literal non-token values safely
+  const replaceLiteral = (val, token, boundary = true) => {
+    if (!val || typeof val !== 'string') return;
+    const str = val.trim();
+    if (str.length < 2 || str.includes('{') || str === '—' || str === '-' || /^(null|undefined|n\/a)$/i.test(str)) return;
+    const esc = escapeRegex(str);
+    const pattern = boundary ? `\\b${esc}\\b` : esc;
+    res = res.replace(new RegExp(pattern, 'gi'), token);
+  };
+
   // 1. If contextData provided with active student fields, replace those first
-  if (contextData.studentName && contextData.studentName.trim().length >= 2 && !contextData.studentName.includes('{')) {
-    const esc = escapeRegex(contextData.studentName.trim());
-    res = res.replace(new RegExp(`\\b${esc}\\b`, 'gi'), '{STUDENT_NAME}');
-  }
-  if (contextData.fatherName && contextData.fatherName.trim().length >= 2 && !contextData.fatherName.includes('{')) {
-    const esc = escapeRegex(contextData.fatherName.trim());
-    res = res.replace(new RegExp(`\\b${esc}\\b`, 'gi'), '{FATHER_NAME}');
-  }
-  if (contextData.motherName && contextData.motherName.trim().length >= 2 && !contextData.motherName.includes('{')) {
-    const esc = escapeRegex(contextData.motherName.trim());
-    res = res.replace(new RegExp(`\\b${esc}\\b`, 'gi'), '{MOTHER_NAME}');
-  }
+  replaceLiteral(contextData.studentName, '{STUDENT_NAME}');
+  replaceLiteral(contextData.fatherName, '{FATHER_NAME}');
+  replaceLiteral(contextData.motherName, '{MOTHER_NAME}');
+
   if (contextData.rollNo && contextData.rollNo.trim().length >= 1 && contextData.rollNo !== '—' && !contextData.rollNo.includes('{')) {
     const esc = escapeRegex(contextData.rollNo.trim());
     res = res.replace(new RegExp(`((?:Roll\\s*(?:No\\.?)?:?|Class\\s+Roll\\s+No:?)\\s*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)`, 'gi'), '$1{ROLL_NO}$2');
   }
-  if (contextData.regNo && contextData.regNo.trim().length >= 4 && contextData.regNo !== '—' && !contextData.regNo.includes('{')) {
-    const esc = escapeRegex(contextData.regNo.trim());
-    res = res.replace(new RegExp(esc, 'gi'), '{REG_NO}');
+  if (contextData.examRollNo && contextData.examRollNo.trim().length >= 1 && contextData.examRollNo !== '—' && !contextData.examRollNo.includes('{')) {
+    const esc = escapeRegex(contextData.examRollNo.trim());
+    res = res.replace(new RegExp(`((?:examination\\s+roll\\s+number|exam\\s+roll\\s*(?:no\\.?)?)\\s*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)`, 'gi'), '$1{EXAM_ROLL_NO}$2');
+    replaceLiteral(contextData.examRollNo, '{EXAM_ROLL_NO}');
   }
-  if (contextData.dobFigures && contextData.dobFigures !== '—' && !contextData.dobFigures.includes('{')) {
-    const esc = escapeRegex(contextData.dobFigures.trim());
-    res = res.replace(new RegExp(esc, 'gi'), '{DOB_FIGURES}');
-  }
-  if (contextData.dobWords && contextData.dobWords.trim().length >= 5 && contextData.dobWords !== '—' && !contextData.dobWords.includes('{')) {
-    const esc = escapeRegex(contextData.dobWords.trim());
-    res = res.replace(new RegExp(esc, 'gi'), '{DOB_WORDS}');
-  }
+
+  replaceLiteral(contextData.regNo, '{REG_NO}');
+  replaceLiteral(contextData.dobFigures, '{DOB_FIGURES}');
+  replaceLiteral(contextData.dobWords, '{DOB_WORDS}');
+
   if (contextData.session && contextData.session.trim().length >= 3 && !contextData.session.includes('{')) {
     const esc = escapeRegex(contextData.session.trim());
     res = res.replace(new RegExp(`((?:(?:current\\s+)?academic\\s+session|session|academic\\s+year|batch)[,:\\s-]*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)?`, 'gi'), '$1{SESSION}$2');
     res = res.replace(new RegExp(`((?:during|in|for)(?:\\s+the)?(?:\\s+current)?(?:\\s+academic)?(?:\\s+session)?[,:\\s-]*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)?`, 'gi'), '$1{SESSION}$2');
   }
+  if (contextData.examSession && contextData.examSession.trim().length >= 3 && !contextData.examSession.includes('{')) {
+    const esc = escapeRegex(contextData.examSession.trim());
+    res = res.replace(new RegExp(`((?:during\\s+the\\s+session|exam(?:ination)?\\s+session)[,:\\s-]*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)?`, 'gi'), '$1{EXAM_SESSION}$2');
+  }
+
   if (contextData.className && contextData.className.trim() && !contextData.className.includes('{')) {
     const esc = escapeRegex(contextData.className.trim());
     res = res.replace(new RegExp(`(Class\\s*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)`, 'gi'), '$1{CLASS}$2');
@@ -385,13 +451,47 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
     const esc = escapeRegex(contextData.stream.trim());
     res = res.replace(new RegExp(`(Stream:\\s*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)`, 'gi'), '$1{STREAM}$2');
   }
-  if (contextData.address && contextData.address.trim().length >= 5 && !contextData.address.includes('{')) {
-    const esc = escapeRegex(contextData.address.trim());
-    res = res.replace(new RegExp(esc, 'gi'), '{ADDRESS}');
+
+  replaceLiteral(contextData.village, '{VILLAGE}');
+  replaceLiteral(contextData.tehsil, '{TEHSIL}');
+  replaceLiteral(contextData.district, '{DISTRICT}');
+  replaceLiteral(contextData.address, '{ADDRESS}');
+
+  // TC/DC Result tokens retokenization
+  if (contextData.marksObtained && contextData.marksObtained !== '—' && !contextData.marksObtained.includes('{')) {
+    const escMarks = escapeRegex(String(contextData.marksObtained).trim());
+    res = res.replace(new RegExp(`(securing\\s*(?:<strong>)?\\s*)${escMarks}(\\s*\\/\\s*\\d+\\s*(?:<\\/strong>)?\\s*marks)`, 'gi'), '$1{MARKS_OBTAINED}$2');
+  }
+  if (contextData.divisionDistinction && contextData.divisionDistinction !== '—' && !contextData.divisionDistinction.includes('{')) {
+    const escDiv = escapeRegex(contextData.divisionDistinction.trim());
+    res = res.replace(new RegExp(`(with\\s*(?:<strong>)?\\s*)${escDiv}(\\s*(?:<\\/strong>)?\\s*in\\s+the\\s+said\\s+examination)`, 'gi'), '$1{DIVISION_DISTINCTION}$2');
+  }
+  if (contextData.reappSubjects && contextData.reappSubjects !== '—' && !contextData.reappSubjects.includes('{')) {
+    const escSubs = escapeRegex(contextData.reappSubjects.trim());
+    res = res.replace(new RegExp(`(subject\\(s\\)\\s*\\((?:<strong>)?\\s*)${escSubs}(\\s*(?:<\\/strong>)?\\s*\\))`, 'gi'), '$1{REAPP_SUBJECTS}$2');
+  }
+  if (contextData.admissionNo && !contextData.admissionNo.includes('{')) {
+    replaceLiteral(contextData.admissionNo, '{ADMISSION_NO}');
+  }
+  if (contextData.admissionDate && !contextData.admissionDate.includes('{')) {
+    replaceLiteral(contextData.admissionDate, '{ADMISSION_DATE}');
+  }
+  if (contextData.withdrawalDate && !contextData.withdrawalDate.includes('{')) {
+    replaceLiteral(contextData.withdrawalDate, '{WITHDRAWAL_DATE}');
   }
 
-  // 2. Universal Pattern Detection: if student names were baked into standard sentence templates
-  // Matches "This is to certify that [Mr. Name], son of..." or "Certified that [Mr. Name], son of..."
+  // Retokenize any active custom fields
+  if (Array.isArray(contextData.customFields)) {
+    contextData.customFields.forEach(f => {
+      if (f.label && f.value) {
+        const token = `{${f.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`;
+        replaceLiteral(String(f.value), token);
+      }
+    });
+  }
+
+  // 2. Universal Sentence Structure Pattern Detection
+  // Matches "This is to certify that [Mr. Name], son of..."
   res = res.replace(
     /((?:(?:(?:His|Her|He|She)\s*)?This\s+is\s+(?:to\s+)?certif(?:y|ied)\s+that|Certified\s+that|It\s+is\s+certified\s+that)\s*)(?:<strong>)?(?:(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+)?([^,<>{}\n]+?)(?:<\/strong>)?(\s*,\s*(?:son|daughter|S\/o|D\/o|\{PRONOUN_SON_DAUGHTER\}|\{PRONOUN_SO_DO\}))/gi,
     (m, p1, name, p3) => {
@@ -411,7 +511,30 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
     }
   );
 
-  // Matches "son of [Mr. Father Name] and Mrs..." or "son of [Mr. Father Name], resident..."
+  // Matches TC/DC locality: "R/o [Village] tehsil [Tehsil] district [District]"
+  res = res.replace(
+    /(R\/o\s+(?:<strong>)?)([^<>{}\n]+?)(?:<\/strong>)?(\s+tehsil\s+(?:<strong>)?)([^<>{}\n]+?)(?:<\/strong>)?(\s+district\s+(?:<strong>)?)([^<>{}\n,]+?)(?:<\/strong>)?(?=,|\.|\s+who|\s+studied)/gi,
+    (m, p1, v, p3, t, p5, d) => {
+      const cv = v.trim();
+      const ct = t.trim();
+      const cd = d.trim();
+      const cleanV = cv.includes('{') ? cv : '{VILLAGE}';
+      const cleanT = ct.includes('{') ? ct : '{TEHSIL}';
+      const cleanD = cd.includes('{') ? cd : '{DISTRICT}';
+      return `${p1}<strong>${cleanV}</strong>${p3}<strong>${cleanT}</strong>${p5}<strong>${cleanD}</strong>`;
+    }
+  );
+
+  // Matches examination roll number: "under examination roll number [roll]"
+  res = res.replace(
+    /(under\s+examination\s+roll\s+number\s+(?:<strong>)?)([0-9A-Za-z—–-]+?)((?:<\/strong>)?\s*,\s*has\s+been)/gi,
+    (m, p1, r, p3) => {
+      if (r.includes('{')) return m;
+      return `${p1}{EXAM_ROLL_NO}${p3}`;
+    }
+  );
+
+  // Matches "son of [Father] and Mrs..." or "son of [Father], resident..."
   res = res.replace(
     /(((?:son|daughter|S\/o|D\/o|\{PRONOUN_SON_DAUGHTER\}|\{PRONOUN_SO_DO\})\s+of\s+)(?:<strong>)?(?:Mr\.\s+)?)([^,<>{}\n]+?)((?:<\/strong>)?\s*(?:and\s+Mrs\.|\s+Mother's\s+Name|,\s*(?:resident|residing|R\/o)))/gi,
     (m, p1, father, p3) => {
@@ -421,7 +544,7 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
     }
   );
 
-  // Matches "and Mrs. [Mother Name], resident..." or "Mother's Name [Mother Name], R/o..."
+  // Matches "and Mrs. [Mother], resident..." or "Mother's Name [Mother], R/o..."
   res = res.replace(
     /(((?:and\s+Mrs\.|\s+Mother's\s+Name)\s+)(?:<strong>)?)([^,<>{}\n]+?)((?:<\/strong>)?\s*,\s*(?:resident|residing|R\/o))/gi,
     (m, p1, mother, p3) => {
@@ -484,14 +607,6 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
       return `${p1}{ADDRESS}${p3}`;
     }
   );
-  // Also match without strong tags if an unbolded address follows residing at / resident of
-  res = res.replace(
-    /((?:resident\s+of|residing\s+at)\s+)([A-Z][a-zA-Z0-9\s,./()—–-]+?(?:Shangus|Anantnag|\(J&K\)|Kashmir))(?=[\s,.;<]|\s+is\b|\s+was\b)/gi,
-    (m, p1, addr) => {
-      if (addr.includes('{') || addr.trim().length < 3) return m;
-      return `${p1}<strong>{ADDRESS}</strong>`;
-    }
-  );
 
   // 3. Known default placeholder names & values explicitly replaced
   res = res.replace(/MOHAMMAD\s+TAHIR\s+WANI/gi, '{STUDENT_NAME}');
@@ -518,7 +633,6 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   // Salutations / Pronoun canonical normalization
   res = res.replace(/(?:his|her|he|she)\s*this\s+is\s+(?:to\s+)?certif/gi, 'This is to certif');
   res = res.replace(/\b(?:his|her|he|she)this\b/gi, 'This');
-  res = res.replace(/(resident\s+of|residing\s+at)\s*(?:<strong>)?\s*(?:(?:Mr\.|Mrs\.|Ms\.|Miss|Master)\s+)?(?:MOHAMMAD\s+TAHIR\s+WANI|\{STUDENT_NAME\})\s*(?:<\/strong>)?(?=\s*,\s*(?:was|is))/gi, '$1 <strong>{ADDRESS}</strong>');
   res = res.replace(/(?:Mr\.|Master)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
   res = res.replace(/(?:Ms\.|Miss)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
   res = res.replace(/(?:Mr\.|Shri)\s*\{FATHER_NAME\}/gi, '{FATHER_TITLE} {FATHER_NAME}');
@@ -772,10 +886,17 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   const effectiveMarksObt = parsedCandidateMatch ? parsedCandidateMatch[1] : (candidateMarks || '');
   const effectiveMaxMarks = parsedCandidateMatch && parsedCandidateMatch[2] ? parsedCandidateMatch[2] : (maxMarks || '500');
 
+  const locality = resolveStudentLocality(studentData, rawStudent, effectiveAddress);
+  const effVillage = (village && village !== '—' && village !== '-') ? village : locality.village;
+  const effTehsil = (tehsil && tehsil !== '—' && tehsil !== '-') ? tehsil : locality.tehsil;
+  const effDistrict = (district && district !== '—' && district !== '-') ? district : locality.district;
+  const effExamRoll = (examRollNo && examRollNo !== '—' && examRollNo !== '-') ? examRollNo : (rollNo || '');
+  const effExamSession = (examSession && examSession !== '—' && examSession !== '-') ? examSession : (session || '2024-25');
+
   // TC / DC Token Replacements
   result = result.replace(/\{EXAM_NAME\}/gi, formatBlank(examName, 'Class 12th Examination'));
-  result = result.replace(/\{EXAM_ROLL_NO\}/gi, formatBlank(examRollNo || rollNo, '------------------------'));
-  result = result.replace(/\{EXAM_SESSION\}/gi, formatBlank(examSession || session, '----------------'));
+  result = result.replace(/\{EXAM_ROLL_NO\}/gi, formatBlank(effExamRoll, '------------------------'));
+  result = result.replace(/\{EXAM_SESSION\}/gi, formatBlank(effExamSession, '----------------'));
   const computeDivision = (marksObt, maxMarksVal = 500) => {
     const obt = parseFloat(marksObt);
     const max = parseFloat(maxMarksVal) || 500;
@@ -814,12 +935,47 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{(?:ADMISSION_NO|ADM_NO|ADMISSION_NUMBER)\}/gi, formatBlank(effectiveAdmissionNo, '------------------------'));
   result = result.replace(/\{(?:WITHDRAWAL_DATE|RESULT_DATE)\}/gi, formatToDDMMYYYY(withdrawalDate, '----------------'));
   result = result.replace(/\{CONDUCT_STATUS\}/gi, formatBlank(conductStatus, 'Satisfactory'));
-  result = result.replace(/\{(?:VILLAGE|TOWN)\}/gi, formatBlank(village || effectiveAddress, '----------------------------------------'));
-  result = result.replace(/\{TEHSIL\}/gi, formatBlank(tehsil, '----------------'));
-  result = result.replace(/\{DISTRICT\}/gi, formatBlank(district, '----------------'));
+  result = result.replace(/\{(?:VILLAGE|TOWN)\}/gi, formatBlank(effVillage, '----------------------------------------'));
+  result = result.replace(/\{TEHSIL\}/gi, formatBlank(effTehsil, 'Shangus'));
+  result = result.replace(/\{DISTRICT\}/gi, formatBlank(effDistrict, 'Anantnag'));
   result = result.replace(/\{(?:PIN_CODE|PIN|PINCODE)\}/gi, formatBlank(mergedProps.pinCode || mergedProps.pin || '', '------'));
-  result = result.replace(/\{(?:MOBILE|PHONE|CONTACT_NO)\}/gi, formatBlank(mergedProps.mobile || mergedProps.phone || '', '----------'));
   result = result.replace(/\{(?:CERTIFICATE_NO|TC_DC_NO|CERT_NO)\}/gi, formatBlank(certificateNo || refNo, '----------------'));
+
+  // Preset Database Fields resolution directly from raw student if not overridden
+  const resolvePresetVal = (keys) => {
+    for (const k of keys) {
+      const v = rawStudent[k] ?? studentData[k] ?? options[k];
+      if (v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '—') {
+        return String(v).trim();
+      }
+    }
+    return '';
+  };
+
+  result = result.replace(/\{(?:MOBILE_NO|MOBILE|PHONE|CONTACT_NO)\}/gi, formatBlank(resolvePresetVal(['mobile', 'mobile_no', 'Mobile', 'Mobile Number', 'Phone', 'contact_no', 'phone']), '----------'));
+  result = result.replace(/\{(?:EMAIL_ADDRESS|EMAIL)\}/gi, formatBlank(resolvePresetVal(['email', 'Email', 'email_address']), '------------------------'));
+  result = result.replace(/\{(?:ADMISSION_FORM_NO|FORM_NO)\}/gi, formatBlank(resolvePresetVal(['formNo', 'form_no', 'Form No', 'Form Number', 'FormNumber', 'id']), '--------'));
+  result = result.replace(/\{(?:AADHAAR_NUMBER|AADHAAR_NO|AADHAAR|AADHAR)\}/gi, formatBlank(resolvePresetVal(['aadhar', 'aadhar_no', 'Aadhar', 'Aadhaar', 'aadhaar_no', 'Aadhar Number', 'aadhaar']), '------------'));
+  result = result.replace(/\{(?:CATEGORY|SOCIAL_CATEGORY)\}/gi, formatBlank(resolvePresetVal(['category', 'Category', 'Social Category', 'social_category', 'reserved_category', 'Cat._JKBOSE']), 'OM'));
+  result = result.replace(/\{BLOOD_GROUP\}/gi, formatBlank(resolvePresetVal(['blood_group', 'Blood Group', 'bloodGroup', 'BloodGroup', 'blood_grp']), '----'));
+  result = result.replace(/\{(?:PEN_NUMBER|PEN_NO|PEN)\}/gi, formatBlank(resolvePresetVal(['pen', 'pen_no', 'PEN', 'PEN No', 'PEN Number', 'pen_number', 'Permanent Education No']), '--------------'));
+  result = result.replace(/\{PREVIOUS_SCHOOL\}/gi, formatBlank(resolvePresetVal(['prev_school', 'previous_school', 'Previous School', 'Institution Last Attended', 'school_last_attended']), '------------------------'));
+  result = result.replace(/\{MARKS_PERCENTAGE\}/gi, formatBlank(resolvePresetVal(['percentage', 'Percentage', 'marks_percentage', 'Marks %', 'percent', 'Percentage / GPA']), '------'));
+  result = result.replace(/\{(?:SUBJECTS|SUBJECTS_OFFERED)\}/gi, formatBlank(resolvePresetVal(['subjects', 'Subjects', 'subjects_offered', 'Subjects Offered', 'subject_combination', 'Subjects Selected', 'subs']), '------------------------'));
+  result = result.replace(/\{(?:GUARDIAN_CONTACT|PARENT_MOBILE)\}/gi, formatBlank(resolvePresetVal(['parent_mobile', 'guardian_mobile', 'Father Mobile', 'father_mobile', 'Parent Contact']), '----------'));
+
+  // Any extra field present in raw record automatically interpolates
+  if (rawStudent && typeof rawStudent === 'object') {
+    Object.entries(rawStudent).forEach(([k, v]) => {
+      if (typeof v === 'string' || typeof v === 'number') {
+        const cleanV = String(v).trim();
+        if (cleanV && cleanV !== '—') {
+          const token = `{${k.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`;
+          result = result.replace(new RegExp(escapeRegex(token), 'g'), cleanV);
+        }
+      }
+    });
+  }
 
   // If salutations are disabled, also clean any literal salutations residing inside tags (e.g. <strong>Mr. ...</strong>)
   if (!includeSalutations) {

@@ -3159,6 +3159,24 @@ export default function AdmissionRegisterSuite({
     }
   };
 
+  const handleCleanPrintRef = useRef(handleCleanPrint);
+  useEffect(() => {
+    handleCleanPrintRef.current = handleCleanPrint;
+  });
+
+  // Intercept Ctrl+P / Cmd+P to trigger clean admission register print/PDF instead of browser window print
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleCleanPrintRef.current?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
+
   // Open Universal Readmission Modal (Candidate Search Mode)
   const handleOpenUniversalReadmissionModal = () => {
     setReadmissionModalStudent(null);

@@ -97,24 +97,61 @@ export function normalizeCertificateSession(value) {
     : value;
   const text = String(raw || '').trim().toLowerCase();
   if (!text) return '';
+  const isMarApr = /(?:mar|march)[\s/-]*(?:apr|april)/i.test(text);
   const years = Array.from(text.matchAll(/(?:19|20)\d{2}/g), match => match[0]);
   const shortRange = text.match(/((?:19|20)\d{2})\s*[-/]\s*(\d{2})(?!\d)/);
   const yearKey = shortRange ? `${shortRange[1]}-${shortRange[2]}` : years.join('-');
   let cycle = '';
-  if (/\b(apr|bian|bi[\s-]*annual|private|supplementary)\b/.test(text)) cycle = 'bian';
-  else if (/\b(reg|regular)\b/.test(text)) cycle = 'regular';
-  else if (/\bannual\b/.test(text) && !/bi[\s-]*annual/.test(text)) cycle = 'annual';
+  if (!isMarApr && /\b(bian|bi[\s-]*annual|private|supplementary|pvt)\b/i.test(text)) cycle = 'bian';
+  else if (isMarApr || /\b(reg|regular)\b/i.test(text)) cycle = 'regular';
+  else if (/\bannual\b/i.test(text) && !/bi[\s-]*annual/i.test(text)) cycle = 'annual';
   const residual = text.replace(/[^a-z0-9]/g, '');
   return `${yearKey || residual}:${cycle || 'unspecified'}`;
 }
 
+export function areCertificateSessionsCompatible(sessionA, sessionB) {
+  if (!sessionA || !sessionB) return true;
+  const sA = normalizeCertificateSession(sessionA);
+  const sB = normalizeCertificateSession(sessionB);
+  if (sA === sB) return true;
+
+  const [yearA, cycleA] = sA.split(':');
+  const [yearB, cycleB] = sB.split(':');
+
+  const getEndYear = (y) => {
+    if (!y) return '';
+    const m = String(y).match(/(\d{4})-(\d{2,4})/);
+    if (m) {
+      return m[2].length === 2 ? `20${m[2]}` : m[2];
+    }
+    const single = String(y).match(/\b\d{4}\b/);
+    return single ? single[0] : String(y);
+  };
+
+  const endA = getEndYear(yearA);
+  const endB = getEndYear(yearB);
+  const yearsMatch = yearA === yearB || (endA && endB && endA === endB);
+
+  if (!yearsMatch) return false;
+
+  const isBianA = cycleA === 'bian';
+  const isBianB = cycleB === 'bian';
+  if ((isBianA && cycleB === 'regular') || (isBianB && cycleA === 'regular')) {
+    return false;
+  }
+
+  return true;
+}
+
 export function isExactCertificateScope(record, targetSession, targetClass) {
-  const sessionKey = normalizeCertificateSession(record);
   const classKey = normalizeCertificateClass(record);
-  const targetSessionKey = normalizeCertificateSession(targetSession);
   const targetClassKey = normalizeCertificateClass(targetClass);
 
-  if (!sessionKey || !classKey || sessionKey !== targetSessionKey || classKey !== targetClassKey) {
+  if (!classKey || classKey !== targetClassKey) {
+    return false;
+  }
+
+  if (targetSession && !areCertificateSessionsCompatible(record, targetSession)) {
     return false;
   }
 
@@ -122,9 +159,8 @@ export function isExactCertificateScope(record, targetSession, targetClass) {
   // from a prior year (e.g. 2024) must never be applied to a subsequent session (e.g. 2026).
   const raw = rawRecord(record);
   const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || raw['Exam Mode'] || record?.examMode || '';
-  if (examMode) {
-    const examModeKey = normalizeCertificateSession(examMode);
-    if (examModeKey && examModeKey !== targetSessionKey && !examModeKey.startsWith('unspecified:')) {
+  if (examMode && targetSession) {
+    if (!areCertificateSessionsCompatible(examMode, targetSession)) {
       return false;
     }
   }
@@ -143,10 +179,20 @@ const resultCompleteness = result => [
 
 export function resolveScopedCertificateResult(records, targetSession, targetClass) {
   const scoped = (records || []).filter(record => isExactCertificateScope(record, targetSession, targetClass));
-  const candidates = scoped
+  let candidates = scoped
     .map(record => ({ record, result: extractStudentResultMarks(record) }))
     .filter(candidate => candidate.result.hasResult)
     .sort((a, b) => resultCompleteness(b.result) - resultCompleteness(a.result));
+
+  // Fallback: If no candidate matched exact session, check records that match target class and have verified result
+  if (candidates.length === 0 && targetClass) {
+    const classScoped = (records || []).filter(record => normalizeCertificateClass(record) === normalizeCertificateClass(targetClass));
+    candidates = classScoped
+      .map(record => ({ record, result: extractStudentResultMarks(record) }))
+      .filter(candidate => candidate.result.hasResult)
+      .sort((a, b) => resultCompleteness(b.result) - resultCompleteness(a.result));
+  }
+
   const winner = candidates[0] || null;
   return {
     scopedRecords: scoped,

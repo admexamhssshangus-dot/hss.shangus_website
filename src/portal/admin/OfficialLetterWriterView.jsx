@@ -1384,6 +1384,24 @@ export default function OfficialLetterWriterView({
     });
   };
 
+  const handlePrintRef = useRef(handlePrint);
+  useEffect(() => {
+    handlePrintRef.current = handlePrint;
+  });
+
+  // Intercept Ctrl+P / Cmd+P to trigger clean, isolated official letter print/PDF instead of browser window print
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlePrintRef.current?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
+
   // Export to Word (.docx)
   const handleExportDocx = async () => {
     if (!editorRef.current) return;
