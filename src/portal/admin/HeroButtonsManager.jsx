@@ -282,13 +282,13 @@ export default function HeroButtonsManager({
               <Compass size={18} />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 Homepage Hero Action Buttons (Call-to-Action)
-                <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shadow-2xs">
                   {buttons.filter(b => b.enabled !== false).length} Active on Home
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
                 Manage titles, destination links, new tab redirection, colors, and order of buttons appearing under the hero banner slogan.
               </p>
             </div>
@@ -362,79 +362,93 @@ export default function HeroButtonsManager({
       )}
 
       {/* 3D Visual Experience Switch */}
-      <div className="bg-slate-900/60 p-3.5 rounded-xl border border-indigo-500/30 flex flex-col gap-3">
+      <div className="bg-white dark:bg-slate-900/60 p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-500/30 flex flex-col gap-3 shadow-xs">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-start gap-2.5">
-            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mt-0.5 shrink-0">
+            <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 mt-0.5 shrink-0">
               <Sparkles size={16} />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h4 className="text-xs font-bold text-slate-100">Interactive 3D Educational Assets (Hero Banner)</h4>
-                <span className={`text-[9.5px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">Interactive 3D Educational Assets (Hero Banner)</h4>
+                <span className={`text-[9.5px] uppercase font-black px-2 py-0.5 rounded-full border shadow-2xs ${
                   settings?.enable3dHeroAssets
-                    ? 'bg-indigo-950/90 text-indigo-300 border-indigo-600/50'
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                    ? 'bg-indigo-100 dark:bg-indigo-950/90 text-indigo-800 dark:text-indigo-300 border-indigo-300 dark:border-indigo-600/50'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
                 }`}>
                   {settings?.enable3dHeroAssets ? '3D Active' : 'Classic 2D Mode'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">
                 Enables floating procedural 3D academic assets (Knowledge Core, Floating Book of Wisdom & Constellation) behind the hero slogan. Fully responsive with touch parallax and zero performance overhead when disabled.
               </p>
             </div>
           </div>
           <div className="self-end sm:self-center shrink-0 flex items-center gap-2">
-            <label className="relative inline-flex items-center cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={Boolean(settings?.enable3dHeroAssets)}
-                onChange={(e) => {
-                  onUpdateSettings({
-                    ...settings,
-                    enable3dHeroAssets: e.target.checked
-                  });
-                }}
-                className="sr-only peer"
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(settings?.enable3dHeroAssets)}
+              onClick={() => {
+                onUpdateSettings({
+                  ...settings,
+                  enable3dHeroAssets: !settings?.enable3dHeroAssets
+                });
+              }}
+              className={`toggle-switch-btn relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                settings?.enable3dHeroAssets ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+              }`}
+              aria-label="Toggle Interactive 3D Educational Assets"
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                  settings?.enable3dHeroAssets ? 'translate-x-5' : 'translate-x-0'
+                }`}
               />
-              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-            </label>
+            </button>
           </div>
         </div>
 
         {/* Mobile Viewport Toggle (Sub-control) */}
         {Boolean(settings?.enable3dHeroAssets) && (
-          <div className="pt-2.5 mt-1 border-t border-indigo-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 bg-indigo-950/20 p-2.5 rounded-lg">
+          <div className="pt-2.5 mt-1 border-t border-indigo-200 dark:border-indigo-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 bg-indigo-50/70 dark:bg-indigo-950/20 p-2.5 rounded-lg">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-200">Show 3D Assets on Mobile Devices (&lt; 768px)</span>
-                <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded border ${
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Show 3D Assets on Mobile Devices (&lt; 768px)</span>
+                <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded border shadow-2xs ${
                   settings?.enable3dHeroAssetsMobile
-                    ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
-                    : 'bg-slate-800 text-amber-300 border-amber-500/40'
+                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                    : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700/60'
                 }`}>
                   {settings?.enable3dHeroAssetsMobile ? 'Mobile On' : 'Hidden on Mobile (Default)'}
                 </span>
               </div>
-              <p className="text-[10.5px] text-slate-400 mt-0.5">
+              <p className="text-[10.5px] text-slate-600 dark:text-slate-400 mt-0.5">
                 When turned off (recommended), 3D assets render on desktop while mobile devices receive a lightweight, fast-loading 2D banner.
               </p>
             </div>
             <div className="self-end sm:self-center shrink-0">
-              <label className="relative inline-flex items-center cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={Boolean(settings?.enable3dHeroAssetsMobile)}
-                  onChange={(e) => {
-                    onUpdateSettings({
-                      ...settings,
-                      enable3dHeroAssetsMobile: e.target.checked
-                    });
-                  }}
-                  className="sr-only peer"
+              <button
+                type="button"
+                role="switch"
+                aria-checked={Boolean(settings?.enable3dHeroAssetsMobile)}
+                onClick={() => {
+                  onUpdateSettings({
+                    ...settings,
+                    enable3dHeroAssetsMobile: !settings?.enable3dHeroAssetsMobile
+                  });
+                }}
+                className={`toggle-switch-btn relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  settings?.enable3dHeroAssetsMobile ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                }`}
+                aria-label="Toggle 3D Assets on Mobile Devices"
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    settings?.enable3dHeroAssetsMobile ? 'translate-x-4' : 'translate-x-0'
+                  }`}
                 />
-                <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
-              </label>
+              </button>
             </div>
           </div>
         )}
@@ -786,7 +800,7 @@ export default function HeroButtonsManager({
                     {/* Button Details */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-bold ${isEnabled ? 'text-slate-100' : 'text-slate-400 line-through'}`}>
+                        <span className={`text-xs font-bold ${isEnabled ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400 line-through'}`}>
                           {btn.label}
                         </span>
 
@@ -797,20 +811,20 @@ export default function HeroButtonsManager({
 
                         {/* New tab badge */}
                         {btn.openInNewTab && (
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 inline-flex items-center gap-0.5">
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800/60 inline-flex items-center gap-0.5">
                             <ExternalLink size={9} /> _blank
                           </span>
                         )}
 
                         {/* Admission Status Tracker Badge */}
                         {btn.trackAdmissionStatus && (
-                          <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800/60" title={`Closed Label: "${btn.closedLabel || 'Admissions Closed'}"`}>
+                          <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/60" title={`Closed Label: "${btn.closedLabel || 'Admissions Closed'}"`}>
                             ⚡ Tracks Admissions
                           </span>
                         )}
 
                         {!isEnabled && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800/60">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800/60">
                             Hidden / Disabled
                           </span>
                         )}
