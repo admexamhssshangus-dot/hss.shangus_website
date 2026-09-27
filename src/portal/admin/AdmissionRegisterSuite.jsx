@@ -3324,7 +3324,7 @@ export default function AdmissionRegisterSuite({
         // This legal register value must come from the matched database record.
         // Never infer it from the previous-school name or re-admission status.
         prevCC: finalAdmittedVide || '—',
-        withdrawal: finalWithdrawal || '—',
+        withdrawal: '',
         issuedCC: finalIssuedCC,
         receipt: finalReceipt,
         remarks: isReadmission
@@ -6591,6 +6591,40 @@ export default function AdmissionRegisterSuite({
             margin: 0 auto !important;
           }
 
+          /* Distinct vertical handwriting cells in Part 2 (ISSUED DC/CC & RECEIPT) */
+          .admission-spread-table td.register-handwrite-cell {
+            padding: 0 0.5mm !important;
+            vertical-align: middle !important;
+            white-space: normal !important;
+          }
+          .admission-spread-table td.register-handwrite-cell .handwrite-container {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-evenly !important;
+            height: 100% !important;
+            min-height: calc(${registerRowHeightMm}mm - 0.4mm) !important;
+            max-height: calc(${registerRowHeightMm}mm - 0.2mm) !important;
+            box-sizing: border-box !important;
+          }
+          .admission-spread-table td.register-handwrite-cell .handwrite-line {
+            display: flex !important;
+            align-items: center !important;
+            gap: 1px !important;
+            line-height: 1.0 !important;
+          }
+          .admission-spread-table td.register-handwrite-cell .handwrite-label {
+            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.4px'} !important;
+            font-weight: 700 !important;
+            color: #1e293b !important;
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+          }
+          .admission-spread-table td.register-handwrite-cell .handwrite-guide {
+            flex: 1 1 auto !important;
+            border-bottom: 0.5px dotted #64748b !important;
+            min-height: 2px !important;
+          }
+
           .register-ledger-page .signature-footer {
             display: flex !important;
             justify-content: space-between !important;
@@ -9671,24 +9705,36 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7px] bg-emerald-50">
                                     {renderAdmittedVideCell(s.prevCC)}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{formatRegisterDate(s.withdrawal) || s.withdrawal || '—'}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden align-middle">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50" data-col="p2_withdrawal"></td>
+                                  <td className="register-handwrite-cell border border-slate-900 px-1.5 py-0.5 text-left bg-rose-50/40 overflow-hidden align-middle" data-col="p2_issuedCC">
                                     {s.issuedCC ? (
-                                      <div className="text-[6.5px] leading-tight font-medium line-clamp-2">{s.issuedCC}</div>
+                                      <div className="text-[7px] leading-tight font-semibold text-slate-900 line-clamp-2">{s.issuedCC}</div>
                                     ) : (
-                                      <div className="flex flex-col justify-center text-[6px] leading-[1.05] select-none font-medium text-slate-800 overflow-hidden">
-                                        <div className="truncate">C.No. _______</div>
-                                        <div className="truncate mt-0.5">Dt. _______</div>
+                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 space-y-1.5 select-none font-medium text-slate-800">
+                                        <div className="handwrite-line flex items-center gap-1 leading-none">
+                                          <span className="handwrite-label font-bold text-[6.5px] text-slate-700 tracking-tight shrink-0">C.No:</span>
+                                          <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[28px] h-2"></span>
+                                        </div>
+                                        <div className="handwrite-line flex items-center gap-1 leading-none">
+                                          <span className="handwrite-label font-bold text-[6.5px] text-slate-700 tracking-tight shrink-0">Date:</span>
+                                          <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[28px] h-2"></span>
+                                        </div>
                                       </div>
                                     )}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden align-middle">
+                                  <td className="register-handwrite-cell border border-slate-900 px-1.5 py-0.5 text-left bg-rose-50/40 overflow-hidden align-middle" data-col="p2_receipt">
                                     {s.receipt ? (
-                                      <div className="text-[6.5px] leading-tight font-medium line-clamp-2">{s.receipt}</div>
+                                      <div className="text-[7px] leading-tight font-semibold text-slate-900 line-clamp-2">{s.receipt}</div>
                                     ) : (
-                                      <div className="flex flex-col justify-center text-[6px] leading-[1.05] select-none font-medium text-slate-800 overflow-hidden">
-                                        <div className="truncate">rcvd DC/CC C.No. ___</div>
-                                        <div className="truncate mt-0.5">on _____ Sig. _____</div>
+                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 space-y-1.5 select-none font-medium text-slate-800">
+                                        <div className="handwrite-line flex items-center gap-1 leading-none">
+                                          <span className="handwrite-label font-bold text-[6.5px] text-slate-700 tracking-tight shrink-0">Rcvd on:</span>
+                                          <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[40px] h-2"></span>
+                                        </div>
+                                        <div className="handwrite-line flex items-center gap-1 leading-none">
+                                          <span className="handwrite-label font-bold text-[6.5px] text-slate-700 tracking-tight shrink-0">Signature:</span>
+                                          <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[40px] h-2"></span>
+                                        </div>
                                       </div>
                                     )}
                                   </td>
