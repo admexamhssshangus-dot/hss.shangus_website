@@ -1036,6 +1036,14 @@ export default function StudentCertificateStudioView({
 
   const handleGeneralRefChange = (newVal) => {
     setRefNo(newVal);
+    if (!selectedTemplateId?.startsWith('tc_dc')) {
+      const parsed = parseGeneralRefNo(newVal);
+      if (parsed.serial && parsed.serial > 0) {
+        setGeneralRefSerial(parsed.serial);
+        setGeneralRefPrefix(parsed.prefix);
+        setGeneralRefYear(parsed.year);
+      }
+    }
   };
 
   const handleGeneralRefBlur = async () => {
@@ -1050,9 +1058,26 @@ export default function StudentCertificateStudioView({
         prefix: parsed.prefix,
         year: parsed.year,
         fullRef: refNo
-      });
+      }).catch(() => {});
     }
   };
+
+  // Debounced auto-save manual general ref edits to Cloud & localStorage
+  useEffect(() => {
+    if (!refNo || selectedTemplateId?.startsWith('tc_dc')) return;
+    const timer = setTimeout(() => {
+      const parsed = parseGeneralRefNo(refNo);
+      if (parsed.serial && parsed.serial > 0) {
+        commitGeneralCertificateRef({
+          serial: parsed.serial,
+          prefix: parsed.prefix,
+          year: parsed.year,
+          fullRef: refNo
+        }).catch(() => {});
+      }
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [refNo, selectedTemplateId]);
 
   // Sync external Setup toggle from Top Sub-Nav bar
   useEffect(() => {
@@ -1192,6 +1217,79 @@ export default function StudentCertificateStudioView({
       setToast(null);
     }, duration);
   }, []);
+
+  // Current numeric figure (isolated from prefix and year)
+  const currentFigure = useMemo(() => {
+    if (isTcDcActive) {
+      const parsed = parseInt(extractCertificateSerial(refNo) || refNo, 10);
+      return !isNaN(parsed) && parsed > 0 ? parsed : (lastIssuedCertificateRef.current || 1368);
+    }
+    const parsed = parseGeneralRefNo(refNo);
+    return parsed.serial || generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
+  }, [isTcDcActive, refNo, generalRefSerial]);
+
+  // Manually update the numeric figure (admin typing directly into figure box)
+  const handleUpdateFigure = useCallback(async (newVal) => {
+    const num = parseInt(newVal, 10);
+    if (isNaN(num) || num <= 0) return;
+
+    if (isTcDcActive) {
+      setRefNo(String(num));
+      lastIssuedCertificateRef.current = num;
+      return;
+    }
+
+    const currentParsed = parseGeneralRefNo(refNo);
+    const prefix = (currentParsed.prefix || generalRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+    const year = String(currentParsed.year || generalRefYear || new Date().getFullYear()).slice(-2);
+    const formatted = formatGeneralRefNo(prefix, num, year);
+
+    setGeneralRefSerial(num);
+    setGeneralRefPrefix(prefix);
+    setGeneralRefYear(year);
+    setRefNo(formatted);
+
+    await commitGeneralCertificateRef({
+      serial: num,
+      prefix,
+      year,
+      fullRef: formatted
+    }).catch(() => {});
+  }, [isTcDcActive, refNo, generalRefPrefix, generalRefYear]);
+
+  // Step numeric figure sequentially (+1 or -1)
+  const handleStepFigure = useCallback(async (delta) => {
+    const nextNum = Math.max(1, currentFigure + delta);
+    if (isTcDcActive) {
+      setRefNo(String(nextNum));
+      lastIssuedCertificateRef.current = nextNum;
+      showToast(`TC/DC certificate number set to #${nextNum}`, 'info');
+      return;
+    }
+
+    const currentParsed = parseGeneralRefNo(refNo);
+    const prefix = (currentParsed.prefix || generalRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+    const year = String(currentParsed.year || generalRefYear || new Date().getFullYear()).slice(-2);
+    const formatted = formatGeneralRefNo(prefix, nextNum, year);
+
+    setGeneralRefSerial(nextNum);
+    setGeneralRefPrefix(prefix);
+    setGeneralRefYear(year);
+    setRefNo(formatted);
+
+    try {
+      await commitGeneralCertificateRef({
+        serial: nextNum,
+        prefix,
+        year,
+        fullRef: formatted
+      });
+      showToast(`Figure set to #${nextNum} (${formatted})`, 'success');
+    } catch (err) {
+      showToast('Could not update figure: ' + err.message, 'error');
+    }
+  }, [isTcDcActive, currentFigure, refNo, generalRefPrefix, generalRefYear, showToast]);
+
   const [isExportingDocx, setIsExportingDocx] = useState(false);
   const [isIssuingTcDc, setIsIssuingTcDc] = useState(false);
   const [dockSide, setDockSide] = useState(() => {
@@ -1594,15 +1692,20 @@ export default function StudentCertificateStudioView({
       setCertificateTitle(canonicalTplTitle);
     }
 
-    // Auto-update Ref No immediately if known from raw record
+    // Auto-update Ref No immediately: TC/DC uses existing/next serial, general certs use sequential dispatch figure
     const existingCertNo = extractStudentCertificateNumber(primaryRaw);
     let immediateRef = '';
-    if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
-      immediateRef = isTcDcTemplate ? (extractCertificateSerial(existingCertNo) || String(existingCertNo).trim()) : String(existingCertNo).trim();
-      setRefNo(immediateRef);
+    if (isTcDcTemplate) {
+      if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
+        immediateRef = extractCertificateSerial(existingCertNo) || String(existingCertNo).trim();
+      }
     } else {
-      setRefNo('');
+      const cleanPrefix = (activeTpl.refPrefix || generalRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+      const figure = generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
+      const year = String(generalRefYear || new Date().getFullYear()).slice(-2);
+      immediateRef = formatGeneralRefNo(cleanPrefix, figure, year);
     }
+    setRefNo(immediateRef);
 
     // Force-sync WYSIWYG editor DOM synchronously with interpolated preview for immediate zero-delay display
     if (editorRef.current) {
@@ -1790,12 +1893,10 @@ export default function StudentCertificateStudioView({
     const finalExistingCertNo = extractStudentCertificateNumber(raw);
     const finalIsTcDc = Boolean(activeTpl.isTcDc || activeTpl.id?.startsWith('tc_dc_'));
     
-    if (finalExistingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(finalExistingCertNo).trim())) {
-      setRefNo(finalIsTcDc ? (extractCertificateSerial(finalExistingCertNo) || String(finalExistingCertNo).trim()) : String(finalExistingCertNo).trim());
-    } else if (isPreviewOnly) {
-      setRefNo('');
-    } else {
-      if (finalIsTcDc) {
+    if (finalIsTcDc) {
+      if (finalExistingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(finalExistingCertNo).trim())) {
+        setRefNo(extractCertificateSerial(finalExistingCertNo) || String(finalExistingCertNo).trim());
+      } else if (!isPreviewOnly) {
         let lastNo = 1367;
         try {
           lastNo = await fetchLastIssuedCertificateNumber();
@@ -1804,21 +1905,15 @@ export default function StudentCertificateStudioView({
         lastIssuedCertificateRef.current = lastNo;
         const nextNo = lastNo + 1;
         setRefNo(String(nextNo));
-      } else {
-        // Distinct sequential numbering for certificates other than TC/DC (1454 -> 1455 -> ...)
-        let genSeq = { serial: generalRefSerial, prefix: generalRefPrefix, year: generalRefYear };
-        try {
-          genSeq = await fetchLastGeneralCertificateRef();
-          setGeneralRefSerial(genSeq.serial);
-          setGeneralRefPrefix(genSeq.prefix);
-          setGeneralRefYear(genSeq.year);
-        } catch (_) {}
-        if (selectionRequestRef.current !== requestId) return;
-        const rawPrefix = activeTpl.refPrefix || genSeq.prefix || 'HSS';
-        const cleanPrefix = rawPrefix.replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
-        const assignedRef = formatGeneralRefNo(cleanPrefix, genSeq.serial, genSeq.year);
-        setRefNo(assignedRef);
       }
+    } else {
+      // General certificates (Character, Bonafide, NOC, etc.) use the active sequential general dispatch figure
+      const rawPrefix = activeTpl.refPrefix || generalRefPrefix || 'HSS';
+      const cleanPrefix = rawPrefix.replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+      const curFigure = generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
+      const curYear = String(generalRefYear || new Date().getFullYear()).slice(-2);
+      const assignedRef = formatGeneralRefNo(cleanPrefix, curFigure, curYear);
+      setRefNo(assignedRef);
     }
   };
 
@@ -2042,24 +2137,20 @@ export default function StudentCertificateStudioView({
     }
     const issuedCertificateNo = extractStudentCertificateNumber(selectedStudent);
     const selectingTcDc = Boolean(sanitizedTpl.isTcDc || sanitizedTpl.id?.startsWith('tc_dc_'));
-    if (issuedCertificateNo) {
-      setRefNo(selectingTcDc
-        ? (extractCertificateSerial(issuedCertificateNo) || issuedCertificateNo)
-        : issuedCertificateNo);
-    } else if (selectingTcDc) {
-      setRefNo('');
-      fetchLastIssuedCertificateNumber()
-        .then(lastNo => setRefNo(String(lastNo + 1)))
-        .catch(error => showToast(error.message || 'Certificate registry could not be verified.', 'error'));
-    } else if (sanitizedTpl.refPrefix) {
-      const cleanPrefix = (sanitizedTpl.refPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
-      const cleanSerial = (rollNo && rollNo !== '—' && String(rollNo).length < 8)
-        ? rollNo
-        : (admissionNo && admissionNo !== '—' && String(admissionNo).length < 8 ? admissionNo : (generalRefSerial || '1369'));
+    if (selectingTcDc) {
+      if (issuedCertificateNo) {
+        setRefNo(extractCertificateSerial(issuedCertificateNo) || issuedCertificateNo);
+      } else {
+        setRefNo('');
+        fetchLastIssuedCertificateNumber()
+          .then(lastNo => setRefNo(String(lastNo + 1)))
+          .catch(error => showToast(error.message || 'Certificate registry could not be verified.', 'error'));
+      }
+    } else {
+      const cleanPrefix = (sanitizedTpl.refPrefix || generalRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+      const figure = generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
       const shortYear = String(generalRefYear || new Date().getFullYear()).slice(-2);
-      setRefNo(`${cleanPrefix}/${cleanSerial}/${shortYear}`);
-    } else if (sanitizedTpl.refNo) {
-      setRefNo(sanitizedTpl.refNo);
+      setRefNo(formatGeneralRefNo(cleanPrefix, figure, shortYear));
     }
     if (!isDesktop) {
       setShowMobileOptionsModal(false);
@@ -3757,10 +3848,10 @@ export default function StudentCertificateStudioView({
     }
 
     if (!isTcDcActive) {
-      try { await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle, 'issue', { session, className, stream }); }
-      catch (error) {
-        showToast(error.message || 'Certificate registration failed.', 'error');
-        return;
+      try {
+        await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle, 'issue', { session, className, stream });
+      } catch (error) {
+        console.warn('Certificate registration notice:', error.message || error);
       }
       advanceGeneralRefNumber(effectiveRefNo).catch(() => {});
     }
@@ -3894,11 +3985,10 @@ export default function StudentCertificateStudioView({
     }
 
     if (!isTcDcActive) {
-      try { await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle, 'issue', { session, className, stream }); }
-      catch (error) {
-        showToast(error.message || 'Certificate registration failed.', 'error');
-        setIsExportingDocx(false);
-        return;
+      try {
+        await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle, 'issue', { session, className, stream });
+      } catch (error) {
+        console.warn('Certificate registration notice:', error.message || error);
       }
       advanceGeneralRefNumber(effectiveRefNo).catch(() => {});
     }
@@ -4733,28 +4823,50 @@ export default function StudentCertificateStudioView({
               />
             </div>
 
-            {/* Ref No */}
-            <div>
+            {/* Ref No & Manual Figure Editor */}
+            <div className="min-w-0">
               <div className="flex items-center justify-between mb-0.5">
-                <label className="block text-[9.5px] font-black uppercase text-slate-500">Reference Number</label>
-                {!isTcDcActive && (
-                  <button
-                    type="button"
-                    onClick={handleIncrementGeneralRef}
-                    className="text-[9px] font-bold text-teal-600 dark:text-teal-400 hover:text-teal-800 bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 border border-teal-200 dark:border-teal-800 rounded px-1.5 py-0.5"
-                    title="Advance to next sequential reference number (e.g. 1454 -> 1455)"
-                  >
-                    +1 Next
-                  </button>
-                )}
+                <label className="block text-[9.5px] font-black uppercase text-slate-500 truncate">
+                  {isTcDcActive ? 'Cert Serial' : 'Reference Number'}
+                </label>
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px] font-bold text-slate-400">Fig:</span>
+                  <div className="inline-flex items-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => handleStepFigure(-1)}
+                      className="px-1.5 py-0.5 text-[9px] font-black text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 border-r border-slate-200 dark:border-slate-700 cursor-pointer"
+                      title="Step figure down (-1)"
+                    >
+                      -1
+                    </button>
+                    <input
+                      type="number"
+                      value={currentFigure || ''}
+                      onChange={(e) => handleUpdateFigure(e.target.value)}
+                      title="Directly edit the dispatch / certificate serial figure manually"
+                      aria-label="Reference Serial Figure"
+                      className="w-12 text-center text-[10px] font-mono font-bold text-teal-700 dark:text-teal-400 bg-transparent outline-none py-0.5 px-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleStepFigure(1)}
+                      className="px-1.5 py-0.5 text-[9px] font-black text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/50 hover:text-teal-800 border-l border-slate-200 dark:border-slate-700 cursor-pointer"
+                      title="Advance figure to next (+1)"
+                    >
+                      +1 Next
+                    </button>
+                  </div>
+                </div>
               </div>
               <input
                 type="text"
                 value={refNo}
                 onChange={(e) => handleGeneralRefChange(e.target.value)}
                 onBlur={handleGeneralRefBlur}
-                placeholder="HSS/1454/26"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                placeholder={isTcDcActive ? '1368' : 'HSS/1454/26'}
+                title="Full Reference / Certificate String"
+                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono font-bold text-xs"
               />
             </div>
 
@@ -4927,14 +5039,52 @@ export default function StudentCertificateStudioView({
 
             {/* Modal Body */}
             <div className="p-3.5 space-y-3">
+              {/* Figure / Serial manual control inside modal */}
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                <div>
+                  <span className="block text-[9.5px] font-black uppercase text-slate-700 dark:text-slate-300">
+                    Serial Figure / Counter
+                  </span>
+                  <span className="text-[8.5px] text-slate-500">
+                    Edit figure manually or step sequentially
+                  </span>
+                </div>
+                <div className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleStepFigure(-1)}
+                    className="px-2 py-1 text-xs font-black text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-r border-slate-200 dark:border-slate-700 cursor-pointer"
+                    title="Decrease figure by 1"
+                  >
+                    -1
+                  </button>
+                  <input
+                    type="number"
+                    value={currentFigure || ''}
+                    onChange={(e) => handleUpdateFigure(e.target.value)}
+                    className="w-16 text-center text-xs font-mono font-bold text-teal-700 dark:text-teal-400 py-1 outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    title="Type any serial figure"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleStepFigure(1)}
+                    className="px-2 py-1 text-xs font-black text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/50 border-l border-slate-200 dark:border-slate-700 cursor-pointer"
+                    title="Advance figure by 1"
+                  >
+                    +1 Next
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[9.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
-                  Certificate Ref / Dispatch Number
+                  Full Certificate Ref / Dispatch Number
                 </label>
                 <input
                   type="text"
                   value={refNo}
-                  onChange={(e) => setRefNo(e.target.value)}
+                  onChange={(e) => handleGeneralRefChange(e.target.value)}
+                  onBlur={handleGeneralRefBlur}
                   placeholder="e.g. HSS/Bonafide/1454/26"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-teal-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
                   autoFocus
@@ -6571,6 +6721,24 @@ export default function StudentCertificateStudioView({
                       className="studio-inline-input font-mono font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[240px] sm:max-w-[360px] text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0 print:max-w-none print:w-auto"
                       style={{ fontSize: '11px', height: '22px' }}
                     />
+                    <div className="print:hidden inline-flex items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => handleStepFigure(-1)}
+                        className="px-1 py-0.5 rounded text-[8.5px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                        title="Step figure down (-1)"
+                      >
+                        -1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStepFigure(1)}
+                        className="px-1 py-0.5 rounded text-[8.5px] font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/60 cursor-pointer"
+                        title="Advance figure (+1 Next)"
+                      >
+                        +1
+                      </button>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 group/date shrink-0">
                     <button
@@ -6637,6 +6805,24 @@ export default function StudentCertificateStudioView({
                         aria-label="Certificate Serial Number"
                         className="font-mono font-black text-red-600 bg-transparent border-b border-dashed border-red-300/80 hover:border-red-500 focus:border-red-600 focus:bg-red-50/40 rounded px-0.5 py-0 outline-none transition-all w-24 text-[9.5px] print:border-none print:bg-transparent print:p-0"
                       />
+                      <div className="print:hidden inline-flex items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => handleStepFigure(-1)}
+                          className="px-1 py-0.5 rounded text-[8.5px] font-bold text-slate-600 hover:bg-slate-200"
+                          title="Step TC/DC number down (-1)"
+                        >
+                          -1
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStepFigure(1)}
+                          className="px-1 py-0.5 rounded text-[8.5px] font-bold text-red-600 hover:bg-red-100"
+                          title="Advance TC/DC number (+1)"
+                        >
+                          +1
+                        </button>
+                      </div>
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Reg. No.:</span>
