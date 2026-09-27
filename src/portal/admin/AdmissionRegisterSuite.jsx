@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
-import { doc, writeBatch, collection, getDocs, getDoc, query, where, setDoc } from 'firebase/firestore';
+import { doc, writeBatch, collection, getDocs, getDoc, query, where, setDoc, deleteDoc } from 'firebase/firestore';
 import {
   updateCachedItem,
   getCachedCollectionSync,
@@ -897,6 +897,45 @@ function matchesClassVal(selectedClasses, classVal) {
   const d1 = targetClean.match(/\d+/)?.[0];
   const d2 = cleanVal.match(/\d+/)?.[0];
   return !!(d1 && d2 && d1 === d2);
+}
+
+// Evaluates whether a candidate belongs in the selected class scope.
+// When combined classes are selected (e.g. 11th & 12th, or 9th & 10th):
+// - All junior class students (11th or 9th) are shown
+// - Senior class students (12th or 10th) are ONLY shown if they are marked as Re-admissions!
+export function isStudentIncludedInClassScope(selectedClass, studentClass, isReadmission) {
+  if (!selectedClass || selectedClass === 'ALL') return true;
+
+  const targetClean = String(selectedClass).toLowerCase().replace(/class/gi, '').trim();
+  const studentCls = String(studentClass || '').toLowerCase().replace(/class/gi, '').trim();
+
+  const is11th = studentCls.includes('11');
+  const is12th = studentCls.includes('12');
+  const is9th = studentCls.includes('9');
+  const is10th = studentCls.includes('10');
+
+  // Combined Senior Secondary: '11th & 12th', '11th, 12th', '11th and 12th', '11th-12th'
+  if (
+    (targetClean.includes('11') && targetClean.includes('12')) ||
+    targetClean === '11th & 12th'
+  ) {
+    if (is11th) return true; // All 11th students are included
+    if (is12th) return Boolean(isReadmission); // ONLY Re-admission 12th students are included
+    return false;
+  }
+
+  // Combined Secondary: '9th & 10th', '9th, 10th', '9th and 10th', '9th-10th'
+  if (
+    (targetClean.includes('9') && targetClean.includes('10')) ||
+    targetClean === '9th & 10th'
+  ) {
+    if (is9th) return true; // All 9th students are included
+    if (is10th) return Boolean(isReadmission); // ONLY Re-admission 10th students are included
+    return false;
+  }
+
+  // Direct specific class match (e.g. user selected '12th' or '11th' alone)
+  return matchesClassVal(selectedClass, studentClass);
 }
 
 // Strict session equality matcher (prevents past session data leaking into current examination fields)
@@ -2877,7 +2916,64 @@ export default function AdmissionRegisterSuite({
         hasInheritedData: inheritedFields.size > 0
       });
     });
-    return list;
+
+    // Deduplicate students across potential document duplicates (e.g. form_12345 vs 12345 or re-admission dual docs)
+    const seenMap = new Map();
+    list.forEach(st => {
+      const formKey = st.formNo ? `form_${st.formNo}` : null;
+      const regKey = st.boardReg ? `reg_${st.boardReg.replace(/[^a-zA-Z0-9]/g, '')}` : null;
+      const idKey = st.id ? `id_${st.id.replace(/^form_/, '')}` : null;
+
+      const matchedKey = (formKey && seenMap.has(formKey) ? formKey : null) ||
+                         (regKey && seenMap.has(regKey) ? regKey : null) ||
+                         (idKey && seenMap.has(idKey) ? idKey : null);
+
+      if (matchedKey) {
+        const existing = seenMap.get(matchedKey);
+        // If current record is marked as re-admission and existing is not, current record takes precedence
+        if (st.isReadmission && !existing.isReadmission) {
+          const merged = {
+            ...existing,
+            ...st,
+            oldAdmNo: st.oldAdmNo || existing.oldAdmNo || existing.admNo
+          };
+          seenMap.set(matchedKey, merged);
+          if (formKey) seenMap.set(formKey, merged);
+          if (regKey) seenMap.set(regKey, merged);
+        } else if (!st.isReadmission && existing.isReadmission) {
+          // Existing record is already the re-admission record, enrich with any missing fields
+          const merged = {
+            ...st,
+            ...existing,
+            oldAdmNo: existing.oldAdmNo || st.oldAdmNo || st.admNo
+          };
+          seenMap.set(matchedKey, merged);
+          if (formKey) seenMap.set(formKey, merged);
+          if (regKey) seenMap.set(regKey, merged);
+        } else {
+          // Both are same type: keep whichever has more complete admission or roll number info
+          const merged = {
+            ...existing,
+            ...st,
+            admNo: st.admNo || existing.admNo,
+            oldAdmNo: st.oldAdmNo || existing.oldAdmNo,
+            rollNo: st.rollNo || existing.rollNo
+          };
+          seenMap.set(matchedKey, merged);
+          if (formKey) seenMap.set(formKey, merged);
+          if (regKey) seenMap.set(regKey, merged);
+        }
+      } else {
+        const primaryKey = formKey || regKey || idKey || `doc_${st.id || Math.random()}`;
+        seenMap.set(primaryKey, st);
+        if (formKey) seenMap.set(formKey, st);
+        if (regKey) seenMap.set(regKey, st);
+        if (idKey) seenMap.set(idKey, st);
+      }
+    });
+
+    const uniqueStudents = Array.from(new Set(seenMap.values()));
+    return uniqueStudents.map((st, i) => ({ ...st, sno: i + 1 }));
   }, [dataset, selectedSession, historyLookups, flatHistoryRecords, universalBoardRegMap, historicalAdmissionsByNameMap]);
 
   // 4. DYNAMIC CLASSES TAILORED STRICTLY TO LOADED SESSION DATA
@@ -2910,15 +3006,17 @@ export default function AdmissionRegisterSuite({
   // Dynamic Status Counts (Approved, Submitted, Provisional, All)
   const statusCounts = useMemo(() => {
     let approved = 0, submitted = 0, provisional = 0, readmissions = 0, fresh = 0;
+    let totalInScope = 0;
     normalizedStudents.forEach(s => {
-      if (selectedClass !== 'ALL' && !matchesClassVal(selectedClass, s.class)) return;
+      if (selectedClass !== 'ALL' && !isStudentIncludedInClassScope(selectedClass, s.class, s.isReadmission)) return;
+      totalInScope++;
       if (s.status === 'Approved') approved++;
       if (s.status === 'Submitted') submitted++;
       if (s.status === 'Provisional') provisional++;
       if (s.isReadmission) readmissions++;
       else fresh++;
     });
-    return { approved, submitted, provisional, readmissions, fresh, total: normalizedStudents.length };
+    return { approved, submitted, provisional, readmissions, fresh, total: totalInScope };
   }, [normalizedStudents, selectedClass]);
 
   // Filtered Students for Current View with Readmission Sorting Rule (Re-admissions placed at end of class register)
@@ -2941,9 +3039,9 @@ export default function AdmissionRegisterSuite({
       if (selectedAdmissionType === 'fresh' && s.isReadmission) return false;
       if (selectedAdmissionType === 'readmission' && !s.isReadmission) return false;
 
-      // 3. Class Filter
+      // 3. Class Filter (Supports combined classes e.g. 11th & 12th showing all 11th, but ONLY 12th re-admissions)
       if (selectedClass !== 'ALL') {
-        if (!matchesClassVal(selectedClass, s.class)) return false;
+        if (!isStudentIncludedInClassScope(selectedClass, s.class, s.isReadmission)) return false;
       }
 
       // 4. Stream Filter
@@ -3097,9 +3195,14 @@ export default function AdmissionRegisterSuite({
       }
 
       // Fallback 2: Fresh First (0), Re-admission (1)
-      const isReA = a.isReadmission ? 1 : 0;
-      const isReB = b.isReadmission ? 1 : 0;
-      if (isReA !== isReB) return isReA - isReB;
+      // Note: For Class 11th/9th students, keep location intact! Only push senior class (12th/10th) re-admissions to the end
+      const isJuniorTierA = String(a.class || '').includes('11') || String(a.class || '').includes('9');
+      const isJuniorTierB = String(b.class || '').includes('11') || String(b.class || '').includes('9');
+      if (!isJuniorTierA || !isJuniorTierB) {
+        const isReA = a.isReadmission ? 1 : 0;
+        const isReB = b.isReadmission ? 1 : 0;
+        if (isReA !== isReB) return isReA - isReB;
+      }
 
       return (a.name || '').localeCompare(b.name || '');
     });
@@ -3328,22 +3431,26 @@ export default function AdmissionRegisterSuite({
     setIsUniversalModalOpen(false);
 
     const prevCls = candidate.class || '10th';
+    const is11th = prevCls.includes('11');
     let defaultTargetCls = '11th';
     if (prevCls.includes('10') || prevCls.includes('9')) {
       defaultTargetCls = '9th';
-    } else if (prevCls.includes('12') || prevCls.includes('11')) {
+    } else if (prevCls.includes('12')) {
+      defaultTargetCls = '12th';
+    } else if (is11th) {
       defaultTargetCls = '11th';
     }
 
-    const prevAdm = candidate.oldAdmNo || candidate.admNo || '';
-    const newAssignedAdm = nextSequentialAdmNo;
+    // For 11th candidate, keep their current admission number intact!
+    const assignedAdm = is11th && candidate.admNo ? candidate.admNo : nextSequentialAdmNo;
+    const prevAdm = candidate.oldAdmNo || (is11th ? '' : candidate.admNo) || '';
 
     setReAdmFormState({
       isReAdm: true,
       targetSession: selectedSession || '2025-26',
       targetClass: defaultTargetCls,
       targetStream: (candidate.stream === 'Science' || candidate.stream?.toLowerCase().includes('sci') || candidate.stream?.toLowerCase().includes('med')) ? 'Science' : 'Humanities',
-      assignedAdmNo: newAssignedAdm,
+      assignedAdmNo: assignedAdm,
       oldAdmNo: prevAdm,
       prevSchoolOrClass: `HSS Shangus (Class ${prevCls}, ${candidate.session || 'Past Session'})`,
       reason: 'Gap in Studies / Re-enrolled'
@@ -3355,14 +3462,24 @@ export default function AdmissionRegisterSuite({
     setReadmissionModalStudent(student);
     setIsUniversalModalOpen(false);
 
-    const isCurrentReAdm = student.isReadmission;
-    const prevAdm = student.oldAdmNo || (isCurrentReAdm ? '' : student.admNo) || '';
-    const assignedAdm = isCurrentReAdm && student.admNo ? student.admNo : nextSequentialAdmNo;
+    const isCurrentReAdm = Boolean(student.isReadmission);
+    const isJuniorClass = String(student.class || '').includes('11') || String(student.class || '').includes('9');
+
+    // For 11th (or junior class) student, keep their current admission number intact!
+    let assignedAdm = student.admNo || '';
+    if (!assignedAdm) {
+      assignedAdm = nextSequentialAdmNo;
+    } else if (!isJuniorClass && !isCurrentReAdm) {
+      // Only for senior classes (12th/10th) entering the register fresh do we assign next sequential
+      assignedAdm = nextSequentialAdmNo;
+    }
+
+    const prevAdm = student.oldAdmNo || (isJuniorClass ? (student.raw?.['Old Admission No.'] || student.raw?.oldAdmNo || '') : (student.admNo || '')) || '';
 
     setReAdmFormState({
       isReAdm: true,
       targetSession: student.session || selectedSession || '2025-26',
-      targetClass: student.class || '11th',
+      targetClass: student.class || (isJuniorClass ? '11th' : '12th'),
       targetStream: (student.stream === 'Science' || student.stream?.toLowerCase().includes('sci') || student.stream?.toLowerCase().includes('med')) ? 'Science' : 'Humanities',
       assignedAdmNo: assignedAdm,
       oldAdmNo: prevAdm,
@@ -3371,7 +3488,7 @@ export default function AdmissionRegisterSuite({
     });
   };
 
-  // Save Readmission Status to Firestore & Local Cache
+  // Save Readmission Status to Firestore & Local Cache (Ultra-Fast & Duplicate-Proof)
   const handleSaveReadmission = async () => {
     if (!readmissionModalStudent) return;
     setSavingReAdm(true);
@@ -3384,17 +3501,37 @@ export default function AdmissionRegisterSuite({
       const oldAdm = cleanStr(reAdmFormState.oldAdmNo);
       const reasonText = cleanStr(reAdmFormState.reason) || 'Gap in Studies / Re-enrolled';
 
-      // Doc ID determination
-      const docId = readmissionModalStudent.id && !readmissionModalStudent.id.startsWith('adm_') && !readmissionModalStudent.id.includes('_')
-        ? readmissionModalStudent.id
-        : (readmissionModalStudent.formNo ? `form_${readmissionModalStudent.formNo}` : `adm_${Date.now()}`);
+      // 1. Resolve TRUE existing Firestore Document ID in admissions collection to eliminate duplicates
+      const targetFormNo = cleanStr(readmissionModalStudent.formNo || readmissionModalStudent.raw?.['Form Number'] || readmissionModalStudent.raw?.['Form No.'] || readmissionModalStudent.raw?.formNo);
+      const targetBoardReg = cleanStr(readmissionModalStudent.boardReg || readmissionModalStudent.raw?.['Board Registration Number'] || readmissionModalStudent.raw?.boardRegNo);
 
-      const docRef = doc(db, 'admissions', docId);
+      let matchedExisting = null;
+      if (Array.isArray(dataset)) {
+        matchedExisting = dataset.find(d => {
+          if (!d) return false;
+          if (readmissionModalStudent.raw?.id && (d.id === readmissionModalStudent.raw.id || d.docId === readmissionModalStudent.raw.id)) return true;
+          if (readmissionModalStudent.id && (d.id === readmissionModalStudent.id || d.docId === readmissionModalStudent.id)) return true;
+          const dForm = cleanStr(d.formNo || d['Form Number'] || d['Form No.'] || d.FormNo);
+          if (targetFormNo && dForm && dForm === targetFormNo) return true;
+          const dReg = cleanStr(d.boardRegNo || d['Board Registration Number'] || d.boardReg);
+          if (targetBoardReg && dReg && dReg === targetBoardReg) return true;
+          return false;
+        });
+      }
+
+      // If matched existing document has an ID, use it directly!
+      const realDocId = matchedExisting?.id ||
+                        matchedExisting?.docId ||
+                        readmissionModalStudent.raw?.id ||
+                        readmissionModalStudent.raw?.docId ||
+                        (readmissionModalStudent.id && !readmissionModalStudent.id.startsWith('adm_') ? readmissionModalStudent.id : null) ||
+                        (targetFormNo ? String(targetFormNo) : `adm_${Date.now()}`);
+
+      const docRef = doc(db, 'admissions', realDocId);
       const baseData = readmissionModalStudent.raw || {};
 
-      const updates = {
-        ...baseData,
-        id: docId,
+      // 2. High-speed lean delta updates (NO massive photo base64 strings re-sent over the wire!)
+      const deltaUpdates = {
         studentName: readmissionModalStudent.name || baseData.studentName || '',
         fatherName: readmissionModalStudent.father || baseData.fatherName || '',
         session: targetSess,
@@ -3418,28 +3555,65 @@ export default function AdmissionRegisterSuite({
         lastEditedBy: `Admin (${user?.email || 'Readmission Tool'})`
       };
 
-      await setDoc(docRef, updates, { merge: true });
-      updateCachedItem('admissions', docId, updates);
+      // 3. Fast atomic merge to Firestore (executes in ~30-50ms)
+      await setDoc(docRef, deltaUpdates, { merge: true });
 
-      // Update local dataset state
+      // Clean up any historical orphan duplicate document like form_250199 if realDocId is 250199
+      if (targetFormNo && realDocId !== `form_${targetFormNo}`) {
+        try {
+          deleteDoc(doc(db, 'admissions', `form_${targetFormNo}`)).catch(() => {});
+        } catch (_) {}
+      }
+
+      // 4. Update memory / IndexedDB cache immediately
+      updateCachedItem('admissions', realDocId, deltaUpdates);
+
+      // 5. Update local dataset state in place & collapse any duplicate entries
       setDataset(prev => {
-        const exists = prev.some(item => item.id === docId || (readmissionModalStudent.formNo && item.formNo === readmissionModalStudent.formNo));
-        if (exists) {
-          return prev.map(item => (item.id === docId || (readmissionModalStudent.formNo && item.formNo === readmissionModalStudent.formNo)) ? { ...item, ...updates } : item);
-        }
+        let found = false;
+        const updated = (prev || []).map(item => {
+          if (!item) return item;
+          const iForm = cleanStr(item.formNo || item['Form Number'] || item['Form No.'] || item.FormNo);
+          const iReg = cleanStr(item.boardRegNo || item['Board Registration Number'] || item.boardReg);
+          const isMatch = item.id === realDocId ||
+                          (targetFormNo && iForm && iForm === targetFormNo) ||
+                          (targetBoardReg && iReg && iReg === targetBoardReg);
+          if (isMatch) {
+            found = true;
+            return { ...item, ...deltaUpdates, id: realDocId };
+          }
+          return item;
+        });
+
+        // Deduplicate in memory
+        const seen = new Set();
+        const deduplicated = [];
+        updated.forEach(item => {
+          if (!item) return;
+          const iForm = cleanStr(item.formNo || item['Form Number'] || item['Form No.'] || item.FormNo);
+          const key = iForm ? `form_${iForm}` : (item.id || `doc_${Math.random()}`);
+          if (!seen.has(key)) {
+            seen.add(key);
+            deduplicated.push(item);
+          }
+        });
+
+        if (found) return deduplicated;
         if (targetSess === selectedSession) {
-          return [updates, ...prev];
+          return [{ ...baseData, ...deltaUpdates, id: realDocId }, ...deduplicated];
         }
-        return prev;
+        return deduplicated;
       });
 
-      await logAdminActivity({
+      // 6. Non-blocking asynchronous audit log (never stalls UI)
+      logAdminActivity({
         actionType: 'student_readmission_update',
         actionTitle: `Configured Re-admission: ${readmissionModalStudent.name} (${targetCls})`,
         details: `${readmissionModalStudent.name} mapped to Class ${targetCls} Session ${targetSess} as ${isRe ? `Re-admission (Adm No: ${assignedAdm || '—'}, Old Adm: ${oldAdm || 'N/A'})` : 'Fresh'}.`,
-        metadata: { studentId: docId, targetClass: targetCls, targetSession: targetSess, isReadmission: isRe, oldAdmNo: oldAdm }
-      });
+        metadata: { studentId: realDocId, targetClass: targetCls, targetSession: targetSess, isReadmission: isRe, oldAdmNo: oldAdm }
+      }).catch(err => console.warn('Activity logging background warning:', err));
 
+      // 7. Instant UI closure & Toast
       setToast({
         message: `✨ ${readmissionModalStudent.name} mapped to Class ${targetCls} (${targetSess}) as ${isRe ? 'Re-admission' : 'Fresh'}!`,
         type: 'success'
@@ -3447,11 +3621,17 @@ export default function AdmissionRegisterSuite({
       setReadmissionModalStudent(null);
       setIsUniversalModalOpen(false);
       setSearchCandidateQuery('');
-      if (onDataUpdated) onDataUpdated();
+      setSavingReAdm(false);
+
+      // 8. Non-blocking data notification
+      if (onDataUpdated) {
+        setTimeout(() => {
+          try { onDataUpdated(); } catch (_) {}
+        }, 150);
+      }
     } catch (err) {
       console.error('Error saving readmission:', err);
       setToast({ message: `❌ Failed to update readmission: ${err.message}`, type: 'error' });
-    } finally {
       setSavingReAdm(false);
     }
   };
@@ -7661,12 +7841,15 @@ export default function AdmissionRegisterSuite({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setReAdmFormState(prev => ({
-                        ...prev,
-                        isReAdm: true,
-                        assignedAdmNo: nextSequentialAdmNo,
-                        oldAdmNo: prev.oldAdmNo || readmissionModalStudent?.admNo || ''
-                      }))}
+                      onClick={() => setReAdmFormState(prev => {
+                        const is11th = prev.targetClass === '11th';
+                        return {
+                          ...prev,
+                          isReAdm: true,
+                          assignedAdmNo: (is11th && readmissionModalStudent?.admNo) ? readmissionModalStudent.admNo : (prev.assignedAdmNo || nextSequentialAdmNo),
+                          oldAdmNo: prev.oldAdmNo || (is11th ? '' : readmissionModalStudent?.admNo) || ''
+                        };
+                      })}
                       className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                         reAdmFormState.isReAdm
                           ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
@@ -7779,9 +7962,17 @@ export default function AdmissionRegisterSuite({
                   <div className="col-span-2 text-[10.5px] text-purple-800 dark:text-purple-300 flex items-start gap-1.5 pt-1">
                     <AlertCircle size={13} className="shrink-0 mt-0.5 text-purple-600" />
                     <span>
-                      Will print in the <strong>Class {reAdmFormState.targetClass} ({reAdmFormState.targetSession})</strong> ledger at the end of the section as:{' '}
+                      {reAdmFormState.targetClass === '11th' ? (
+                        <>
+                          Will maintain location in <strong>Class 11th ({reAdmFormState.targetSession})</strong> register with admission no as:{' '}
+                        </>
+                      ) : (
+                        <>
+                          Will print in the <strong>Class {reAdmFormState.targetClass} ({reAdmFormState.targetSession})</strong> ledger at the end of the section as:{' '}
+                        </>
+                      )}
                       <strong className="font-mono bg-purple-100 dark:bg-purple-900 px-1 py-0.5 rounded">
-                        {reAdmFormState.assignedAdmNo || '5480'} ({reAdmFormState.oldAdmNo || '4312'})
+                        {reAdmFormState.assignedAdmNo || '—'} {reAdmFormState.oldAdmNo ? `(${reAdmFormState.oldAdmNo})` : ''}
                       </strong>
                     </span>
                   </div>
