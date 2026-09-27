@@ -966,10 +966,10 @@ export function isStudentIncludedInClassScope(selectedClass, studentClass, isRea
 // Authoritative Sequential Re-admission Roster for Class 12th (Session 2025-26)
 // Roll 22 (Burhan) omitted; Roll 153 is Gowher Ahmad Lone (Form 250209); Sequential Adm Nos: 5476–5513.
 export const VERIFIED_CLASS12_READMISSION_ROSTER = [
-  { roll: 1, name: 'Irtiza Maqbool', form: '250199', reg: '2201010000200048', admNo: '5476', oldAdm: '4900' },
+  { roll: 1, name: 'Irtiza Maqbool', form: '250199', reg: '2201010000200048', admNo: '5476', oldAdm: '4460' },
   { roll: 23, name: 'Faizan Mushtaq', form: '250299', reg: '2001000000470003', admNo: '5477', oldAdm: '4472' },
-  { roll: 39, name: 'Saima Nisar', form: '250195', reg: '2201010001010039', admNo: '5478', oldAdm: '4913' },
-  { roll: 40, name: 'Toiba Imtiyaz', form: '250314', reg: '2201013001170027', admNo: '5479', oldAdm: '4958' },
+  { roll: 39, name: 'Saima Nisar', form: '250195', reg: '2201010001010039', admNo: '5478', oldAdm: '4513' },
+  { roll: 40, name: 'Toiba Imtiyaz', form: '250314', reg: '2201013001170027', admNo: '5479', oldAdm: '4468' },
   { roll: 50, name: 'Sarvat Abbas', form: '250188', reg: '2101010000200015', admNo: '5480', oldAdm: '4887' },
   { roll: 51, name: 'Mehvish Iqbal', form: '250214', reg: '2001010000200019', admNo: '5481', oldAdm: '4615' },
   { roll: 54, name: 'Sartaj Ahmad Mir', form: '250206', reg: '2201000000610024', admNo: '5482', oldAdm: '4904' },
@@ -986,16 +986,16 @@ export const VERIFIED_CLASS12_READMISSION_ROSTER = [
   { roll: 102, name: 'Doordana Bilal', form: '250549', reg: '2101013000200038', admNo: '5493', oldAdm: '4724' },
   { roll: 116, name: 'Arooja Masroor', form: '250200', reg: '2201013000470016', admNo: '5494', oldAdm: '5029' },
   { roll: 126, name: 'Simran Mushtaq', form: '250305', reg: '2201010000200033', admNo: '5495', oldAdm: '5224' },
-  { roll: 127, name: 'Rutba Manzoor', form: '250387', reg: '', admNo: '5496', oldAdm: '' },
+  { roll: 127, name: 'Rutba Manzoor', form: '250387', reg: '', admNo: '5496', oldAdm: '4827' },
   { roll: 130, name: 'Seerat Yousuf', form: '250033', reg: '2201010000200026', admNo: '5497', oldAdm: '5024' },
   { roll: 133, name: 'Faizan Bilal Najar', form: '250402', reg: '2201003000630003', admNo: '5498', oldAdm: '5195' },
   { roll: 153, name: 'Gowher Ahmad Lone', form: '250209', reg: '2101003001220041', admNo: '5499', oldAdm: '4765' },
-  { roll: 154, name: 'Mohsin Wakeel', form: '250446', reg: '', admNo: '5500', oldAdm: '' },
+  { roll: 154, name: 'Mohsin Wakeel', form: '250446', reg: '', admNo: '5500', oldAdm: '4886' },
   { roll: 155, name: 'Ruqaiya Jan', form: '250449', reg: '2201010000200008', admNo: '5501', oldAdm: '5061' },
   { roll: 157, name: 'Moomin Rashid Reshi', form: '250422', reg: '2101000000900024', admNo: '5502', oldAdm: '4819' },
   { roll: 165, name: 'Kifayat Jabbar Kutay', form: '250234', reg: '2101000000900047', admNo: '5503', oldAdm: '4809' },
   { roll: 168, name: 'Rasik Farooq', form: '250472', reg: '2201000000900078', admNo: '5504', oldAdm: '5194' },
-  { roll: 169, name: 'Tabasum Jan', form: '250474', reg: '', admNo: '5505', oldAdm: '' },
+  { roll: 169, name: 'Tabasum Jan', form: '250474', reg: '', admNo: '5505', oldAdm: '4838' },
   { roll: 171, name: 'Arsalan Shabir', form: '250237', reg: '2201000001010055', admNo: '5506', oldAdm: '4990' },
   { roll: 174, name: 'Dafeeqa Jan', form: '250464', reg: '2101010000200033', admNo: '5507', oldAdm: '4867' },
   { roll: 177, name: 'Peerzada Meeran', form: '250255', reg: '2101000000030027', admNo: '5508', oldAdm: '4769' },
@@ -2889,12 +2889,14 @@ export default function AdmissionRegisterSuite({
       const status = resolveEffectiveStatus(s);
 
       // Authoritative Class 12th Re-admission Matcher (Session 2025-26)
-      const matchedRosterEntry = (sess === '2025-26' || sess === '2025–26') && (cls === '12th' || cls === '12')
+      const is12thClass = matchesClassVal('12th', cls);
+      const is2025Session = isSameAcademicSession('2025-26', sess || selectedSession);
+      const matchedRosterEntry = (is2025Session && is12thClass)
         ? VERIFIED_CLASS12_READMISSION_ROSTER.find(r => {
-            if (formNo && r.form && formNo === r.form) return true;
+            if (formNo && r.form && cleanStr(formNo) === cleanStr(r.form)) return true;
             const cleanReg = normalizeBoardRegKey(boardReg);
             if (cleanReg && r.reg && (cleanReg === r.reg || cleanReg === normalizeBoardRegKey(r.reg))) return true;
-            if (rollNo && r.roll && String(rollNo) === String(r.roll)) return true;
+            if (rollNo && r.roll && String(rollNo).trim() === String(r.roll).trim()) return true;
             return false;
           })
         : null;
@@ -3086,6 +3088,9 @@ export default function AdmissionRegisterSuite({
       }
 
       let finalAdmNumber = admNo;
+      if (matchedRosterEntry?.admNo) {
+        finalAdmNumber = matchedRosterEntry.admNo;
+      }
       if (!finalAdmNumber && regCandidates.length > 0) {
         // Priority A: Candidate from same academic tier with valid admission number
         const sameTierWithAdm = regCandidates.find(c =>
@@ -3207,7 +3212,9 @@ export default function AdmissionRegisterSuite({
 
       // Automatic fallback for old admission number on Re-admission candidates
       let finalOldAdmNo = oldAdmNo;
-      if (!finalOldAdmNo && isReadmission) {
+      if (matchedRosterEntry?.oldAdm) {
+        finalOldAdmNo = matchedRosterEntry.oldAdm;
+      } else if (!finalOldAdmNo && isReadmission) {
         if (histMatch) {
           finalOldAdmNo = cleanStr(histMatch.admNo || histMatch['Adm. No.'] || histMatch['Admission No.'] || histMatch.admissionNo);
         }
@@ -3232,10 +3239,11 @@ export default function AdmissionRegisterSuite({
       }
 
       let finalResolvedAdmNo = finalAdmNumber;
-      if (!finalResolvedAdmNo && matchedRosterEntry?.admNo) {
+      if (matchedRosterEntry?.admNo) {
+        // Authoritative sequential assignment for Class 12th Re-admissions (5476–5513)
         finalResolvedAdmNo = matchedRosterEntry.admNo;
-      }
-      if (!finalResolvedAdmNo && areClassTiersCompatible(cls, histMatch?.class)) {
+        finalOldAdmNo = matchedRosterEntry.oldAdm || (oldAdmNo && oldAdmNo !== matchedRosterEntry.admNo ? oldAdmNo : '') || '';
+      } else if (!finalResolvedAdmNo && areClassTiersCompatible(cls, histMatch?.class)) {
         finalResolvedAdmNo = firstCleanValue(histMatch, ADMISSION_NO_KEYS);
       }
       const finalAdmNo = finalResolvedAdmNo || '';
@@ -3320,7 +3328,7 @@ export default function AdmissionRegisterSuite({
         issuedCC: finalIssuedCC,
         receipt: finalReceipt,
         remarks: isReadmission
-          ? (cleanStr(s.remarks || s.Remarks) && (s.remarks || s.Remarks).includes('Gap case')
+          ? (cleanStr(s.remarks || s.Remarks) && (s.remarks || s.Remarks).includes('Gap case') && (s.remarks || s.Remarks).includes('Prev Adm')
               ? cleanStr(s.remarks || s.Remarks)
               : buildClass12ReadmissionRemark(cls, finalOldAdmNo))
           : cleanStr(s.remarks || s.Remarks || s['Remarks/Feedback (if any)'] || ''),
@@ -5237,11 +5245,13 @@ export default function AdmissionRegisterSuite({
         updatedDocs.forEach(({ docId, delta, item }) => {
           updateMap.set(docId, delta);
           if (item.form) updateMap.set(item.form, delta);
+          if (item.roll) updateMap.set(`roll_${item.roll}`, delta);
         });
 
         return (prev || []).map(st => {
           const stForm = cleanStr(st.formNo || st['Form Number'] || st['Form No.'] || st.FormNo || st.id);
-          const delta = updateMap.get(st.id) || updateMap.get(stForm);
+          const stRoll = cleanStr(st.classRollNo || st['Class Roll No'] || st.rollNo);
+          const delta = updateMap.get(st.id) || updateMap.get(stForm) || (matchesClassVal('12th', st.class || st['Admission sought for class']) ? updateMap.get(`roll_${stRoll}`) : null);
           if (delta) {
             return {
               ...st,

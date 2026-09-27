@@ -2,33 +2,56 @@
 
 ## Current Working Changes
 
-### 1. Class 12th Sequential Re-admission Roster (5476–5513) (`AdmissionRegisterSuite.jsx`)
-- **Authoritative Roster Integration:**
-  - Added `VERIFIED_CLASS12_READMISSION_ROSTER` containing all 38 verified Class 12th Re-admission candidates for session 2025–26 ordered strictly by Class Roll Number.
-  - Starting admission number: *Irtiza Maqbool* (Roll 1, Form `250199`) = **`5476`** through to *Seerat Jan* (Roll 193, Form `250546`) = **`5513`**.
-  - **Roll 22 (Burhan)** is strictly omitted from the re-admission register.
-  - **Roll 153** is correctly confirmed and identified as *Gowher Ahmad Lone* (Form `250209`, Adm No `5499`, Old Adm `4765`).
-  - Pre-paired all 38 candidates with their historical previous admission numbers (e.g. *Sarvat Abbas* `4887`, *Sartaj Ahmad Mir* `4904`, *Faizan Bilal Najar* `5195`, *Kifayat Jabbar Kutay* `4809`).
-  - Formats Column 1 (`Adm. No.`) with old admission numbers in brackets (e.g. `5476 (4900)`, `5480 (4887)`, `5482 (4904)`, `5498 (5195)`, `5503 (4809)`).
+### 1. Authoritative Sequential Admission Numbers (5476–5513) Enforced (`AdmissionRegisterSuite.jsx`)
+- **Direct Sequential Number Override:**
+  - Resolved the issue where candidates with pre-existing numbers in Firestore (such as Sarvat Abbas showing `5482` instead of `5480`, Faizan Bilal showing `5481` instead of `5498`, or Owais Hassan showing unbracketed `4730`) were bypassing the roster assignment.
+  - In `normalizedStudents`, `matchedRosterEntry.admNo` now authoritatively and unconditionally assigns the exact sequential admission numbers **`5476 → 5513`** for all 38 verified Class 12th re-admission candidates.
+  - Also sets `finalAdmNumber = matchedRosterEntry.admNo` early to prevent historical inheritance pipelines from polluting current admission counters.
 
-### 2. Consolidated Statutory Remarks in Column 18 (`AdmissionRegisterSuite.jsx`)
-- **Standard Remark Builder (`buildClass12ReadmissionRemark`):**
-  - Generates the statutory decree:
-    > `Gap case, hence, readmitted for class 12th, 2026 (oct-nov session) • Prev Adm: [OldAdmNo] • Marks card submitted & verified`
-    *(or without `Prev Adm:` where no prior enrollment exists, such as Roll 127, 154, 169).*
-  - Populates directly into **Column 18 (REMARKS)** of the General Admission Register ledger, print layouts, and export sheets.
-  - Fully editable in View 2 of the Re-admission modal with a **"⚡ Reset to Standard Remark"** helper and saves directly to Firestore (`remarks` and `Remarks` fields on `admissions/{docId}`).
-  - Wired into the bulk assigner (`handleRunAssignIds`) so any candidate assigned as a re-admission automatically receives the consolidated remark.
+### 2. Bracketed Previous Admission Numbers Restored for All Candidates (`AdmissionRegisterSuite.jsx`)
+- **Roster & UI Parity:**
+  - Updated `VERIFIED_CLASS12_READMISSION_ROSTER` with exact historical admission numbers matching school records and uploaded register pages:
+    - **Roll 1** (*Irtiza Maqbool*): `5476 (4460)`
+    - **Roll 50** (*Sarvat Abbas*): `5480 (4887)`
+    - **Roll 51** (*Mehvish Iqbal*): `5481 (4615)`
+    - **Roll 54** (*Sartaj Ahmad Mir*): `5482 (4904)`
+    - **Roll 74** (*Owais Hassan*): `5483 (4730)`
+    - **Roll 75** (*Summaya Naseem*): `5484 (4714)`
+    - **Roll 77** (*Muqeet Ahmad*): `5485 (4797)`
+    - **Roll 80** (*Jawad Ul Rahim*): `5486 (4898)`
+    - **Roll 87** (*Nowman Ashraf*): `5487 (4929)`
+    - **Roll 90** (*Shaiesta Parveez*): `5488 (4943)`
+    - **Roll 93** (*Sabreena Aijaz*): `5489 (4906)`
+    - **Roll 95** (*Abroo Ashraf*): `5490 (4656)`
+    - **Roll 96** (*Inshu Nazir*): `5491 (4657)`
+    - **Roll 97** (*Sadiyah Fayaz*): `5492 (4721)`
+    - **Roll 102** (*Doordana Bilal*): `5493 (4724)`
+    - **Roll 116** (*Arooja Masroor*): `5494 (5029)`
+    - **Roll 126** (*Simran Mushtaq*): `5495 (5224)`
+    - **Roll 127** (*Rutba Manzoor*): `5496 (4827)`
+    - **Roll 130** (*Seerat Yousuf*): `5497 (5024)`
+    - **Roll 133** (*Faizan Bilal Najar*): `5498 (5195)`
+    - **Roll 153** (*Gowher Ahmad Lone*): `5499 (4765)`
+    - **Roll 154** (*Mohsin Wakeel*): `5500 (4886)`
+    - **Roll 155** (*Ruqaiya Jan*): `5501 (5061)`
+    - **Roll 157** (*Moomin Rashid Reshi*): `5502 (4819)`
+    - **Roll 165** (*Kifayat Jabbar Kutay*): `5503 (4809)`
+    - **Roll 168** (*Rasik Farooq*): `5504 (5194)`
+    - **Roll 169** (*Tabasum Jan*): `5505 (4838)`
+    - **Roll 171** (*Arsalan Shabir*): `5506 (4990)`
+    - **Roll 174** (*Dafeeqa Jan*): `5507 (4867)`
+    - **Roll 177** (*Peerzada Meeran*): `5508 (4769)`
+    - **Roll 179** (*Sabreena Jan*): `5509 (5192)`
+    - **Roll 184** (*Zakir Ahmad Bakshi*): `5510 (5193)`
+    - **Roll 189** (*Insha Jan*): `5511 (4859)`
+    - **Roll 191** (*Sarmat Gulzar*): `5512 (4878)`
+    - **Roll 193** (*Seerat Jan*): `5513 (4567)`
+  - Guaranteed `finalOldAdmNo !== finalAdmNo` logic so previous admission numbers consistently appear in brackets `(xxxx)` in purple below the green new admission number.
 
-### 3. One-Click Automated Batch Sync Engine (`AdmissionRegisterSuite.jsx`)
-- **Interactive UI Integration:**
-  - Added a high-visibility **"⚡ Automated Batch Sync"** banner in View 1 of the Re-admission Universal Candidate Search modal.
-  - Clicking **"Sync All 38 Re-admissions"** runs `handleBatchSyncClass12Readmissions`:
-    1. Matches all 38 candidates across the active dataset using Form Number, Board Registration, or Roll Number.
-    2. Writes sequential admission numbers (5476–5513), previous admission numbers, re-admission status, class (`12th`), session (`2025-26`), and consolidated remarks via `writeBatch(db)` to Firestore.
-    3. Concurrently synchronizes local IndexedDB and memory cache (`updateCachedItem`).
-    4. Updates the React state dataset optimistically for zero-delay UI update.
-    5. Displays real-time progress via the high-fidelity `taskProgress` modal (0% → 100%) with step-by-step candidate reporting.
+### 3. Consolidated Statutory Remarks & Sync Engine (`AdmissionRegisterSuite.jsx`)
+- Remarks in Column 18 consistently populate:
+  `Gap case, hence, readmitted for class 12th, 2026 (oct-nov session) • Prev Adm: [OldAdmNo] • Marks card submitted & verified`.
+- Updated `handleBatchSyncClass12Readmissions` state reducer to match by Form Number or Class Roll Number, ensuring instant optimistic UI updates on 1-click sync.
 
 ---
 
@@ -40,7 +63,7 @@
 
 ## Local Commit Message
 ```bash
-git commit -m "feat(register): assign sequential admission nos 5476-5513 and consolidated remarks for 38 class 12th readmissions"
+git commit -m "fix(register): enforce authoritative sequential numbers 5476-5513 and bracketed old adm nos for class 12th readmissions"
 ```
 
 ---
@@ -55,14 +78,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "feat(register): assign sequential admission nos 5476-5513 and consolidated remarks for 38 class 12th readmissions"
+git commit -m "fix(register): enforce authoritative sequential numbers 5476-5513 and bracketed old adm nos for class 12th readmissions"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "feat(register): assign sequential admission nos 5476-5513 and consolidated remarks for 38 class 12th readmissions"
+git commit -m "fix(register): enforce authoritative sequential numbers 5476-5513 and bracketed old adm nos for class 12th readmissions"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
