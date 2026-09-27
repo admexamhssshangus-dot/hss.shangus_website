@@ -621,7 +621,7 @@ button, input, select, textarea { font: inherit; }
 .admin-portal-container .text-\[9px\]:not(table *):not(.status-badge-btn) { font-size: 0.75rem; }
 .admin-portal-container .text-\[10px\]:not(table *):not(.status-badge-btn) { font-size: 0.75rem; }
 .admin-portal-container .text-\[11px\]:not(table *):not(.status-badge-btn) { font-size: 0.8125rem; }
-.admin-portal-container button:not(table button):not(.status-badge-btn):not(.compact-btn):not(.toggle-switch-btn):not([role='switch']),
+.admin-portal-container button:not(table button):not(.status-badge-btn):not(.compact-btn):not(.toggle-switch-btn):not([role='switch']):not(.cms-tab-btn):not(.portal-tab-btn):not([role='tab']),
 .admin-portal-container select:not(table select) { min-height: 2.25rem; }
 
 .admin-portal-container table button,
@@ -630,7 +630,12 @@ button, input, select, textarea { font: inherit; }
 .admin-portal-container .compact-btn,
 .admin-portal-container .toggle-switch-btn,
 .admin-portal-container [role='switch'],
+.admin-portal-container .cms-tab-btn,
+.admin-portal-container .portal-tab-btn,
+.admin-portal-container [role='tab'],
 .toggle-switch-btn,
+.cms-tab-btn,
+.portal-tab-btn,
 .portal-shell .practicals-control,
 .portal-shell select.practicals-select,
 .portal-shell button.practicals-control,
@@ -648,9 +653,102 @@ button, input, select, textarea { font: inherit; }
   box-sizing: border-box !important;
 }
 
+/* CMS and Admin Portal Segmented Tab Navigation */
+.cms-tab-btn,
+.portal-tab-btn {
+  min-height: unset !important;
+  max-height: unset !important;
+  border-radius: 0.5rem !important;
+  font-weight: 700 !important;
+  transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-sizing: border-box !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+/* Inactive Tab Styles - Clean, unobtrusive, transparent background */
+.cms-tab-btn:not(.is-active),
+.portal-tab-btn:not(.is-active) {
+  background-color: transparent !important;
+  border: 1px solid transparent !important;
+  color: #475569 !important;
+  box-shadow: none !important;
+}
+.cms-tab-btn:not(.is-active) *,
+.portal-tab-btn:not(.is-active) * {
+  color: #64748b !important;
+}
+.cms-tab-btn:not(.is-active):hover,
+.portal-tab-btn:not(.is-active):hover {
+  background-color: rgba(148, 163, 184, 0.18) !important;
+  color: #0f172a !important;
+}
+.cms-tab-btn:not(.is-active):hover *,
+.portal-tab-btn:not(.is-active):hover * {
+  color: #0f172a !important;
+}
+
+/* Dark Themes Inactive Tab */
+.theme-dark .cms-tab-btn:not(.is-active),
+.theme-midnight .cms-tab-btn:not(.is-active),
+.theme-royal .cms-tab-btn:not(.is-active),
+.theme-forest .cms-tab-btn:not(.is-active),
+.theme-dark .portal-tab-btn:not(.is-active),
+.theme-midnight .portal-tab-btn:not(.is-active),
+.theme-royal .portal-tab-btn:not(.is-active),
+.theme-forest .portal-tab-btn:not(.is-active) {
+  color: #94a3b8 !important;
+}
+.theme-dark .cms-tab-btn:not(.is-active) *,
+.theme-midnight .cms-tab-btn:not(.is-active) *,
+.theme-royal .cms-tab-btn:not(.is-active) *,
+.theme-forest .cms-tab-btn:not(.is-active) *,
+.theme-dark .portal-tab-btn:not(.is-active) *,
+.theme-midnight .portal-tab-btn:not(.is-active) *,
+.theme-royal .portal-tab-btn:not(.is-active) *,
+.theme-forest .portal-tab-btn:not(.is-active) * {
+  color: #94a3b8 !important;
+}
+.theme-dark .cms-tab-btn:not(.is-active):hover,
+.theme-midnight .cms-tab-btn:not(.is-active):hover,
+.theme-royal .cms-tab-btn:not(.is-active):hover,
+.theme-forest .cms-tab-btn:not(.is-active):hover,
+.theme-dark .portal-tab-btn:not(.is-active):hover,
+.theme-midnight .portal-tab-btn:not(.is-active):hover,
+.theme-royal .portal-tab-btn:not(.is-active):hover,
+.theme-forest .portal-tab-btn:not(.is-active):hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+.theme-dark .cms-tab-btn:not(.is-active):hover *,
+.theme-midnight .cms-tab-btn:not(.is-active):hover *,
+.theme-royal .cms-tab-btn:not(.is-active):hover *,
+.theme-forest .cms-tab-btn:not(.is-active):hover *,
+.theme-dark .portal-tab-btn:not(.is-active):hover *,
+.theme-midnight .portal-tab-btn:not(.is-active):hover *,
+.theme-royal .portal-tab-btn:not(.is-active):hover *,
+.theme-forest .portal-tab-btn:not(.is-active):hover * {
+  color: #ffffff !important;
+}
+
+/* Active Tab Styles - Prominently highlighted in emerald/teal gradient with crisp white text & icons */
+.cms-tab-btn.is-active,
+.portal-tab-btn.is-active {
+  background: linear-gradient(135deg, #0d9488 0%, #059669 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #14b8a6 !important;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.35), 0 1px 2px rgba(0, 0, 0, 0.12) !important;
+  font-weight: 800 !important;
+}
+.cms-tab-btn.is-active *,
+.portal-tab-btn.is-active * {
+  color: #ffffff !important;
+}
+
 @media (pointer: coarse) {
-  .portal-shell button:not(table button):not(.status-badge-btn):not(.compact-btn):not(.practicals-control):not(.portal-compact-control):not(.portal-compact-btn):not(.toggle-switch-btn):not([role='switch']),
-  .portal-shell [role='button']:not(table *):not(.status-badge-btn):not(.compact-btn):not(.practicals-control):not(.portal-compact-control):not(.portal-compact-btn):not(.toggle-switch-btn):not([role='switch']),
+  .portal-shell button:not(table button):not(.status-badge-btn):not(.compact-btn):not(.practicals-control):not(.portal-compact-control):not(.portal-compact-btn):not(.toggle-switch-btn):not([role='switch']):not(.cms-tab-btn):not(.portal-tab-btn):not([role='tab']),
+  .portal-shell [role='button']:not(table *):not(.status-badge-btn):not(.compact-btn):not(.practicals-control):not(.portal-compact-control):not(.portal-compact-btn):not(.toggle-switch-btn):not([role='switch']):not(.cms-tab-btn):not(.portal-tab-btn):not([role='tab']),
   .portal-shell input:not([type='checkbox']):not([type='radio']):not(.admin-search-input):not(.practicals-control):not(.portal-compact-input):not(.portal-compact-control):not(table input),
   .portal-shell select:not(table select):not(.practicals-select):not(.practicals-control):not(.portal-compact-select):not(.portal-compact-control) { min-height: 2.75rem; }
   .admin-portal-container { font-size: 0.875rem; }

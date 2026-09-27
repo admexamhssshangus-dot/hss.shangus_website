@@ -6200,33 +6200,33 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
         /* Button Contrast Enhancements */
         /* Secondary buttons and outline buttons in dark themes */
-        .admin-portal-container button[class*="bg-slate-900"],
-        .admin-portal-container button[class*="bg-slate-800"],
-        .admin-portal-container button[class*="bg-red-950/30"],
-        .admin-portal-container button[class*="border-slate-700"],
-        .admin-portal-container button[class*="border-slate-800"] {
+        .admin-portal-container button[class*="bg-slate-900"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]),
+        .admin-portal-container button[class*="bg-slate-800"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]),
+        .admin-portal-container button[class*="bg-red-950/30"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]),
+        .admin-portal-container button[class*="border-slate-700"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]),
+        .admin-portal-container button[class*="border-slate-800"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]) {
           border-color: #64748b !important; /* slate-500 */
           color: #f1f5f9 !important;
           background-color: #1e293b !important; /* base slate-800 */
         }
-        .admin-portal-container button[class*="bg-slate-900"]:hover,
-        .admin-portal-container button[class*="bg-slate-800"]:hover,
-        .admin-portal-container button[class*="bg-red-950/30"]:hover {
+        .admin-portal-container button[class*="bg-slate-900"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]):hover,
+        .admin-portal-container button[class*="bg-slate-800"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]):hover,
+        .admin-portal-container button[class*="bg-red-950/30"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]):hover {
           background-color: #334155 !important; /* hover slate-700 */
           border-color: #94a3b8 !important; /* hover slate-400 */
         }
 
         /* Secondary buttons and outline buttons in light theme */
-        .theme-light .admin-portal-container button[class*="bg-slate-900"],
-        .theme-light .admin-portal-container button[class*="bg-slate-800"],
-        .theme-light .admin-portal-container button[class*="border-slate-700"],
-        .theme-light .admin-portal-container button[class*="border-slate-800"] {
+        .theme-light .admin-portal-container button[class*="bg-slate-900"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]),
+        .theme-light .admin-portal-container button[class*="bg-slate-800"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]),
+        .theme-light .admin-portal-container button[class*="border-slate-700"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]),
+        .theme-light .admin-portal-container button[class*="border-slate-800"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]) {
           border-color: #64748b !important;
           color: #0f172a !important;
           background-color: #f1f5f9 !important;
         }
-        .theme-light .admin-portal-container button[class*="bg-slate-900"]:hover,
-        .theme-light .admin-portal-container button[class*="bg-slate-800"]:hover {
+        .theme-light .admin-portal-container button[class*="bg-slate-900"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]):hover,
+        .theme-light .admin-portal-container button[class*="bg-slate-800"]:not(.cms-tab-btn):not(.portal-tab-btn):not([role="tab"]):hover {
           background-color: #e2e8f0 !important;
           border-color: #475569 !important;
         }
@@ -6452,7 +6452,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
         {/* Compact & Minimal CMS Navigation Bar */}
         {cmsTabs.length > 1 && (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800/80 mb-2 pb-2">
-            <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 overflow-x-auto custom-scrollbar flex-nowrap min-w-0">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 overflow-x-auto custom-scrollbar flex-nowrap min-w-0" role="tablist" aria-label="Website CMS Modules">
               {cmsTabs.map((tab) => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.id;
@@ -6462,18 +6462,25 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                   <button
                     key={tab.id}
                     type="button"
+                    role="tab"
+                    aria-selected={active}
+                    aria-controls={`cms-tab-panel-${tab.id}`}
+                    id={`cms-tab-${tab.id}`}
                     onClick={() => openCmsTab(tab.id)}
-                    className={`flex h-7 items-center gap-1.5 px-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${
+                    className={`cms-tab-btn portal-tab-btn flex h-7 sm:h-7.5 items-center gap-1.5 px-3 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${
                       active
-                        ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-xs border border-slate-200/90 dark:border-slate-700 font-bold'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-800/60 border border-transparent'
+                        ? 'is-active bg-teal-700 text-white shadow-sm border border-teal-600 font-extrabold'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
                     }`}
                   >
-                    <Icon size={12.5} className={active ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400 dark:text-slate-500'} />
-                    <span className="hidden md:inline">{tab.label}</span>
-                    <span className="md:hidden">{tab.shortLabel}</span>
+                    <Icon size={13} className={active ? 'text-white' : 'text-slate-400 dark:text-slate-500'} />
+                    <span className="hidden md:inline font-bold">{tab.label}</span>
+                    <span className="md:hidden font-bold">{tab.shortLabel}</span>
+                    {active && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-white ml-0.5 animate-pulse shrink-0 hidden sm:inline-block" />
+                    )}
                     {isTrash && trashCount > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${active ? 'bg-rose-500 text-white' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400'}`}>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${active ? 'bg-white text-rose-700 font-black' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400'}`}>
                         {trashCount}
                       </span>
                     )}
