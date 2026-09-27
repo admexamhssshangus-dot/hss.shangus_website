@@ -2488,13 +2488,13 @@ export default function AdmissionRegisterSuite({
           }
         }
 
-        // 4. Clean duplicates from loaded records & purge historical orphan documents from Firestore
+        // 4. Purge historical orphan ghost documents from Firestore where 'form_XXXX' exists alongside 'XXXX'
         if (loadedRecords.length > 0) {
           const formDocMap = new Map();
           loadedRecords.forEach(d => {
             if (!d?.id) return;
             const fNo = cleanStr(d.formNo || d['Form Number'] || d['Form No.'] || d.FormNo);
-            if (fNo) {
+            if (fNo && /^\d{4,}$/.test(fNo)) {
               if (!formDocMap.has(fNo)) formDocMap.set(fNo, []);
               formDocMap.get(fNo).push(d.id);
             }
@@ -2509,45 +2509,6 @@ export default function AdmissionRegisterSuite({
               }
             }
           });
-
-          // In-memory deduplication of loaded records
-          const seenKeys = new Set();
-          const deduped = [];
-          loadedRecords.forEach(r => {
-            if (!r) return;
-            const fNo = cleanStr(r.formNo || r['Form Number'] || r['Form No.'] || r.FormNo);
-            const cId = cleanStr(r.id || '').replace(/^form_/, '');
-            const cReg = cleanStr(r.boardRegNo || r['Board Registration Number'] || r.boardReg).replace(/[^a-zA-Z0-9]/g, '');
-            const cName = cleanStr(r.studentName || r["Student's Name (as per school records)"] || r['Student Name'] || r.name).toLowerCase();
-            const cFather = cleanStr(r.fatherName || r["Father's/Guardian's Name (as per school records)"] || r["Father's Name"] || r.father).toLowerCase();
-
-            const existingIdx = deduped.findIndex(ex => {
-              const exF = cleanStr(ex.formNo || ex['Form Number'] || ex['Form No.'] || ex.FormNo);
-              const exId = cleanStr(ex.id || '').replace(/^form_/, '');
-              const exReg = cleanStr(ex.boardRegNo || ex['Board Registration Number'] || ex.boardReg).replace(/[^a-zA-Z0-9]/g, '');
-              const exName = cleanStr(ex.studentName || ex["Student's Name (as per school records)"] || ex['Student Name'] || ex.name).toLowerCase();
-              const exFather = cleanStr(ex.fatherName || ex["Father's/Guardian's Name (as per school records)"] || ex["Father's Name"] || ex.father).toLowerCase();
-
-              if (fNo && exF && fNo === exF) return true;
-              if (cReg && exReg && cReg.length >= 6 && cReg === exReg) return true;
-              if (cId && exId && cId === exId) return true;
-              if (cName && exName && cFather && exFather && cName === exName && cFather === exFather) return true;
-              return false;
-            });
-
-            if (existingIdx !== -1) {
-              const ex = deduped[existingIdx];
-              const isRe = r.readmission === 'Yes' || r.isReadmission === true || r['Re-admission'] === 'Yes';
-              if (isRe) {
-                deduped[existingIdx] = { ...ex, ...r };
-              } else {
-                deduped[existingIdx] = { ...r, ...ex };
-              }
-            } else {
-              deduped.push(r);
-            }
-          });
-          loadedRecords = deduped;
         }
 
         if (!isCancelled) {
@@ -2982,29 +2943,42 @@ export default function AdmissionRegisterSuite({
       });
     });
 
-    // Deduplicate students across potential document duplicates (e.g. form_12345 vs 12345 or re-admission dual docs)
+    // Deduplicate ONLY true re-admission duplicate documents (e.g. form_250199 created alongside 250199 for the same student)
+    // NEVER merge distinct students who happen to have placeholder fields, missing form numbers, or similar names!
     const uniqueStudents = [];
-    const entityIndex = new Map(); // identifier -> index in uniqueStudents
+    const formIndex = new Map(); // numericFormNo -> index in uniqueStudents
+    const ghostIdMap = new Map(); // baseDocId -> index in uniqueStudents
 
     list.forEach(st => {
       const cleanForm = cleanStr(st.formNo);
-      const formKey = cleanForm ? `form_${cleanForm}` : null;
-      const cleanReg = cleanStr(st.boardReg).replace(/[^a-zA-Z0-9]/g, '');
-      const regKey = cleanReg && cleanReg.length >= 6 ? `reg_${cleanReg}` : null;
-      const cleanId = cleanStr(st.id || '').replace(/^form_/, '');
-      const idKey = cleanId && !cleanId.startsWith('adm_') ? `id_${cleanId}` : null;
+      // Online application form numbers are strictly numeric and at least 4 digits (e.g. 250199)
+      const isRealNumericForm = /^\d{4,}$/.test(cleanForm);
       const cleanName = cleanStr(st.name).toLowerCase();
-      const cleanFather = cleanStr(st.father).toLowerCase();
-      const nameKey = (cleanName && cleanFather) ? `nf_${cleanName}_${cleanFather}` : null;
+      const cleanId = cleanStr(st.id || '');
+      const baseId = cleanId.replace(/^form_/, '');
 
-      // Find if this student matches an already indexed entity
       let targetIdx = -1;
-      if (formKey && entityIndex.has(formKey)) targetIdx = entityIndex.get(formKey);
-      else if (regKey && entityIndex.has(regKey)) targetIdx = entityIndex.get(regKey);
-      else if (idKey && entityIndex.has(idKey)) targetIdx = entityIndex.get(idKey);
-      else if (nameKey && entityIndex.has(nameKey)) targetIdx = entityIndex.get(nameKey);
+
+      // 1. Check if this is an explicit 'form_XXXX' ghost duplicate of an existing record with matching name
+      if (baseId && ghostIdMap.has(baseId)) {
+        const candidateIdx = ghostIdMap.get(baseId);
+        const candidate = uniqueStudents[candidateIdx];
+        if (cleanName && cleanStr(candidate.name).toLowerCase() === cleanName) {
+          targetIdx = candidateIdx;
+        }
+      }
+
+      // 2. Check if this matches a valid 4+ digit numeric online form number with matching name
+      if (targetIdx === -1 && isRealNumericForm && formIndex.has(cleanForm)) {
+        const candidateIdx = formIndex.get(cleanForm);
+        const candidate = uniqueStudents[candidateIdx];
+        if (cleanName && cleanStr(candidate.name).toLowerCase() === cleanName) {
+          targetIdx = candidateIdx;
+        }
+      }
 
       if (targetIdx !== -1) {
+        // True duplicate document found (e.g. Irtiza Maqbool form_250199 vs 250199)! Merge in place!
         const existing = uniqueStudents[targetIdx];
         const isRe = Boolean(existing.isReadmission || st.isReadmission);
         const reRecord = st.isReadmission ? st : (existing.isReadmission ? existing : null);
@@ -3029,19 +3003,11 @@ export default function AdmissionRegisterSuite({
         };
 
         uniqueStudents[targetIdx] = merged;
-
-        // Register all available aliases to point to this index
-        if (formKey) entityIndex.set(formKey, targetIdx);
-        if (regKey) entityIndex.set(regKey, targetIdx);
-        if (idKey) entityIndex.set(idKey, targetIdx);
-        if (nameKey) entityIndex.set(nameKey, targetIdx);
       } else {
         const newIdx = uniqueStudents.length;
         uniqueStudents.push({ ...st });
-        if (formKey) entityIndex.set(formKey, newIdx);
-        if (regKey) entityIndex.set(regKey, newIdx);
-        if (idKey) entityIndex.set(idKey, newIdx);
-        if (nameKey) entityIndex.set(nameKey, newIdx);
+        if (isRealNumericForm) formIndex.set(cleanForm, newIdx);
+        if (baseId && !baseId.startsWith('adm_')) ghostIdMap.set(baseId, newIdx);
       }
     });
 
@@ -3636,10 +3602,9 @@ export default function AdmissionRegisterSuite({
         const updated = (prev || []).map(item => {
           if (!item) return item;
           const iForm = cleanStr(item.formNo || item['Form Number'] || item['Form No.'] || item.FormNo);
-          const iReg = cleanStr(item.boardRegNo || item['Board Registration Number'] || item.boardReg);
+          const isNumericForm = /^\d{4,}$/.test(targetFormNo) && iForm === targetFormNo;
           const isMatch = item.id === realDocId ||
-                          (targetFormNo && iForm && iForm === targetFormNo) ||
-                          (targetBoardReg && iReg && iReg === targetBoardReg);
+                          (targetFormNo && isNumericForm && cleanStr(item.studentName || item.name).toLowerCase() === cleanStr(readmissionModalStudent.name).toLowerCase());
           if (isMatch) {
             found = true;
             return { ...item, ...deltaUpdates, id: realDocId };
@@ -3647,43 +3612,25 @@ export default function AdmissionRegisterSuite({
           return item;
         });
 
-        // Deduplicate in memory across formNo, boardReg, ID, and student name
-        const seenKeys = new Set();
-        const deduplicated = [];
-        updated.forEach(item => {
-          if (!item) return;
-          const iForm = cleanStr(item.formNo || item['Form Number'] || item['Form No.'] || item.FormNo);
-          const iReg = cleanStr(item.boardRegNo || item['Board Registration Number'] || item.boardReg).replace(/[^a-zA-Z0-9]/g, '');
-          const iId = cleanStr(item.id || '').replace(/^form_/, '');
-          const iName = cleanStr(item.studentName || item.name).toLowerCase();
-          const iFather = cleanStr(item.fatherName || item.father).toLowerCase();
-
-          let isDup = false;
-          if (iForm && seenKeys.has(`form_${iForm}`)) isDup = true;
-          if (iReg && iReg.length >= 6 && seenKeys.has(`reg_${iReg}`)) isDup = true;
-          if (iId && !iId.startsWith('adm_') && seenKeys.has(`id_${iId}`)) isDup = true;
-          if (iName && iFather && seenKeys.has(`nf_${iName}_${iFather}`)) isDup = true;
-
-          if (!isDup) {
-            if (iForm) seenKeys.add(`form_${iForm}`);
-            if (iReg && iReg.length >= 6) seenKeys.add(`reg_${iReg}`);
-            if (iId && !iId.startsWith('adm_')) seenKeys.add(`id_${iId}`);
-            if (iName && iFather) seenKeys.add(`nf_${iName}_${iFather}`);
-            deduplicated.push(item);
+        // Filter out historical orphan duplicate document like 'form_250199' if realDocId is '250199'
+        const cleaned = updated.filter(item => {
+          if (targetFormNo && realDocId !== `form_${targetFormNo}` && item.id === `form_${targetFormNo}`) {
+            return false;
           }
+          return true;
         });
 
         if (found) {
-          newDataset = deduplicated;
-          return deduplicated;
+          newDataset = cleaned;
+          return cleaned;
         }
         if (targetSess === selectedSession) {
-          const res = [{ ...baseData, ...deltaUpdates, id: realDocId }, ...deduplicated];
+          const res = [{ ...baseData, ...deltaUpdates, id: realDocId }, ...cleaned];
           newDataset = res;
           return res;
         }
-        newDataset = deduplicated;
-        return deduplicated;
+        newDataset = cleaned;
+        return cleaned;
       });
 
       if (sessionCacheRef.current[selectedSession]) {
