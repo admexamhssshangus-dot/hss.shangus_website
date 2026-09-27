@@ -3008,10 +3008,36 @@ export default function AdmissionRegisterSuite({
         };
       }
 
+      // Automatic fallback for old admission number on Re-admission candidates
+      let finalOldAdmNo = oldAdmNo;
+      if (!finalOldAdmNo && isReadmission) {
+        if (histMatch) {
+          finalOldAdmNo = cleanStr(histMatch.admNo || histMatch['Adm. No.'] || histMatch['Admission No.'] || histMatch.admissionNo);
+        }
+        if (!finalOldAdmNo && historicalAdmLookup) {
+          const cleanReg = normalizeBoardRegKey(boardReg);
+          if (cleanReg && historicalAdmLookup.byBoardReg?.[cleanReg]) {
+            finalOldAdmNo = historicalAdmLookup.byBoardReg[cleanReg];
+          } else if (boardReg && historicalAdmLookup.byBoardReg?.[boardReg]) {
+            finalOldAdmNo = historicalAdmLookup.byBoardReg[boardReg];
+          }
+          if (!finalOldAdmNo && formNo && historicalAdmLookup.byFormNo?.[formNo]) {
+            finalOldAdmNo = historicalAdmLookup.byFormNo[formNo];
+          }
+          if (!finalOldAdmNo && name && father) {
+            const normN = name.toLowerCase().replace(/[^a-z]/g, '');
+            const normF = father.toLowerCase().replace(/[^a-z]/g, '');
+            if (normN.length >= 3 && normF.length >= 4) {
+              finalOldAdmNo = historicalAdmLookup.byNameFather?.[`${normN}_${normF}`];
+            }
+          }
+        }
+      }
+
       const finalAdmNo = finalAdmNumber || (areClassTiersCompatible(cls, histMatch?.class) ? firstCleanValue(histMatch, ADMISSION_NO_KEYS) : '') || '';
       const finalAdmDate = admDate || formatRegisterDate(firstRawValue(histMatch, ADMISSION_DATE_KEYS)) || (s.onlineSubmDate ? formatRegisterDate(s.onlineSubmDate) : '') || '02-03-2026';
-      const displayAdmNo = (isReadmission && oldAdmNo && oldAdmNo !== finalAdmNo)
-        ? `${finalAdmNo || '—'} (${oldAdmNo})`
+      const displayAdmNo = (isReadmission && finalOldAdmNo && finalOldAdmNo !== finalAdmNo)
+        ? `${finalAdmNo || '—'} (${finalOldAdmNo})`
         : (finalAdmNo || '—');
       const finalBoardReg = boardReg || getBoardRegistration(histMatch, cls);
       const finalPrevSchool = prevSchool || getPreviousAcademicValue(histMatch, cls, 'Name of Previous School', ['prevSchool', 'Previous School', 'Name of Previous School', 'Name of the Institution last attended']);
@@ -3042,7 +3068,7 @@ export default function AdmissionRegisterSuite({
         sno: list.length + 1,
         formNo,
         admNo: finalAdmNo,
-        oldAdmNo,
+        oldAdmNo: finalOldAdmNo,
         displayAdmNo,
         isReadmission,
         rollNo,
