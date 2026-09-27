@@ -2943,42 +2943,52 @@ export default function AdmissionRegisterSuite({
       });
     });
 
-    // Deduplicate ONLY true re-admission duplicate documents (e.g. form_250199 created alongside 250199 for the same student)
-    // NEVER merge distinct students who happen to have placeholder fields, missing form numbers, or similar names!
+    // Uniquely identify each student row by: Board Reg No - Session - Class (and Form No - Session - Class)
     const uniqueStudents = [];
-    const formIndex = new Map(); // numericFormNo -> index in uniqueStudents
-    const ghostIdMap = new Map(); // baseDocId -> index in uniqueStudents
+    const entityIndex = new Map(); // composite key -> index in uniqueStudents
+
+    const getCleanClassNorm = (cls) => {
+      const c = String(cls || '').toLowerCase().replace(/class/gi, '').trim();
+      if (c.includes('12')) return '12th';
+      if (c.includes('11')) return '11th';
+      if (c.includes('10')) return '10th';
+      if (c.includes('9')) return '9th';
+      return c || '11th';
+    };
+
+    const getCleanSessionNorm = (sess) => {
+      return cleanStr(sess || selectedSession || '2025-26');
+    };
 
     list.forEach(st => {
+      const cleanCls = getCleanClassNorm(st.class);
+      const cleanSess = getCleanSessionNorm(st.session);
+
+      // 1. Board Registration No - Session - Class (authoritative JKBOSE student row identifier)
+      const cleanReg = cleanStr(st.boardReg).replace(/[^a-zA-Z0-9]/g, '');
+      const isPlaceholderReg = !cleanReg ||
+        /^0+$/.test(cleanReg) ||
+        /^(pending|na|applied|none|null|underprocess|awaited)$/i.test(cleanReg);
+      const isValidBoardReg = cleanReg.length >= 6 && !isPlaceholderReg;
+      const regKey = isValidBoardReg ? `reg_${cleanReg}_${cleanSess}_${cleanCls}` : null;
+
+      // 2. Form No - Session - Class (for fresh applicants without board reg)
       const cleanForm = cleanStr(st.formNo);
-      // Online application form numbers are strictly numeric and at least 4 digits (e.g. 250199)
-      const isRealNumericForm = /^\d{4,}$/.test(cleanForm);
-      const cleanName = cleanStr(st.name).toLowerCase();
+      const isValidFormNo = /^\d{4,}$/.test(cleanForm);
+      const formKey = isValidFormNo ? `form_${cleanForm}_${cleanSess}_${cleanCls}` : null;
+
+      // 3. Ghost Document ID duplicate (e.g. form_250199 created alongside 250199)
       const cleanId = cleanStr(st.id || '');
       const baseId = cleanId.replace(/^form_/, '');
+      const ghostIdKey = (baseId && !baseId.startsWith('adm_')) ? `id_${baseId}_${cleanSess}_${cleanCls}` : null;
 
       let targetIdx = -1;
-
-      // 1. Check if this is an explicit 'form_XXXX' ghost duplicate of an existing record with matching name
-      if (baseId && ghostIdMap.has(baseId)) {
-        const candidateIdx = ghostIdMap.get(baseId);
-        const candidate = uniqueStudents[candidateIdx];
-        if (cleanName && cleanStr(candidate.name).toLowerCase() === cleanName) {
-          targetIdx = candidateIdx;
-        }
-      }
-
-      // 2. Check if this matches a valid 4+ digit numeric online form number with matching name
-      if (targetIdx === -1 && isRealNumericForm && formIndex.has(cleanForm)) {
-        const candidateIdx = formIndex.get(cleanForm);
-        const candidate = uniqueStudents[candidateIdx];
-        if (cleanName && cleanStr(candidate.name).toLowerCase() === cleanName) {
-          targetIdx = candidateIdx;
-        }
-      }
+      if (regKey && entityIndex.has(regKey)) targetIdx = entityIndex.get(regKey);
+      else if (formKey && entityIndex.has(formKey)) targetIdx = entityIndex.get(formKey);
+      else if (ghostIdKey && entityIndex.has(ghostIdKey)) targetIdx = entityIndex.get(ghostIdKey);
 
       if (targetIdx !== -1) {
-        // True duplicate document found (e.g. Irtiza Maqbool form_250199 vs 250199)! Merge in place!
+        // Same student row found! Merge and enrich in-place
         const existing = uniqueStudents[targetIdx];
         const isRe = Boolean(existing.isReadmission || st.isReadmission);
         const reRecord = st.isReadmission ? st : (existing.isReadmission ? existing : null);
@@ -3003,11 +3013,17 @@ export default function AdmissionRegisterSuite({
         };
 
         uniqueStudents[targetIdx] = merged;
+
+        // Register all keys for this student row
+        if (regKey) entityIndex.set(regKey, targetIdx);
+        if (formKey) entityIndex.set(formKey, targetIdx);
+        if (ghostIdKey) entityIndex.set(ghostIdKey, targetIdx);
       } else {
         const newIdx = uniqueStudents.length;
         uniqueStudents.push({ ...st });
-        if (isRealNumericForm) formIndex.set(cleanForm, newIdx);
-        if (baseId && !baseId.startsWith('adm_')) ghostIdMap.set(baseId, newIdx);
+        if (regKey) entityIndex.set(regKey, newIdx);
+        if (formKey) entityIndex.set(formKey, newIdx);
+        if (ghostIdKey) entityIndex.set(ghostIdKey, newIdx);
       }
     });
 
@@ -3048,9 +3064,10 @@ export default function AdmissionRegisterSuite({
     normalizedStudents.forEach(s => {
       if (selectedClass !== 'ALL' && !isStudentIncludedInClassScope(selectedClass, s.class, s.isReadmission)) return;
       totalInScope++;
-      if (s.status === 'Approved') approved++;
-      if (s.status === 'Submitted') submitted++;
-      if (s.status === 'Provisional') provisional++;
+      const hasRollNo = Boolean(s.rollNo && s.rollNo !== '—' && s.rollNo !== 'NA' && s.rollNo !== 'N/A' && cleanStr(s.rollNo) !== '');
+      if (s.status === 'Approved' || hasRollNo) approved++;
+      else if (s.status === 'Submitted') submitted++;
+      else if (s.status === 'Provisional') provisional++;
       if (s.isReadmission) readmissions++;
       else fresh++;
     });
@@ -3060,14 +3077,15 @@ export default function AdmissionRegisterSuite({
   // Filtered Students for Current View with Readmission Sorting Rule (Re-admissions placed at end of class register)
   const filteredStudents = useMemo(() => {
     const rawFiltered = normalizedStudents.filter(s => {
-      // 1. Status Filter
+      // 1. Status Filter: By default, shows students who have been assigned a class roll number OR are approved
       if (selectedStatus !== 'ALL') {
+        const hasRollNo = Boolean(s.rollNo && s.rollNo !== '—' && s.rollNo !== 'NA' && s.rollNo !== 'N/A' && cleanStr(s.rollNo) !== '');
         if (selectedStatus === 'Approved') {
-          if (s.status !== 'Approved') return false;
+          if (s.status !== 'Approved' && !hasRollNo) return false;
         } else if (selectedStatus === 'Submitted') {
-          if (s.status !== 'Submitted') return false;
+          if (s.status !== 'Submitted' || hasRollNo) return false;
         } else if (selectedStatus === 'Provisional') {
-          if (s.status !== 'Provisional') return false;
+          if (s.status !== 'Provisional' || hasRollNo) return false;
         } else if (s.status !== selectedStatus) {
           return false;
         }
@@ -3916,14 +3934,15 @@ export default function AdmissionRegisterSuite({
     }
 
     return normalizedStudents.filter(s => {
-      // 1. Status Filter (Applies to summary as well, e.g. Approved students)
+      // 1. Status Filter (Applies to summary as well, e.g. Approved or Roll Assigned students)
       if (selectedStatus !== 'ALL') {
+        const hasRollNo = Boolean(s.rollNo && s.rollNo !== '—' && s.rollNo !== 'NA' && s.rollNo !== 'N/A' && cleanStr(s.rollNo) !== '');
         if (selectedStatus === 'Approved') {
-          if (s.status !== 'Approved') return false;
+          if (s.status !== 'Approved' && !hasRollNo) return false;
         } else if (selectedStatus === 'Submitted') {
-          if (s.status !== 'Submitted') return false;
+          if (s.status !== 'Submitted' || hasRollNo) return false;
         } else if (selectedStatus === 'Provisional') {
-          if (s.status !== 'Provisional') return false;
+          if (s.status !== 'Provisional' || hasRollNo) return false;
         } else if (s.status !== selectedStatus) {
           return false;
         }
