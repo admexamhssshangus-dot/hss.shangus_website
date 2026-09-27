@@ -382,10 +382,14 @@ export function resolveStudentLocality(st = {}, rawRecord = {}, addressStr = '')
     }
   }
 
+  const pinMatch = addr ? addr.match(/\b(19\d{4})\b/) : null;
+  const pincode = raw.pincode || raw.pinCode || raw.pin || raw.Pin || st?.pincode || (pinMatch ? pinMatch[1] : '');
+
   return {
     village: village || (addr ? addr.split(',')[0].trim() : 'Shangus'),
     tehsil: tehsil || 'Shangus',
-    district: district || 'Anantnag'
+    district: district || 'Anantnag',
+    pincode: pincode || ''
   };
 }
 
@@ -938,7 +942,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{(?:VILLAGE|TOWN)\}/gi, formatBlank(effVillage, '----------------------------------------'));
   result = result.replace(/\{TEHSIL\}/gi, formatBlank(effTehsil, 'Shangus'));
   result = result.replace(/\{DISTRICT\}/gi, formatBlank(effDistrict, 'Anantnag'));
-  result = result.replace(/\{(?:PIN_CODE|PIN|PINCODE)\}/gi, formatBlank(mergedProps.pinCode || mergedProps.pin || '', '------'));
+  result = result.replace(/\{(?:PIN_CODE|PIN|PINCODE)\}/gi, formatBlank(mergedProps.pinCode || mergedProps.pin || mergedProps.pincode || locality.pincode || rawStudent.pincode || rawStudent.pinCode || '', '------'));
   result = result.replace(/\{(?:CERTIFICATE_NO|TC_DC_NO|CERT_NO)\}/gi, formatBlank(certificateNo || refNo, '----------------'));
 
   // Preset Database Fields resolution directly from raw student if not overridden

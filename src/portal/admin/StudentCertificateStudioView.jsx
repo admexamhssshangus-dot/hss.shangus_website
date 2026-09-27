@@ -94,7 +94,7 @@ import {
   unpackMasterRegisterStudents
 } from './CustomRosterDocumentBuilderView';
 import { db } from '../../services/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, limit, getDocs } from 'firebase/firestore';
 import {
   fetchCloudDocTemplates,
   saveCloudDocTemplate,
@@ -337,8 +337,159 @@ const enrichCertificateIdentityFields = (primaryRaw, linkedRecords = []) => {
     enriched.district = linkedDistrict;
   }
 
+  // Enrich Pincode
+  const extractPincodeFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const p = raw.pincode || raw.pinCode || raw.pin || raw.Pin || rec?.pincode || rec?.pinCode || '';
+    return (p && !/^(—|-|n\/?a|null|undefined)$/i.test(String(p).trim())) ? String(p).trim() : '';
+  };
+  const linkedPincode = firstLinked(extractPincodeFromRecord);
+  if (linkedPincode && !extractPincodeFromRecord(enriched)) {
+    enriched.pincode = linkedPincode;
+    enriched.pinCode = linkedPincode;
+  }
+
+  // Enrich Demographics (Aadhaar, Category, Mobile, Parent Mobile, Blood Group, PEN, Prev School)
+  const extractAadhaarFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const a = raw.aadhar || raw.aadhaar || raw.aadhaar_no || raw.adhaar || rec?.aadhar || rec?.aadhaar || '';
+    return (a && !/^(—|-|n\/?a|null|undefined)$/i.test(String(a).trim())) ? String(a).trim() : '';
+  };
+  const linkedAadhaar = firstLinked(extractAadhaarFromRecord);
+  if (linkedAadhaar && !extractAadhaarFromRecord(enriched)) {
+    enriched.aadhar = linkedAadhaar;
+    enriched.aadhaar = linkedAadhaar;
+  }
+
+  const extractCategoryFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const c = raw.category || raw.social_category || raw.Category || rec?.category || '';
+    return (c && !/^(—|-|n\/?a|null|undefined)$/i.test(String(c).trim())) ? String(c).trim() : '';
+  };
+  const linkedCategory = firstLinked(extractCategoryFromRecord);
+  if (linkedCategory && !extractCategoryFromRecord(enriched)) {
+    enriched.category = linkedCategory;
+  }
+
+  const extractMobileFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const m = raw.mobile || raw.mobile_no || raw.Phone || raw.phone || rec?.mobile || '';
+    return (m && !/^(—|-|n\/?a|null|undefined)$/i.test(String(m).trim())) ? String(m).trim() : '';
+  };
+  const linkedMobile = firstLinked(extractMobileFromRecord);
+  if (linkedMobile && !extractMobileFromRecord(enriched)) {
+    enriched.mobile = linkedMobile;
+  }
+
+  const extractParentMobileFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const pm = raw.parent_mobile || raw.guardian_mobile || raw.father_mobile || rec?.parent_mobile || '';
+    return (pm && !/^(—|-|n\/?a|null|undefined)$/i.test(String(pm).trim())) ? String(pm).trim() : '';
+  };
+  const linkedParentMobile = firstLinked(extractParentMobileFromRecord);
+  if (linkedParentMobile && !extractParentMobileFromRecord(enriched)) {
+    enriched.parent_mobile = linkedParentMobile;
+  }
+
+  const extractBloodGroupFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const bg = raw.blood_group || raw.bloodGroup || raw.BloodGroup || rec?.blood_group || '';
+    return (bg && !/^(—|-|n\/?a|null|undefined)$/i.test(String(bg).trim())) ? String(bg).trim() : '';
+  };
+  const linkedBloodGroup = firstLinked(extractBloodGroupFromRecord);
+  if (linkedBloodGroup && !extractBloodGroupFromRecord(enriched)) {
+    enriched.blood_group = linkedBloodGroup;
+    enriched.bloodGroup = linkedBloodGroup;
+  }
+
+  const extractPenFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const pen = raw.pen || raw.pen_no || raw.PEN || rec?.pen || '';
+    return (pen && !/^(—|-|n\/?a|null|undefined)$/i.test(String(pen).trim())) ? String(pen).trim() : '';
+  };
+  const linkedPen = firstLinked(extractPenFromRecord);
+  if (linkedPen && !extractPenFromRecord(enriched)) {
+    enriched.pen = linkedPen;
+    enriched.pen_no = linkedPen;
+  }
+
+  const extractPrevSchoolFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const ps = raw.prev_school || raw.previous_school || raw['Previous School'] || rec?.prev_school || '';
+    return (ps && !/^(—|-|n\/?a|null|undefined)$/i.test(String(ps).trim())) ? String(ps).trim() : '';
+  };
+  const linkedPrevSchool = firstLinked(extractPrevSchoolFromRecord);
+  if (linkedPrevSchool && !extractPrevSchoolFromRecord(enriched)) {
+    enriched.prev_school = linkedPrevSchool;
+    enriched.previous_school = linkedPrevSchool;
+  }
+
   return enriched;
 };
+
+/**
+ * On-demand single-student admission fetch (1 read target instead of 800+ full collection reads).
+ * Checks memory cache first (0 reads), then direct document lookup (1 read), then registration query (1 read).
+ */
+async function fetchStudentAdmissionRecordOnDemand(st, targetReg, normStudentName, normFatherName) {
+  // 1. In-memory check (0 reads)
+  const cachedAdmissions = getCachedCollectionSync('admissions');
+  if (Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0) {
+    const admMatches = cachedAdmissions.filter(record =>
+      (targetReg && normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg && areNamesCompatible(extractStudentName(record), normStudentName)) ||
+      (normStudentName && areNamesCompatible(extractStudentName(record), normStudentName) && (!normFatherName || areNamesCompatible(extractFatherName(record), normFatherName)))
+    );
+    if (admMatches.length > 0) return admMatches;
+  }
+
+  // 2. Direct document ID lookup if this record originated from admissions (1 read)
+  const directDocId = st?.docId || st?.raw?.id || st?.id;
+  if (directDocId && typeof directDocId === 'string' && !directDocId.startsWith('mr_') && !directDocId.startsWith('chunk_') && !directDocId.includes('_')) {
+    try {
+      const snap = await getDoc(doc(db, 'admissions', directDocId));
+      if (snap.exists()) {
+        return [{ id: snap.id, ...snap.data() }];
+      }
+    } catch (_) {}
+  }
+
+  // 3. Query admissions by registrationNo or boardRegNo (1 read)
+  if (targetReg) {
+    try {
+      const q = query(collection(db, 'admissions'), where('registrationNo', '==', targetReg), limit(2));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+    } catch (_) {}
+    try {
+      const q = query(collection(db, 'admissions'), where('boardRegNo', '==', targetReg), limit(2));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+    } catch (_) {}
+  }
+
+  // 4. Targeted query by student name (1-3 reads)
+  const rawName = extractStudentName(st?.raw || st);
+  if (rawName && rawName.length >= 3) {
+    try {
+      const q = query(collection(db, 'admissions'), where('studentName', '==', rawName), limit(3));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const matched = docs.filter(record =>
+          areNamesCompatible(extractStudentName(record), normStudentName) &&
+          (!normFatherName || areNamesCompatible(extractFatherName(record), normFatherName))
+        );
+        if (matched.length > 0) return matched;
+      }
+    } catch (_) {}
+  }
+
+  return [];
+}
 
 // ─── Compact Checkbox-Style Multi-Select Dropdown for Class & Session Filters ───
 function StudioMultiSelectDropdown({
@@ -1777,15 +1928,8 @@ export default function StudentCertificateStudioView({
         extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
       );
       if (!hasAuthoritativeIdentity && !isPreviewOnly) {
-        const cachedAdmissions = getCachedCollectionSync('admissions');
-        const admissions = Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0
-          ? cachedAdmissions
-          : await getCachedCollection('admissions');
+        const admMatches = await fetchStudentAdmissionRecordOnDemand(st, targetReg, normStudentName, normFatherName);
         if (selectionRequestRef.current !== requestId) return;
-        const admMatches = (admissions || []).filter(record =>
-          (targetReg && normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg && areNamesCompatible(extractStudentName(record), normStudentName)) ||
-          (normStudentName && areNamesCompatible(extractStudentName(record), normStudentName) && (!normFatherName || areNamesCompatible(extractFatherName(record), normFatherName)))
-        );
         registrationMatches = [...registrationMatches, ...admMatches];
       }
 
