@@ -2,23 +2,35 @@
 
 ## Current Working Changes (Ready for Commit)
 
-### 1. Security Fortification (`.gitignore`)
-- **Global Environment Variables Protection:** Added `**/.env*` with strict exception for template `!**/.env.example`. Prevents accidental commits of environment configurations across all subfolders (root, `functions/`, `omr_system/`, etc.).
-- **Private Keys, Certificates & Service Accounts:** Explicitly blocked `**/*serviceAccount*.json`, `**/*service-account*.json`, `**/*credentials*.json`, `**/serviceAccountKey.json`, `**/client_secret*.json`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, and `*.keystore`.
-- **Temporary Artifacts & Backups:** Added patterns for `*.bak`, `*.orig`, `*.tmp`, `*.swp`, `*.swo`, `*~`, and `**/scratch/`.
+### 1. Roll Number & Candidate Identifier Badges (`AdmissionRegisterSuite.jsx`)
+- **Universal Re-admission Student Finder (View 1):**
+  - Added dedicated badges for **`Roll: {candidate.rollNo}`**, **`Adm: {candidate.admNo}`**, **`Form: {candidate.formNo}`**, and **`Reg: {candidate.boardReg}`** on candidate result cards.
+  - Implemented dynamic amber highlight rings on whichever field matches the search query (e.g., searching a roll number such as `"165"` visually highlights the Roll Number badge).
+- **Candidate Selected Banner (View 2):**
+  - Added Roll Number, Admission Number, Form Number, and Board Registration Number badges directly into the selected candidate header banner for complete identification clarity.
 
-### 2. Code Cleanup & Redundancy Removal
-- **[`src/portal/teacher/TeacherDashboard.jsx`](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/TeacherDashboard.jsx):** Removed unused imports `db`, `collection`, and `getDocs` left over after migrating to `getCachedCollection`.
-- **[`src/services/csvBatchManager.js`](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/csvBatchManager.js):** Removed unused imports (`deleteDoc`, `invalidateCache`, `logAdminActivity`) and eliminated dead local variables (`liteToStore`, `existing`, `updated`).
+### 2. Elimination of Register Freeze / Hang (`AdminDashboard.jsx`)
+- **Root Cause Fixed:** Previously, updating a student's re-admission status triggered `onDataUpdated={() => loadAdminData(true)}`, which wiped pagination state and triggered an unmetered full multi-page download of thousands of records from Firestore (`hydrateRemainingPages`), freezing the main thread and re-rendering 2000+ complex ledger rows.
+- **In-Memory & Cache Micro-Sync:** Updated `onDataUpdated` to accept delta updates (single objects or arrays of changed items) and patch `applications` and local cache in-place with zero network refetches.
 
-### 3. Agent Workflow Rules Update (`AGENTS.md` & `.agents/AGENTS.md`)
-- Added Section 6 establishing the permanent protocol: maintain `CHANGES_SINCE_LAST_COMMIT.md` on every cycle, output a detailed summary with proposed commit messages, and provide clear manual review/amend instructions so the user retains full manual Git control.
+### 3. Undo Re-admission & Sequential Admission Number Auto-Compaction (`AdmissionRegisterSuite.jsx`)
+- **Undo Re-admission Button:** Added an `Undo Re-admission` action button in the Re-admission modal footer for any student with re-admission or historical admission mapping.
+- **Confirmation & Gap Compaction Dialog:**
+  - Displays released admission number vs restored original admission number.
+  - Features an **"Auto-recompact subsequent admission numbers to prevent gaps"** checkbox (checked by default).
+  - Shows an instant live preview list of all subsequent students with higher sequential admission numbers who will shift down by 1 (e.g. `5477 → 5476`, `5478 → 5477`).
+- **Comprehensive Undo Handler (`handleUndoReadmission`):**
+  - Robust document ID resolution via `dataset.find(...)` matching `id`, `docId`, `formNo`, or `boardRegNo`.
+  - Reverts student status (`isReadmission: false`, `readmission: 'No'`, clears `oldAdmNo`, restores original `admNo`).
+  - Automatically decrements subsequent students' sequential admission numbers by 1 when compaction is selected.
+  - Performs 0ms optimistic cache and state updates for immediate UI responsiveness.
+  - Persists updates to Firestore in parallel background writes and logs audit activity (`student_readmission_undone`).
 
 ---
 
 ## Suggested Commit Message
 ```bash
-git commit -m "Fortify .gitignore security against credential leaks, purge dead imports, and document commit memory workflow"
+git commit -m "feat(admRegister): add roll number search badges and undo re-admission with sequential gap compaction"
 ```
 
 ---
@@ -33,7 +45,7 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "Fortify .gitignore security against credential leaks, purge dead imports, and document commit memory workflow"
+git commit -m "feat(admRegister): add roll number search badges and undo re-admission with sequential gap compaction"
 ```
 
 ### If you want to undo/re-commit the latest local commit manually:
@@ -52,20 +64,5 @@ git push origin main
 
 ---
 
-## Previous Commit Reference (`7577cea8`)
-- **Summary:** Firebase SWR caching, read optimization, and on-demand retrievals across public pages and admin/teacher portals.
-- **Key Files Modified:**
-  - `src/services/staffAuthService.js` (eliminated write-on-read anti-pattern)
-  - `src/portal/layout/PortalLayout.jsx` (switched session restore to cached mode)
-  - `src/utils/settingsLoader.js` (20-min SWR TTL)
-  - `src/components/Navbar.jsx` (30-min SWR TTL for dynamic pages)
-  - `src/pages/Home.jsx` (replaced 3 continuous `onSnapshot` streaming listeners with SWR `getDoc`)
-  - `src/pages/NoticeBoard.jsx`, `About.jsx`, `Academics.jsx`, `Admissions.jsx`, `DynamicPage.jsx` (instant 0ms local storage render + 15–30 min SWR revalidation)
-  - `src/pages/PublicResultLookup.jsx` (removed full collection listener on `practicalsData`; scoped queries by class)
-  - `src/pages/GkTestRegistration.jsx` (switched sequential full collection scans to cached/scoped lookups)
-  - `src/portal/teacher/PracticalsPage.jsx` (eliminated forced zero-TTL reload; added targeted single-doc fetches)
-  - `src/portal/teacher/TeacherDashboard.jsx` (routed through 15-min SWR cache)
-  - `src/portal/admin/StaffPermissionsManager.jsx` (scoped user query to `isStaff == true`)
-  - `src/services/staffDirectoryService.js` (added 15-min in-memory cache)
-  - `src/services/dbCache.js` (routed `masterRegisters` through `getMasterRegistersScoped`)
-  - `src/portal/admin/SessionArchivalModal.jsx`, `ResultIngestionModal.jsx`, `OfficialDocumentsStudioView.jsx`, `BulkFieldOverwriteModal.jsx` (switched from raw full Firestore scans to cached/scoped registers)
+## Previous Commit Reference (`7ed3ed15`)
+- **Summary:** Fortify `.gitignore` security against credential leaks, purge dead imports, and document commit memory workflow.
