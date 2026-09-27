@@ -2,7 +2,9 @@ import {
   commitIssuedCertificateBatch,
   extractCertificateSerial,
   normalizeCertificateIssueDate,
-  validateCertificateAssignments
+  validateCertificateAssignments,
+  formatGeneralRefNo,
+  parseGeneralRefNo
 } from './certificateRegistryService';
 import { addDoc, collection, doc, getDoc, runTransaction } from 'firebase/firestore';
 
@@ -224,5 +226,34 @@ describe('TC/DC certificate registry rules', () => {
       student: { regNo: 'REG-001', raw: { id: 'adm_250001' } }
     }], '2026-09-04')).rejects.toThrow(/locked to REG-OTHER, not this registration number/i);
     expect(transactionSet).not.toHaveBeenCalled();
+  });
+
+  describe('General certificate reference number formatting & parsing', () => {
+    test('formats compact ref number with HSS prefix and 2-digit year', () => {
+      expect(formatGeneralRefNo('HSS/Char-Past', 1369, '2026')).toBe('HSS/Char-Past/1369/26');
+      expect(formatGeneralRefNo('HSS/SHG/Char-Past', 1369, '2026')).toBe('HSS/Char-Past/1369/26');
+      expect(formatGeneralRefNo('HSS/SHG', 1454, '2026')).toBe('HSS/1454/26');
+      expect(formatGeneralRefNo('HSS/Bonafide', 1455, '26')).toBe('HSS/Bonafide/1455/26');
+    });
+
+    test('parses compact ref numbers with 2-digit or 4-digit years', () => {
+      const parsed1 = parseGeneralRefNo('HSS/Char-Past/1369/26');
+      expect(parsed1.prefix).toBe('HSS/Char-Past');
+      expect(parsed1.serial).toBe(1369);
+      expect(parsed1.year).toBe('26');
+      expect(parsed1.formatted).toBe('HSS/Char-Past/1369/26');
+
+      const parsed2 = parseGeneralRefNo('HSS/SHG/Char-Past/1369/2026');
+      expect(parsed2.prefix).toBe('HSS/Char-Past');
+      expect(parsed2.serial).toBe(1369);
+      expect(parsed2.year).toBe('26');
+      expect(parsed2.formatted).toBe('HSS/Char-Past/1369/26');
+
+      const parsed3 = parseGeneralRefNo('HSS/1454/26');
+      expect(parsed3.prefix).toBe('HSS');
+      expect(parsed3.serial).toBe(1454);
+      expect(parsed3.year).toBe('26');
+      expect(parsed3.formatted).toBe('HSS/1454/26');
+    });
   });
 });
