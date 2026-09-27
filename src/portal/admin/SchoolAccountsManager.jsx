@@ -229,7 +229,7 @@ export default function SchoolAccountsManager({ user }) {
   const loadAccountsData = async (forceRefresh = false) => {
     setLoading(true);
     try {
-      const loaded = await loadSiteSettings();
+      const loaded = await loadSiteSettings({ forceFirestore: true });
       setSettings(loaded);
 
       let facultyList = [];

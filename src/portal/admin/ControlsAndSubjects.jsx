@@ -197,7 +197,7 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
       try {
         const [appRes, siteSettings] = await Promise.all([
           appsScriptApi.getPublicSettings().catch(() => null),
-          loadSiteSettings().catch(() => null)
+          loadSiteSettings({ forceFirestore: true }).catch(() => null)
         ]);
 
         if (appRes && appRes.data) {

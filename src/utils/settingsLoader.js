@@ -116,7 +116,7 @@ export const DEFAULT_SETTINGS = {
     "12th_science_girls": 1650,
     "12th_humanities_boys": 1550,
     "12th_humanities_girls": 1550,
-    "9th": 1700,
+    "9th": 1800,
     "10th": 1100
   },
   socialLinks: {
@@ -230,48 +230,39 @@ export function getCachedSiteSettings() {
 }
 
 export async function loadSiteSettings({ forceFirestore = false } = {}) {
-  // 1. Instant Cache: Return cached settings if available to ensure 0ms main thread delay
+  // 1. Instant Cache: Return cached settings if available for 0ms initial render
   if (!forceFirestore) {
     try {
       const local = localStorage.getItem('site_settings');
       if (local) {
         const cached = mergeSiteSettings(JSON.parse(local));
-        // Refresh silently from static CDN JSON in the background without loading heavy Firestore SDK
-        fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' })
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => {
-            if (data) {
-              const fresh = mergeSiteSettings(data);
-              try { localStorage.setItem('site_settings', JSON.stringify(fresh)); } catch (_) {}
-            }
-          })
-          .catch(() => {});
+        // Refresh silently from live Firestore in the background so live updates (e.g. fees) are automatically synchronized
+        setTimeout(() => {
+          (async () => {
+            try {
+              const { db } = await import('../firebase');
+              const { doc, getDoc } = await import('firebase/firestore');
+              const snap = await getDoc(doc(db, 'site', 'settings'));
+              if (snap && snap.exists()) {
+                const fresh = mergeSiteSettings(snap.data());
+                try { localStorage.setItem('site_settings', JSON.stringify(fresh)); } catch (_) {}
+              }
+            } catch (_) {}
+          })();
+        }, 150);
         return cached;
       }
     } catch (e) {
       console.warn('Error reading cached site_settings:', e);
     }
-
-    // 2. Fast Static JSON Fallback: Avoid importing Firebase on public page visits
-    try {
-      const res = await fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' });
-      if (res.ok) {
-        const data = await res.json();
-        const merged = mergeSiteSettings(data);
-        try { localStorage.setItem('site_settings', JSON.stringify(merged)); } catch (_) {}
-        return merged;
-      }
-    } catch (e) {
-      console.warn('Could not load settings.json static fallback:', e);
-    }
   }
 
-  // 3. Firestore (used when forceFirestore=true e.g. in AdminPortal or when static fallback unavailable)
+  // 2. Direct Firestore Fetch (Ground truth: live database)
   try {
     const { db } = await import('../firebase');
     const { doc, getDoc } = await import('firebase/firestore');
     const docPromise = getDoc(doc(db, 'site', 'settings'));
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
     const snap = await Promise.race([docPromise, timeoutPromise]);
     if (snap && snap.exists()) {
       const merged = mergeSiteSettings(snap.data());
@@ -280,6 +271,19 @@ export async function loadSiteSettings({ forceFirestore = false } = {}) {
     }
   } catch (e) {
     console.warn('Firestore settings fetch error:', e);
+  }
+
+  // 3. Last-resort fallback: only if Firestore is completely unreachable and no local cache exists
+  try {
+    const res = await fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' });
+    if (res.ok) {
+      const data = await res.json();
+      const merged = mergeSiteSettings(data);
+      try { localStorage.setItem('site_settings', JSON.stringify(merged)); } catch (_) {}
+      return merged;
+    }
+  } catch (e) {
+    console.warn('Could not load settings.json static fallback:', e);
   }
 
   return DEFAULT_SETTINGS;
