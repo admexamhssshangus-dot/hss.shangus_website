@@ -1840,7 +1840,8 @@ const cleanAdmNoVal = (val) => {
     return '';
   }
   // Admission numbers are short institutional identifiers; reject long notes, sentences, or multi-word texts
-  if (str.length > 20 || str.split(/\s+/).length > 2) return '';
+  const unbracketed = str.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+  if (str.length > 30 || unbracketed.split(/\s+/).length > 2) return '';
   // Reject ordinal class names like "11th", "12th", "9th", "10th"
   if (/^\d{1,2}(st|nd|rd|th)$/i.test(str)) return '';
   // Reject explicit class strings like "Class 11", "Class 12", "11th Class", "Class 11th"
@@ -1932,42 +1933,107 @@ const extractRawAdmNo = (rec) => {
   return '';
 };
 
-const formatStudentAdmNo = (rec) => {
-  if (!rec) return '';
-  let newAdm = extractRawAdmNo(rec);
+export const parseAdmNoParts = (rec, explicitVal = null) => {
+  if (!rec && !explicitVal) return { newAdm: '', oldAdm: '', isReAdmission: false };
+
+  // 1. Direct explicit old admission number
+  let explicitOld = cleanAdmNoVal(
+    rec?.['Old Admission No.'] ||
+    rec?.['Old Adm. No.'] ||
+    rec?.['oldAdmNo'] ||
+    rec?.['old_adm_no'] ||
+    rec?.['Old Admission Number'] ||
+    rec?.['Previous Adm. No.'] ||
+    rec?.['Prev Adm No'] || ''
+  );
+  if (explicitOld) {
+    explicitOld = explicitOld.replace(/[()]/g, '').trim();
+  }
+
+  // 2. Candidate raw string from explicitVal or record
+  let rawStr = '';
+  if (explicitVal && typeof explicitVal === 'string' && explicitVal !== '—' && explicitVal !== 'N/A') {
+    rawStr = explicitVal.trim();
+  } else if (rec) {
+    const candidates = [
+      rec['admNo'],
+      rec['Adm. No.'],
+      rec['Adm No.'],
+      rec['Adm No'],
+      rec['Adm. No'],
+      rec['Adm.No.'],
+      rec['Adm.No'],
+      rec['AdmNo'],
+      rec['adm_no'],
+      rec['Admission No.'],
+      rec['Admission No'],
+      rec['Admission Number'],
+      rec['admissionNo'],
+      rec['admissionNumber']
+    ];
+    for (const c of candidates) {
+      if (c !== undefined && c !== null && String(c).trim()) {
+        const s = String(c).trim();
+        if (!/^(#N\/A|N\/A|NA|—|-|null|undefined)$/i.test(s)) {
+          rawStr = s;
+          break;
+        }
+      }
+    }
+    if (!rawStr) {
+      rawStr = extractRawAdmNo(rec);
+    }
+  }
+
+  // 3. Extract bracketed old admission number if present in rawStr (e.g. "5476 (4900)" or "5476 (4900) (4900)")
+  let extractedOld = '';
+  const bracketMatches = [...rawStr.matchAll(/\(([^)]+)\)/g)];
+  if (bracketMatches.length > 0) {
+    extractedOld = bracketMatches[0][1].trim();
+  }
+
+  // 4. Strip ALL bracketed parts from newAdm
+  let cleanNew = rawStr.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  cleanNew = cleanAdmNoVal(cleanNew) || cleanNew.replace(/[()]/g, '').trim();
+
+  let finalOld = explicitOld || extractedOld;
+  if (finalOld) {
+    finalOld = cleanAdmNoVal(finalOld) || finalOld.replace(/[()]/g, '').trim();
+  }
 
   const isReAdmission =
-    String(
-      rec['readmission'] ||
-      rec['Re-admission'] ||
-      rec['isReadmission'] ||
-      rec['Is Re-admission'] ||
-      rec['Are you seeking Re-admission?'] ||
-      rec['reAdmissionStatus'] || ''
-    ).toLowerCase() === 'yes' ||
-    rec['readmission'] === true ||
-    rec['isReadmission'] === true;
+    Boolean(finalOld) && (
+      String(
+        rec?.['readmission'] ||
+        rec?.['Re-admission'] ||
+        rec?.['isReadmission'] ||
+        rec?.['Is Re-admission'] ||
+        rec?.['Are you seeking Re-admission?'] ||
+        rec?.['reAdmissionStatus'] || ''
+      ).toLowerCase() === 'yes' ||
+      rec?.['readmission'] === true ||
+      rec?.['isReadmission'] === true ||
+      Boolean(extractedOld)
+    );
 
-  const oldAdm = cleanAdmNoVal(
-    rec['Old Admission No.'] ||
-    rec['Old Adm. No.'] ||
-    rec['oldAdmNo'] ||
-    rec['old_adm_no'] ||
-    rec['Old Admission Number'] ||
-    rec['Previous Adm. No.'] ||
-    rec['Prev Adm No']
-  );
+  return {
+    newAdm: cleanNew,
+    oldAdm: finalOld,
+    isReAdmission
+  };
+};
+
+export const formatStudentAdmNo = (rec) => {
+  if (!rec) return '';
+  const { newAdm, oldAdm, isReAdmission } = parseAdmNoParts(rec);
 
   if (isReAdmission && oldAdm && oldAdm !== newAdm) {
-    return newAdm ? `${newAdm} (${oldAdm})` : `${oldAdm}`;
+    return newAdm ? `${newAdm} (${oldAdm})` : `(${oldAdm})`;
   }
 
-  if (!newAdm && oldAdm) {
-    return oldAdm;
-  }
-
-  return newAdm;
+  return newAdm || oldAdm || '';
 };
+
 
 export const cleanFormNo = (val) => {
   if (!val) return '—';
@@ -5095,20 +5161,10 @@ const COLUMN_DEFS = [
     }
   },
   {
-    key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black whitespace-nowrap text-center', render: (val, student) => {
-      const rawAdm = (val && val !== '—' && val !== 'N/A') ? val : (
-        student?.admNo ||
-        student?.['Adm. No.'] ||
-        student?.['Admission No.'] ||
-        student?.admissionNo ||
-        student?.admissionNumber ||
-        student?.['Admission Number'] ||
-        student?.['Adm No.'] ||
-        student?.['Adm No'] ||
-        ''
-      );
-      const formatted = formatStudentAdmNo(student) || cleanAdmNoVal(rawAdm);
-      if (!formatted || formatted === '—') {
+    key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black text-center', render: (val, student) => {
+      const { newAdm, oldAdm, isReAdmission } = parseAdmNoParts(student, val);
+
+      if (!newAdm && !oldAdm) {
         return (
           <span
             className="font-mono text-slate-400 dark:text-slate-600 select-none cursor-default"
@@ -5119,33 +5175,27 @@ const COLUMN_DEFS = [
         );
       }
 
-      const isRe =
-        String(
-          student?.['readmission'] ||
-          student?.['Re-admission'] ||
-          student?.['isReadmission'] ||
-          student?.['Is Re-admission'] || ''
-        ).toLowerCase() === 'yes' ||
-        student?.['readmission'] === true ||
-        student?.['isReadmission'] === true;
-
-      const oldAdm = cleanAdmNoVal(
-        student?.['Old Admission No.'] ||
-        student?.['Old Adm. No.'] ||
-        student?.['oldAdmNo'] ||
-        student?.['old_adm_no'] || ''
-      );
-
-      if (isRe && oldAdm && oldAdm !== formatted) {
+      if (isReAdmission && oldAdm && oldAdm !== newAdm) {
         return (
-          <span className="font-mono font-black text-slate-900 dark:text-white whitespace-nowrap" title={`Re-admission student. New Adm No: ${formatted}, Old Adm No: ${oldAdm}`}>
-            <span className="text-amber-800 dark:text-amber-300 font-extrabold">{formatted}</span>
-            <span className="ml-1 text-[10px] text-indigo-700 dark:indigo-400 font-black">({oldAdm})</span>
-          </span>
+          <div
+            className="inline-flex flex-col items-center justify-center leading-tight py-0.5"
+            title={`Re-admission student. New Adm No: ${newAdm || '—'}, Old Adm No: ${oldAdm}`}
+          >
+            {newAdm ? (
+              <span className="text-amber-800 dark:text-amber-300 font-extrabold whitespace-nowrap">
+                {newAdm}
+              </span>
+            ) : (
+              <span className="text-slate-400 dark:text-slate-500 font-mono text-[11px]">—</span>
+            )}
+            <span className="text-[10.5px] text-indigo-700 dark:text-indigo-400 font-black whitespace-nowrap leading-none mt-0.5">
+              ({oldAdm})
+            </span>
+          </div>
         );
       }
 
-      return <span className="font-mono font-black text-slate-900 dark:text-white whitespace-nowrap">{formatted}</span>;
+      return <span className="font-mono font-black text-slate-900 dark:text-white whitespace-nowrap">{newAdm || oldAdm}</span>;
     }
   },
   { key: 'class', label: 'Class', className: 'font-black whitespace-nowrap text-center' },
