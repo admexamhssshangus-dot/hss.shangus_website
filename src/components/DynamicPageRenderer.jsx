@@ -48,7 +48,8 @@ export default function DynamicPageRenderer({ pageData, pageId }) {
         switch (block.type) {
           case 'hero': {
             const bgUrl = block.bgImage || '/slides/aboutus.jpg';
-            const bgOpacity = block.bgOpacity !== undefined ? block.bgOpacity : 30;
+            const rawOpacity = block.bgOpacity !== undefined ? Number(block.bgOpacity) : 80;
+            const effOpacity = (Number.isFinite(rawOpacity) && rawOpacity >= 50) ? rawOpacity : 85;
             const heightClass = block.height === 'large' ? 'h-[400px] sm:h-[500px]' : 'h-[300px] sm:h-[380px]';
             
             return (
@@ -60,10 +61,10 @@ export default function DynamicPageRenderer({ pageData, pageId }) {
                   className="absolute inset-0 bg-cover bg-center transition-all duration-700 hover:scale-105"
                   style={{ 
                     backgroundImage: `url(${bgUrl})`,
-                    opacity: bgOpacity / 100 
+                    opacity: effOpacity / 100 
                   }}
                 ></div>
-                <div className="absolute inset-0 bg-black/50"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/45 to-slate-950/70"></div>
                 <div className="relative z-10 px-4 max-w-4xl mx-auto">
                   <h2 className="text-2xl sm:text-3xl md:text-5xl font-extrabold text-white mb-3 tracking-tight drop-shadow-md">
                     {block.title || pageData.title}
