@@ -302,7 +302,7 @@ export default function Slideshow({
 
       {/* Interactive Controls & Slide Indicator Dots */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-        <div className="hero-slider-controls-pill flex items-center gap-1 sm:gap-1.5 absolute bottom-1.5 right-1.5 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-4 md:bottom-20 pointer-events-auto z-20 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full group bg-slate-950/60 sm:bg-slate-950/40 backdrop-blur-xs border border-white/15">
+        <div className="hero-slider-controls-pill flex items-center gap-1 sm:gap-1.5 absolute bottom-1.5 right-1.5 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-4 md:bottom-20 pointer-events-auto z-20 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full group">
           {/* Prev button */}
           <button
             type="button"
