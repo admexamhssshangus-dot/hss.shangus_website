@@ -122,7 +122,13 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
       isStaff: true,
     };
     if (user?.uid) {
-      setDoc(doc(db, 'users', user.uid), { ...superProfile, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+      const syncKey = `hss_uid_synced_${user.uid}`;
+      try {
+        if (!sessionStorage.getItem(syncKey)) {
+          sessionStorage.setItem(syncKey, '1');
+          setDoc(doc(db, 'users', user.uid), { ...superProfile, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+        }
+      } catch (_) {}
     }
     staffProfileMemoryCache.set(email, { profile: superProfile, cachedAt: Date.now() });
     try {
@@ -270,29 +276,35 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
     last2StepVerificationDate: profile.last2StepVerificationDate || null,
   };
 
-  // Synchronize UID document in Firestore so subsequent queries are instant
+  // Synchronize UID document in Firestore if not already synchronized in this session
   if (user?.uid) {
-    setDoc(doc(db, 'users', user.uid), {
-      uid: user.uid,
-      email,
-      name: resolved.name,
-      role: resolved.role,
-      perms: resolved.perms,
-      isStaff: true,
-      isTeacher: resolved.isTeacher,
-      isAdmin: resolved.isAdmin,
-      subject: resolved.subject,
-      teachingSubject: resolved.teachingSubject,
-      assignedSubjects: resolved.assignedSubjects,
-      assignedClasses: resolved.assignedClasses,
-      classSubjectMap: resolved.classSubjectMap,
-      tierSubjects: resolved.tierSubjects,
-      google2StepVerified: resolved.google2StepVerified,
-      last2StepVerificationDate: resolved.last2StepVerificationDate,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true }).catch(() => {});
+    const syncKey = `hss_uid_synced_${user.uid}_${email}`;
+    try {
+      if (!sessionStorage.getItem(syncKey)) {
+        sessionStorage.setItem(syncKey, '1');
+        setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          email,
+          name: resolved.name,
+          role: resolved.role,
+          perms: resolved.perms,
+          isStaff: true,
+          isTeacher: resolved.isTeacher,
+          isAdmin: resolved.isAdmin,
+          subject: resolved.subject,
+          teachingSubject: resolved.teachingSubject,
+          assignedSubjects: resolved.assignedSubjects,
+          assignedClasses: resolved.assignedClasses,
+          classSubjectMap: resolved.classSubjectMap,
+          tierSubjects: resolved.tierSubjects,
+          google2StepVerified: resolved.google2StepVerified,
+          last2StepVerificationDate: resolved.last2StepVerificationDate,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
 
-    setDoc(doc(db, 'users', email), { uid: user.uid }, { merge: true }).catch(() => {});
+        setDoc(doc(db, 'users', email), { uid: user.uid }, { merge: true }).catch(() => {});
+      }
+    } catch (_) {}
   }
 
   staffProfileMemoryCache.set(email, { profile: resolved, cachedAt: Date.now() });

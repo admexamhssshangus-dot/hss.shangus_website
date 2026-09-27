@@ -5,7 +5,7 @@ import {
   RefreshCw, School, BookOpen, ShieldCheck, X, ChevronDown, Check,
   User, Sparkles, Hash, Layers, FileText, CheckCircle, Clock, History
 } from 'lucide-react';
-import { collection, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { publicLookup } from '../services/backendEndpoint';
 import SEO from '../components/SEO';
@@ -1250,28 +1250,10 @@ export default function PublicResultLookup() {
   const [biologyDisplayMode, setBiologyDisplayMode] = useState('combined');
   const [livePracticalsDocs, setLivePracticalsDocs] = useState([]);
 
-  // Real-Time Live Firestore Listener: Immediately reflects teacher evaluation submissions
+  // Evaluation awards are populated on-demand from the serverless lookup response
+  // (Avoids holding a continuous bulk stream on the entire school practicals collection)
   useEffect(() => {
-    let unsubscribe = () => {};
-    try {
-      unsubscribe = onSnapshot(
-        collection(db, 'practicalsData'),
-        (snapshot) => {
-          const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-          setLivePracticalsDocs(docs);
-        },
-        (err) => {
-          if (process.env.NODE_ENV === 'test') {
-            console.warn('Real-time practicalsData listener notice:', err);
-          }
-        }
-      );
-    } catch (e) {
-      if (process.env.NODE_ENV === 'test') {
-        console.warn('Could not attach real-time practicalsData listener:', e);
-      }
-    }
-    return () => unsubscribe();
+    // Ready for on-demand evaluation hydration
   }, []);
 
   // Asynchronously hydrate student photo from Firebase if not yet populated or if Google Drive URL
@@ -1888,14 +1870,23 @@ export default function PublicResultLookup() {
           : 'General';
 
 
-        // Fetch fresh practicals data from Firestore (preferring live real-time docs, falling back to query/cache)
+        // Fetch fresh practicals data on-demand (preferring memory/SWR cache, scoping query if needed)
         let practicalDocs = livePracticalsDocs.length > 0 ? livePracticalsDocs : [];
         if (practicalDocs.length === 0) {
           try {
-            const snap = await getDocs(collection(db, 'practicalsData'));
-            practicalDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const cached = await getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []);
+            if (Array.isArray(cached) && cached.length > 0) {
+              practicalDocs = cached;
+            } else {
+              const q = query(
+                collection(db, 'practicalsData'),
+                where('className', '==', selectedClass)
+              );
+              const snap = await getDocs(q);
+              practicalDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            }
           } catch (pErr) {
-            const cached = await getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []);
+            const cached = await getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []);
             practicalDocs = cached || [];
           }
         }

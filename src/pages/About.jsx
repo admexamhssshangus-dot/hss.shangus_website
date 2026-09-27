@@ -9,8 +9,20 @@ import PublicPageSkeleton from '../components/PublicPageSkeleton';
 import EducationalBackground from '../components/common/EducationalBackground';
 
 export default function About() {
-  const [dynamicData, setDynamicData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [dynamicData, setDynamicData] = useState(() => {
+    try {
+      const raw = localStorage.getItem('site_page_about');
+      if (raw) return JSON.parse(raw);
+    } catch (_) {}
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('site_page_about');
+    } catch (_) {
+      return true;
+    }
+  });
   const [showFullGlimpse, setShowFullGlimpse] = useState(false);
   const cardRef = useRef(null);
 
@@ -33,6 +45,13 @@ export default function About() {
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
+      const pageTsKey = 'site_page_about_ts';
+      const lastTs = Number(localStorage.getItem(pageTsKey) || 0);
+      const isFresh = (Date.now() - lastTs) < 30 * 60 * 1000;
+      if (isFresh && dynamicData) {
+        setLoading(false);
+        return;
+      }
       try {
         const docPromise = getDoc(doc(db, 'site', 'page_about'));
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1800));
@@ -41,6 +60,10 @@ export default function About() {
           const data = snap.data();
           if (data.blocks && data.blocks.length > 0) {
             setDynamicData(data);
+            try {
+              localStorage.setItem('site_page_about', JSON.stringify(data));
+              localStorage.setItem('site_page_about_ts', Date.now().toString());
+            } catch (_) {}
           }
         }
       } catch (e) {

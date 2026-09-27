@@ -358,74 +358,61 @@ export default function Home() {
         }
       };
 
-      // 2. Real-time Firebase Firestore listeners for Notices and Slideshow
+      // 2. High-speed SWR Firebase Firestore fetch with 15-minute TTL
+      const homeTimestampKey = 'site_home_data_ts';
+      const lastHomeTs = Number(localStorage.getItem(homeTimestampKey) || 0);
+      const isHomeFresh = (Date.now() - lastHomeTs) < 15 * 60 * 1000; // 15 mins TTL
+
+      if (isHomeFresh) {
+        return; // Cache is already fresh; zero reads consumed
+      }
+
       try {
         const { db } = await import('../firebase');
-        const { doc, onSnapshot, getDoc } = await import('firebase/firestore');
+        const { doc, getDoc } = await import('firebase/firestore');
 
         if (!active) return;
 
-        // Faculty summary
-        getDoc(doc(db, 'site', 'facultySummary')).then((snapshot) => {
-          const principal = snapshot.data()?.principalName;
-          if (typeof principal === 'string' && principal.trim() && active) {
-            setPrincipalName(principal.trim());
-          }
-        }).catch(() => {
-          fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' })
-            .then(res => res.json())
-            .then(data => {
-              if (Array.isArray(data) && active) {
-                const principal = data.find(f => f.designation?.toLowerCase() === 'principal');
-                if (principal?.name) setPrincipalName(principal.name);
+        // Concurrently fetch facultySummary, notices, slideshow, and traffic
+        Promise.allSettled([
+          getDoc(doc(db, 'site', 'facultySummary')).then((snapshot) => {
+            const principal = snapshot.data()?.principalName;
+            if (typeof principal === 'string' && principal.trim() && active) {
+              setPrincipalName(principal.trim());
+            }
+          }),
+          getDoc(doc(db, 'site', 'notices')).then((snap) => {
+            if (!active) return;
+            if (snap.exists()) {
+              const data = snap.data();
+              if (data && data.text) {
+                const parsed = parseNotices(data.text);
+                if (parsed.length > 0) {
+                  setNotices(parsed);
+                  try { localStorage.setItem('site_notices', data.text); } catch (_) {}
+                  return;
+                }
               }
-            }).catch(() => {});
-        });
-
-        // Real-time listener: Notices
-        unsubscribeNotices = onSnapshot(doc(db, 'site', 'notices'), (snap) => {
-          if (!active) return;
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data && data.text) {
-              const parsed = parseNotices(data.text);
-              if (parsed.length > 0) {
-                setNotices(parsed);
-                try { localStorage.setItem('site_notices', data.text); } catch (_) {}
+            }
+            fetchStaticNoticesFallback();
+          }),
+          getDoc(doc(db, 'site', 'slideshow')).then((snap) => {
+            if (!active) return;
+            if (snap.exists()) {
+              const data = snap.data();
+              if (data && Array.isArray(data.items) && data.items.length > 0) {
+                const normalized = data.items.map((item) => ({
+                  ...item,
+                  fit: item.fit || 'cover'
+                }));
+                setSlides(normalized);
+                try { localStorage.setItem('site_slides', JSON.stringify(normalized)); } catch (_) {}
                 return;
               }
             }
-          }
-          fetchStaticNoticesFallback();
-        }, (err) => {
-          console.warn('Real-time notices listener notice (fallback engaged):', err);
-          fetchStaticNoticesFallback();
-        });
-
-        // Real-time listener: Slideshow
-        unsubscribeSlides = onSnapshot(doc(db, 'site', 'slideshow'), (snap) => {
-          if (!active) return;
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data && Array.isArray(data.items) && data.items.length > 0) {
-              const normalized = data.items.map((item) => ({
-                ...item,
-                fit: item.fit || 'cover'
-              }));
-              setSlides(normalized);
-              try { localStorage.setItem('site_slides', JSON.stringify(normalized)); } catch (_) {}
-              return;
-            }
-          }
-          fetchStaticSlidesFallback();
-        }, (err) => {
-          console.warn('Real-time slideshow listener notice (fallback engaged):', err);
-          fetchStaticSlidesFallback();
-        });
-
-        // Real-time listener: Google Cloud Traffic & Interactions
-        try {
-          unsubscribeTraffic = onSnapshot(doc(db, 'siteSettings', 'traffic'), (snap) => {
+            fetchStaticSlidesFallback();
+          }),
+          getDoc(doc(db, 'siteSettings', 'traffic')).then((snap) => {
             if (!active) return;
             if (snap.exists()) {
               const data = snap.data();
@@ -441,17 +428,13 @@ export default function Home() {
               }
             }
             fetchStaticTrafficFallback();
-          }, (err) => {
-            console.warn('Real-time traffic listener notice (fallback engaged):', err);
-            fetchStaticTrafficFallback();
-          });
-        } catch (err) {
-          console.warn('Failed to attach traffic listener:', err);
-          fetchStaticTrafficFallback();
-        }
+          })
+        ]).then(() => {
+          try { localStorage.setItem(homeTimestampKey, Date.now().toString()); } catch (_) {}
+        });
 
       } catch (err) {
-        console.warn('Failed to attach Firebase listeners, using static fallback:', err);
+        console.warn('Failed to fetch Firebase site data, using static fallback:', err);
         fetchStaticNoticesFallback();
         fetchStaticSlidesFallback();
         fetchStaticTrafficFallback();
@@ -461,9 +444,6 @@ export default function Home() {
     return () => {
       active = false;
       cancelIdle();
-      if (typeof unsubscribeNotices === 'function') unsubscribeNotices();
-      if (typeof unsubscribeSlides === 'function') unsubscribeSlides();
-      if (typeof unsubscribeTraffic === 'function') unsubscribeTraffic();
     };
   }, []);
 

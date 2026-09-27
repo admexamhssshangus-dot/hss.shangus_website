@@ -63,6 +63,7 @@ import {
 import { db } from '../../services/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
+import { getCachedCollection, getMasterRegistersScoped } from '../../services/dbCache';
 
 export const STANDARD_SESSIONS_LIST = [
   '2026 APR/BIAN',
@@ -127,21 +128,32 @@ export default function ResultIngestionModal({
         }
       });
 
-      // 2. Fetch full masterRegisters from Firestore to match against all historical rosters
-      getDocs(collection(db, 'masterRegisters')).then(snap => {
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // 2. Fetch masterRegisters using SWR cache to match against historical rosters
+      getMasterRegistersScoped({ forceAll: false }).then(docs => {
         const flat = unpackMasterRegisterStudents(docs);
         setMasterRegisterStudents(flat);
-      }).catch(err => {
-        console.warn('Could not load masterRegisters for result matching:', err);
+      }).catch(async () => {
+        try {
+          const snap = await getDocs(collection(db, 'masterRegisters'));
+          const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setMasterRegisterStudents(unpackMasterRegisterStudents(docs));
+        } catch (err) {
+          console.warn('Could not load masterRegisters for result matching:', err);
+        }
       });
 
-      // 3. Fetch full admissions collection from Firestore to ensure all sessions are present
-      getDocs(collection(db, 'admissions')).then(snap => {
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setLiveAdmissionsStudents(docs);
-      }).catch(err => {
-        console.warn('Could not load admissions for result matching:', err);
+      // 3. Fetch admissions collection using SWR cache to ensure all sessions are present
+      getCachedCollection('admissions', false, 15 * 60 * 1000).then(docs => {
+        const rawList = Array.isArray(docs) ? docs : (docs?.docs ? docs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+        setLiveAdmissionsStudents(rawList);
+      }).catch(async () => {
+        try {
+          const snap = await getDocs(collection(db, 'admissions'));
+          const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setLiveAdmissionsStudents(docs);
+        } catch (err) {
+          console.warn('Could not load admissions for result matching:', err);
+        }
       });
     }
   }, [isOpen]);

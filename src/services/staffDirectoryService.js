@@ -2,7 +2,14 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
 import { staffCallable } from './staffCommand';
 
-export async function getStaffDirectory() {
+let staffDirectoryMemoryCache = null;
+let staffDirectoryTs = 0;
+const STAFF_DIRECTORY_TTL = 15 * 60 * 1000; // 15 minutes
+
+export async function getStaffDirectory(force = false) {
+  if (!force && staffDirectoryMemoryCache && (Date.now() - staffDirectoryTs < STAFF_DIRECTORY_TTL)) {
+    return staffDirectoryMemoryCache;
+  }
   const isLocal = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   // In local development, read directly from Firestore first to avoid cross-origin 503 network console warnings
@@ -29,7 +36,7 @@ export async function getStaffDirectory() {
     const { data } = await staffCallable('staffDirectory')({});
     if (data && Array.isArray(data.users)) {
       const docs = data.users.map(user => ({ id: user.uid, data: () => user }));
-      return { docs, empty: !docs.length, forEach: callback => docs.forEach(callback) };
+      const res = { docs, empty: !docs.length, forEach: callback => docs.forEach(callback) }; staffDirectoryMemoryCache = res; staffDirectoryTs = Date.now(); return res;
     }
   } catch (err) {
     console.warn('Staff backend command unavailable, falling back to Firestore users:', err?.message || err);

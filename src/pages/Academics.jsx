@@ -147,12 +147,31 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
 }
 
 export default function Academics() {
-  const [dynamicData, setDynamicData] = useState(null);
-  const [dynamicLoading, setDynamicLoading] = useState(true);
+  const [dynamicData, setDynamicData] = useState(() => {
+    try {
+      const raw = localStorage.getItem('site_page_academics');
+      if (raw) return JSON.parse(raw);
+    } catch (_) {}
+    return null;
+  });
+  const [dynamicLoading, setDynamicLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('site_page_academics');
+    } catch (_) {
+      return true;
+    }
+  });
 
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
+      const pageTsKey = 'site_page_academics_ts';
+      const lastTs = Number(localStorage.getItem(pageTsKey) || 0);
+      const isFresh = (Date.now() - lastTs) < 30 * 60 * 1000;
+      if (isFresh && dynamicData) {
+        setDynamicLoading(false);
+        return;
+      }
       try {
         const docPromise = getDoc(doc(db, 'site', 'page_academics'));
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1800));
@@ -161,6 +180,10 @@ export default function Academics() {
           const data = snap.data();
           if (data.blocks && data.blocks.length > 0) {
             setDynamicData(data);
+            try {
+              localStorage.setItem('site_page_academics', JSON.stringify(data));
+              localStorage.setItem('site_page_academics_ts', Date.now().toString());
+            } catch (_) {}
           }
         }
       } catch (e) {
@@ -189,13 +212,17 @@ export default function Academics() {
   useEffect(() => {
     let active = true;
     async function loadFaculty() {
-      // 1. Initial fast local preview cache (without returning early so Firestore can revalidate)
+      const facultyTsKey = 'hss_public_faculty_ts';
+      const lastTs = Number(localStorage.getItem(facultyTsKey) || 0);
+      const isFresh = (Date.now() - lastTs) < 30 * 60 * 1000;
+      // 1. Initial fast local preview cache
       const local = localStorage.getItem('hss_public_faculty');
       if (local) {
         try {
           const parsed = toPublicFacultyList(JSON.parse(local));
           if (parsed.length > 0 && active) {
             setFaculty(parsed);
+            if (isFresh) return; // Fresh cache: 0 Firestore reads
           }
         } catch (e) {
           console.warn('Error reading the public faculty preview:', e);
@@ -210,7 +237,7 @@ export default function Academics() {
           if (active) {
             setFaculty(publicFaculty);
             try {
-              localStorage.setItem('hss_public_faculty', JSON.stringify(publicFaculty));
+              localStorage.setItem('hss_public_faculty', JSON.stringify(publicFaculty)); try { localStorage.setItem('hss_public_faculty_ts', Date.now().toString()); } catch (_) {}
             } catch (_) {}
           }
           return;

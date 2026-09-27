@@ -8,8 +8,20 @@ import PublicPageSkeleton from '../components/PublicPageSkeleton';
 
 export default function DynamicPage() {
   const { pageId } = useParams();
-  const [pageData, setPageData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [pageData, setPageData] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem(`site_page_${pageId}`) || localStorage.getItem(`site_page_${pageId}`);
+      if (raw) return JSON.parse(raw);
+    } catch (_) {}
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !(sessionStorage.getItem(`site_page_${pageId}`) || localStorage.getItem(`site_page_${pageId}`));
+    } catch (_) {
+      return true;
+    }
+  });
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -18,6 +30,13 @@ export default function DynamicPage() {
     setNotFound(false);
 
     async function fetchPage() {
+      const pageTsKey = `site_page_${pageId}_ts`;
+      const lastTs = Number(sessionStorage.getItem(pageTsKey) || localStorage.getItem(pageTsKey) || 0);
+      const isFresh = (Date.now() - lastTs) < 30 * 60 * 1000;
+      if (isFresh && pageData) {
+        setLoading(false);
+        return;
+      }
       try {
         const snap = await getDoc(doc(db, 'site', `page_${pageId}`));
         if (!active) return;
@@ -26,6 +45,12 @@ export default function DynamicPage() {
           const data = snap.data();
           if (data.isActive !== false) {
             setPageData(data);
+            try {
+              sessionStorage.setItem(`site_page_${pageId}`, JSON.stringify(data));
+              sessionStorage.setItem(`site_page_${pageId}_ts`, Date.now().toString());
+              localStorage.setItem(`site_page_${pageId}`, JSON.stringify(data));
+              localStorage.setItem(`site_page_${pageId}_ts`, Date.now().toString());
+            } catch (_) {}
           } else {
             setNotFound(true);
           }

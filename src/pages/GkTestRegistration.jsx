@@ -9,6 +9,7 @@ import SEO from '../components/SEO';
 import { generateGkTestAdmitCardPdf } from '../utils/pdfGenerator';
 import { showToast } from '../components/common/GlobalToast';
 import ConfirmModal from '../portal/components/ConfirmModal';
+import { getCachedCollection, getMasterRegistersScoped } from '../services/dbCache';
 
 const APPS_SCRIPT_URL = process.env.REACT_APP_APPS_SCRIPT_URL;
 const DRIVE_FOLDER_ID = '15YOPlfh2WHmXn7HEAoZEpSJbRCNZYaOF';
@@ -507,10 +508,12 @@ export default function GkTestRegistration() {
         }
       };
 
-      const processSnap = (snap) => {
-        snap.docs.forEach(d => {
+      const processSnap = (snapOrArr) => {
+        if (!snapOrArr) return;
+        const docs = snapOrArr.docs ? snapOrArr.docs.map(d => ({ id: d.id, ...d.data() })) : (Array.isArray(snapOrArr) ? snapOrArr : []);
+        docs.forEach(d => {
           if (found && found.photoUrl) return;
-          const data = d.data();
+          const data = typeof d.data === 'function' ? d.data() : d;
           const docSession = data.Session || data.session || data.groupKey?.split('_')[0] || '';
           const docClass = data.class || data.Class || data.groupKey?.split('_')[1] || '';
           const items = data.items || data.data || data.records || data.students;
@@ -522,18 +525,28 @@ export default function GkTestRegistration() {
         });
       };
 
-      const masterSnap = await getDocs(collection(db, 'masterRegisters'));
-      processSnap(masterSnap);
+      let masterRes = await getMasterRegistersScoped({ forceAll: false }).catch(() => null);
+      if (!masterRes) {
+        const masterSnap = await getDocs(collection(db, 'masterRegisters')).catch(() => null);
+        masterRes = masterSnap ? masterSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+      }
+      processSnap(masterRes);
 
       // Keep searching registerdata and admissions if we don't have a photo yet!
       if (!found || !found.photoUrl) {
-        const regDataSnap = await getDocs(collection(db, 'registerdata'));
-        processSnap(regDataSnap);
+        const regDataRes = await getCachedCollection('registerdata', false, 15 * 60 * 1000).catch(async () => {
+          const snap = await getDocs(collection(db, 'registerdata')).catch(() => null);
+          return snap ? snap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+        });
+        processSnap(regDataRes);
       }
 
       if (!found || !found.photoUrl) {
-        const admSnap = await getDocs(collection(db, 'admissions'));
-        processSnap(admSnap);
+        const admRes = await getCachedCollection('admissions', false, 15 * 60 * 1000).catch(async () => {
+          const snap = await getDocs(collection(db, 'admissions')).catch(() => null);
+          return snap ? snap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+        });
+        processSnap(admRes);
       }
 
       if (found) {

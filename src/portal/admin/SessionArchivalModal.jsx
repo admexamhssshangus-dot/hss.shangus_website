@@ -22,7 +22,7 @@ import {
   resolveStudentAdmissionStatus
 } from '../../utils/studentApprovalStatus';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
-import { loadCentralStudentPhotosFromFirestore, preloadStudentPhotosCache, normalizeCanonicalClass } from '../../services/dbCache';
+import { loadCentralStudentPhotosFromFirestore, preloadStudentPhotosCache, normalizeCanonicalClass, getMasterRegistersScoped } from '../../services/dbCache';
 
 // The 48 standard official column headers matching Student Records & Reports
 const STANDARD_48_COLUMNS = [
@@ -152,13 +152,18 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
         });
       }
 
-      // 2. Fetch masterRegisters to index by Form Number
-      const masterSnap = await getDocs(collection(db, 'masterRegisters'));
+      // 2. Fetch masterRegisters to index by Form Number (scoped & cached)
+      let masterRes = [];
+      try {
+        masterRes = await getMasterRegistersScoped({ forceAll: false });
+      } catch (_) {
+        const masterSnap = await getDocs(collection(db, 'masterRegisters'));
+        masterRes = masterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
       const masterByForm = new Map();
-      masterSnap.docs.forEach(docSnap => {
-        const dData = docSnap.data();
-        if (!dData || dData.Status === 'Deleted' || dData.status === 'Deleted' || dData._deleted === true) return;
-        const chunkItems = dData.items || dData.students || dData.records || dData.data;
+      (Array.isArray(masterRes) ? masterRes : []).forEach(docData => {
+        if (!docData || docData.Status === 'Deleted' || docData.status === 'Deleted' || docData._deleted === true) return;
+        const chunkItems = docData.items || docData.students || docData.records || docData.data;
         if (Array.isArray(chunkItems)) {
           chunkItems.forEach(item => {
             if (!item) return;
@@ -168,9 +173,9 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
             }
           });
         } else {
-          const fNo = normalizeFormNo(dData['Form Number'] || dData['Form No.'] || dData.formNo || dData.id || '');
+          const fNo = normalizeFormNo(docData['Form Number'] || docData['Form No.'] || docData.formNo || docData.id || '');
           if (fNo && !masterByForm.has(fNo)) {
-            masterByForm.set(fNo, dData);
+            masterByForm.set(fNo, docData);
           }
         }
       });

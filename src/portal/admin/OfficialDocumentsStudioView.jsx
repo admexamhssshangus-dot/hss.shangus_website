@@ -8,7 +8,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Calendar, RefreshCw } from 'lucide-react';
 import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { preloadStudentPhotosCache } from '../../services/dbCache';
+import { preloadStudentPhotosCache, getMasterRegistersScoped } from '../../services/dbCache';
 import CustomRosterDocumentBuilderView, { extractSession } from './CustomRosterDocumentBuilderView';
 import OfficialLetterWriterView from './OfficialLetterWriterView';
 import StudentCertificateStudioView from './StudentCertificateStudioView';
@@ -146,8 +146,10 @@ export default function OfficialDocumentsStudioView({
     setIsLoadingHistorical(true);
     setHistoricalFetchToast('Loading historical registers from Firestore...');
     try {
-      const snap = await getDocs(collection(db, 'masterRegisters'));
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const docs = await getMasterRegistersScoped({ forceAll: true }).catch(async () => {
+        const snap = await getDocs(collection(db, 'masterRegisters'));
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      });
       const flatList = unpackMasterRegisterStudents(docs);
       setMasterHistoricalRecords(flatList);
       preloadStudentPhotosCache().catch(() => {});
