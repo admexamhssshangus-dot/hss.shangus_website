@@ -37,6 +37,8 @@ import { getJkboseFieldStatus, computeStudentJkboseStatusMap, loadRecentJkboseBa
 import { applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
 import { toPublicFacultyList } from '../../utils/facultyPrivacy';
 import StandardTooltip from '../../components/StandardTooltip';
+import { VERIFIED_CLASS12_READMISSION_ROSTER, buildClass12ReadmissionRemark } from './AdmissionRegisterSuite';
+import historicalAdmLookup from '../../data/historicalAdmissionLookup.json';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
 
@@ -2001,8 +2003,45 @@ export const parseAdmNoParts = (rec, explicitVal = null) => {
     finalOld = cleanAdmNoVal(finalOld) || finalOld.replace(/[()]/g, '').trim();
   }
 
+  // 5. Authoritative Class 12th Re-admission Matcher & Historical Dataset Fallback
+  let rosterMatch = null;
+  if (rec && typeof VERIFIED_CLASS12_READMISSION_ROSTER !== 'undefined') {
+    const rForm = String(rec['Form Number'] || rec['Form No.'] || rec['Form No'] || rec.formNo || rec.id || '').replace(/^form_/i, '').trim();
+    const rReg = String(rec['Board Registration Number'] || rec.boardRegNo || rec.boardReg || rec['Board Reg. No.'] || '').replace(/[^a-zA-Z0-9]/g, '');
+    const rRoll = String(rec['Class Roll No'] || rec['Class Roll No.'] || rec.classRollNo || rec.rollNo || '').trim();
+    const rCls = String(rec['Admission sought for class'] || rec.class || rec.Class || '').toLowerCase();
+    const is12th = rCls.includes('12') || (!rCls && Boolean(rRoll || rForm));
+
+    if (is12th) {
+      rosterMatch = VERIFIED_CLASS12_READMISSION_ROSTER.find(r => {
+        if (rForm && r.form && rForm === r.form) return true;
+        if (rReg && r.reg && rReg === r.reg.replace(/[^a-zA-Z0-9]/g, '')) return true;
+        if (rRoll && r.roll && String(r.roll) === rRoll) return true;
+        return false;
+      });
+    }
+  }
+
+  if (rosterMatch) {
+    if (rosterMatch.admNo) {
+      cleanNew = rosterMatch.admNo;
+    }
+    if (rosterMatch.oldAdm) {
+      finalOld = rosterMatch.oldAdm;
+    }
+  } else if (!finalOld && historicalAdmLookup && rec) {
+    const rReg = String(rec['Board Registration Number'] || rec.boardRegNo || rec.boardReg || rec['Board Reg. No.'] || '').replace(/[^a-zA-Z0-9]/g, '');
+    const rForm = String(rec['Form Number'] || rec['Form No.'] || rec['Form No'] || rec.formNo || '').trim();
+    if (rReg && historicalAdmLookup.byBoardReg?.[rReg]) {
+      finalOld = historicalAdmLookup.byBoardReg[rReg];
+    } else if (rForm && historicalAdmLookup.byFormNo?.[rForm]) {
+      finalOld = historicalAdmLookup.byFormNo[rForm];
+    }
+  }
+
   const isReAdmission =
-    Boolean(finalOld) && (
+    Boolean(rosterMatch) ||
+    (Boolean(finalOld) && (
       String(
         rec?.['readmission'] ||
         rec?.['Re-admission'] ||
@@ -2013,8 +2052,9 @@ export const parseAdmNoParts = (rec, explicitVal = null) => {
       ).toLowerCase() === 'yes' ||
       rec?.['readmission'] === true ||
       rec?.['isReadmission'] === true ||
-      Boolean(extractedOld)
-    );
+      Boolean(extractedOld) ||
+      Boolean(explicitOld)
+    ));
 
   return {
     newAdm: cleanNew,
@@ -5715,7 +5755,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
       'Class': student?.class || student?.['Class'] || '11th',
       'Session': student?.session || student?.['Session'] || '2025-26',
       'Class Roll No': student?.classRollNo || student?.['Class Roll No'] || student?.['Class R.No.'] || student?.rollNo || '',
-      'Adm. No.': student?.admNo || student?.['Adm. No.'] || '',
+      'Adm. No.': formatStudentAdmNo(student) || student?.admNo || student?.['Adm. No.'] || '',
       'Board Registration Number': extractRegNo(student) || student?.boardRegNo || student?.['Board Registration Number'] || student?.['Board Reg. No.'] || student?.['DIET Registration No.'] || '',
       'Status': student?.status || student?.['Status'] || 'Submitted',
       'Stream': student?.stream || student?.['Stream'] || 'General',
