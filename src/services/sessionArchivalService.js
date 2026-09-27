@@ -88,6 +88,8 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
       continue;
     }
 
+    const targetPrefix = normTargetSession.split('-')[0];
+
     // 1. Chunk documents with items: []
     const chunkItems = dData.items || dData.students || dData.records || dData.data;
     if (Array.isArray(chunkItems) && chunkItems.length > 0) {
@@ -99,8 +101,8 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
         if (!item || typeof item !== 'object') continue;
         const itemSession = String(item.Session || item.session || item['Academic Session'] || docSession).trim();
 
-        // Check if item belongs to target session (e.g. 2025-26 or 2025)
-        const isTargetSession = itemSession === normTargetSession || itemSession.startsWith('2025');
+        // Check if item belongs to target session (e.g. 2025-26 or 2026-27)
+        const isTargetSession = itemSession === normTargetSession || (targetPrefix && itemSession.startsWith(targetPrefix));
 
         if (isTargetSession) {
           duplicatesFound++;
@@ -187,7 +189,7 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
     } else {
       // 2. Flat documents
       const flatSession = String(dData.Session || dData.session || dData['Academic Session'] || '').trim();
-      const isTarget = flatSession === normTargetSession || flatSession.startsWith('2025') || docSnap.id.includes(normTargetSession);
+      const isTarget = flatSession === normTargetSession || (targetPrefix && flatSession.startsWith(targetPrefix)) || docSnap.id.includes(normTargetSession);
 
       if (isTarget) {
         duplicatesFound++;

@@ -80,12 +80,23 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
   // Archival Configuration
   const [archiveSessionTag, setArchiveSessionTag] = useState(currentSession);
   const [newSessionTag, setNewSessionTag] = useState(() => {
-    const parts = currentSession.split('-');
+    const parts = String(currentSession || '').split('-');
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       return `${parseInt(parts[0], 10) + 1}-${parseInt(parts[1], 10) + 1}`;
     }
     return '2026-27';
   });
+
+  // Keep session tags reactive to active database session
+  useEffect(() => {
+    if (currentSession) {
+      setArchiveSessionTag(currentSession);
+      const parts = String(currentSession).split('-');
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        setNewSessionTag(`${parseInt(parts[0], 10) + 1}-${parseInt(parts[1], 10) + 1}`);
+      }
+    }
+  }, [currentSession]);
 
   // Safety Confirmation & Security PIN
   const [confirmInput, setConfirmInput] = useState('');
@@ -434,7 +445,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
                       Phase 1: Form Number Deduplication & Legacy Field Harvest
                     </span>
                     <p className="text-[10.5px] text-purple-800 dark:text-purple-300 font-medium leading-tight">
-                      Match the 401 duplicates in <code className="font-mono font-bold">masterRegisters</code> by Form Number, harvest missing fields (Adm No, Adm Date, APAAR ID, DoB Words) into <code className="font-mono font-bold">admissions</code>, and permanently purge the duplicates.
+                      Match duplicate records in <code className="font-mono font-bold">masterRegisters</code> for session "{archiveSessionTag}" by Form Number, harvest missing fields (Adm No, Adm Date, APAAR ID, DoB Words) into <code className="font-mono font-bold">admissions</code>, and permanently purge the duplicates.
                     </p>
                   </div>
                 </div>
