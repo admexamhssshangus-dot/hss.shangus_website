@@ -6617,95 +6617,29 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
             {/* TAB 1: ADMISSIONS AND FEES */}
             {activeTab === 'admissions' && allowedTabs.includes('admissions') && (
               <div className="space-y-3 animate-in fade-in duration-200">
-                {/* Top Controls: Global Enrollment & 3D Visual Experience in 2-column responsive grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {/* Global Enrollment System */}
-                  <div className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs">
-                    <div className="min-w-0 pr-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">Global Enrollment System</h3>
-                        <span className={`text-[9.5px] uppercase font-black px-2 py-0.5 rounded-full border ${
-                          !settings.globalAdmissionsClosed
-                            ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
-                            : 'bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700'
-                        }`}>
-                          {!settings.globalAdmissionsClosed ? 'Registration Open' : 'Registration Closed'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Enable or disable registration online across all streams.</p>
+                {/* Global Enrollment System Master Control */}
+                <div className="bg-white dark:bg-slate-900/60 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="min-w-0 pr-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">Global Enrollment System</h3>
+                      <span className={`text-[9.5px] uppercase font-black px-2 py-0.5 rounded-full border shadow-2xs ${
+                        !settings.globalAdmissionsClosed
+                          ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                          : 'bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700'
+                      }`}>
+                        {!settings.globalAdmissionsClosed ? 'Registration Open' : 'Registration Closed'}
+                      </span>
                     </div>
-                    <div className="shrink-0 flex items-center gap-2">
-                      <ToggleSwitch
-                        checked={!settings.globalAdmissionsClosed}
-                        onChange={handleGlobalToggle}
-                        labelLeft="Closed"
-                        labelRight="Open"
-                        ariaLabel="Toggle Global Enrollment System"
-                      />
-                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Master switch: enable or disable student admission registration online across all classes and streams.</p>
                   </div>
-
-                  {/* Interactive 3D Educational Assets Toggle */}
-                  <div className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-indigo-200 dark:border-indigo-500/30 flex flex-col gap-2.5 shadow-xs">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0 pr-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="p-1 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
-                            <Sparkles size={14} />
-                          </div>
-                          <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">Hero 3D Experience</h3>
-                          <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded-md border ${
-                            settings.enable3dHeroAssets
-                              ? 'bg-indigo-100 dark:bg-indigo-950/90 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-600/50'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
-                          }`}>
-                            {settings.enable3dHeroAssets ? '3D Active' : '2D Mode'}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight line-clamp-2">
-                          Toggle 3D educational assets on homepage. Disabled mode loads standard 2D layout.
-                        </p>
-                      </div>
-                      <div className="shrink-0">
-                        <ToggleSwitch
-                          checked={Boolean(settings.enable3dHeroAssets)}
-                          onChange={(val) => setSettings((s) => ({ ...s, enable3dHeroAssets: val }))}
-                          labelLeft="Off"
-                          labelRight="On"
-                          activeColor="indigo"
-                          ariaLabel="Toggle Hero 3D Experience"
-                        />
-                      </div>
-                    </div>
-
-                    {Boolean(settings.enable3dHeroAssets) && (
-                      <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">Enable 3D on Mobile Devices (&lt; 768px)</span>
-                            <span className={`text-[8.5px] font-bold px-1.5 py-0.2 rounded border ${
-                              settings.enable3dHeroAssetsMobile
-                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
-                                : 'bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'
-                            }`}>
-                              {settings.enable3dHeroAssetsMobile ? 'Mobile Active' : 'Hidden on Mobile (Default)'}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400">Keep off to ensure maximum performance and battery efficiency on mobile phones.</span>
-                        </div>
-                        <div className="shrink-0">
-                          <ToggleSwitch
-                            checked={Boolean(settings.enable3dHeroAssetsMobile)}
-                            onChange={(val) => setSettings((s) => ({ ...s, enable3dHeroAssetsMobile: val }))}
-                            labelLeft="Off"
-                            labelRight="On"
-                            activeColor="indigo"
-                            size="sm"
-                            ariaLabel="Toggle 3D Assets on Mobile"
-                          />
-                        </div>
-                      </div>
-                    )}
+                  <div className="shrink-0 flex items-center gap-2">
+                    <ToggleSwitch
+                      checked={!settings.globalAdmissionsClosed}
+                      onChange={handleGlobalToggle}
+                      labelLeft="Closed"
+                      labelRight="Open"
+                      ariaLabel="Toggle Global Enrollment System"
+                    />
                   </div>
                 </div>
 
