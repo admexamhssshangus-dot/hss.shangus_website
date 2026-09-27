@@ -2,33 +2,33 @@
 
 ## Current Working Changes
 
-### 1. Fix Session Switch Freeze & Wire Real-Time Progress Bar (`AdmissionRegisterSuite.jsx`)
-- **Issue Diagnosed:**
-  - When switching Academic Session to entries such as `2024–25 (Oct-Nov)`:
-    1. The previous session filtering used strict equality (`===`). Differences between Unicode en-dashes (`–`) vs hyphens (`-`) or session descriptor tags (`(Oct-Nov)`) caused 0 records to match in cached datasets.
-    2. This triggered an un-throttled fallback fetch of the entire `admissions` collection from Firestore.
-    3. The `availableSessions` effect had `[dataset, historyDataset]` as dependencies, causing a cascading re-render loop on every dataset update.
-    4. The Filters popover remained open and froze the screen because no progress bar modal was wired to session transitions.
-- **Solution:**
-  - Added `normalizeSessionKey` (normalizing en-dash/hyphen, whitespace, and case) and `isSessionMatching` (year-range and semantic match between `2024-25` and `2024–25 (Oct-Nov)`).
-  - Wired the high-fidelity **`taskProgress`** modal into `handleSessionChange` and `loadSessionData` with step-by-step percentage and status messages:
-    - `25%`: Preparing register and loading session data
-    - `35%`: Querying admissions & historical registers
-    - `60%`: Checking master registers archive
-    - `80%`: Querying Firestore admissions database
-    - `100%`: Session Ready (`Successfully loaded N student records`)
-  - Added async event-loop yielding (`await new Promise(...)`) between loading stages so the browser thread remains fluid and the progress bar animates without freezing.
-  - Automatically closes the Filters popover upon session selection so the progress modal and table are visible immediately.
-  - Decoupled `availableSessions` effect to run once on component mount (`[]`), eliminating cascading re-render loops.
+### 1. Class 12th Sequential Re-admission Roster (5476–5513) (`AdmissionRegisterSuite.jsx`)
+- **Authoritative Roster Integration:**
+  - Added `VERIFIED_CLASS12_READMISSION_ROSTER` containing all 38 verified Class 12th Re-admission candidates for session 2025–26 ordered strictly by Class Roll Number.
+  - Starting admission number: *Irtiza Maqbool* (Roll 1, Form `250199`) = **`5476`** through to *Seerat Jan* (Roll 193, Form `250546`) = **`5513`**.
+  - **Roll 22 (Burhan)** is strictly omitted from the re-admission register.
+  - **Roll 153** is correctly confirmed and identified as *Gowher Ahmad Lone* (Form `250209`, Adm No `5499`, Old Adm `4765`).
+  - Pre-paired all 38 candidates with their historical previous admission numbers (e.g. *Sarvat Abbas* `4887`, *Sartaj Ahmad Mir* `4904`, *Faizan Bilal Najar* `5195`, *Kifayat Jabbar Kutay* `4809`).
+  - Formats Column 1 (`Adm. No.`) with old admission numbers in brackets (e.g. `5476 (4900)`, `5480 (4887)`, `5482 (4904)`, `5498 (5195)`, `5503 (4809)`).
 
-### 2. Consolidated Remarks & Marks Card Particulars (`AdmissionRegisterSuite.jsx`)
-- **Feature Implemented:**
-  - Added `customRemarks` to `reAdmFormState` and an interactive editable textarea in View 2 of the Re-admission Modal.
-  - Automatically formats the statutory consolidated remark:
+### 2. Consolidated Statutory Remarks in Column 18 (`AdmissionRegisterSuite.jsx`)
+- **Standard Remark Builder (`buildClass12ReadmissionRemark`):**
+  - Generates the statutory decree:
     > `Gap case, hence, readmitted for class 12th, 2026 (oct-nov session) • Prev Adm: [OldAdmNo] • Marks card submitted & verified`
-  - Added a **"⚡ Reset to Standard Remark"** shortcut button inside the modal.
-  - Automatically saves the consolidated text into Firestore (`remarks` and `Remarks` fields in `admissions/{docId}`).
-  - Renders the full consolidated text in Column 18 (**REMARKS**) of the General Admission Register and official exports.
+    *(or without `Prev Adm:` where no prior enrollment exists, such as Roll 127, 154, 169).*
+  - Populates directly into **Column 18 (REMARKS)** of the General Admission Register ledger, print layouts, and export sheets.
+  - Fully editable in View 2 of the Re-admission modal with a **"⚡ Reset to Standard Remark"** helper and saves directly to Firestore (`remarks` and `Remarks` fields on `admissions/{docId}`).
+  - Wired into the bulk assigner (`handleRunAssignIds`) so any candidate assigned as a re-admission automatically receives the consolidated remark.
+
+### 3. One-Click Automated Batch Sync Engine (`AdmissionRegisterSuite.jsx`)
+- **Interactive UI Integration:**
+  - Added a high-visibility **"⚡ Automated Batch Sync"** banner in View 1 of the Re-admission Universal Candidate Search modal.
+  - Clicking **"Sync All 38 Re-admissions"** runs `handleBatchSyncClass12Readmissions`:
+    1. Matches all 38 candidates across the active dataset using Form Number, Board Registration, or Roll Number.
+    2. Writes sequential admission numbers (5476–5513), previous admission numbers, re-admission status, class (`12th`), session (`2025-26`), and consolidated remarks via `writeBatch(db)` to Firestore.
+    3. Concurrently synchronizes local IndexedDB and memory cache (`updateCachedItem`).
+    4. Updates the React state dataset optimistically for zero-delay UI update.
+    5. Displays real-time progress via the high-fidelity `taskProgress` modal (0% → 100%) with step-by-step candidate reporting.
 
 ---
 
@@ -40,7 +40,7 @@
 
 ## Local Commit Message
 ```bash
-git commit -m "fix(register): eliminate session switch freeze with real-time progress bar and add consolidated remarks"
+git commit -m "feat(register): assign sequential admission nos 5476-5513 and consolidated remarks for 38 class 12th readmissions"
 ```
 
 ---
@@ -55,19 +55,18 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "fix(register): eliminate session switch freeze with real-time progress bar and add consolidated remarks"
+git commit -m "feat(register): assign sequential admission nos 5476-5513 and consolidated remarks for 38 class 12th readmissions"
 ```
 
-### If you want to undo/re-commit the latest local commit manually:
+### To amend or edit this commit:
 ```bash
-# Keeps all file changes intact in your working tree, un-committing the last commit:
 git reset --soft HEAD~1
-
-# You can then review, make adjustments, and manually commit:
-git commit -m "Your custom commit message"
+# Make desired adjustments, then re-commit:
+git commit -m "feat(register): assign sequential admission nos 5476-5513 and consolidated remarks for 38 class 12th readmissions"
 ```
 
-### To push your verified commits to remote (Manual Push Policy):
+### Remote Push (STRICT MANUAL STEP):
+The assistant is prohibited from executing `git push`. To push changes to the remote repository, run:
 ```bash
 git push origin main
 ```
