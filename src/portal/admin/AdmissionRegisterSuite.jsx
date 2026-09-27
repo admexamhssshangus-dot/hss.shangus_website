@@ -2007,6 +2007,9 @@ export default function AdmissionRegisterSuite({
     reason: 'Gap in Studies / Re-enrolled'
   });
   const [savingReAdm, setSavingReAdm] = useState(false);
+  const [showUndoConfirmModal, setShowUndoConfirmModal] = useState(false);
+  const [isUndoingReAdm, setIsUndoingReAdm] = useState(false);
+  const [shiftSubsequentAdmNos, setShiftSubsequentAdmNos] = useState(true);
 
   // Loading States for Session Data
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -3576,6 +3579,233 @@ export default function AdmissionRegisterSuite({
     });
   };
 
+  // Subsequent students whose admission numbers are strictly greater than the released admission number
+  const subsequentStudentsToShift = useMemo(() => {
+    if (!readmissionModalStudent) return [];
+    const currentAdm = cleanStr(readmissionModalStudent.admNo || reAdmFormState.assignedAdmNo);
+    const releasedNum = parseInt(currentAdm.replace(/\D/g, ''), 10);
+    if (isNaN(releasedNum) || releasedNum <= 0) return [];
+
+    const targetFormNo = cleanStr(readmissionModalStudent.formNo || readmissionModalStudent.raw?.['Form Number'] || readmissionModalStudent.raw?.['Form No.'] || readmissionModalStudent.raw?.formNo);
+    const realDocId = readmissionModalStudent.raw?.id || readmissionModalStudent.raw?.docId || readmissionModalStudent.id;
+
+    const list = [];
+    const seenIds = new Set();
+
+    (dataset || []).forEach(item => {
+      if (!item) return;
+      const itemId = item.id || item.docId;
+      if (!itemId || seenIds.has(itemId)) return;
+      if (itemId === realDocId || (targetFormNo && cleanStr(item.formNo || item['Form Number'] || item['Form No.'] || item.FormNo) === targetFormNo)) return;
+
+      const iAdmStr = cleanStr(item.admNo || item['Adm. No.'] || item['Admission No.']);
+      const iNum = parseInt(iAdmStr.replace(/\D/g, ''), 10);
+      if (!isNaN(iNum) && iNum > releasedNum && iNum < 100000) {
+        seenIds.add(itemId);
+        list.push({
+          id: itemId,
+          name: cleanStr(item.studentName || item.name || item["Student's Name"]),
+          father: cleanStr(item.fatherName || item.father || item["Father's Name"]),
+          currentAdm: iAdmStr,
+          currentNum: iNum,
+          nextAdm: String(iNum - 1),
+          class: cleanStr(item.class || item.Class || item['Admission sought for class']),
+          session: cleanStr(item.session || item.Session)
+        });
+      }
+    });
+
+    return list.sort((a, b) => a.currentNum - b.currentNum);
+  }, [readmissionModalStudent, reAdmFormState.assignedAdmNo, dataset]);
+
+  // Undo Re-admission: Revert student to original Adm No & shift subsequent sequential numbers down by 1
+  const handleUndoReadmission = async () => {
+    if (!readmissionModalStudent) return;
+    setIsUndoingReAdm(true);
+    try {
+      const student = readmissionModalStudent;
+      const currentAdm = cleanStr(student.admNo || reAdmFormState.assignedAdmNo);
+      const releasedNum = parseInt(currentAdm.replace(/\D/g, ''), 10);
+      const origAdmNo = cleanStr(student.oldAdmNo || student.raw?.oldAdmNo || student.raw?.['Old Admission No.'] || student.raw?.['Old Adm. No.'] || reAdmFormState.oldAdmNo || '');
+
+      const targetFormNo = cleanStr(student.formNo || student.raw?.['Form Number'] || student.raw?.['Form No.'] || student.raw?.formNo);
+      const targetBoardReg = cleanStr(student.boardReg || student.raw?.['Board Registration Number'] || student.raw?.boardRegNo);
+
+      let matchedExisting = null;
+      if (Array.isArray(dataset)) {
+        matchedExisting = dataset.find(d => {
+          if (!d) return false;
+          if (student.raw?.id && (d.id === student.raw.id || d.docId === student.raw.id)) return true;
+          if (student.id && (d.id === student.id || d.docId === student.id)) return true;
+          const dForm = cleanStr(d.formNo || d['Form Number'] || d['Form No.'] || d.FormNo);
+          if (targetFormNo && dForm && dForm === targetFormNo) return true;
+          const dReg = cleanStr(d.boardRegNo || d['Board Registration Number'] || d.boardReg);
+          if (targetBoardReg && dReg && dReg === targetBoardReg) return true;
+          return false;
+        });
+      }
+
+      const realDocId = matchedExisting?.id ||
+                        matchedExisting?.docId ||
+                        student.raw?.id ||
+                        student.raw?.docId ||
+                        (student.id && !student.id.startsWith('adm_') ? student.id : null) ||
+                        (targetFormNo ? String(targetFormNo) : null);
+      if (!realDocId) throw new Error("Could not resolve student record ID");
+
+      const baseData = student.raw || {};
+      const revertedUpdates = {
+        readmission: 'No',
+        'Re-admission': 'No',
+        isReadmission: false,
+        admNo: origAdmNo,
+        'Adm. No.': origAdmNo,
+        'Admission No.': origAdmNo,
+        oldAdmNo: '',
+        'Old Admission No.': '',
+        'Old Adm. No.': '',
+        remarks: cleanStr(baseData.remarks || '').replace(/Re-admission.*?(•|$)/gi, '').trim(),
+        updatedAt: new Date().toISOString(),
+        lastEditedBy: `Admin (${user?.email || 'Undo Re-admission'})`
+      };
+
+      // Calculate shift records
+      const shifted = shiftSubsequentAdmNos ? subsequentStudentsToShift : [];
+      const shiftedMap = new Map(shifted.map(s => [s.id, s.nextAdm]));
+
+      // 1. Optimistic Cache Updates
+      updateCachedItem('admissions', realDocId, revertedUpdates);
+      shifted.forEach(st => {
+        updateCachedItem('admissions', st.id, {
+          admNo: st.nextAdm,
+          'Adm. No.': st.nextAdm,
+          'Admission No.': st.nextAdm,
+          updatedAt: new Date().toISOString()
+        });
+      });
+
+      // 2. Optimistic State Updates
+      setDataset(prev => {
+        return (prev || []).map(item => {
+          if (item.id === realDocId || (targetFormNo && cleanStr(item.formNo || item['Form Number']) === targetFormNo)) {
+            return {
+              ...item,
+              ...revertedUpdates,
+              id: realDocId,
+              isReadmission: false,
+              readmission: 'No',
+              'Re-admission': 'No',
+              admNo: origAdmNo,
+              'Adm. No.': origAdmNo,
+              'Admission No.': origAdmNo,
+              oldAdmNo: '',
+              'Old Admission No.': '',
+              'Old Adm. No.': ''
+            };
+          }
+          if (shiftedMap.has(item.id)) {
+            const nextAdm = shiftedMap.get(item.id);
+            return {
+              ...item,
+              admNo: nextAdm,
+              'Adm. No.': nextAdm,
+              'Admission No.': nextAdm
+            };
+          }
+          return item;
+        });
+      });
+
+      if (sessionCacheRef.current[selectedSession]) {
+        sessionCacheRef.current[selectedSession] = (sessionCacheRef.current[selectedSession] || []).map(item => {
+          if (item.id === realDocId || (targetFormNo && cleanStr(item.formNo || item['Form Number']) === targetFormNo)) {
+            return {
+              ...item,
+              ...revertedUpdates,
+              id: realDocId,
+              isReadmission: false,
+              readmission: 'No',
+              'Re-admission': 'No',
+              admNo: origAdmNo,
+              'Adm. No.': origAdmNo,
+              'Admission No.': origAdmNo,
+              oldAdmNo: '',
+              'Old Admission No.': '',
+              'Old Adm. No.': ''
+            };
+          }
+          if (shiftedMap.has(item.id)) {
+            const nextAdm = shiftedMap.get(item.id);
+            return {
+              ...item,
+              admNo: nextAdm,
+              'Adm. No.': nextAdm,
+              'Admission No.': nextAdm
+            };
+          }
+          return item;
+        });
+      }
+
+      // Close modals immediately
+      setReadmissionModalStudent(null);
+      setIsUniversalModalOpen(false);
+      setShowUndoConfirmModal(false);
+      setToast({
+        message: `↩ Re-admission undone for ${student.name}. ${shifted.length > 0 ? `${shifted.length} subsequent admission number(s) shifted down (e.g. ${shifted[0].currentAdm} → ${shifted[0].nextAdm}) to prevent gap.` : 'Admission number restored.'}`,
+        type: 'success'
+      });
+
+      // 3. Background Server Persistence
+      (async () => {
+        try {
+          const writes = [
+            setDoc(doc(db, 'admissions', realDocId), revertedUpdates, { merge: true })
+          ];
+          shifted.forEach(st => {
+            writes.push(
+              setDoc(doc(db, 'admissions', st.id), {
+                admNo: st.nextAdm,
+                'Adm. No.': st.nextAdm,
+                'Admission No.': st.nextAdm,
+                updatedAt: new Date().toISOString()
+              }, { merge: true })
+            );
+          });
+          await Promise.all(writes);
+
+          logAdminActivity({
+            actionType: 'student_readmission_undone',
+            actionTitle: `Undid Re-admission: ${student.name}`,
+            details: `Reverted ${student.name} to Adm No: ${origAdmNo || 'None'}. Shifted ${shifted.length} subsequent student(s) down to prevent ledger gap.`,
+            metadata: { studentId: realDocId, releasedAdmNo: currentAdm, revertedAdmNo: origAdmNo, shiftedCount: shifted.length }
+          }).catch(() => {});
+
+          if (onDataUpdated) {
+            const allUpdates = [
+              { id: realDocId, ...revertedUpdates },
+              ...shifted.map(st => ({
+                id: st.id,
+                admNo: st.nextAdm,
+                'Adm. No.': st.nextAdm,
+                'Admission No.': st.nextAdm
+              }))
+            ];
+            try { onDataUpdated(allUpdates); } catch (_) {}
+          }
+        } catch (serverErr) {
+          console.error('Background Firestore undo error:', serverErr);
+          setToast({ message: `⚠️ Warning: Local update applied, but server sync failed: ${serverErr.message}`, type: 'error' });
+        }
+      })();
+    } catch (err) {
+      console.error('Error undoing readmission:', err);
+      setToast({ message: `❌ Failed to undo re-admission: ${err.message}`, type: 'error' });
+    } finally {
+      setIsUndoingReAdm(false);
+    }
+  };
+
   // Save Readmission Status to Firestore & Local Cache (Ultra-Fast & Duplicate-Proof)
   const handleSaveReadmission = async () => {
     if (!readmissionModalStudent) return;
@@ -3718,7 +3948,7 @@ export default function AdmissionRegisterSuite({
           // Non-blocking data notification
           if (onDataUpdated) {
             setTimeout(() => {
-              try { onDataUpdated(); } catch (_) {}
+              try { onDataUpdated({ id: realDocId, ...deltaUpdates }); } catch (_) {}
             }, 100);
           }
         } catch (serverErr) {
@@ -7875,37 +8105,80 @@ export default function AdmissionRegisterSuite({
                   <p className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider px-1">
                     Select a student to map as Re-admission ({candidateSearchResults.length} found):
                   </p>
-                  {candidateSearchResults.map((candidate) => (
-                    <div
-                      key={candidate.id}
-                      onClick={() => handleSelectCandidateForReadmission(candidate)}
-                      className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-600 hover:bg-purple-50/50 dark:hover:bg-purple-950/40 cursor-pointer transition-all flex items-center justify-between gap-2 group"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-xs flex items-center justify-center shrink-0 border">
-                          {candidate.name ? candidate.name[0].toUpperCase() : 'S'}
+                  {candidateSearchResults.map((candidate) => {
+                    const q = searchCandidateQuery.trim().toLowerCase();
+                    const isRollMatch = q && candidate.rollNo && candidate.rollNo.toLowerCase().includes(q);
+                    const isAdmMatch = q && candidate.admNo && candidate.admNo.toLowerCase().includes(q);
+                    const isFormMatch = q && candidate.formNo && candidate.formNo.toLowerCase().includes(q);
+                    const isRegMatch = q && candidate.boardReg && candidate.boardReg.toLowerCase().includes(q);
+
+                    return (
+                      <div
+                        key={candidate.id}
+                        onClick={() => handleSelectCandidateForReadmission(candidate)}
+                        className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-600 hover:bg-purple-50/50 dark:hover:bg-purple-950/40 cursor-pointer transition-all flex items-center justify-between gap-2.5 group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-xs flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
+                            {candidate.name ? candidate.name[0].toUpperCase() : 'S'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-xs text-slate-900 dark:text-white truncate group-hover:text-purple-700 dark:group-hover:text-purple-300">
+                              {candidate.name}
+                            </p>
+                            <p className="text-[10.5px] text-slate-500 truncate flex items-center gap-1 flex-wrap">
+                              <span>S/o {candidate.father || '—'}</span>
+                              <span>•</span>
+                              <span>Class: <strong className="text-indigo-600 dark:text-indigo-400">{candidate.class}</strong> ({candidate.session})</span>
+                              {candidate.stream && candidate.stream !== 'General' && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-slate-600 dark:text-slate-300 font-medium">{candidate.stream}</span>
+                                </>
+                              )}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-xs text-slate-900 dark:text-white truncate group-hover:text-purple-700 dark:group-hover:text-purple-300">
-                            {candidate.name}
-                          </p>
-                          <p className="text-[10.5px] text-slate-500 truncate">
-                            S/o {candidate.father || '—'} • Class: <span className="font-bold text-indigo-600 dark:text-indigo-400">{candidate.class}</span> ({candidate.session})
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {candidate.admNo && (
-                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300">
-                            Adm: {candidate.admNo}
+                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                          {candidate.rollNo && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border transition-all ${
+                              isRollMatch
+                                ? 'bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-400 font-black'
+                                : 'bg-indigo-50 dark:bg-indigo-950/70 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300'
+                            }`}>
+                              Roll: {candidate.rollNo}
+                            </span>
+                          )}
+                          {candidate.admNo && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                              isAdmMatch
+                                ? 'bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-400 font-black'
+                                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                            }`}>
+                              Adm: {candidate.admNo}
+                            </span>
+                          )}
+                          {candidate.formNo && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${
+                              isFormMatch
+                                ? 'bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-400 font-black'
+                                : 'bg-slate-50 dark:bg-slate-850 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                            }`}>
+                              Form: {candidate.formNo}
+                            </span>
+                          )}
+                          {candidate.boardReg && isRegMatch && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-100 text-amber-900 border border-amber-300 ring-1 ring-amber-400 font-black">
+                              Reg: {candidate.boardReg}
+                            </span>
+                          )}
+                          <span className="p-1 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                            <ChevronRight size={13} />
                           </span>
-                        )}
-                        <span className="p-1 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 group-hover:bg-purple-600 group-hover:text-white transition-all">
-                          <ChevronRight size={13} />
-                        </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {candidateSearchResults.length === 0 && (
                     <div className="p-4 text-center text-xs text-slate-400 border border-dashed rounded-xl">
                       No matching student found for "{searchCandidateQuery}".
@@ -7924,11 +8197,33 @@ export default function AdmissionRegisterSuite({
                     <p className="text-[11px] text-slate-600 dark:text-slate-400">
                       S/o {readmissionModalStudent.father || '—'} • Original Record: Class {readmissionModalStudent.class} ({readmissionModalStudent.session || 'Past'})
                     </p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {readmissionModalStudent.rollNo && (
+                        <span className="px-1.5 py-0.5 rounded font-mono font-bold text-[10px] bg-indigo-100 text-indigo-900 dark:bg-indigo-900/60 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700">
+                          Roll: {readmissionModalStudent.rollNo}
+                        </span>
+                      )}
+                      {readmissionModalStudent.admNo && (
+                        <span className="px-1.5 py-0.5 rounded font-mono font-bold text-[10px] bg-emerald-100 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+                          Adm: {readmissionModalStudent.admNo}
+                        </span>
+                      )}
+                      {readmissionModalStudent.formNo && (
+                        <span className="px-1.5 py-0.5 rounded font-mono font-bold text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-600">
+                          Form: {readmissionModalStudent.formNo}
+                        </span>
+                      )}
+                      {readmissionModalStudent.boardReg && (
+                        <span className="px-1.5 py-0.5 rounded font-mono text-[9.5px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                          Reg: {readmissionModalStudent.boardReg}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setReadmissionModalStudent(null)}
-                    className="px-2 py-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 dark:text-purple-300 bg-white dark:bg-slate-900 rounded-lg border border-purple-200 dark:border-purple-800 cursor-pointer shadow-2xs"
+                    className="px-2 py-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 dark:text-purple-300 bg-white dark:bg-slate-900 rounded-lg border border-purple-200 dark:border-purple-800 cursor-pointer shadow-2xs self-start"
                   >
                     Change
                   </button>
@@ -8097,29 +8392,205 @@ export default function AdmissionRegisterSuite({
             )}
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div>
+                {readmissionModalStudent && (readmissionModalStudent.isReadmission || readmissionModalStudent.raw?.isReadmission || readmissionModalStudent.raw?.['Re-admission'] === 'Yes' || readmissionModalStudent.oldAdmNo || readmissionModalStudent.raw?.oldAdmNo || readmissionModalStudent.raw?.['Old Admission No.'] || reAdmFormState.oldAdmNo) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowUndoConfirmModal(true)}
+                    className="px-3 py-1.5 rounded-lg border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                    title="Undo re-admission status and restore original admission number"
+                  >
+                    <RotateCcw size={13} />
+                    <span>Undo Re-admission</span>
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReadmissionModalStudent(null);
+                    setIsUniversalModalOpen(false);
+                    setSearchCandidateQuery('');
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                {readmissionModalStudent && (
+                  <button
+                    type="button"
+                    onClick={handleSaveReadmission}
+                    disabled={savingReAdm}
+                    className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {savingReAdm ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                    <span>Save Re-admission Mapping</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── UNDO RE-ADMISSION CONFIRMATION MODAL WITH SEQUENTIAL GAP COMPACTION ─── */}
+      {showUndoConfirmModal && readmissionModalStudent && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border-b border-rose-200 dark:border-rose-900/60 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-900/80 text-rose-700 dark:text-rose-300 flex items-center justify-center shrink-0">
+                  <RotateCcw size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                    Undo Re-admission & Revert Admission Number
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    Revert candidate to original admission status and prevent ledger gaps
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => {
-                  setReadmissionModalStudent(null);
-                  setIsUniversalModalOpen(false);
-                  setSearchCandidateQuery('');
-                }}
-                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer"
+                onClick={() => setShowUndoConfirmModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 space-y-3.5 overflow-y-auto text-xs">
+              {/* Target Student Summary */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Candidate</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/70 dark:text-purple-300">
+                    Class {readmissionModalStudent.class || '11th'} ({readmissionModalStudent.session || selectedSession})
+                  </span>
+                </div>
+                <div className="font-black text-sm text-slate-900 dark:text-white">
+                  {readmissionModalStudent.name}
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Parentage: {readmissionModalStudent.father || '—'}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50">
+                    <span className="block text-[10px] font-extrabold text-rose-700 dark:text-rose-300 uppercase">
+                      Adm No Released
+                    </span>
+                    <span className="text-base font-black font-mono text-rose-950 dark:text-rose-200">
+                      {cleanStr(readmissionModalStudent.admNo || reAdmFormState.assignedAdmNo) || '—'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50">
+                    <span className="block text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 uppercase">
+                      Original Adm No Restored
+                    </span>
+                    <span className="text-base font-black font-mono text-emerald-950 dark:text-emerald-200">
+                      {cleanStr(readmissionModalStudent.oldAdmNo || readmissionModalStudent.raw?.oldAdmNo || readmissionModalStudent.raw?.['Old Admission No.'] || reAdmFormState.oldAdmNo) || 'None / Blank'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sequential Admission Number Auto-Compaction Checkbox */}
+              <div className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 space-y-2.5">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={shiftSubsequentAdmNos}
+                    onChange={(e) => setShiftSubsequentAdmNos(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <div>
+                    <span className="font-black text-xs text-indigo-950 dark:text-indigo-200 block">
+                      Auto-recompact subsequent admission numbers to prevent gaps
+                    </span>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                      When enabled, students enrolled after this number will shift down by 1 so the official admission register maintains an unbroken, continuous sequence.
+                    </p>
+                  </div>
+                </label>
+
+                {shiftSubsequentAdmNos && (
+                  <div className="pt-2 border-t border-indigo-200/80 dark:border-indigo-800/80">
+                    {subsequentStudentsToShift.length > 0 ? (
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-bold text-indigo-900 dark:text-indigo-300 mb-1.5">
+                          <span>Subsequent students to be renumbered ({subsequentStudentsToShift.length}):</span>
+                          <span className="text-[10px] font-mono bg-indigo-100 dark:bg-indigo-900/60 px-1.5 py-0.5 rounded">
+                            Shift: -1
+                          </span>
+                        </div>
+                        <div className="max-h-36 overflow-y-auto space-y-1 pr-1 font-mono text-[10.5px]">
+                          {subsequentStudentsToShift.slice(0, 10).map((st) => (
+                            <div
+                              key={st.id}
+                              className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between"
+                            >
+                              <div className="min-w-0 font-sans truncate mr-2">
+                                <span className="font-bold text-slate-800 dark:text-slate-200">{st.name}</span>
+                                <span className="text-slate-400 text-[10px] ml-1">({st.class})</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-rose-600 dark:text-rose-400 line-through">{st.currentAdm}</span>
+                                <span className="text-slate-400">→</span>
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">{st.nextAdm}</span>
+                              </div>
+                            </div>
+                          ))}
+                          {subsequentStudentsToShift.length > 10 && (
+                            <div className="text-[10px] text-center text-slate-500 italic py-1 font-sans">
+                              + {subsequentStudentsToShift.length - 10} more subsequent student(s) will also be decremented by 1
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-slate-500 italic">
+                        No subsequent students found with admission numbers greater than {cleanStr(readmissionModalStudent.admNo || reAdmFormState.assignedAdmNo)}. Only this student's admission number will be reverted.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowUndoConfirmModal(false)}
+                disabled={isUndoingReAdm}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
-              {readmissionModalStudent && (
-                <button
-                  type="button"
-                  onClick={handleSaveReadmission}
-                  disabled={savingReAdm}
-                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {savingReAdm ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                  <span>Save Re-admission Mapping</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleUndoReadmission}
+                disabled={isUndoingReAdm}
+                className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+              >
+                {isUndoingReAdm ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Reverting & Shifting…</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw size={13} />
+                    <span>Confirm & Undo Re-admission</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
