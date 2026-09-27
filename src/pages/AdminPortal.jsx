@@ -2802,7 +2802,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
           title: title,
           subtitle: 'Welcome to this page',
           bgImage: '/slides/aboutus.jpg',
-          bgOpacity: 30,
+          bgOpacity: 80,
           height: 'normal'
         }
       ];

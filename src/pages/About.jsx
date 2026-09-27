@@ -62,13 +62,13 @@ export default function About() {
     <div className="public-page w-full mb-16 sm:mb-20">
       <SEO title="About Us & Institution" description="Discover the history, vision, mission, and institutional glimpses of Govt. Higher Secondary School Shangus in Anantnag. Explore our academic legacy and campus heritage." />
       {/* Hero */}
-      <div className="about-hero relative h-[270px] xs:h-[304px] sm:h-[378px] w-full bg-slate-900 flex items-center justify-center text-center">
+      <div className="about-hero relative h-[270px] xs:h-[304px] sm:h-[378px] w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden">
         <div 
-          className="absolute inset-0 bg-cover bg-center opacity-30"
+          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
           style={{ backgroundImage: `url(${aboutBg})` }}
         ></div>
-        {/* Dark overlay for contrast */}
-        <div className="absolute inset-0 bg-black/60"></div>
+        {/* Balanced contrast overlay that lets the campus photo shine while keeping text 100% readable */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/45 to-slate-950/70"></div>
         
         <div className="relative z-10 px-3 sm:px-4 max-w-4xl mx-auto">
           <h1 className="ui-page-title text-xl xs:text-2xl sm:text-3xl md:text-4xl text-white mb-1.5 sm:mb-2 drop-shadow-md">About Our Institution</h1>
