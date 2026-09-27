@@ -652,10 +652,16 @@ export default function Home() {
                 {[0, 1].map((copy) => (
                   <div key={copy} className="hero-news-ticker__set" aria-hidden={copy === 1 ? 'true' : undefined}>
                     {notices.slice(0, 6).map((notice, idx) => {
+                      const isNew = isNoticeNew(notice.date, notice.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
                       const external = notice.link && (notice.link.startsWith('http') || notice.link.startsWith('mailto:'));
                       const content = (
                         <>
-                          <span className="hero-news-ticker__pulse" aria-hidden="true" />
+                          <span className={`hero-news-ticker__pulse ${isNew ? 'is-flash' : ''}`} aria-hidden="true" />
+                          {isNew && (
+                            <span className="hero-news-ticker__badge" aria-label="Flash update">
+                              FLASH
+                            </span>
+                          )}
                           <span>{formatTitleWithBrackets(notice.title)}</span>
                         </>
                       );
