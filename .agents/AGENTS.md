@@ -42,3 +42,15 @@ Whenever completing or verifying changes requested by the user, follow this stri
 - The assistant is **strictly prohibited** from pushing changes to remote Git repositories (e.g. GitHub/GitLab).
 - After committing locally, inform the user:
   > *"Changes have been built, staged, and committed locally. Please run `git push origin main` manually whenever you are ready."*
+
+### 6. Memory File of Changes & Manual Commit Instructions
+- Always maintain and update `CHANGES_SINCE_LAST_COMMIT.md` in the workspace root documenting:
+  - Exact list of files changed, added, or removed.
+  - Detailed summary of changes since the previous commit.
+  - The exact commit message used.
+  - Instructions for the user on how to review the commit, manually amend/re-commit if desired (`git reset --soft HEAD~1` followed by `git commit -m "..."`), and manually push (`git push origin main`).
+- In every completion response to the user:
+  - Summarize all changes done since the last commit.
+  - State the exact local commit message.
+  - Explain how the user can manually inspect or re-execute the commit if desired.
+  - Remind the user to run `git push origin main` manually.

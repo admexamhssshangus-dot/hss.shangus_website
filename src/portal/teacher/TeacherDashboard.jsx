@@ -7,8 +7,7 @@ import {
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
-import { db, auth } from '../../services/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { auth } from '../../services/firebase';
 import { printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
 import { showToast } from '../../components/common/GlobalToast';
 
