@@ -6063,10 +6063,91 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
           color: #0f172a !important;
         }
         .theme-light .admin-portal-container .bg-slate-950,
-        .theme-light .admin-portal-container .bg-slate-900 {
+        .theme-light .admin-portal-container .bg-slate-900,
+        .theme-light .admin-portal-container .bg-slate-800:not(button):not(.toggle-switch-btn):not(.cms-tab-btn):not(.portal-tab-btn) {
           background-color: #f1f5f9 !important;
           border-color: #cbd5e1 !important;
           color: #0f172a !important;
+        }
+
+        /* Themed badge and pill contrast overrides in light theme to eliminate dark-on-dark contrast */
+        .theme-light .admin-portal-container .bg-indigo-950,
+        .theme-light .admin-portal-container .bg-indigo-950\/90,
+        .theme-light .admin-portal-container .bg-indigo-950\/80,
+        .theme-light .admin-portal-container .bg-indigo-950\/60,
+        .theme-light .admin-portal-container .bg-indigo-950\/20 {
+          background-color: #e0e7ff !important;
+          border-color: #a5b4fc !important;
+          color: #3730a3 !important;
+        }
+        .theme-light .admin-portal-container .bg-indigo-950 *,
+        .theme-light .admin-portal-container .bg-indigo-950\/90 *,
+        .theme-light .admin-portal-container .bg-indigo-950\/80 *,
+        .theme-light .admin-portal-container .bg-indigo-950\/60 *,
+        .theme-light .admin-portal-container .bg-indigo-950\/20 * {
+          color: #3730a3 !important;
+        }
+
+        .theme-light .admin-portal-container .bg-emerald-950,
+        .theme-light .admin-portal-container .bg-emerald-950\/95,
+        .theme-light .admin-portal-container .bg-emerald-950\/80,
+        .theme-light .admin-portal-container .bg-emerald-950\/60 {
+          background-color: #d1fae5 !important;
+          border-color: #6ee7b7 !important;
+          color: #065f46 !important;
+        }
+        .theme-light .admin-portal-container .bg-emerald-950 *,
+        .theme-light .admin-portal-container .bg-emerald-950\/95 *,
+        .theme-light .admin-portal-container .bg-emerald-950\/80 *,
+        .theme-light .admin-portal-container .bg-emerald-950\/60 * {
+          color: #065f46 !important;
+        }
+
+        .theme-light .admin-portal-container .bg-amber-950,
+        .theme-light .admin-portal-container .bg-amber-950\/80,
+        .theme-light .admin-portal-container .bg-amber-950\/60,
+        .theme-light .admin-portal-container .bg-amber-950\/30 {
+          background-color: #fef3c7 !important;
+          border-color: #fcd34d !important;
+          color: #92400e !important;
+        }
+        .theme-light .admin-portal-container .bg-amber-950 *,
+        .theme-light .admin-portal-container .bg-amber-950\/80 *,
+        .theme-light .admin-portal-container .bg-amber-950\/60 *,
+        .theme-light .admin-portal-container .bg-amber-950\/30 * {
+          color: #92400e !important;
+        }
+
+        .theme-light .admin-portal-container .bg-blue-950,
+        .theme-light .admin-portal-container .bg-blue-950\/90,
+        .theme-light .admin-portal-container .bg-blue-950\/80,
+        .theme-light .admin-portal-container .bg-blue-950\/60 {
+          background-color: #dbeafe !important;
+          border-color: #93c5fd !important;
+          color: #1e40af !important;
+        }
+        .theme-light .admin-portal-container .bg-blue-950 *,
+        .theme-light .admin-portal-container .bg-blue-950\/90 *,
+        .theme-light .admin-portal-container .bg-blue-950\/80 *,
+        .theme-light .admin-portal-container .bg-blue-950\/60 * {
+          color: #1e40af !important;
+        }
+
+        .theme-light .admin-portal-container .bg-rose-950,
+        .theme-light .admin-portal-container .bg-rose-950\/95,
+        .theme-light .admin-portal-container .bg-rose-950\/80,
+        .theme-light .admin-portal-container .bg-rose-950\/60,
+        .theme-light .admin-portal-container .bg-rose-950\/30 {
+          background-color: #ffe4e6 !important;
+          border-color: #fda4af !important;
+          color: #9f1239 !important;
+        }
+        .theme-light .admin-portal-container .bg-rose-950 *,
+        .theme-light .admin-portal-container .bg-rose-950\/95 *,
+        .theme-light .admin-portal-container .bg-rose-950\/80 *,
+        .theme-light .admin-portal-container .bg-rose-950\/60 *,
+        .theme-light .admin-portal-container .bg-rose-950\/30 * {
+          color: #9f1239 !important;
         }
         .theme-light .admin-portal-container h1,
         .theme-light .admin-portal-container h2,
