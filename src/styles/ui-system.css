@@ -204,7 +204,7 @@ button, input, select, textarea { font: inherit; }
     display: flex;
     width: max-content;
     will-change: transform;
-    animation: hero-news-scroll 42s linear infinite;
+    animation: hero-news-scroll 28s linear infinite;
   }
   .hero-news-ticker__viewport:hover .hero-news-ticker__track,
   .hero-news-ticker__viewport:focus-within .hero-news-ticker__track,
