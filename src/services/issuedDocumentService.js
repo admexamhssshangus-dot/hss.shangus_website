@@ -24,9 +24,21 @@ async function sha256Hex(str) {
   return Math.abs(hash).toString(16).padStart(64, '0');
 }
 
-export async function registerIssuedDocument(student, certificateNo, documentType, action = 'issue') {
+export async function registerIssuedDocument(student, certificateNo, documentType, action = 'issue', extraMeta = {}) {
+  const targetSession = String(extraMeta?.session || student?.Session || student?.session || student?.['Academic Session'] || '');
+  const targetClass = String(extraMeta?.className || student?.classCanonical || student?.Class || student?.className || student?.class || '');
+  const targetStream = String(extraMeta?.stream || student?.Stream || student?.stream || '');
+
   try {
-    const res = await staffCallable('manageIssuedDocument')({ locator: recordLocator(student), certificateNo, documentType, action });
+    const res = await staffCallable('manageIssuedDocument')({
+      locator: recordLocator(student),
+      certificateNo,
+      documentType,
+      action,
+      session: targetSession,
+      className: targetClass,
+      stream: targetStream
+    });
     return res.data;
   } catch (callableErr) {
     console.warn('manageIssuedDocument callable unavailable, using direct Firestore on Spark plan:', callableErr?.message || callableErr);
@@ -68,8 +80,9 @@ export async function registerIssuedDocument(student, certificateNo, documentTyp
       regNo: reg,
       sourceDocument,
       status: 'Active',
-      session: String(student?.Session || student?.session || student?.['Academic Session'] || ''),
-      className: String(student?.classCanonical || student?.Class || student?.className || student?.class || ''),
+      session: targetSession,
+      className: targetClass,
+      stream: targetStream,
       issueDate: new Date().toISOString().slice(0, 10),
       issuedAt: new Date().toISOString(),
       issuedBy: auth.currentUser.uid,

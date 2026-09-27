@@ -126,13 +126,15 @@ function areSessionsCompatible(sessionA, sessionB) {
   if (!sessionA || !sessionB) return true;
   const getSessionKey = (s) => {
     const text = String(s || '').toLowerCase();
+    const isBian = /bian|bi-annual|apr|pvt|private/i.test(text);
     const m = text.match(/(20\d{2})\s*[-/]?\s*(\d{2,4})/);
-    if (m) {
+    if (m && !isBian) {
       const y1 = m[1];
       const y2 = m[2].length === 2 ? `20${m[2]}` : m[2];
       return `${y1}-${y2}`;
     }
     const singleYear = text.match(/\b(20\d{2})\b/);
+    if (singleYear && isBian) return `${singleYear[1]}-bian`;
     if (singleYear) return singleYear[1];
     return null;
   };
@@ -345,12 +347,12 @@ export default function StudentVerificationPage() {
           student: {
             name: matchInCatalog.name,
             fatherName: matchInCatalog.fatherName,
-            className: matchInCatalog.className || rawClass || '11th',
+            className: rawClass || matchInCatalog.className || '11th',
             classRollNo: matchInCatalog.classRollNo || cleanRoll || '—',
             boardRegNo: matchInCatalog.boardRegNo || cleanReg || '—',
             formNo: matchInCatalog.fNo || cleanFNo || '—',
-            session: matchInCatalog.session || rawSession || '2025-26',
-            stream: matchInCatalog.stream || rawStream || 'General / Academics',
+            session: rawSession || matchInCatalog.session || '2025-26',
+            stream: rawStream || matchInCatalog.stream || 'General / Academics',
             photoUrl: matchInCatalog.photoUrl || null
           },
           verification: {

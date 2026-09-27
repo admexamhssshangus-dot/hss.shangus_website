@@ -575,6 +575,22 @@ export default function StudentCertificateStudioView({
   const [recentIngestedResults, setRecentIngestedResults] = useState([]);
   const isLoadingStudents = false;
 
+  // Synchronize initial session filter once students are loaded if nothing selected yet
+  useEffect(() => {
+    if (defaultActiveSession && defaultActiveSession !== 'ALL') {
+      setSelectedSessions(prev => {
+        if (!prev || prev.length === 0 || (prev.length === 1 && prev[0] === '2025-26' && defaultActiveSession !== '2025-26')) {
+          return [defaultActiveSession];
+        }
+        return prev;
+      });
+      setSession(prev => {
+        if (!prev || prev === '2025-26') return defaultActiveSession;
+        return prev;
+      });
+    }
+  }, [defaultActiveSession]);
+
   const registrationHistoryByReg = useMemo(() => {
     const map = new Map();
     (combinedStudentPool || []).forEach(record => {
@@ -845,7 +861,7 @@ export default function StudentCertificateStudioView({
   const [rollNo, setRollNo] = useState('1101');
   const [regNo, setRegNo] = useState('24SHG1101');
   const [dobRaw, setDobRaw] = useState('2007-08-15');
-  const [session, setSession] = useState('2025-26');
+  const [session, setSession] = useState(() => (defaultActiveSession && defaultActiveSession !== 'ALL' ? defaultActiveSession : '2025-26'));
   const [address, setAddress] = useState('');
   const [gender, setGender] = useState('M');
   const [withdrawalDate, setWithdrawalDate] = useState(() => toLocalDateKey());
@@ -1468,6 +1484,29 @@ export default function StudentCertificateStudioView({
     }
   };
 
+  // ─── Synchronize Active Session & Class Filters to Active Certificate State ───
+  const handleSessionFilterChange = useCallback((newSessions) => {
+    setSelectedSessions(newSessions);
+    if (newSessions.length === 1 && newSessions[0] !== '__NONE__') {
+      const targetSession = newSessions[0];
+      setSession(targetSession);
+      if (selectedStudent) {
+        setCustomCanvasHtml(null);
+      }
+    }
+  }, [selectedStudent]);
+
+  const handleClassFilterChange = useCallback((newClasses) => {
+    setSelectedClasses(newClasses);
+    if (newClasses.length === 1 && newClasses[0] !== '__NONE__' && newClasses[0] !== 'past') {
+      const targetClass = newClasses[0];
+      setClassName(targetClass);
+      if (selectedStudent) {
+        setCustomCanvasHtml(null);
+      }
+    }
+  }, [selectedStudent]);
+
   // ─── Select Student Handler (Auto-Fills Fields & Instantly Resolves DB Photo) ───
   const handleSelectStudent = async (st, { keepOpen = false, isPreviewOnly = false } = {}) => {
     if (!st) return;
@@ -1488,17 +1527,22 @@ export default function StudentCertificateStudioView({
 
     // ─── 1. SYNCHRONOUS IMMEDIATE POPULATION OF STUDENT CORE IDENTITY ───
     const primaryRaw = st.raw || st;
+    const activeSingleSession = (selectedSessions.length === 1 && selectedSessions[0] !== '__NONE__') ? selectedSessions[0] : null;
+    const activeSingleClass = (selectedClasses.length === 1 && selectedClasses[0] !== '__NONE__' && selectedClasses[0] !== 'past') ? selectedClasses[0] : null;
+    const effectiveSession = activeSingleSession || st.session || '2025-26';
+    const effectiveClass = activeSingleClass || st.cls || '11th';
+
     setStudentName(st.name || '');
     setFatherName(st.father || '');
     setMotherName(st.mother || '');
-    setClassName(st.cls || '11th');
-    setStream(st.stream || resolveCertificateStream(st, [], st.cls || extractClass(st)));
+    setClassName(effectiveClass);
+    setStream(st.stream || resolveCertificateStream(st, [], effectiveClass || extractClass(st)));
     setRollNo(st.rollNo || '—');
     setRegNo(st.regNo || '—');
     const resolvedDob = extractDob(primaryRaw);
     const effDob = resolvedDob && resolvedDob !== '—' ? resolvedDob : (st.dob || '');
     setDobRaw(effDob);
-    setSession(st.session || '2025-26');
+    setSession(effectiveSession);
     let effectiveAddr = extractFullAddress(primaryRaw) || st.address || '';
     const targetRegInit = normalizeRegistrationKey(extractBoardRegNo(primaryRaw) || st.regNo);
     if (!effectiveAddr && targetRegInit) {
@@ -1566,13 +1610,13 @@ export default function StudentCertificateStudioView({
         studentName: st.name || '',
         fatherName: st.father || '',
         motherName: st.mother || '',
-        className: st.cls || '11th',
-        stream: st.stream || resolveCertificateStream(st, [], st.cls || extractClass(st)),
+        className: effectiveClass,
+        stream: st.stream || resolveCertificateStream(st, [], effectiveClass || extractClass(st)),
         rollNo: st.rollNo || '—',
         regNo: st.regNo || '—',
         dobFigures: effDob,
         dobWords: (typeof dobToWords === 'function' ? dobToWords(effDob).words : '—'),
-        session: st.session || '2025-26',
+        session: effectiveSession,
         address: effectiveAddr,
         gender: effGender,
         refNo: immediateRef,
@@ -1580,7 +1624,7 @@ export default function StudentCertificateStudioView({
         includeSalutations,
         customFields,
         // TC/DC tokens
-        examName: `Class ${st.cls || '12th'} Examination`,
+        examName: `Class ${effectiveClass || '12th'} Examination`,
         examRollNo: primaryRaw['Exam Roll No'] || primaryRaw.examRoll || '',
         examSession: primaryRaw['Exam Session'] || primaryRaw.examSession || '',
         resultStatus: primaryRaw['Result Status'] || primaryRaw.resultStatus || 'Awaiting Result',
@@ -1642,7 +1686,7 @@ export default function StudentCertificateStudioView({
       if (registrationMatches.length > 0) {
         let enrichedRaw = enrichCertificateIdentityFields(primaryRaw, registrationMatches);
         const priorCertificateRecord = registrationMatches.find(record =>
-          isExactCertificateScope(record, st.session || extractSession(st), st.cls || extractClass(st)) &&
+          isExactCertificateScope(record, effectiveSession, effectiveClass) &&
           areNamesCompatible(extractStudentName(record), normStudentName) &&
           Boolean(extractStudentCertificateNumber(record))
         );
@@ -1658,7 +1702,7 @@ export default function StudentCertificateStudioView({
         st = { ...st, raw: enrichedRaw };
         if (selectionRequestRef.current !== requestId) return;
         setSelectedStudent(st);
-        setStream(resolveCertificateStream(st, registrationMatches, st.cls || extractClass(st)));
+        setStream(resolveCertificateStream(st, registrationMatches, effectiveClass || extractClass(st)));
         const enrichedAdmNo = extractStudentAdmissionNumber(enrichedRaw);
         const enrichedAdmDate = extractStudentAdmissionDate(enrichedRaw);
         if (enrichedAdmNo) setAdmissionNo(enrichedAdmNo);
@@ -1675,13 +1719,13 @@ export default function StudentCertificateStudioView({
             studentName: st.name || '',
             fatherName: st.father || '',
             motherName: st.mother || '',
-            className: st.cls || '11th',
-            stream: st.stream || resolveCertificateStream(st, registrationMatches, st.cls || extractClass(st)),
+            className: effectiveClass,
+            stream: st.stream || resolveCertificateStream(st, registrationMatches, effectiveClass || extractClass(st)),
             rollNo: st.rollNo || '—',
             regNo: st.regNo || '—',
             dobFigures: effDob,
             dobWords: (typeof dobToWords === 'function' ? dobToWords(effDob).words : '—'),
-            session: st.session || '2025-26',
+            session: effectiveSession,
             address: enrichedAddr,
             gender: effGender,
             refNo: immediateRef,
@@ -1709,8 +1753,8 @@ export default function StudentCertificateStudioView({
     const raw = st.raw || st;
     const scopedResult = resolveScopedCertificateResult(
       [st, ...registrationMatches],
-      st.session || extractSession(st),
-      st.cls || extractClass(st)
+      effectiveSession,
+      effectiveClass
     );
     const resInfo = scopedResult.resultInfo;
     const isPassed = resInfo.isPassed;
@@ -2480,14 +2524,19 @@ export default function StudentCertificateStudioView({
   const handleResetFieldsToStudent = () => {
     if (!selectedStudent) return;
     const st = selectedStudent;
+    const activeSingleSession = (selectedSessions.length === 1 && selectedSessions[0] !== '__NONE__') ? selectedSessions[0] : null;
+    const activeSingleClass = (selectedClasses.length === 1 && selectedClasses[0] !== '__NONE__' && selectedClasses[0] !== 'past') ? selectedClasses[0] : null;
+    const effectiveSession = activeSingleSession || st.session || '2025-26';
+    const effectiveClass = activeSingleClass || st.cls || '11th';
+
     setStudentName(st.name || '');
     setFatherName(st.father || '');
     setMotherName(st.mother || '');
-    setClassName(st.cls || '11th');
+    setClassName(effectiveClass);
     setStream(st.stream || 'Arts');
     setRollNo(st.rollNo || '');
     setRegNo(st.regNo || '');
-    setSession(st.session || '2025-26');
+    setSession(effectiveSession);
     setGender(st.gender || '');
     setDobRaw(st.dob || '');
     setAddress(st.address || '');
@@ -3704,10 +3753,9 @@ export default function StudentCertificateStudioView({
     }
 
     if (!isTcDcActive) {
-      try { await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle); }
+      try { await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle, 'issue', { session, className, stream }); }
       catch (error) {
         showToast(error.message || 'Certificate registration failed.', 'error');
-        setIsExportingDocx(false);
         return;
       }
       advanceGeneralRefNumber(effectiveRefNo).catch(() => {});
@@ -3719,7 +3767,14 @@ export default function StudentCertificateStudioView({
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—',
-      rollNo: rollNo || selectedStudent?.classRollNo || selectedStudent?.rollNo || getStudentRollVal(selectedStudent) || ''
+      rollNo: rollNo || selectedStudent?.classRollNo || selectedStudent?.rollNo || getStudentRollVal(selectedStudent) || '',
+      name: studentName,
+      studentName: studentName,
+      fatherName: fatherName,
+      motherName: motherName,
+      className: className,
+      session: session,
+      stream: stream
     };
 
     // Auto-record print in per-app memory (max 3)
@@ -3835,7 +3890,7 @@ export default function StudentCertificateStudioView({
     }
 
     if (!isTcDcActive) {
-      try { await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle); }
+      try { await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle, 'issue', { session, className, stream }); }
       catch (error) {
         showToast(error.message || 'Certificate registration failed.', 'error');
         setIsExportingDocx(false);
@@ -3850,7 +3905,14 @@ export default function StudentCertificateStudioView({
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—',
-      rollNo: rollNo || selectedStudent?.classRollNo || selectedStudent?.rollNo || getStudentRollVal(selectedStudent) || ''
+      rollNo: rollNo || selectedStudent?.classRollNo || selectedStudent?.rollNo || getStudentRollVal(selectedStudent) || '',
+      name: studentName,
+      studentName: studentName,
+      fatherName: fatherName,
+      motherName: motherName,
+      className: className,
+      session: session,
+      stream: stream
     };
 
     // Auto-record in per-app memory (max 3)
@@ -3968,7 +4030,7 @@ export default function StudentCertificateStudioView({
                     label="Classes"
                     options={classOptions}
                     selected={selectedClasses}
-                    onChange={setSelectedClasses}
+                    onChange={handleClassFilterChange}
                     align="left"
                   />
                 </div>
@@ -3980,7 +4042,7 @@ export default function StudentCertificateStudioView({
                     label="Sessions"
                     options={sessionOptions}
                     selected={selectedSessions}
-                    onChange={setSelectedSessions}
+                    onChange={handleSessionFilterChange}
                     align="right"
                   />
                 </div>

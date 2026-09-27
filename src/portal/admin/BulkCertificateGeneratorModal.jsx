@@ -797,7 +797,16 @@ export default function BulkCertificateGeneratorModal({
           certificateNo: assignedCertNo,
           admissionDate: st.admDate,
           admissionNo: st.admNo,
-          regNo: st.regNo
+          regNo: st.regNo,
+          rollNo: st.rollNo,
+          formNo: st.raw?.formNo || st.raw?.['Form No.'] || st.raw?.['Form Number'] || '',
+          name: st.studentName || st.name,
+          studentName: st.studentName || st.name,
+          fatherName: st.fatherName || st.father,
+          motherName: st.motherName || st.mother,
+          className: st.className || st.cls || '12th',
+          session: st.session || '2025-26',
+          stream: st.stream || ''
         }
       };
     });
