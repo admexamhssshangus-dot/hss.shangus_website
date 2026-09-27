@@ -929,6 +929,162 @@ function formatBoardRegSplit(val) {
   return <span className="font-black font-mono text-[13px] tracking-tight">{s}</span>;
 }
 
+// Comprehensive Academic Gap Detection for Class 12th & 10th Re-admissions
+export function detectStudentAcademicGap(student, currentSession = '', prevInfo = null) {
+  if (!student) return { hasGap: false, reason: '', reasonBrief: '', gapYears: 0 };
+  const raw = student.raw || student;
+
+  // If admin previously dismissed the gap, do not flag again
+  if (raw.gapDismissed === true || student.gapDismissed === true) {
+    return { hasGap: false, reason: '', reasonBrief: '', gapYears: 0 };
+  }
+
+  const cls = cleanStr(student.class || raw.class || raw.Class || raw['Admission sought for class'] || '');
+  const is12th = cls.includes('12');
+  const is10th = cls.includes('10');
+
+  // Current session starting year (e.g. '2025-26' -> 2025)
+  const effCurrSess = currentSession || student.session || raw.session || raw['Academic Session'] || '';
+  const currYearMatch = String(effCurrSess).match(/(19\d\d|20\d\d)/);
+  const currYear = currYearMatch ? parseInt(currYearMatch[1], 10) : null;
+
+  // 1. Check previous academic session fields on student record or matched previous info
+  const prevSessKeys = [
+    'prevSession', 'previousSession', 'Previous Session', 'Prev Session', 'Prev. Session',
+    'Session (Class 11th)', 'Class 11th Session', 'Session of Class 11th',
+    'Session (11th)', '11th Session', 'Previous Academic Session', 'session11th',
+    'Session (Class 9th)', 'Class 9th Session', 'session9th'
+  ];
+  let prevSessVal = '';
+  for (const k of prevSessKeys) {
+    if (raw[k]) { prevSessVal = String(raw[k]).trim(); break; }
+  }
+
+  // Also check matched historical record / prevInfo session
+  if (!prevSessVal && prevInfo) {
+    prevSessVal = String(prevInfo.session || prevInfo.Session || prevInfo['Academic Session'] || '').trim();
+  }
+
+  if (currYear && prevSessVal) {
+    const prevYearMatch = String(prevSessVal).match(/(19\d\d|20\d\d)/);
+    if (prevYearMatch) {
+      const prevYear = parseInt(prevYearMatch[1], 10);
+      const diff = currYear - prevYear;
+      // Normal progression between 11th and 12th (or 9th and 10th) is 1 year difference (e.g., 2025 - 2024 = 1).
+      // Gap exists if diff > 1 (e.g. 2025 - 2023 = 2 or more).
+      if (diff > 1) {
+        const gap = diff - 1;
+        const fromLabel = is12th ? 'Class 11th' : is10th ? 'Class 9th' : 'Previous';
+        return {
+          hasGap: true,
+          gapYears: gap,
+          prevSession: prevSessVal,
+          reason: `Session gap: ${fromLabel} in ${prevSessVal} → ${cls || 'Current'} in ${effCurrSess} (${gap} yr gap)`,
+          reasonBrief: `${prevSessVal} (${gap}y gap)`
+        };
+      }
+    }
+  }
+
+  // 2. Check previous passing year / exam year
+  // Class 11th passing year for 12th student (normal is 1 yr before)
+  const pass11thStr = cleanStr(
+    raw['Year of Passing Class 11th'] || raw['Year of Passing (11th)'] ||
+    raw['11th Year of Passing'] || raw['Passing Year (11th)'] ||
+    student['Year of Passing Class 11th'] || ''
+  );
+  if (is12th && currYear && pass11thStr) {
+    const pMatch = String(pass11thStr).match(/(19\d\d|20\d\d)/);
+    if (pMatch) {
+      const pYear = parseInt(pMatch[1], 10);
+      if (currYear - pYear > 1) {
+        const gap = currYear - pYear - 1;
+        return {
+          hasGap: true,
+          gapYears: gap,
+          prevSession: String(pYear),
+          reason: `Exam gap: Passed Class 11th in ${pYear} (${gap} yr gap)`,
+          reasonBrief: `Passed 11th (${pYear})`
+        };
+      }
+    }
+  }
+
+  // Class 10th passing year for 12th student (normal is 2 yrs before)
+  const pass10thStr = cleanStr(
+    raw['Year of Passing Class 10th'] || raw['Year of Passing (10th)'] ||
+    raw['10th Year of Passing'] || raw['Passing Year (10th)'] ||
+    student['Year of Passing Class 10th'] || ''
+  );
+  if (is12th && currYear && pass10thStr) {
+    const pMatch = String(pass10thStr).match(/(19\d\d|20\d\d)/);
+    if (pMatch) {
+      const pYear = parseInt(pMatch[1], 10);
+      if (currYear - pYear > 2) {
+        const gap = currYear - pYear - 2;
+        return {
+          hasGap: true,
+          gapYears: gap,
+          prevSession: String(pYear),
+          reason: `Exam gap: Passed Class 10th in ${pYear} (${gap} yr gap to 12th)`,
+          reasonBrief: `Passed 10th (${pYear})`
+        };
+      }
+    }
+  }
+
+  // General previous passing year check
+  const generalPassStr = cleanStr(
+    student.prevPassingYear || student.previousPassingYear ||
+    raw.prevPassingYear || raw.previousPassingYear || raw['Previous Passing Year'] ||
+    raw['Passing Year'] || raw['Year of Passing'] || raw.passingYear || ''
+  );
+  if (currYear && generalPassStr) {
+    const passMatch = String(generalPassStr).match(/(19\d\d|20\d\d)/);
+    if (passMatch) {
+      const pYear = parseInt(passMatch[1], 10);
+      const expectedDiff = is12th && !pass11thStr ? 2 : 1;
+      if (currYear - pYear > expectedDiff) {
+        const gap = currYear - pYear - expectedDiff;
+        return {
+          hasGap: true,
+          gapYears: Math.max(1, gap),
+          prevSession: String(pYear),
+          reason: `Exam gap: Passed in ${pYear} (${Math.max(1, gap)} yr gap)`,
+          reasonBrief: `Passed ${pYear}`
+        };
+      }
+    }
+  }
+
+  // 3. Old admission number present and differs from current admission number
+  const oldAdm = cleanStr(student.oldAdmNo || raw.oldAdmNo || raw['Old Admission No.'] || raw['Old Adm No'] || raw['Old Adm. No.'] || raw['previousAdmNo']);
+  const currAdm = cleanStr(student.admNo || raw.admNo || raw['Adm. No.'] || raw['Admission No.']);
+  if (oldAdm && currAdm && oldAdm !== currAdm && oldAdm !== '—' && oldAdm !== 'N/A') {
+    return {
+      hasGap: true,
+      gapYears: 1,
+      prevSession: 'Historical',
+      reason: `Historical admission number mismatch (Prev Adm: ${oldAdm}, Current: ${currAdm})`,
+      reasonBrief: `Prev Adm ${oldAdm}`
+    };
+  }
+
+  // 4. Registration form explicit indication
+  const formReAdm = cleanStr(raw['Are you seeking Re-admission?'] || raw.reAdmissionStatus || raw.reAdmissionRequested || '');
+  if (formReAdm.toLowerCase() === 'yes' || formReAdm.toLowerCase() === 'pending') {
+    return {
+      hasGap: true,
+      gapYears: 1,
+      prevSession: 'Requested',
+      reason: 'Re-admission requested in application form',
+      reasonBrief: 'Form Request'
+    };
+  }
+
+  return { hasGap: false, reason: '', reasonBrief: '', gapYears: 0 };
+}
+
 // Detect if student has an academic gap (> 1 year academic gap or re-admission)
 function hasStudentAcademicGap(student, currentSession = '', prevInfo = null) {
   if (!student) return false;
@@ -938,36 +1094,8 @@ function hasStudentAcademicGap(student, currentSession = '', prevInfo = null) {
   const reAdmStr = String(raw.readmission || raw['readmission'] || raw['Re-admission'] || raw['Re-Admission'] || raw.isReadmission || raw['Are you seeking Re-admission?'] || raw.reAdmissionStatus || '').toLowerCase();
   if (reAdmStr === 'yes' || raw.readmission === true || raw.isReadmission === true) return true;
 
-  // 2. Old admission number present and differs from current admission number
-  const oldAdm = cleanStr(student.oldAdmNo || raw.oldAdmNo || raw['Old Admission No.'] || raw['Old Adm No'] || raw['Old Adm. No.'] || raw['previousAdmNo']);
-  const currAdm = cleanStr(student.admNo || raw.admNo || raw['Adm. No.']);
-  if (oldAdm && oldAdm !== currAdm && oldAdm !== '—' && oldAdm !== 'N/A') return true;
-
-  // 3. Academic session comparison: More than 1 year difference
-  const effCurrSess = currentSession || student.session || raw.session || raw['Academic Session'] || '';
-  const currYearMatch = String(effCurrSess).match(/(19\d\d|20\d\d)/);
-  const currYear = currYearMatch ? parseInt(currYearMatch[1], 10) : null;
-
-  const prevSess = prevInfo?.session || raw.prevSession || raw['Previous Session'] || '';
-  const prevYearMatch = String(prevSess).match(/(19\d\d|20\d\d)/);
-  const prevYear = prevYearMatch ? parseInt(prevYearMatch[1], 10) : null;
-
-  if (currYear && prevYear) {
-    const diff = currYear - prevYear;
-    if (diff > 1) return true;
-  }
-
-  // 4. Previous passing year comparison: More than standard academic gap
-  const passYearStr = cleanStr(raw.prevPassingYear || raw['Passing Year'] || raw['Year of Passing'] || raw.passingYear || '');
-  const passMatch = String(passYearStr).match(/(19\d\d|20\d\d)/);
-  if (currYear && passMatch) {
-    const pYear = parseInt(passMatch[1], 10);
-    const cls = cleanStr(student.class || raw.class || '');
-    if (cls.includes('12') && currYear - pYear > 2) return true;
-    if (cls.includes('10') && currYear - pYear > 1) return true;
-  }
-
-  return false;
+  // 2. Comprehensive gap detection
+  return detectStudentAcademicGap(student, currentSession, prevInfo).hasGap;
 }
 
 // Student Priority Scoring for Sequential Allotment
