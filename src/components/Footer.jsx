@@ -275,17 +275,17 @@ export default function Footer() {
 
           {/* Line 2: Developer Credit Badge */}
           <div className="pt-2 flex flex-col items-center justify-center">
-            <div className="inline-flex flex-wrap items-center justify-center gap-2.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-cyan-400/80 hover:border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.25)] hover:shadow-[0_0_22px_rgba(6,182,212,0.45)] transition-all duration-300 font-mono text-xs backdrop-blur-md">
-              <span className="flex items-center gap-1.5 text-cyan-400 font-bold">
-                <Terminal size={14} className="text-cyan-400 animate-pulse" />
-                <span className="text-slate-500 text-[11px] font-bold">&lt;dev&gt;</span>
+            <div className="inline-flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 px-3 py-1 rounded-full bg-slate-900/40 text-xs text-slate-400 transition-colors">
+              <span className="flex items-center gap-1.5 text-slate-400 font-medium">
+                <Terminal size={13} className="text-cyan-400 shrink-0" />
+                <span>Developed by</span>
               </span>
               <div className="flex items-center gap-1">
                 <a 
                   href="https://nexliftech.netlify.app/" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="font-extrabold text-cyan-300 hover:text-cyan-200 transition-all underline decoration-cyan-400/50 hover:decoration-cyan-200 underline-offset-4 tracking-tight"
+                  className="font-bold text-cyan-300 hover:text-cyan-200 transition-all underline decoration-cyan-400/40 hover:decoration-cyan-200 underline-offset-4 tracking-tight"
                 >
                   Next Life Technologies
                 </a>
@@ -296,20 +296,19 @@ export default function Footer() {
                   title="About Next Life Technologies (NexLifTech)"
                   aria-label="About Company Info"
                 >
-                  <Info size={13} strokeWidth={2.5} />
+                  <Info size={13} strokeWidth={2.2} />
                 </button>
               </div>
 
-              <span className="text-slate-700 font-bold">&lt;/dev&gt;</span>
-              <span className="text-slate-700 font-bold">|</span>
+              <span className="text-slate-600 font-bold select-none">|</span>
 
               {/* Developer Contact Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 font-mono">
                 <a 
                   href="https://wa.me/919682547458" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="text-[#25D366] hover:text-emerald-300 transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-bold" 
+                  className="text-[#25D366] hover:text-emerald-300 transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-semibold" 
                   title="Contact Developer on WhatsApp (+91 9682547458)"
                 >
                   <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
@@ -318,12 +317,12 @@ export default function Footer() {
                   <span>WhatsApp</span>
                 </a>
 
-                <span className="text-slate-700 font-bold">/</span>
+                <span className="text-slate-600 font-bold select-none">/</span>
 
                 <a 
                   href="mailto:2nexlif@gmail.com" 
                   onClick={(e) => handleEmailClick(e, '2nexlif@gmail.com')} 
-                  className="text-cyan-400 hover:text-cyan-300 transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-bold" 
+                  className="text-cyan-400 hover:text-cyan-300 transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-semibold" 
                   title="Email Developer (2nexlif@gmail.com)"
                 >
                   <Mail size={13} />
