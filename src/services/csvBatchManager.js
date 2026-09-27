@@ -1,9 +1,6 @@
 import { rollbackMutationJob } from './recordMutationService';
 import { db } from './firebase';
-import { doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
-import { invalidateCache } from './dbCache';
-
-import { logAdminActivity } from './adminActivityLogger';
+import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
 
 const BATCH_STORAGE_KEY = 'hss_csv_import_batches_v1';
 const MAX_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days
@@ -62,15 +59,8 @@ export async function getCsvImportBatches() {
     })
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  // Save cleaned lightweight list back to local storage
+  // Clear legacy local storage batch key to prevent quota overflow
   try {
-    const liteToStore = validBatches.map(b => ({
-      ...b,
-      importedRecords: (b.importedRecords || []).map(r => {
-        const { photo_id, 'Student Photo': sp, photoUrl, photo, ...rest } = r;
-        return rest;
-      })
-    }));
     localStorage.removeItem(BATCH_STORAGE_KEY);
   } catch (e) {}
 
@@ -107,8 +97,6 @@ export async function saveCsvImportBatch(batchData) {
     customReason: batchData.customReason || ''
   };
 
-  const existing = await getCsvImportBatches();
-  const updated = [newBatch, ...existing.filter(b => b.batchId !== newBatch.batchId)].slice(0, 50);
 
   try {
     localStorage.removeItem(BATCH_STORAGE_KEY);

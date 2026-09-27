@@ -12,43 +12,67 @@ node_modules/
 # production
 /build
 
-# misc
+# misc & OS
 .DS_Store
+Thumbs.db
 desktop.ini
 **/desktop.ini
+*.ini
+~$*
+*.bak
+*.orig
+*.tmp
+*.swp
+*.swo
+*~
+
+# Environment variables and secrets — NEVER commit
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
 
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Local Netlify folder
+# Local Netlify & Firebase folders
 .netlify
 .firebase/
 
-# Ignore local Firebase service account
-scripts/serviceAccount.json
+# Service accounts, credentials, private keys & secrets — NEVER commit
+**/*serviceAccount*.json
+**/*service-account*.json
+**/*credentials*.json
+**/serviceAccountKey.json
+**/client_secret*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
 
-# ignore firebase private key
-serviceAccountKey.json
-
-# Admin credentials — NEVER commit
+# Admin credentials & sensitive local files — NEVER commit
 public/slides/admins.json
 public/slides/messages.json
 public/slides/*roster*.csv
 public/slides/*private*.json
 
-# Local audit and generated interpreter caches
-.codex-audit/
-firestore-debug.log
-firebase-debug.log
-ui-debug.log
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firestore-debug.log*
+firebase-debug.log*
+ui-debug.log*
+
+# Python caches and virtual environments
 **/__pycache__/
 *.pyc
+.venv/
+venv/
+ENV/
+
+# Local audit and generated interpreter caches
+.codex-audit/
 
 # Optimized photo dumps (large assets)
 optimized_photos*
@@ -63,9 +87,6 @@ scripts/backup/
 scripts/backups/
 scripts/*.json
 src/data/masterSeedData.json
-desktop.ini
-*.ini
-~$*
 
 # Ignore generated institutional presentation reports, bill annexures, and binary document exports
 *.pdf
@@ -80,4 +101,4 @@ omr_system/docs/*.pdf
 
 # Local scratch scripts and debug files
 scratch/
-
+**/scratch/
