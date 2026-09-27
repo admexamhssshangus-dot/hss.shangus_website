@@ -275,9 +275,9 @@ export default function Footer() {
 
           {/* Line 2: Developer Credit Badge */}
           <div className="pt-2 flex flex-col items-center justify-center">
-            <div className="inline-flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 px-3 py-1 rounded-full bg-slate-900/40 text-xs text-slate-400 transition-colors">
-              <span className="flex items-center gap-1.5 text-slate-400 font-medium">
-                <Terminal size={13} className="text-cyan-400 shrink-0" />
+            <div className="developer-credit-badge inline-flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 px-3.5 py-1.5 rounded-full transition-all duration-200">
+              <span className="flex items-center gap-1.5 dev-badge-label font-medium text-xs">
+                <Terminal size={13} className="dev-badge-icon shrink-0" />
                 <span>Developed by</span>
               </span>
               <div className="flex items-center gap-1">
@@ -285,14 +285,14 @@ export default function Footer() {
                   href="https://nexliftech.netlify.app/" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="font-bold text-cyan-300 hover:text-cyan-200 transition-all underline decoration-cyan-400/40 hover:decoration-cyan-200 underline-offset-4 tracking-tight"
+                  className="dev-badge-brand font-bold text-xs tracking-tight underline underline-offset-4 transition-colors"
                 >
                   Next Life Technologies
                 </a>
                 <button
                   type="button"
                   onClick={() => setActiveModal('companyInfo')}
-                  className="inline-flex items-center justify-center text-cyan-400 hover:text-cyan-200 transition-colors cursor-pointer p-0.5"
+                  className="dev-badge-icon inline-flex items-center justify-center transition-colors cursor-pointer p-0.5"
                   title="About Next Life Technologies (NexLifTech)"
                   aria-label="About Company Info"
                 >
@@ -300,15 +300,15 @@ export default function Footer() {
                 </button>
               </div>
 
-              <span className="text-slate-600 font-bold select-none">|</span>
+              <span className="dev-badge-divider font-bold select-none text-xs">|</span>
 
               {/* Developer Contact Actions */}
-              <div className="flex items-center gap-2 font-mono">
+              <div className="flex items-center gap-2 font-mono text-xs">
                 <a 
                   href="https://wa.me/919682547458" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="text-[#25D366] hover:text-emerald-300 transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-semibold" 
+                  className="dev-badge-whatsapp transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-semibold" 
                   title="Contact Developer on WhatsApp (+91 9682547458)"
                 >
                   <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
@@ -317,12 +317,12 @@ export default function Footer() {
                   <span>WhatsApp</span>
                 </a>
 
-                <span className="text-slate-600 font-bold select-none">/</span>
+                <span className="dev-badge-divider font-bold select-none text-xs">/</span>
 
                 <a 
                   href="mailto:2nexlif@gmail.com" 
                   onClick={(e) => handleEmailClick(e, '2nexlif@gmail.com')} 
-                  className="text-cyan-400 hover:text-cyan-300 transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-semibold" 
+                  className="dev-badge-email transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-semibold" 
                   title="Email Developer (2nexlif@gmail.com)"
                 >
                   <Mail size={13} />
