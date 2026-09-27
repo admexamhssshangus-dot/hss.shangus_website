@@ -60,3 +60,43 @@ test('explicit logout flag blocks session restoration', async () => {
   await act(async () => onAuthStateChanged.mock.calls.at(-1)[1](auth.currentUser));
   expect(screen.getByText('Unauthenticated')).toBeInTheDocument();
 });
+
+test('recognizes cross-tab login via storage event', async () => {
+  render(<PortalLayout />);
+  await act(async () => onAuthStateChanged.mock.calls.at(-1)[1](null));
+  expect(screen.getByText('Unauthenticated')).toBeInTheDocument();
+
+  // Simulate another tab logging in and saving session to localStorage
+  const user = { email: 'teacher@example.invalid', role: 'Teacher', name: 'Teacher Test' };
+  localStorage.setItem('hss_session_user', JSON.stringify(user));
+  localStorage.setItem('hss_session_token', 'test-cross-tab-token');
+  localStorage.setItem('hss_auth_state', JSON.stringify({ role: 'Teacher', name: 'Teacher Test', ts: Date.now() }));
+
+  await act(async () => {
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'hss_session_user',
+      newValue: JSON.stringify(user),
+    }));
+  });
+
+  expect(screen.getByText('Verified Teacher')).toBeInTheDocument();
+});
+
+test('recognizes cross-tab logout via storage event', async () => {
+  resolveStaffRoleAndPerms.mockResolvedValue({ role: 'Student', perms: [] });
+  auth.currentUser = { uid: 'student-uid', email: 'student@example.invalid' };
+  render(<PortalLayout />);
+  await act(async () => onAuthStateChanged.mock.calls.at(-1)[1](auth.currentUser));
+  expect(screen.getByText('Verified Student')).toBeInTheDocument();
+
+  // Simulate another tab logging out
+  await act(async () => {
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'hss_explicit_logout',
+      newValue: 'true',
+    }));
+  });
+
+  expect(screen.getByText('Unauthenticated')).toBeInTheDocument();
+});
+

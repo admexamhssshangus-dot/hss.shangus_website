@@ -147,6 +147,10 @@ export default function PortalLayout() {
   }, [navigate]);
 
   // ---------------------------------------------------------------------------
+  const redirectToDashboardRef = useRef(_redirectToDashboard);
+  redirectToDashboardRef.current = _redirectToDashboard;
+
+  // ---------------------------------------------------------------------------
   // Guard: redirect unauthenticated users to login on mount only.
   // The useState initializer already restores sessions synchronously —
   // this is just the one-time route protection gate.
@@ -230,6 +234,9 @@ export default function PortalLayout() {
             };
             sessionManager.saveSession({ user: updatedSession, token: prof.token }, localStorage.getItem('hss_persistent_login') !== 'false');
             setSessionStateStable({ loading: false, user: updatedSession, isAuthenticated: true });
+            if (isOnPublicPage) {
+              redirectToDashboardRef.current(updatedSession);
+            }
           }).catch((err) => {
             sessionManager.clearSession();
             setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
@@ -257,6 +264,9 @@ export default function PortalLayout() {
           };
           sessionManager.saveSession({ user: defaultSession, token: prof.token }, localStorage.getItem('hss_persistent_login') !== 'false');
           setSessionStateStable({ loading: false, user: defaultSession, isAuthenticated: true });
+          if (isOnPublicPage) {
+            redirectToDashboardRef.current(defaultSession);
+          }
         } catch (err) {
           sessionManager.clearSession();
           setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
@@ -278,17 +288,88 @@ export default function PortalLayout() {
   // Global auth-change sync (fires when any tab changes the session)
   // ---------------------------------------------------------------------------
   useEffect(() => {
+    // 1. Cross-tab BroadcastChannel listener
+    let bc = null;
+    try {
+      bc = new BroadcastChannel('hss_portal_auth_sync');
+      bc.onmessage = (event) => {
+        const data = event.data;
+        if (data?.type === 'LOGIN' && data.user) {
+          setSessionStateStable({ loading: false, user: data.user, isAuthenticated: true });
+          const publicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
+            .some((path) => window.location.pathname.startsWith(path));
+          if (publicPage) {
+            _redirectToDashboard(data.user);
+          }
+        } else if (data?.type === 'LOGOUT') {
+          setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+          const publicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
+            .some((path) => window.location.pathname.startsWith(path));
+          if (!publicPage) navigate('/portal/login', { replace: true });
+        }
+      };
+    } catch (_) {}
+
+    // 2. Storage event listener (fires across tabs when localStorage changes)
+    const handleStorageChange = (e) => {
+      if (e.key === 'hss_explicit_logout' && e.newValue === 'true') {
+        setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+        const publicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
+          .some((path) => window.location.pathname.startsWith(path));
+        if (!publicPage) navigate('/portal/login', { replace: true });
+        return;
+      }
+
+      if (e.key === 'hss_auth_state' || e.key === 'hss_session_user') {
+        if (!e.newValue) {
+          setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+          const publicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
+            .some((path) => window.location.pathname.startsWith(path));
+          if (!publicPage) navigate('/portal/login', { replace: true });
+        } else {
+          const activeSession = sessionManager.getSession();
+          if (activeSession?.user) {
+            setSessionStateStable({ loading: false, user: activeSession.user, isAuthenticated: true });
+            const publicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
+              .some((path) => window.location.pathname.startsWith(path));
+            if (publicPage) {
+              _redirectToDashboard(activeSession.user);
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // 3. Same-tab CustomEvent listener
     const handleAuthChanged = (e) => {
       if (e.detail?.loggedIn === false) {
         setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
         const publicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
           .some((path) => window.location.pathname.startsWith(path));
         if (!publicPage) navigate('/portal/login', { replace: true });
+      } else if (e.detail?.loggedIn === true) {
+        const activeSession = sessionManager.getSession();
+        if (activeSession?.user) {
+          setSessionStateStable({ loading: false, user: activeSession.user, isAuthenticated: true });
+          const publicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
+            .some((path) => window.location.pathname.startsWith(path));
+          if (publicPage) {
+            _redirectToDashboard(activeSession.user);
+          }
+        }
       }
     };
     window.addEventListener('hss-auth-changed', handleAuthChanged);
-    return () => window.removeEventListener('hss-auth-changed', handleAuthChanged);
-  }, [navigate, setSessionStateStable]);
+
+    return () => {
+      if (bc) {
+        try { bc.close(); } catch (_) {}
+      }
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('hss-auth-changed', handleAuthChanged);
+    };
+  }, [navigate, setSessionStateStable, _redirectToDashboard]);
 
   // ---------------------------------------------------------------------------
   // Real-time permission matrix synchronization across components & tabs

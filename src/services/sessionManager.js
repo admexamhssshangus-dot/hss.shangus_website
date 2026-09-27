@@ -242,7 +242,7 @@ function saveSession(data, keepLoggedIn = true) {
 
   [localStorage, sessionStorage].forEach(storage => {
     try {
-      storage.setItem(STORAGE_KEYS.TOKEN, tokenStr);
+      storage.setItem(STORAGE_KEYS.TOKEN, tokenStr || 'hss_active_token');
       storage.setItem(STORAGE_KEYS.USER, userStr);
       storage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
       storage.setItem(STORAGE_KEYS.SESSION_CREATED_AT, String(sessionCreatedAt));
@@ -251,11 +251,19 @@ function saveSession(data, keepLoggedIn = true) {
     } catch (_) {}
   });
 
-  try { localStorage.removeItem(STORAGE_KEYS.TOKEN); } catch (_) {}
+  // Cross-tab synchronization signal via localStorage
+  localStorage.setItem('hss_auth_state', JSON.stringify({ role: data.user?.role, name: data.user?.name, email: data.user?.email, ts: Date.now() }));
 
-  localStorage.setItem('hss_auth_state', JSON.stringify({ role: data.user?.role, name: data.user?.name, ts: Date.now() }));
+  // Cross-tab synchronization via BroadcastChannel
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const bc = new BroadcastChannel('hss_portal_auth_sync');
+      bc.postMessage({ type: 'LOGIN', user: data.user, sessionId, ts: Date.now() });
+      bc.close();
+    }
+  } catch (_) {}
 
-  try { window.dispatchEvent(new CustomEvent('hss-auth-changed', { detail: { loggedIn: true } })); } catch (_) {}
+  try { window.dispatchEvent(new CustomEvent('hss-auth-changed', { detail: { loggedIn: true, user: data.user } })); } catch (_) {}
 
   getDeviceId();
 }
@@ -265,7 +273,7 @@ function saveSession(data, keepLoggedIn = true) {
  * @returns {{ token: string, user: object, deviceId: string, sessionId: string } | null}
  */
 function getSession() {
-  let token = sessionStorage.getItem(STORAGE_KEYS.TOKEN);
+  let token = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem(STORAGE_KEYS.TOKEN);
   let userRaw = sessionStorage.getItem(STORAGE_KEYS.USER) || localStorage.getItem(STORAGE_KEYS.USER);
 
   if (!token || !userRaw) return null;
@@ -278,6 +286,20 @@ function getSession() {
   }
 
   if (!user || (!user.email && !user.role)) return null;
+
+  // Mirror session into current tab's sessionStorage for fast access in this tab
+  try {
+    if (!sessionStorage.getItem(STORAGE_KEYS.TOKEN) && token) {
+      sessionStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    }
+    if (!sessionStorage.getItem(STORAGE_KEYS.USER) && userRaw) {
+      sessionStorage.setItem(STORAGE_KEYS.USER, userRaw);
+    }
+    const sid = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
+    if (sid && !sessionStorage.getItem(STORAGE_KEYS.SESSION_ID)) {
+      sessionStorage.setItem(STORAGE_KEYS.SESSION_ID, sid);
+    }
+  } catch (_) {}
 
   return {
     token,
@@ -311,6 +333,8 @@ function getUser() {
  * @returns {boolean}
  */
 function isLoggedIn() {
+  const isExplicitLogout = sessionStorage.getItem('hss_explicit_logout') === 'true' || localStorage.getItem('hss_explicit_logout') === 'true';
+  if (isExplicitLogout) return false;
   return !!getToken();
 }
 
@@ -369,6 +393,15 @@ function clearSession() {
   });
   localStorage.removeItem(STORAGE_KEYS.PERSISTENT);
   localStorage.removeItem('hss_auth_state');
+
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const bc = new BroadcastChannel('hss_portal_auth_sync');
+      bc.postMessage({ type: 'LOGOUT', ts: Date.now() });
+      bc.close();
+    }
+  } catch (_) {}
+
   try { window.dispatchEvent(new CustomEvent('hss-auth-changed', { detail: { loggedIn: false } })); } catch (_) {}
 }
 
