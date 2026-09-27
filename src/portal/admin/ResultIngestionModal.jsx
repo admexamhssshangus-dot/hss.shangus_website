@@ -722,40 +722,40 @@ export default function ResultIngestionModal({
             <button
               type="button"
               onClick={() => setActiveTab('excel')}
-              className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`portal-tab-btn px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'excel'
-                  ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-400 shadow-xs font-black'
+                  ? 'bg-teal-600 !text-white shadow-xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <FileSpreadsheet size={13} />
-              <span>Excel Sheet</span>
+              <FileSpreadsheet size={13} className={activeTab === 'excel' ? '!text-white' : ''} />
+              <span className={activeTab === 'excel' ? '!text-white' : ''}>Excel Sheet</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('ai_gazette')}
-              className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`portal-tab-btn px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'ai_gazette'
-                  ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-400 shadow-xs font-black'
+                  ? 'bg-purple-600 !text-white shadow-xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <Sparkles size={13} />
-              <span>Gazette AI OCR</span>
+              <Sparkles size={13} className={activeTab === 'ai_gazette' ? '!text-white' : ''} />
+              <span className={activeTab === 'ai_gazette' ? '!text-white' : ''}>Gazette AI OCR</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('ai_admit')}
-              className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`portal-tab-btn px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'ai_admit'
-                  ? 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 shadow-xs font-black'
+                  ? 'bg-amber-600 !text-white shadow-xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <Award size={13} />
-              <span>Admit Card AI</span>
+              <Award size={13} className={activeTab === 'ai_admit' ? '!text-white' : ''} />
+              <span className={activeTab === 'ai_admit' ? '!text-white' : ''}>Admit Card AI</span>
             </button>
           </div>
 

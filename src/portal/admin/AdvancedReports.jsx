@@ -5758,13 +5758,13 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${isActive
-                  ? 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 shadow-xs border border-slate-200 dark:border-slate-700'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-900'
+                className={`portal-tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${isActive
+                  ? 'bg-amber-600 !text-white shadow-xs border border-amber-500 font-black'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-900 border border-transparent'
                   }`}
               >
-                <Icon size={13} />
-                <span>{tab.label}</span>
+                <Icon size={13} className={isActive ? '!text-white' : ''} />
+                <span className={isActive ? '!text-white' : ''}>{tab.label}</span>
               </button>
             );
           })}
