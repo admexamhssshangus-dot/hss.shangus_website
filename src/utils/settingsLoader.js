@@ -229,14 +229,23 @@ export function getCachedSiteSettings() {
   return DEFAULT_SETTINGS;
 }
 
+const SETTINGS_CACHE_TTL_MS = 20 * 60 * 1000; // 20 minutes SWR cache TTL
+
 export async function loadSiteSettings({ forceFirestore = false } = {}) {
+  const timestampKey = 'site_settings_ts';
   // 1. Instant Cache: Return cached settings if available for 0ms initial render
   if (!forceFirestore) {
     try {
       const local = localStorage.getItem('site_settings');
+      const lastTs = Number(localStorage.getItem(timestampKey) || 0);
+      const isFresh = (Date.now() - lastTs) < SETTINGS_CACHE_TTL_MS;
+
       if (local) {
         const cached = mergeSiteSettings(JSON.parse(local));
-        // Refresh silently from live Firestore in the background so live updates (e.g. fees) are automatically synchronized
+        if (isFresh) {
+          return cached;
+        }
+        // Only refresh silently from live Firestore if cache TTL has expired
         setTimeout(() => {
           (async () => {
             try {
@@ -245,11 +254,14 @@ export async function loadSiteSettings({ forceFirestore = false } = {}) {
               const snap = await getDoc(doc(db, 'site', 'settings'));
               if (snap && snap.exists()) {
                 const fresh = mergeSiteSettings(snap.data());
-                try { localStorage.setItem('site_settings', JSON.stringify(fresh)); } catch (_) {}
+                try {
+                  localStorage.setItem('site_settings', JSON.stringify(fresh));
+                  localStorage.setItem(timestampKey, Date.now().toString());
+                } catch (_) {}
               }
             } catch (_) {}
           })();
-        }, 150);
+        }, 300);
         return cached;
       }
     } catch (e) {
@@ -266,7 +278,10 @@ export async function loadSiteSettings({ forceFirestore = false } = {}) {
     const snap = await Promise.race([docPromise, timeoutPromise]);
     if (snap && snap.exists()) {
       const merged = mergeSiteSettings(snap.data());
-      try { localStorage.setItem('site_settings', JSON.stringify(merged)); } catch (_) {}
+      try {
+        localStorage.setItem('site_settings', JSON.stringify(merged));
+        localStorage.setItem(timestampKey, Date.now().toString());
+      } catch (_) {}
       return merged;
     }
   } catch (e) {

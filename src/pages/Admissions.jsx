@@ -13,12 +13,31 @@ export default function Admissions() {
   const [docOpen, setDocOpen] = useState(false);
   const docRef = useRef(null);
   const [settings, setSettings] = useState(() => getCachedSiteSettings());
-  const [dynamicData, setDynamicData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [dynamicData, setDynamicData] = useState(() => {
+    try {
+      const raw = localStorage.getItem('site_page_admissions');
+      if (raw) return JSON.parse(raw);
+    } catch (_) {}
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('site_page_admissions');
+    } catch (_) {
+      return true;
+    }
+  });
 
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
+      const pageTsKey = 'site_page_admissions_ts';
+      const lastTs = Number(localStorage.getItem(pageTsKey) || 0);
+      const isFresh = (Date.now() - lastTs) < 30 * 60 * 1000;
+      if (isFresh && dynamicData) {
+        setLoading(false);
+        return;
+      }
       try {
         const docPromise = getDoc(doc(db, 'site', 'page_admissions'));
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1800));
@@ -27,6 +46,10 @@ export default function Admissions() {
           const data = snap.data();
           if (data.blocks && data.blocks.length > 0) {
             setDynamicData(data);
+            try {
+              localStorage.setItem('site_page_admissions', JSON.stringify(data));
+              localStorage.setItem('site_page_admissions_ts', Date.now().toString());
+            } catch (_) {}
           }
         }
       } catch (e) {
@@ -41,12 +64,9 @@ export default function Admissions() {
     return () => { isMounted = false; };
   }, []);
 
-  // Real-time live synchronization with Firebase Firestore settings
+  // SWR synchronization for admissions settings
   useEffect(() => {
-    const unsubscribe = subscribeSiteSettings((liveSettings) => {
-      setSettings(liveSettings);
-    });
-    return () => unsubscribe();
+    loadSiteSettings().then(setSettings);
   }, []);
 
   // Listen to cross-tab data sync broadcasts

@@ -7,10 +7,40 @@ import { doc, getDoc } from 'firebase/firestore';
 import { formatTitleWithBrackets } from '../utils/textFormatting';
 
 export default function NoticeBoard() {
-  const [notices, setNotices] = useState([]);
+  const [notices, setNotices] = useState(() => {
+    try {
+      const local = localStorage.getItem('site_notices');
+      if (local) {
+        const lines = local.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const parsed = lines.map(line => {
+          const firstComma = line.indexOf(',');
+          if (firstComma === -1) return null;
+          const date = line.substring(0, firstComma).trim();
+          const rest = line.substring(firstComma + 1);
+          const secondComma = rest.indexOf(',');
+          if (secondComma === -1) return { date, title: rest.trim(), link: '#' };
+          const title = rest.substring(0, secondComma).trim();
+          const rest2 = rest.substring(secondComma + 1).trim();
+          const thirdComma = rest2.indexOf(',');
+          if (thirdComma === -1) return { date, title: rest2, link: '#' };
+          const link = rest2.substring(0, thirdComma).trim();
+          const days = rest2.substring(thirdComma + 1).trim();
+          return { date, title, link, days: days ? parseInt(days, 10) : undefined };
+        }).filter(Boolean);
+        if (parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  });
   const [settings, setSettings] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('site_notices');
+    } catch (_) {
+      return true;
+    }
+  });
 
   const parseNoticeDate = (dateStr) => {
     if (!dateStr) return null;
@@ -91,6 +121,13 @@ export default function NoticeBoard() {
   useEffect(() => {
     let active = true;
     async function loadNotices() {
+      const noticeTsKey = 'site_notices_ts';
+      const lastTs = Number(localStorage.getItem(noticeTsKey) || 0);
+      const isFresh = (Date.now() - lastTs) < 15 * 60 * 1000;
+      if (isFresh && notices.length > 0) {
+        setLoading(false);
+        return;
+      }
       // 1. Try Firestore first (Live Cloud Data across all devices)
       try {
         const snap = await getDoc(doc(db, 'site', 'notices'));
@@ -100,7 +137,7 @@ export default function NoticeBoard() {
             const parsed = parseNotices(data.text);
             if (parsed.length > 0) {
               setNotices(parsed);
-              localStorage.setItem('site_notices', data.text);
+              localStorage.setItem('site_notices', data.text); try { localStorage.setItem('site_notices_ts', Date.now().toString()); } catch (_) {}
               setLoading(false);
               return;
             }
@@ -119,7 +156,7 @@ export default function NoticeBoard() {
             const parsed = parseNotices(text);
             if (parsed.length > 0 && active) {
               setNotices(parsed);
-              localStorage.setItem('site_notices', text);
+              localStorage.setItem('site_notices', text); try { localStorage.setItem('site_notices_ts', Date.now().toString()); } catch (_) {}
               setLoading(false);
               return;
             }

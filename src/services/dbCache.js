@@ -760,6 +760,9 @@ async function revalidateBackground(collectionName, existingData, onBackgroundUp
  * so they never appear in the UI even if Firebase still has residual copies.
  */
 async function fetchFreshFromFirestore(collectionName) {
+  if (collectionName === 'masterRegisters') {
+    return getMasterRegistersScoped({ forceAll: false });
+  }
   if (typeof window !== 'undefined') {
     window._hssGlobalFetchActive = true;
     setTimeout(() => {

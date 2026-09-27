@@ -136,7 +136,15 @@ export default function Navbar() {
     return '/portal/admin';
   };
 
-  const loadDynamicPages = async () => {
+  const loadDynamicPages = async (force = false) => {
+    const timestampKey = 'site_dynamic_pages_ts';
+    const lastTs = Number(localStorage.getItem(timestampKey) || 0);
+    const isFresh = (Date.now() - lastTs) < 30 * 60 * 1000; // 30 minutes TTL
+
+    if (!force && isFresh && dynamicLinks && dynamicLinks.length > 0) {
+      return;
+    }
+
     try {
       const { db } = await import('../firebase');
       const { doc, getDoc } = await import('firebase/firestore');
@@ -149,6 +157,7 @@ export default function Navbar() {
         setDynamicLinks(activeCustom);
         try {
           localStorage.setItem('site_dynamic_pages', JSON.stringify(activeCustom));
+          localStorage.setItem(timestampKey, Date.now().toString());
         } catch (_) {}
       }
     } catch (err) {
@@ -161,7 +170,7 @@ export default function Navbar() {
     let idleId = null;
 
     const run = () => {
-      loadDynamicPages();
+      loadDynamicPages(false);
     };
 
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
@@ -174,7 +183,7 @@ export default function Navbar() {
       const channel = new BroadcastChannel('hss_data_sync');
       channel.onmessage = (e) => {
         if (e.data && e.data.type === 'UPDATE_DATA') {
-          loadDynamicPages();
+          loadDynamicPages(true);
         }
       };
       return () => {

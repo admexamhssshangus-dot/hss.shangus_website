@@ -5,7 +5,7 @@ import {
   SlidersHorizontal, ChevronDown, Eye, EyeOff, Check, Users
 } from 'lucide-react';
 import { db } from '../../services/firebase';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import ConfirmModal from '../components/ConfirmModal';
 import { 
   createStaffAccount, 
@@ -204,7 +204,7 @@ export default function StaffPermissionsManager() {
 
         // Query users collection for any additional registered faculty/teachers/admins
         try {
-          const usersSnap = await getDocs(collection(db, 'users'));
+          const usersSnap = await getDocs(query(collection(db, 'users'), where('isStaff', '==', true)));
           if (!usersSnap.empty) {
             const extraStaff = [];
             usersSnap.docs.forEach((d) => {

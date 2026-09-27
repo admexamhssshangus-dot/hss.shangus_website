@@ -13,7 +13,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, addDoc } from 'firebase/firestore';
-import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
+import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import {
@@ -1690,15 +1690,35 @@ export default function PracticalsPage() {
 
       try {
         let [rawDocs, masterRes, admRes] = await Promise.all([
-          getCachedCollection('practicalsData', true, 0).catch(() => []),
-          getCachedCollection('masterRegisters', false, 15 * 60 * 1000).catch(() => []),
+          getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []),
+          getMasterRegistersScoped({ forceAll: false }).catch(() => []),
           getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => [])
         ]);
+
+        // Targeted single-document check if exact award was not present in memory cache
+        let targetedDocSnaps = [];
+        try {
+          const cachedIds = new Set((rawDocs || []).map(d => String(d.id || d.docId || "")));
+          if (!cachedIds.has(docId) && !cachedIds.has(pendingDocId)) {
+            const { getDoc, doc: fsDoc } = await import("firebase/firestore");
+            targetedDocSnaps = await Promise.all([
+              getDoc(fsDoc(db, "practicalsData", docId)).catch(() => null),
+              getDoc(fsDoc(db, "practicalsData", pendingDocId)).catch(() => null)
+            ]);
+          }
+        } catch (_) {}
 
         masterDocs = Array.isArray(masterRes) ? masterRes : [];
         admDocs = Array.isArray(admRes) ? admRes : [];
 
-        let docItems = Array.isArray(rawDocs) ? rawDocs : (rawDocs?.docs ? rawDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+        let docItems = Array.isArray(rawDocs) ? [...rawDocs] : (rawDocs?.docs ? rawDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+        if (Array.isArray(targetedDocSnaps)) {
+          targetedDocSnaps.forEach(snap => {
+            if (snap && snap.exists()) {
+              docItems.push({ id: snap.id, ...snap.data() });
+            }
+          });
+        }
         // Direct query fallback to ensure complete integrity if cached collection is empty
         if (docItems.length === 0) {
           try {

@@ -216,7 +216,7 @@ export default function PortalLayout() {
         
         // If session is already authenticated and active for this email, refresh claims silently in background without blocking UI
         if (sessionStateRef.current.isAuthenticated && sessionStateRef.current.user?.email === cleanEmail) {
-          resolveUserProfile(fbUser, true).then((prof) => {
+          resolveUserProfile(fbUser, false).then((prof) => {
             if (auth.currentUser?.uid !== fbUser.uid) return;
             const updatedSession = {
               email: cleanEmail,
@@ -246,7 +246,7 @@ export default function PortalLayout() {
 
         // Full session restore on cold start / page refresh
         try {
-          const prof = await resolveUserProfile(fbUser, true);
+          const prof = await resolveUserProfile(fbUser, false);
           if (auth.currentUser?.uid !== fbUser.uid) return;
           const defaultSession = {
             email: cleanEmail,

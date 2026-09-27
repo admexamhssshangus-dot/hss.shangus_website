@@ -28,22 +28,13 @@ export default function TeacherDashboard() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
 
-  const fetchSubmissionHistory = useCallback(async (force = true) => {
+  const fetchSubmissionHistory = useCallback(async (force = false) => {
     setLoadingHistory(true);
     try {
       if (force) {
         invalidateCollectionCache('practicalsData');
       }
-      let rawDocs = [];
-      try {
-        const snap = await getDocs(collection(db, 'practicalsData'));
-        if (!snap.empty) {
-          rawDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        }
-      } catch (err) {
-        console.warn('Direct getDocs failed, falling back to cache:', err);
-        rawDocs = await getCachedCollection('practicalsData', force, 5 * 60 * 1000).catch(() => []);
-      }
+      const rawDocs = await getCachedCollection('practicalsData', force, 15 * 60 * 1000).catch(() => []);
 
       if (Array.isArray(rawDocs) && rawDocs.length > 0) {
         const list = rawDocs

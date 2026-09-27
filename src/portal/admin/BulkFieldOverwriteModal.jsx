@@ -20,7 +20,7 @@ import {
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, getDocs, collection } from 'firebase/firestore';
-import { updateCachedItem, getCachedCollectionSync, getCachedCollection } from '../../services/dbCache';
+import { updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { saveCsvImportBatch } from '../../services/csvBatchManager';
 import { toTitleCase } from '../../utils/textFormatting';
@@ -545,9 +545,14 @@ export default function BulkFieldOverwriteModal({
 
         if (validMaster.length === 0) {
           try {
-            const masterSnap = await getDocs(collection(db, 'masterRegisters'));
-            if (!masterSnap.empty) {
-              validMaster = masterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const masterRes = await getMasterRegistersScoped({ forceAll: true });
+            if (Array.isArray(masterRes) && masterRes.length > 0) {
+              validMaster = masterRes;
+            } else {
+              const masterSnap = await getDocs(collection(db, 'masterRegisters'));
+              if (!masterSnap.empty) {
+                validMaster = masterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+              }
             }
           } catch (_) {}
         }
