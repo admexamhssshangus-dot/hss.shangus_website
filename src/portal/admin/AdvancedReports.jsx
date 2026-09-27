@@ -15822,309 +15822,226 @@ export default function AdvancedReports({
               </div>
             )}
 
-            {/* Tool Content 4: Database Backup & Excel Suite */}
+            {/* Tool Content 4: Database Backup & Excel */}
             {activeToolsTab === 'db_backup' && (
-              <div className="space-y-2.5 p-1.5 sm:p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800/80 animate-fadeIn">
-                {/* Minimal Header */}
-                <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1.5 border-b border-slate-200/80 dark:border-slate-800/80 pb-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <div className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                      <Database size={13} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-black text-xs text-slate-900 dark:text-white leading-tight truncate">
-                        Database Backup & Institutional Registers
+              <div className="space-y-3">
+                {/* ─── GROUP 1: INSTITUTIONAL MASTER REGISTER & DATABASE WORKBOOKS (.xlsx) ─── */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="p-1 rounded-md bg-teal-600 text-white shrink-0 shadow-2xs">
+                        <FileSpreadsheet size={13} />
                       </div>
-                      <p className="text-slate-500 dark:text-slate-400 text-[10px] font-medium hidden sm:block">
-                        Multi-session master registers, database workbooks, CMS mirrors & disaster recovery archives.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[9.5px] sm:text-[10px] font-bold shrink-0 self-end xs:self-auto">
-                    <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-                      Total: {allStudents.length}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
-                      Filtered: {filteredStudents.length}
-                    </span>
-                  </div>
-                </div>
-
-                {/* ─── GROUP 1: INSTITUTIONAL EXCEL WORKBOOKS & REGISTERS ─── */}
-                <div className="space-y-2 p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                  {/* Master Multi-Sheet Excel Card */}
-                  <div className="p-2 sm:p-2.5 rounded-lg bg-teal-50/30 dark:bg-teal-950/15 border border-teal-500/20 dark:border-teal-500/20 space-y-2">
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                      <div className="flex items-start gap-1.5 min-w-0">
-                        <div className="p-1 rounded-md bg-teal-600 text-white shrink-0 shadow-2xs">
-                          <FileSpreadsheet size={13} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-black text-xs text-slate-900 dark:text-white">
-                              Master Multi-Sheet Excel Backup (.xlsx)
-                            </span>
-                            <span className="text-[8px] px-1.5 py-0.2 rounded bg-teal-600 text-white font-extrabold uppercase tracking-wider">
-                              Recommended
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">
-                            Comprehensive workbook with 7 dedicated sheets covering admissions, faculty, notices, settings & audits.
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Action Buttons - Fully Responsive Mobile Stack / Desktop Row */}
-                      <div className="flex flex-col xs:flex-row sm:flex-row items-stretch sm:items-center gap-1.5 w-full sm:w-auto shrink-0">
-                        <button
-                          type="button"
-                          disabled={isExportingDbExcel || isExportingDbZip}
-                          onClick={handleDownloadFullDatabaseExcel}
-                          className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-bold text-[11px] sm:text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
-                        >
-                          {isExportingDbExcel ? (
-                            <>
-                              <RefreshCw size={12} className="animate-spin" />
-                              <span>Compiling...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Download size={12} />
-                              <span>Download Excel {masterMultiColumnMode === 'all' ? '(100+ Cols)' : '(.xlsx)'}</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={isExportingDbZip || isExportingDbExcel}
-                          onClick={handleDownloadMasterBackupZip}
-                          className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white font-bold text-[11px] sm:text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
-                          title="Downloads single compressed ZIP containing Master Excel, Disaster Recovery JSON, Settings, Faculty, Notices, and Manifest"
-                        >
-                          {isExportingDbZip ? (
-                            <>
-                              <RefreshCw size={12} className="animate-spin" />
-                              <span>Creating ZIP...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Archive size={12} />
-                              <span>Master Backup ZIP (.zip)</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Scope & Column Controls - Fits cleanly without truncating on mobile */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 border border-teal-500/20 dark:border-teal-700/30 text-xs">
-                      {/* Data Scope Control */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                          <span>Student Data Scope:</span>
-                          <span className="text-teal-700 dark:text-teal-400 font-black">
-                            {masterMultiScope === 'filtered' ? `${masterFilteredStudentsCount} Students` : `${totalCandidateStudentsCount} Total`}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] sm:text-[10.5px]">
-                          <button
-                            type="button"
-                            onClick={() => setMasterMultiScope('filtered')}
-                            className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
-                              masterMultiScope === 'filtered'
-                                ? 'bg-teal-700 text-white shadow-2xs'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                            }`}
-                            title="Downloads records matching active Class, Stream, Session, and Status filters"
-                          >
-                            <span className="hidden sm:inline">Filtered Scope</span>
-                            <span className="sm:hidden">Filtered</span> ({masterFilteredStudentsCount})
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setMasterMultiScope('all')}
-                            className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
-                              masterMultiScope === 'all'
-                                ? 'bg-teal-700 text-white shadow-2xs'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                            }`}
-                            title="Downloads all institutional records across admissions and digitized archives"
-                          >
-                            <span className="hidden sm:inline">All Records</span>
-                            <span className="sm:hidden">All</span> ({totalCandidateStudentsCount})
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Column Detail Level Control */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                          <span>Admissions Columns:</span>
-                          <span className="text-teal-700 dark:text-teal-400 font-black">
-                            {masterMultiColumnMode === 'important' ? '48 Standard' : '100+ Complete'}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] sm:text-[10.5px]">
-                          <button
-                            type="button"
-                            onClick={() => setMasterMultiColumnMode('important')}
-                            className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
-                              masterMultiColumnMode === 'important'
-                                ? 'bg-teal-700 text-white shadow-2xs'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                            }`}
-                            title="Exports curated 48 standard official columns (Recommended)"
-                          >
-                            <span className="hidden sm:inline">Important Only</span>
-                            <span className="sm:hidden">Standard</span> (48)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setMasterMultiColumnMode('all')}
-                            className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
-                              masterMultiColumnMode === 'all'
-                                ? 'bg-teal-700 text-white shadow-2xs'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                            }`}
-                            title="Exports exhaustive 100+ columns including all fields, metadata, and raw properties"
-                          >
-                            <span className="hidden sm:inline">All Details</span>
-                            <span className="sm:hidden">Full</span> (100+)
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Dedicated Sheet Badges - Compact & Wrap-Friendly */}
-                    <div className="flex flex-wrap gap-1">
-                      {[
-                        masterMultiColumnMode === 'all' ? '1. Student_Admissions (100+ Cols)' : '1. Student_Admissions (48 Cols)',
-                        '2. Faculty_Directory (12 Cols)',
-                        '3. Notices_Circulars',
-                        '4. Site_Settings',
-                        '5. Admin_Accounts',
-                        '6. Practicals_Awards',
-                        '7. System_Metadata'
-                      ].map(t => (
-                        <span key={t} className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-teal-500/20 dark:border-teal-700/30 text-[9px] font-mono font-bold">
-                          {t}
+                      <div className="min-w-0">
+                        <span className="font-black text-xs text-slate-900 dark:text-white">
+                          Master Register & Multi-Sheet Excel Backups (.xlsx)
                         </span>
-                      ))}
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                          Export session registers, digitized archives (2006–2026), and comprehensive institutional workbooks.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">
+                      Scope: <span className="font-bold text-teal-700 dark:text-teal-400">{masterMultiScope === 'filtered' ? `${masterFilteredStudentsCount} Students` : `${totalCandidateStudentsCount} Total Records`}</span>
                     </div>
                   </div>
 
-                  {/* Session Master Register Exporter (Historical 2006–2026) */}
-                  <div className="p-2 sm:p-2.5 rounded-lg bg-amber-50/25 dark:bg-amber-950/10 border border-amber-500/20 dark:border-amber-500/20 space-y-2">
-                    <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1">
-                      <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <div className="p-1 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
-                          <FileSpreadsheet size={12} />
-                        </div>
-                        <span>Historical & Session Master Register (.xlsx)</span>
-                        <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 font-extrabold uppercase border border-amber-500/30">
-                          2006–2026
-                        </span>
-                      </div>
-                      <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium">
-                        48 Standard Columns • Multi-Session Tabs
-                      </span>
+                  {/* 1. Filter Parameters (Class, Stream, Session, Status) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                        Target Class:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Classes"
+                        options={availableClasses}
+                        selected={masterExportSelectedClasses}
+                        onChange={setMasterExportSelectedClasses}
+                        align="left"
+                      />
                     </div>
 
-                    {/* Class, Stream, Sessions & Status Controls */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-                      <div className="space-y-0.5">
-                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                          Target Class:
-                        </label>
-                        <MultiSelectCheckboxDropdown
-                          label="Classes"
-                          options={availableClasses}
-                          selected={masterExportSelectedClasses}
-                          onChange={setMasterExportSelectedClasses}
-                          align="left"
-                        />
-                      </div>
-
-                      <div className="space-y-0.5">
-                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                          Academic Stream:
-                        </label>
-                        <select
-                          value={masterExportStream}
-                          onChange={(e) => setMasterExportStream(e.target.value)}
-                          className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500"
-                        >
-                          <option value="ALL">All Streams</option>
-                          {availableStreams.map(st => (
-                            <option key={st} value={st}>{st}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-0.5">
-                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                          Academic Sessions:
-                        </label>
-                        <MultiSelectCheckboxDropdown
-                          label="Sessions"
-                          options={allKnownSessions}
-                          selected={masterExportSelectedSessions}
-                          onChange={handleMasterExportSessionsChange}
-                          align="left"
-                          presetAction={{ label: 'Active', value: ['2025-26'], title: 'Select Active Session 2025-26' }}
-                        />
-                      </div>
-
-                      <div className="space-y-0.5">
-                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                          Admission Status:
-                        </label>
-                        <MultiSelectCheckboxDropdown
-                          label="Status"
-                          options={availableStatuses}
-                          selected={masterExportSelectedStatuses}
-                          onChange={(val) => setMasterExportSelectedStatuses(val)}
-                          align="right"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Export Trigger Footer */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800/60">
-                      <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium truncate">
-                        Scope:{' '}
-                        <span className="font-bold text-slate-900 dark:text-white">
-                          {masterExportSelectedSessions.length === 0 || masterExportSelectedSessions.length === allKnownSessions.length
-                            ? 'All Sessions'
-                            : masterExportSelectedSessions.includes('__NONE__')
-                              ? 'No Sessions'
-                              : `${masterExportSelectedSessions.length} Sess`}
-                        </span>
-                        {' • '}Class: <span className="font-bold text-slate-900 dark:text-white">{masterExportSelectedClasses.length === 0 ? 'All' : masterExportSelectedClasses.includes('__NONE__') ? 'None' : masterExportSelectedClasses.join(', ')}</span>
-                        {' • '}Stream: <span className="font-bold text-slate-900 dark:text-white">{masterExportStream}</span>
-                        {' • '}Status: <span className="font-bold text-slate-900 dark:text-white">{masterExportSelectedStatuses.length === 0 ? 'All' : masterExportSelectedStatuses.includes('__NONE__') ? 'None' : masterExportSelectedStatuses.join(', ')}</span>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={isExportingMasterRegister || masterExportSelectedSessions.includes('__NONE__')}
-                        onClick={handleDownloadSessionMasterRegister}
-                        className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-bold text-[11px] sm:text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                        Academic Stream:
+                      </label>
+                      <select
+                        value={masterExportStream}
+                        onChange={(e) => setMasterExportStream(e.target.value)}
+                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-teal-500"
                       >
-                        {isExportingMasterRegister ? (
-                          <>
-                            <RefreshCw size={12} className="animate-spin" />
-                            <span>Generating...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Download size={12} />
-                            <span>Download Master Register (.xlsx)</span>
-                          </>
-                        )}
-                      </button>
+                        <option value="ALL">All Streams</option>
+                        {availableStreams.map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
                     </div>
+
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                        Academic Sessions:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Sessions"
+                        options={allKnownSessions}
+                        selected={masterExportSelectedSessions}
+                        onChange={handleMasterExportSessionsChange}
+                        align="left"
+                        presetAction={{ label: 'Active', value: ['2025-26'], title: 'Select Active Session 2025-26' }}
+                      />
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                        Admission Status:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Status"
+                        options={availableStatuses}
+                        selected={masterExportSelectedStatuses}
+                        onChange={(val) => setMasterExportSelectedStatuses(val)}
+                        align="right"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 2. Scope & Column Mode Toggles */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
+                    {/* Data Scope Control */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                        <span>Data Scope:</span>
+                        <span className="text-teal-700 dark:text-teal-400 font-black">
+                          {masterMultiScope === 'filtered' ? `${masterFilteredStudentsCount} Students` : `${totalCandidateStudentsCount} Total`}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10.5px]">
+                        <button
+                          type="button"
+                          onClick={() => setMasterMultiScope('filtered')}
+                          className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
+                            masterMultiScope === 'filtered'
+                              ? 'bg-teal-700 text-white shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                          title="Downloads records matching active Class, Stream, Session, and Status filters"
+                        >
+                          Filtered Scope ({masterFilteredStudentsCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMasterMultiScope('all')}
+                          className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
+                            masterMultiScope === 'all'
+                              ? 'bg-teal-700 text-white shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                          title="Downloads all institutional records across admissions and digitized archives"
+                        >
+                          All Records ({totalCandidateStudentsCount})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Column Detail Level Control */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                        <span>Columns Mode:</span>
+                        <span className="text-teal-700 dark:text-teal-400 font-black">
+                          {masterMultiColumnMode === 'important' ? '48 Standard Columns' : '100+ Complete Details'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10.5px]">
+                        <button
+                          type="button"
+                          onClick={() => setMasterMultiColumnMode('important')}
+                          className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
+                            masterMultiColumnMode === 'important'
+                              ? 'bg-teal-700 text-white shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                          title="Exports curated 48 standard official columns (Recommended)"
+                        >
+                          Important Only (48)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMasterMultiColumnMode('all')}
+                          className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
+                            masterMultiColumnMode === 'all'
+                              ? 'bg-teal-700 text-white shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                          title="Exports exhaustive 100+ columns including all fields, metadata, and raw properties"
+                        >
+                          All Details (100+)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Action Buttons Row */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      disabled={isExportingMasterRegister || masterExportSelectedSessions.includes('__NONE__')}
+                      onClick={handleDownloadSessionMasterRegister}
+                      className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-bold text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                      title="Download dedicated Master Register spreadsheet (.xlsx)"
+                    >
+                      {isExportingMasterRegister ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" />
+                          <span>Generating Register...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download size={12} />
+                          <span>Download Master Register (.xlsx)</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isExportingDbExcel || isExportingDbZip}
+                      onClick={handleDownloadFullDatabaseExcel}
+                      className="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-bold text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                      title="Download comprehensive 7-sheet institutional workbook"
+                    >
+                      {isExportingDbExcel ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" />
+                          <span>Compiling 7 Sheets...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileSpreadsheet size={12} />
+                          <span>Download Multi-Sheet Excel (.xlsx)</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isExportingDbZip || isExportingDbExcel}
+                      onClick={handleDownloadMasterBackupZip}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white font-bold text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                      title="Download all-in-one ZIP with Excel, JSON disaster recovery, and CMS mirrors"
+                    >
+                      {isExportingDbZip ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" />
+                          <span>Creating ZIP...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Archive size={12} />
+                          <span>Master Backup ZIP (.zip)</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
 
