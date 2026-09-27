@@ -400,27 +400,68 @@ function getCalculatedStayPeriod(stayPeriod) {
   return `${stayPeriod} (${parts.join(', ')})`;
 }
 
-// Custom iOS-style Toggle Switch Component
-function ToggleSwitch({ checked, onChange, disabled = false, labelLeft = '', labelRight = '' }) {
+// Standard Modern Accessible Toggle Switch Component
+function ToggleSwitch({ 
+  checked, 
+  onChange, 
+  disabled = false, 
+  labelLeft = '', 
+  labelRight = '', 
+  activeColor = 'emerald',
+  size = 'md',
+  ariaLabel = 'Toggle switch'
+}) {
+  const isSm = size === 'sm';
+  const activeBg = activeColor === 'indigo'
+    ? 'bg-indigo-600 dark:bg-indigo-500'
+    : 'bg-emerald-600 dark:bg-emerald-500';
+
   return (
-    <div className="flex items-center gap-1.5 select-none">
+    <div className="inline-flex items-center gap-2 select-none">
       {labelLeft && (
-        <span className={`text-[10px] font-black uppercase tracking-wider transition-colors ${!checked ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+        <span className={`text-[10px] sm:text-[10.5px] font-black uppercase tracking-wider transition-colors ${
+          !checked ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'
+        }`}>
           {labelLeft}
         </span>
       )}
       <button
         type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={ariaLabel}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-slate-300 dark:border-slate-700 transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${checked ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}
+        onClick={() => !disabled && onChange(!checked)}
+        className={`toggle-switch-btn relative inline-flex shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 disabled:opacity-40 disabled:cursor-not-allowed shadow-inner ${
+          checked ? activeBg : 'bg-slate-300 dark:bg-slate-700'
+        }`}
+        style={{
+          minHeight: isSm ? '20px' : '24px',
+          maxHeight: isSm ? '20px' : '24px',
+          height: isSm ? '20px' : '24px',
+          width: isSm ? '36px' : '44px',
+          padding: '2px',
+          boxSizing: 'border-box',
+          border: 'none',
+          display: 'inline-flex',
+          alignItems: 'center'
+        }}
       >
         <span
-          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-4' : 'translate-x-0'}`}
+          className={`pointer-events-none inline-block rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+            checked ? (isSm ? 'translate-x-4' : 'translate-x-5') : 'translate-x-0'
+          }`}
+          style={{
+            width: isSm ? '16px' : '20px',
+            height: isSm ? '16px' : '20px',
+            flexShrink: 0
+          }}
         />
       </button>
       {labelRight && (
-        <span className={`text-[10px] font-black uppercase tracking-wider transition-colors ${checked ? 'text-rose-700 dark:text-rose-400' : 'text-slate-400 dark:text-slate-500'}`}>
+        <span className={`text-[10px] sm:text-[10.5px] font-black uppercase tracking-wider transition-colors ${
+          checked ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'
+        }`}>
           {labelRight}
         </span>
       )}
@@ -2181,7 +2222,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
     // 1. Load admissions settings — always go through loadSiteSettings()
     //    so that any migrations (e.g. marginalReliefEnabled fix) are applied.
-    loadSiteSettings().then((loadedSettings) => {
+    loadSiteSettings({ forceFirestore: true }).then((loadedSettings) => {
       setSettings(loadedSettings);
     });
 
@@ -6493,15 +6534,25 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                   {/* Global Enrollment System */}
                   <div className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs">
                     <div className="min-w-0 pr-1">
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">Global Enrollment System</h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">Global Enrollment System</h3>
+                        <span className={`text-[9.5px] uppercase font-black px-2 py-0.5 rounded-full border ${
+                          !settings.globalAdmissionsClosed
+                            ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                            : 'bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700'
+                        }`}>
+                          {!settings.globalAdmissionsClosed ? 'Registration Open' : 'Registration Closed'}
+                        </span>
+                      </div>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Enable or disable registration online across all streams.</p>
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 flex items-center gap-2">
                       <ToggleSwitch
-                        checked={settings.globalAdmissionsClosed}
+                        checked={!settings.globalAdmissionsClosed}
                         onChange={handleGlobalToggle}
-                        labelLeft="Open"
-                        labelRight="Closed"
+                        labelLeft="Closed"
+                        labelRight="Open"
+                        ariaLabel="Toggle Global Enrollment System"
                       />
                     </div>
                   </div>
@@ -6533,6 +6584,8 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                           onChange={(val) => setSettings((s) => ({ ...s, enable3dHeroAssets: val }))}
                           labelLeft="Off"
                           labelRight="On"
+                          activeColor="indigo"
+                          ariaLabel="Toggle Hero 3D Experience"
                         />
                       </div>
                     </div>
@@ -6558,6 +6611,9 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                             onChange={(val) => setSettings((s) => ({ ...s, enable3dHeroAssetsMobile: val }))}
                             labelLeft="Off"
                             labelRight="On"
+                            activeColor="indigo"
+                            size="sm"
+                            ariaLabel="Toggle 3D Assets on Mobile"
                           />
                         </div>
                       </div>
@@ -6570,13 +6626,27 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                   <h3 className="text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1.5">Class-Wise Admission Flags</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {['9th', '10th', '11th', '12th'].map((cls) => {
+                      const isOpen = !settings.admissionsClosed[cls];
                       return (
-                        <div key={cls} className="bg-white dark:bg-slate-900/40 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shadow-xs">
-                          <span className="font-bold text-xs text-slate-800 dark:text-slate-200 whitespace-nowrap">{cls} Class</span>
+                        <div key={cls} className="bg-white dark:bg-slate-900/40 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+                          <div className="min-w-0">
+                            <span className="font-extrabold text-xs text-slate-800 dark:text-slate-200 block truncate">{cls} Class</span>
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${
+                              settings.globalAdmissionsClosed
+                                ? 'text-slate-400 dark:text-slate-500'
+                                : isOpen
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-rose-600 dark:text-rose-400'
+                            }`}>
+                              {settings.globalAdmissionsClosed ? 'Globally Closed' : (isOpen ? 'Open' : 'Closed')}
+                            </span>
+                          </div>
                           <ToggleSwitch
-                            checked={settings.admissionsClosed[cls]}
+                            checked={isOpen}
                             onChange={() => handleClassToggle(cls)}
                             disabled={settings.globalAdmissionsClosed}
+                            size="sm"
+                            ariaLabel={`Toggle ${cls} Class Admission`}
                           />
                         </div>
                       );

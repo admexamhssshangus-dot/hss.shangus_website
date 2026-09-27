@@ -621,13 +621,16 @@ button, input, select, textarea { font: inherit; }
 .admin-portal-container .text-\[9px\]:not(table *):not(.status-badge-btn) { font-size: 0.75rem; }
 .admin-portal-container .text-\[10px\]:not(table *):not(.status-badge-btn) { font-size: 0.75rem; }
 .admin-portal-container .text-\[11px\]:not(table *):not(.status-badge-btn) { font-size: 0.8125rem; }
-.admin-portal-container button:not(table button):not(.status-badge-btn):not(.compact-btn),
+.admin-portal-container button:not(table button):not(.status-badge-btn):not(.compact-btn):not(.toggle-switch-btn):not([role='switch']),
 .admin-portal-container select:not(table select) { min-height: 2.25rem; }
 
 .admin-portal-container table button,
 .admin-portal-container table select,
 .admin-portal-container .status-badge-btn,
 .admin-portal-container .compact-btn,
+.admin-portal-container .toggle-switch-btn,
+.admin-portal-container [role='switch'],
+.toggle-switch-btn,
 .portal-shell .practicals-control,
 .portal-shell select.practicals-select,
 .portal-shell button.practicals-control,
@@ -635,12 +638,19 @@ button, input, select, textarea { font: inherit; }
 .portal-shell select.portal-compact-select,
 .portal-shell input.portal-compact-input,
 .portal-shell button.portal-compact-btn {
-  min-height: unset;
+  min-height: unset !important;
+  max-height: unset !important;
+}
+
+.toggle-switch-btn {
+  border: none !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
 }
 
 @media (pointer: coarse) {
-  .portal-shell button:not(table button):not(.status-badge-btn):not(.compact-btn):not(.practicals-control):not(.portal-compact-control):not(.portal-compact-btn),
-  .portal-shell [role='button']:not(table *):not(.status-badge-btn):not(.compact-btn):not(.practicals-control):not(.portal-compact-control):not(.portal-compact-btn),
+  .portal-shell button:not(table button):not(.status-badge-btn):not(.compact-btn):not(.practicals-control):not(.portal-compact-control):not(.portal-compact-btn):not(.toggle-switch-btn):not([role='switch']),
+  .portal-shell [role='button']:not(table *):not(.status-badge-btn):not(.compact-btn):not(.practicals-control):not(.portal-compact-control):not(.portal-compact-btn):not(.toggle-switch-btn):not([role='switch']),
   .portal-shell input:not([type='checkbox']):not([type='radio']):not(.admin-search-input):not(.practicals-control):not(.portal-compact-input):not(.portal-compact-control):not(table input),
   .portal-shell select:not(table select):not(.practicals-select):not(.practicals-control):not(.portal-compact-select):not(.portal-compact-control) { min-height: 2.75rem; }
   .admin-portal-container { font-size: 0.875rem; }
