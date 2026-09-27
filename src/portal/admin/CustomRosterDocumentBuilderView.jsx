@@ -3929,6 +3929,24 @@ export default function CustomRosterDocumentBuilderView({
     }
   };
 
+  const handlePrintRef = useRef(handlePrint);
+  useEffect(() => {
+    handlePrintRef.current = handlePrint;
+  });
+
+  // Intercept Ctrl+P / Cmd+P to trigger clean roster document print/PDF instead of browser window print
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlePrintRef.current?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
+
   // Export to Excel (.xlsx) — Includes only checked rows with sequential S.No.
   const handleExportExcel = () => {
     exportCustomRosterExcel({

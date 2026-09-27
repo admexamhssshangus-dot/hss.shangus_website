@@ -22,6 +22,7 @@ import {
   interpolateCertificateTemplate,
   retokenizeCertificateBody,
   sanitizeTemplateObject,
+  resolveStudentLocality,
   printStudentCertificate,
   generateStudentCertificateDocx
 } from '../../utils/certificateExportUtils';
@@ -1708,6 +1709,7 @@ export default function StudentCertificateStudioView({
     setRefNo(immediateRef);
 
     // Force-sync WYSIWYG editor DOM synchronously with interpolated preview for immediate zero-delay display
+    const immediateLocality = resolveStudentLocality(st, primaryRaw, effectiveAddr);
     if (editorRef.current) {
       const immediateHtml = interpolateCertificateTemplate(cleanTplBody, {
         studentName: st.name || '',
@@ -1728,8 +1730,8 @@ export default function StudentCertificateStudioView({
         customFields,
         // TC/DC tokens
         examName: `Class ${effectiveClass || '12th'} Examination`,
-        examRollNo: primaryRaw['Exam Roll No'] || primaryRaw.examRoll || '',
-        examSession: primaryRaw['Exam Session'] || primaryRaw.examSession || '',
+        examRollNo: primaryRaw['Exam Roll No'] || primaryRaw.examRoll || primaryRaw.currExamRoll || st.rollNo || '',
+        examSession: primaryRaw['Exam Session'] || primaryRaw.examSession || primaryRaw.currExamMode || effectiveSession || '',
         resultStatus: primaryRaw['Result Status'] || primaryRaw.resultStatus || 'Awaiting Result',
         divisionDistinction: primaryRaw['Division'] || primaryRaw.division || '—',
         marksObtained: primaryRaw['Marks Obtained'] || primaryRaw.marksObtained || '',
@@ -1739,10 +1741,11 @@ export default function StudentCertificateStudioView({
         admissionNo: admNoResolved || '',
         withdrawalDate: rawWd || '',
         conductStatus: 'Satisfactory',
-        village: primaryRaw['Village/Town'] || primaryRaw.village || st.address || '',
-        tehsil: primaryRaw['Tehsil'] || primaryRaw.tehsil || '',
-        district: primaryRaw['District'] || primaryRaw.district || '',
-        certificateNo: immediateRef
+        village: immediateLocality.village,
+        tehsil: immediateLocality.tehsil,
+        district: immediateLocality.district,
+        certificateNo: immediateRef,
+        raw: primaryRaw
       });
       editorRef.current.innerHTML = sanitizeCertificateHtml(immediateHtml);
       pushSnapshot();
@@ -1818,6 +1821,7 @@ export default function StudentCertificateStudioView({
 
         // Immediately update editor DOM with enriched student details so admission no, date, and address are filled
         if (editorRef.current && (enrichedAdmNo || enrichedAdmDate || enrichedAddr)) {
+          const enrichedLocality = resolveStudentLocality(st, enrichedRaw, enrichedAddr);
           const reinterpolatedHtml = interpolateCertificateTemplate(cleanTplBody, {
             studentName: st.name || '',
             fatherName: st.father || '',
@@ -1839,10 +1843,11 @@ export default function StudentCertificateStudioView({
             admissionNo: enrichedAdmNo || admNoResolved || '',
             withdrawalDate: rawWd || '',
             conductStatus: 'Satisfactory',
-            village: enrichedRaw['Village/Town'] || enrichedRaw.village || extractVillage(enrichedRaw) || '',
-            tehsil: enrichedRaw['Tehsil'] || enrichedRaw.tehsil || '',
-            district: enrichedRaw['District'] || enrichedRaw.district || '',
-            certificateNo: immediateRef
+            village: enrichedLocality.village,
+            tehsil: enrichedLocality.tehsil,
+            district: enrichedLocality.district,
+            certificateNo: immediateRef,
+            raw: enrichedRaw
           });
           editorRef.current.innerHTML = sanitizeCertificateHtml(reinterpolatedHtml);
         }
@@ -1892,10 +1897,12 @@ export default function StudentCertificateStudioView({
     // Auto-update Ref No / Certificate No cleanly without 16-digit Reg No or Form No
     const finalExistingCertNo = extractStudentCertificateNumber(raw);
     const finalIsTcDc = Boolean(activeTpl.isTcDc || activeTpl.id?.startsWith('tc_dc_'));
+    let finalAssignedRef = immediateRef;
     
     if (finalIsTcDc) {
       if (finalExistingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(finalExistingCertNo).trim())) {
-        setRefNo(extractCertificateSerial(finalExistingCertNo) || String(finalExistingCertNo).trim());
+        finalAssignedRef = extractCertificateSerial(finalExistingCertNo) || String(finalExistingCertNo).trim();
+        setRefNo(finalAssignedRef);
       } else if (!isPreviewOnly) {
         let lastNo = 1367;
         try {
@@ -1904,7 +1911,8 @@ export default function StudentCertificateStudioView({
         if (selectionRequestRef.current !== requestId) return;
         lastIssuedCertificateRef.current = lastNo;
         const nextNo = lastNo + 1;
-        setRefNo(String(nextNo));
+        finalAssignedRef = String(nextNo);
+        setRefNo(finalAssignedRef);
       }
     } else {
       // General certificates (Character, Bonafide, NOC, etc.) use the active sequential general dispatch figure
@@ -1912,8 +1920,59 @@ export default function StudentCertificateStudioView({
       const cleanPrefix = rawPrefix.replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
       const curFigure = generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
       const curYear = String(generalRefYear || new Date().getFullYear()).slice(-2);
-      const assignedRef = formatGeneralRefNo(cleanPrefix, curFigure, curYear);
-      setRefNo(assignedRef);
+      finalAssignedRef = formatGeneralRefNo(cleanPrefix, curFigure, curYear);
+      setRefNo(finalAssignedRef);
+    }
+
+    // Retokenize active template body and update editor DOM with resolved scoped results and locality
+    const resolvedLocality = resolveStudentLocality(st, raw, st.address || effectiveAddr);
+    const resolvedExamRoll = resInfo.examRoll || raw['Exam Roll No'] || raw.examRoll || raw.currExamRoll || raw.examRollNo || st.rollNo || '';
+    const resolvedExamSession = resInfo.examMode || raw['Exam Session'] || raw.examSession || raw.currExamMode || effectiveSession || session || '';
+    const resolvedResultStatus = resInfo.resultStatus || (isPassed ? 'Qualified' : (resInfo.isReap ? 'Re-appear' : (resInfo.hasResult ? 'Did Not Qualify' : 'Awaiting Result')));
+    const resolvedDiv = resInfo.division || (resInfo.marksObtained ? calculateDivision(resInfo.marksObtained, resInfo.maxMarks || 500).division : '—');
+    const resolvedMarksObt = resInfo.marksObtained || '';
+    const resolvedMaxMarks = resInfo.maxMarks || '500';
+    const resolvedReappSubs = resInfo.reappSubjects || '—';
+
+    if (editorRef.current) {
+      const finalResolvedHtml = interpolateCertificateTemplate(activeTpl.bodyHtml, {
+        studentName: st.name || '',
+        fatherName: st.father || '',
+        motherName: st.mother || '',
+        className: effectiveClass,
+        stream: st.stream || resolveCertificateStream(st, registrationMatches, effectiveClass || extractClass(st)),
+        rollNo: st.rollNo || '—',
+        regNo: st.regNo || '—',
+        dobFigures: effDob,
+        dobWords: (typeof dobToWords === 'function' ? dobToWords(effDob).words : '—'),
+        session: effectiveSession,
+        address: st.address || effectiveAddr,
+        gender: effGender,
+        refNo: finalAssignedRef,
+        date: dateStr,
+        includeSalutations,
+        customFields,
+        // TC/DC & Database tokens
+        examName: `Class ${effectiveClass || '12th'} Examination`,
+        examRollNo: resolvedExamRoll,
+        examSession: resolvedExamSession,
+        resultStatus: resolvedResultStatus,
+        divisionDistinction: resolvedDiv,
+        marksObtained: resolvedMarksObt,
+        maxMarks: resolvedMaxMarks,
+        reappSubjects: resolvedReappSubs,
+        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '',
+        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '',
+        withdrawalDate: rawWd || '',
+        conductStatus: 'Satisfactory',
+        village: resolvedLocality.village,
+        tehsil: resolvedLocality.tehsil,
+        district: resolvedLocality.district,
+        certificateNo: finalAssignedRef,
+        raw
+      });
+      editorRef.current.innerHTML = sanitizeCertificateHtml(finalResolvedHtml);
+      pushSnapshot();
     }
   };
 
@@ -2039,23 +2098,64 @@ export default function StudentCertificateStudioView({
     });
   };
 
-  // ─── Select Template Handler ───
-  const handleSelectTemplate = (tpl) => {
-    const sanitizedTpl = sanitizeTemplateObject(tpl);
-    setSelectedTemplateId(sanitizedTpl.id);
-    const cleanBody = retokenizeCertificateBody(sanitizedTpl.bodyHtml, {
+  // ─── Retokenization Context Helper ───
+  // Extracts active student and exam values into a rich dictionary for retokenizing HTML back into {TOKENS}
+  const buildRetokenizeContext = useCallback(() => {
+    const raw = selectedStudent?.raw || selectedStudent || {};
+    const resInfo = extractStudentResultMarks(raw);
+    const effExamRoll = tcExamRoll || resInfo.examRoll || rollNo || '';
+    const effExamMode = tcExamMode || resInfo.examMode || session || '';
+    const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '');
+    const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
+    const effDiv = tcDivision || resInfo.division || (effMarksObt ? calculateDivision(effMarksObt, effMaxMarks).division : '');
+    const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
+    const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '';
+    const locality = resolveStudentLocality(selectedStudent, raw, address);
+
+    return {
       studentName,
       fatherName,
       motherName,
       rollNo,
       regNo,
-      dobFigures: parsedDob.figures,
-      dobWords: parsedDob.words,
+      dobFigures: parsedDob?.figures || '',
+      dobWords: parsedDob?.words || '',
       session,
+      address,
       className,
       stream,
-      address
-    });
+      gender,
+      refNo,
+      date: dateStr,
+      village: locality.village,
+      tehsil: locality.tehsil,
+      district: locality.district,
+      examRollNo: effExamRoll,
+      examSession: effExamMode,
+      resultStatus: effResultStatus,
+      divisionDistinction: effDiv,
+      marksObtained: effMarksObt,
+      maxMarks: effMaxMarks,
+      reappSubjects: effReappSubjects,
+      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '',
+      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '',
+      withdrawalDate: withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || '',
+      conductStatus: 'Satisfactory',
+      certificateNo: refNo,
+      customFields,
+      raw
+    };
+  }, [
+    selectedStudent, tcExamRoll, tcExamMode, tcMarksObtained, tcMaxMarks, tcDivision, tcResultStatus, tcReappSubjects,
+    studentName, fatherName, motherName, rollNo, regNo, parsedDob, session, address, className, stream, gender, refNo,
+    dateStr, admissionDate, admissionNo, withdrawalDate, customFields
+  ]);
+
+  // ─── Select Template Handler ───
+  const handleSelectTemplate = (tpl) => {
+    const sanitizedTpl = sanitizeTemplateObject(tpl);
+    setSelectedTemplateId(sanitizedTpl.id);
+    const cleanBody = retokenizeCertificateBody(sanitizedTpl.bodyHtml, buildRetokenizeContext());
     setTemplateBody(cleanBody);
     setCustomCanvasHtml(null);
 
@@ -2066,22 +2166,16 @@ export default function StudentCertificateStudioView({
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const resInfo = extractStudentResultMarks(raw);
-    const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '—');
+    const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '');
     const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
-    const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
-    const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
-    const effExamMode = tcExamMode || resInfo.examMode || '—';
+    const effDiv = tcDivision || resInfo.division || (effMarksObt ? calculateDivision(effMarksObt, effMaxMarks).division : '');
+    const effExamRoll = tcExamRoll || resInfo.examRoll || rollNo || '';
+    const effExamMode = tcExamMode || resInfo.examMode || session || '';
     const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
-    const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
+    const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '';
     const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
     const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
-    const rawVillage = raw['Village/Town'] || raw.village || raw['Name of your village'] || '';
-    const cleanVillage = (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage)) ? rawVillage : '';
-    const village = cleanVillage || address || '';
-    const rawTehsil = raw['Tehsil'] || raw.tehsil || '';
-    const tehsil = (rawTehsil && rawTehsil !== '—' && rawTehsil !== '-' && !/^(null|undefined|n\/a)$/i.test(rawTehsil)) ? rawTehsil : '';
-    const rawDistrict = raw['District'] || raw.district || '';
-    const district = (rawDistrict && rawDistrict !== '—' && rawDistrict !== '-' && !/^(null|undefined|n\/a)$/i.test(rawDistrict)) ? rawDistrict : '';
+    const locality = resolveStudentLocality(selectedStudent, raw, address);
 
     if (editorRef.current) {
       const immediateHtml = interpolateCertificateTemplate(cleanBody, {
@@ -2110,14 +2204,15 @@ export default function StudentCertificateStudioView({
         marksObtained: effMarksObt,
         maxMarks: effMaxMarks,
         reappSubjects: effReappSubjects,
-        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
-        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
+        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '',
+        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '',
         withdrawalDate: effectiveWd,
         conductStatus: 'Satisfactory',
-        village,
-        tehsil,
-        district,
-        certificateNo: refNo || extractStudentCertificateNumber(raw) || '—'
+        village: locality.village,
+        tehsil: locality.tehsil,
+        district: locality.district,
+        certificateNo: refNo || extractStudentCertificateNumber(raw) || '',
+        raw
       });
       editorRef.current.innerHTML = sanitizeCertificateHtml(immediateHtml);
       pushSnapshot();
@@ -2266,26 +2361,20 @@ export default function StudentCertificateStudioView({
     const raw = selectedStudent?.raw || selectedStudent || {};
     const resInfo = extractStudentResultMarks(raw);
 
-    const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '—');
+    const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '');
     const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
-    const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
-    const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
-    const effExamMode = tcExamMode || resInfo.examMode || '—';
+    const effDiv = tcDivision || resInfo.division || (effMarksObt ? calculateDivision(effMarksObt, effMaxMarks).division : '');
+    const effExamRoll = tcExamRoll || resInfo.examRoll || rollNo || '';
+    const effExamMode = tcExamMode || resInfo.examMode || session || '';
     const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
-    const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
+    const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '';
     const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
 
     const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
-    const ccDcNo = refNo || extractStudentCertificateNumber(raw) || '—';
-    const effAdmDate = admissionDate || extractStudentAdmissionDate(raw) || '—';
-    const effAdmNo = admissionNo || extractStudentAdmissionNumber(raw) || '—';
-    const rawVillage = raw['Village/Town'] || raw.village || raw['Name of your village'] || '';
-    const cleanVillage = (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage)) ? rawVillage : '';
-    const village = cleanVillage || address || '';
-    const rawTehsil = raw['Tehsil'] || raw.tehsil || '';
-    const tehsil = (rawTehsil && rawTehsil !== '—' && rawTehsil !== '-' && !/^(null|undefined|n\/a)$/i.test(rawTehsil)) ? rawTehsil : '';
-    const rawDistrict = raw['District'] || raw.district || '';
-    const district = (rawDistrict && rawDistrict !== '—' && rawDistrict !== '-' && !/^(null|undefined|n\/a)$/i.test(rawDistrict)) ? rawDistrict : '';
+    const ccDcNo = refNo || extractStudentCertificateNumber(raw) || '';
+    const effAdmDate = admissionDate || extractStudentAdmissionDate(raw) || '';
+    const effAdmNo = admissionNo || extractStudentAdmissionNumber(raw) || '';
+    const locality = resolveStudentLocality(selectedStudent, raw, address);
 
     return interpolateCertificateTemplate(templateBody, {
       studentName,
@@ -2317,14 +2406,15 @@ export default function StudentCertificateStudioView({
       admissionNo: effAdmNo,
       withdrawalDate: effectiveWd,
       conductStatus: 'Satisfactory',
-      village,
-      tehsil,
-      district,
-      certificateNo: ccDcNo
+      village: locality.village,
+      tehsil: locality.tehsil,
+      district: locality.district,
+      certificateNo: ccDcNo,
+      raw
     });
   }, [
     templateBody, studentName, fatherName, motherName, className, stream, rollNo, regNo, parsedDob, session, address, gender, refNo, dateStr, includeSalutations, customFields, selectedStudent, withdrawalDate, admissionDate, admissionNo,
-    tcMarksObtained, tcMaxMarks, tcDivision, tcExamRoll, tcExamMode, tcResultStatus, tcReappSubjects
+    tcMarksObtained, tcMaxMarks, tcDivision, tcExamRoll, tcExamMode, tcResultStatus, tcReappSubjects, selectedTemplateId
   ]);
 
   // Active rendered HTML (Canvas override or cleanly interpolated preview)
@@ -2372,20 +2462,7 @@ export default function StudentCertificateStudioView({
     }
 
     const currentHtml = editorRef.current ? editorRef.current.innerHTML : (templateBody || activeDisplayHtml);
-    const cleanBodyHtml = retokenizeCertificateBody(currentHtml, {
-      studentName,
-      fatherName,
-      motherName,
-      rollNo,
-      regNo,
-      dobFigures: parsedDob.figures,
-      dobWords: parsedDob.words,
-      session,
-      address,
-      className,
-      stream,
-      refNo
-    });
+    const cleanBodyHtml = retokenizeCertificateBody(currentHtml, buildRetokenizeContext());
 
     const targetTpl = sanitizeTemplateObject({
       id: isUpdating ? selectedTemplateId : `custom_cert_${Date.now()}`,
@@ -2433,20 +2510,7 @@ export default function StudentCertificateStudioView({
   const handleQuickUpdateTemplate = async () => {
     const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
     const currentHtml = editorRef.current ? editorRef.current.innerHTML : (templateBody || activeDisplayHtml);
-    const cleanBodyHtml = retokenizeCertificateBody(currentHtml, {
-      studentName,
-      fatherName,
-      motherName,
-      rollNo,
-      regNo,
-      dobFigures: parsedDob.figures,
-      dobWords: parsedDob.words,
-      session,
-      address,
-      className,
-      stream,
-      refNo
-    });
+    const cleanBodyHtml = retokenizeCertificateBody(currentHtml, buildRetokenizeContext());
 
     const targetTpl = sanitizeTemplateObject({
       id: selectedTemplateId,
@@ -3263,6 +3327,18 @@ export default function StudentCertificateStudioView({
   const resolveTokenOrText = (rawTokenOrText) => {
     if (!rawTokenOrText) return '';
     const str = String(rawTokenOrText);
+    const raw = selectedStudent?.raw || selectedStudent || {};
+    const resInfo = extractStudentResultMarks(raw);
+    const effExamRoll = tcExamRoll || resInfo.examRoll || rollNo || '';
+    const effExamMode = tcExamMode || resInfo.examMode || session || '';
+    const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '');
+    const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
+    const effDiv = tcDivision || resInfo.division || (effMarksObt ? calculateDivision(effMarksObt, effMaxMarks).division : '');
+    const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
+    const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '';
+    const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
+    const locality = resolveStudentLocality(selectedStudent, raw, address);
+
     const isFemale = String(gender).toUpperCase().startsWith('F') || String(gender).toUpperCase() === 'FEMALE';
     const studentTitle = includeSalutations ? (isFemale ? 'Ms.' : 'Mr.') : '';
     const studentTitleYoung = includeSalutations ? (isFemale ? 'Miss' : 'Master') : '';
@@ -3279,21 +3355,21 @@ export default function StudentCertificateStudioView({
 
     // Direct token mapping
     const tokenMap = {
-      '{STUDENT_NAME}': studentName || '—',
-      '{FATHER_NAME}': fatherName || '—',
-      '{MOTHER_NAME}': motherName || '—',
+      '{STUDENT_NAME}': studentName || '',
+      '{FATHER_NAME}': fatherName || '',
+      '{MOTHER_NAME}': motherName || '',
       '{CLASS}': className || '11th',
       '{STREAM}': stream || 'Medical',
-      '{ROLL_NO}': rollNo || '—',
-      '{REG_NO}': regNo || '—',
-      '{DOB_FIGURES}': parsedDob.figures || '—',
-      '{DOB_WORDS}': parsedDob.words || '—',
+      '{ROLL_NO}': rollNo || '',
+      '{REG_NO}': regNo || '',
+      '{DOB_FIGURES}': parsedDob?.figures || '',
+      '{DOB_WORDS}': parsedDob?.words || '',
       '{SESSION}': session || '2025-26',
-      '{ADDRESS}': address || '----------------------------------------',
-      '{VILLAGE}': (selectedStudent?.village && selectedStudent.village !== '—' && selectedStudent.village !== '-') ? selectedStudent.village : (address || '----------------------------------------'),
-      '{TEHSIL}': (selectedStudent?.tehsil && selectedStudent.tehsil !== '—' && selectedStudent.tehsil !== '-') ? selectedStudent.tehsil : '----------------',
-      '{DISTRICT}': (selectedStudent?.district && selectedStudent.district !== '—' && selectedStudent.district !== '-') ? selectedStudent.district : '----------------',
-      '{REF_NO}': refNo || '—',
+      '{ADDRESS}': address || '',
+      '{VILLAGE}': locality.village,
+      '{TEHSIL}': locality.tehsil,
+      '{DISTRICT}': locality.district,
+      '{REF_NO}': refNo || '',
       '{DATE}': dateStr || new Date().toLocaleDateString('en-GB'),
       '{GENDER_TITLE}': studentTitle,
       '{TITLE}': studentTitle,
@@ -3340,22 +3416,23 @@ export default function StudentCertificateStudioView({
       '{PRONOUN_himself_herself}': isFemale ? 'herself' : 'himself',
       // TC / DC tokens
       '{EXAM_NAME}': `Class ${className || '12th'} Examination`,
-      '{EXAM_ROLL_NO}': tcExamRoll || rollNo || '—',
-      '{EXAM_SESSION}': tcExamMode || session || '—',
-      '{RESULT_STATUS}': tcResultStatus || 'Qualified',
-      '{DIVISION_DISTINCTION}': tcDivision || 'Distinction',
-      '{DIVISION}': tcDivision || 'Distinction',
-      '{DISTINCTION}': tcDivision || 'Distinction',
-      '{MARKS_OBTAINED}': tcMarksObtained || '—',
-      '{MAX_MARKS}': tcMaxMarks || '500',
-      '{REAPP_SUBJECTS}': tcReappSubjects || '—',
-      '{ADMISSION_DATE}': admissionDate || '—',
-      '{ADMISSION_NO}': admissionNo || '—',
-      '{WITHDRAWAL_DATE}': withdrawalDate || '—',
-      '{RESULT_DATE}': withdrawalDate || '—',
+      '{EXAM_ROLL_NO}': effExamRoll || rollNo || '',
+      '{EXAM_SESSION}': effExamMode || session || '',
+      '{RESULT_STATUS}': effResultStatus || 'Qualified',
+      '{DIVISION_DISTINCTION}': effDiv || 'Distinction',
+      '{DIVISION}': effDiv || 'Distinction',
+      '{DISTINCTION}': effDiv || 'Distinction',
+      '{MARKS_OBTAINED}': effMarksObt || '',
+      '{MAX_MARKS}': effMaxMarks || '500',
+      '{REAPP_SUBJECTS}': effReappSubjects || '',
+      '{REAPPEAR_SUBJECTS}': effReappSubjects || '',
+      '{ADMISSION_DATE}': admissionDate || extractStudentAdmissionDate(raw) || '',
+      '{ADMISSION_NO}': admissionNo || extractStudentAdmissionNumber(raw) || '',
+      '{WITHDRAWAL_DATE}': effectiveWd,
+      '{RESULT_DATE}': effectiveWd,
       '{CONDUCT_STATUS}': 'Satisfactory',
-      '{CERTIFICATE_NO}': refNo || '—',
-      '{TC_DC_NO}': refNo || '—'
+      '{CERTIFICATE_NO}': refNo || '',
+      '{TC_DC_NO}': refNo || ''
     };
 
     if (tokenMap[str.toUpperCase()]) {
@@ -3368,27 +3445,6 @@ export default function StudentCertificateStudioView({
 
     // If it contains multiple tokens, interpolate cleanly
     if (str.includes('{') && str.includes('}')) {
-      const raw = selectedStudent?.raw || selectedStudent || {};
-      const resInfo = extractStudentResultMarks(raw);
-      const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '—');
-      const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
-      const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
-      const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
-      const effExamMode = tcExamMode || resInfo.examMode || '—';
-      const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
-      const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
-      const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
-      const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
-      const rawVillage = raw['Village/Town'] || raw.village || raw['Name of your village'] || '';
-      const cleanVillage = (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage)) ? rawVillage : '';
-      const village = cleanVillage || (typeof extractVillage === 'function' ? extractVillage(raw) : '') || address || '';
-      const rawTehsil = raw['Tehsil'] || raw.tehsil || raw['Block'] || raw.block || '';
-      const cleanTehsil = (rawTehsil && rawTehsil !== '—' && rawTehsil !== '-' && !/^(null|undefined|n\/a)$/i.test(rawTehsil)) ? rawTehsil : '';
-      const tehsil = cleanTehsil || (address && /shangus/i.test(address) ? 'Shangus' : '') || 'Shangus';
-      const rawDistrict = raw['District'] || raw.district || '';
-      const cleanDistrict = (rawDistrict && rawDistrict !== '—' && rawDistrict !== '-' && !/^(null|undefined|n\/a)$/i.test(rawDistrict)) ? rawDistrict : '';
-      const district = cleanDistrict || (address && /anantnag/i.test(address) ? 'Anantnag' : '') || 'Anantnag';
-
       return interpolateCertificateTemplate(str, {
         studentName,
         fatherName,
@@ -3397,8 +3453,8 @@ export default function StudentCertificateStudioView({
         stream,
         rollNo,
         regNo,
-        dobFigures: parsedDob.figures,
-        dobWords: parsedDob.words,
+        dobFigures: parsedDob?.figures || '',
+        dobWords: parsedDob?.words || '',
         session,
         address,
         gender,
@@ -3409,19 +3465,20 @@ export default function StudentCertificateStudioView({
         examName: `Class ${className || '12th'} Examination`,
         examRollNo: effExamRoll,
         examSession: effExamMode,
-        resultStatus: isPassed || selectedTemplateId.includes('qualified') ? 'Qualified' : (normalizeResultStatus(effResultStatus) === 'Reap' ? 'Re-appear' : (effResultStatus || 'Did Not Qualify')),
+        resultStatus: normalizeResultStatus(effResultStatus) === 'Passed' || selectedTemplateId.includes('qualified') ? 'Qualified' : (normalizeResultStatus(effResultStatus) === 'Reap' ? 'Re-appear' : (effResultStatus || 'Did Not Qualify')),
         divisionDistinction: effDiv,
         marksObtained: effMarksObt,
         maxMarks: effMaxMarks,
         reappSubjects: effReappSubjects,
-        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
-        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
+        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '',
+        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '',
         withdrawalDate: effectiveWd,
         conductStatus: 'Satisfactory',
-        village,
-        tehsil,
-        district,
-        certificateNo: refNo || extractStudentCertificateNumber(raw) || '—'
+        village: locality.village,
+        tehsil: locality.tehsil,
+        district: locality.district,
+        certificateNo: refNo || extractStudentCertificateNumber(raw) || '',
+        raw
       });
     }
 
@@ -3477,24 +3534,16 @@ export default function StudentCertificateStudioView({
     if (editorRef.current.innerHTML.includes('{') && editorRef.current.innerHTML.includes('}')) {
       const raw = selectedStudent?.raw || selectedStudent || {};
       const resInfo = extractStudentResultMarks(raw);
-      const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '—');
+      const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '');
       const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
-      const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
-      const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
-      const effExamMode = tcExamMode || resInfo.examMode || '—';
+      const effDiv = tcDivision || resInfo.division || (effMarksObt ? calculateDivision(effMarksObt, effMaxMarks).division : '');
+      const effExamRoll = tcExamRoll || resInfo.examRoll || rollNo || '';
+      const effExamMode = tcExamMode || resInfo.examMode || session || '';
       const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
-      const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
+      const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '';
       const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
       const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
-      const rawVillage = raw['Village/Town'] || raw.village || raw['Name of your village'] || '';
-      const cleanVillage = (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage)) ? rawVillage : '';
-      const village = cleanVillage || (typeof extractVillage === 'function' ? extractVillage(raw) : '') || address || '';
-      const rawTehsil = raw['Tehsil'] || raw.tehsil || raw['Block'] || raw.block || '';
-      const cleanTehsil = (rawTehsil && rawTehsil !== '—' && rawTehsil !== '-' && !/^(null|undefined|n\/a)$/i.test(rawTehsil)) ? rawTehsil : '';
-      const tehsil = cleanTehsil || (address && /shangus/i.test(address) ? 'Shangus' : '') || 'Shangus';
-      const rawDistrict = raw['District'] || raw.district || '';
-      const cleanDistrict = (rawDistrict && rawDistrict !== '—' && rawDistrict !== '-' && !/^(null|undefined|n\/a)$/i.test(rawDistrict)) ? rawDistrict : '';
-      const district = cleanDistrict || (address && /anantnag/i.test(address) ? 'Anantnag' : '') || 'Anantnag';
+      const locality = resolveStudentLocality(selectedStudent, raw, address);
 
       const cleanedHtml = interpolateCertificateTemplate(editorRef.current.innerHTML, {
         studentName,
@@ -3504,8 +3553,8 @@ export default function StudentCertificateStudioView({
         stream,
         rollNo,
         regNo,
-        dobFigures: parsedDob.figures,
-        dobWords: parsedDob.words,
+        dobFigures: parsedDob?.figures || '',
+        dobWords: parsedDob?.words || '',
         session,
         address,
         gender,
@@ -3521,14 +3570,15 @@ export default function StudentCertificateStudioView({
         marksObtained: effMarksObt,
         maxMarks: effMaxMarks,
         reappSubjects: effReappSubjects,
-        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
-        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
+        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '',
+        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '',
         withdrawalDate: effectiveWd,
         conductStatus: 'Satisfactory',
-        village,
-        tehsil,
-        district,
-        certificateNo: refNo || extractStudentCertificateNumber(raw) || '—'
+        village: locality.village,
+        tehsil: locality.tehsil,
+        district: locality.district,
+        certificateNo: refNo || extractStudentCertificateNumber(raw) || '',
+        raw
       });
       if (cleanedHtml !== editorRef.current.innerHTML) {
         editorRef.current.innerHTML = cleanedHtml;
@@ -3536,6 +3586,8 @@ export default function StudentCertificateStudioView({
     }
 
     setCustomCanvasHtml(editorRef.current.innerHTML);
+    const retokenized = retokenizeCertificateBody(editorRef.current.innerHTML, buildRetokenizeContext());
+    setTemplateBody(retokenized);
     setTimeout(pushSnapshot, 50);
     setShowContextMenu(false);
     setShowInsertFieldDropdown(false);
@@ -3962,6 +4014,24 @@ export default function StudentCertificateStudioView({
       sigReceiptGap
     });
   };
+
+  const handlePrintRef = useRef(handlePrint);
+  useEffect(() => {
+    handlePrintRef.current = handlePrint;
+  });
+
+  // Intercept Ctrl+P / Cmd+P to trigger clean, isolated document print/PDF instead of browser window print
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlePrintRef.current?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
 
   const handleExportDocx = async () => {
     setIsExportingDocx(true);
@@ -5867,7 +5937,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(studentName || '{STUDENT_NAME}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{STUDENT_NAME}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Student Name</span>
@@ -5876,7 +5946,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(fatherName || '{FATHER_NAME}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{FATHER_NAME}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Father's Name</span>
@@ -5885,7 +5955,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(motherName || '{MOTHER_NAME}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{MOTHER_NAME}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Mother's Name</span>
@@ -5971,7 +6041,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(className || '{CLASS}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{CLASS}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Class</span>
@@ -5980,7 +6050,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(stream || '{STREAM}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{STREAM}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Stream</span>
@@ -5989,7 +6059,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(rollNo || '{ROLL_NO}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{ROLL_NO}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Class Roll No</span>
@@ -5998,7 +6068,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(regNo || '{REG_NO}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{REG_NO}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Registration No</span>
@@ -6007,7 +6077,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(admissionNo || '{ADMISSION_NO}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{ADMISSION_NO}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Admission No</span>
@@ -6016,7 +6086,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(admissionDate || '{ADMISSION_DATE}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{ADMISSION_DATE}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Admission Date</span>
@@ -6025,7 +6095,7 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(session || '{SESSION}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{SESSION}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Academic Session</span>
@@ -6035,38 +6105,65 @@ export default function StudentCertificateStudioView({
 
                       {/* Group 3: DOB & Address */}
                       <div className="pt-1 space-y-0.5">
-                        <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">DOB & Address</div>
+                        <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">DOB & Residence</div>
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(parsedDob.figures || '{DOB_FIGURES}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{DOB_FIGURES}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>DOB (DD-MM-YYYY)</span>
-                          <span className="text-[9px] text-slate-400">{parsedDob.figures || '{DOB_FIGURES}'}</span>
+                          <span className="text-[9px] text-slate-400">{parsedDob?.figures || '{DOB_FIGURES}'}</span>
                         </button>
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(parsedDob.words || '{DOB_WORDS}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{DOB_WORDS}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>DOB (in Words)</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{parsedDob.words || '{DOB_WORDS}'}</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{parsedDob?.words || '{DOB_WORDS}'}</span>
                         </button>
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(address || '{ADDRESS}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{ADDRESS}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
-                          <span>Permanent Address</span>
+                          <span>Full Address</span>
                           <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{address || '{ADDRESS}'}</span>
                         </button>
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(dateStr || '{DATE}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{VILLAGE}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Village / Town</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).village || '{VILLAGE}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{TEHSIL}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Tehsil</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).tehsil || '{TEHSIL}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{DISTRICT}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>District</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).district || '{DISTRICT}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{DATE}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>Certificate Date</span>
@@ -6075,15 +6172,83 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(refNo || '{REF_NO}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder('{REF_NO}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
-                          <span>Reference No</span>
+                          <span>Reference / Dispatch No</span>
                           <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{refNo || '{REF_NO}'}</span>
                         </button>
                       </div>
 
-                      {/* Group 4: Student Database Fields */}
+                      {/* Group 4: TC/DC & Exam Results */}
+                      <div className="pt-1 space-y-0.5">
+                        <div className="px-2 text-[8.5px] font-bold text-amber-600 dark:text-amber-400 uppercase">TC/DC & JKBOSE Exam</div>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{EXAM_ROLL_NO}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Exam / Board Roll No</span>
+                          <span className="text-[9px] text-slate-400 font-mono truncate max-w-[120px]">{tcExamRoll || '{EXAM_ROLL_NO}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{EXAM_SESSION}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Exam Session</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{tcExamMode || session || '{EXAM_SESSION}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{RESULT_STATUS}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Result Status</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{tcResultStatus || '{RESULT_STATUS}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{MARKS_OBTAINED}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Marks Obtained</span>
+                          <span className="text-[9px] text-slate-400 font-mono truncate max-w-[120px]">{tcMarksObtained || '{MARKS_OBTAINED}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{MAX_MARKS}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Max Marks</span>
+                          <span className="text-[9px] text-slate-400 font-mono truncate max-w-[120px]">{tcMaxMarks || '500'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{DIVISION_DISTINCTION}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Division / Distinction</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{tcDivision || '{DIVISION_DISTINCTION}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{WITHDRAWAL_DATE}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Withdrawal Date</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{withdrawalDate || '{WITHDRAWAL_DATE}'}</span>
+                        </button>
+                      </div>
+
+                      {/* Group 5: Student Database Fields */}
                       <div className="pt-1 space-y-0.5">
                         <div className="px-2 text-[8.5px] font-bold text-teal-700 dark:text-teal-400 uppercase flex items-center justify-between">
                           <span>Database Fields</span>
@@ -6091,17 +6256,18 @@ export default function StudentCertificateStudioView({
                         </div>
                         {FIRESTORE_PRESET_FIELDS.slice(0, 8).map((preset) => {
                           const studentVal = findValueInStudentRaw(selectedStudent, preset.keys);
+                          const tokenName = `{${preset.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`;
                           return (
                             <button
                               key={preset.label}
                               type="button"
                               onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { handleInsertPlaceholder(studentVal || `{${preset.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`); setShowInsertFieldDropdown(false); }}
+                              onClick={() => { handleInsertPlaceholder(tokenName); setShowInsertFieldDropdown(false); }}
                               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                             >
                               <span className="truncate">{preset.label}</span>
                               <span className="text-[9px] text-slate-400 truncate max-w-[120px] font-mono">
-                                {studentVal || `{${preset.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`}
+                                {studentVal || tokenName}
                               </span>
                             </button>
                           );
@@ -7068,7 +7234,7 @@ export default function StudentCertificateStudioView({
             <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">Student & Parents</div>
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(studentName ? studentName : '{STUDENT_NAME}')}
+              onClick={() => handleInsertPlaceholder('{STUDENT_NAME}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Student Name</span>
@@ -7077,7 +7243,7 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(fatherName ? fatherName : '{FATHER_NAME}')}
+              onClick={() => handleInsertPlaceholder('{FATHER_NAME}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Father's Name</span>
@@ -7086,7 +7252,7 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(motherName ? motherName : '{MOTHER_NAME}')}
+              onClick={() => handleInsertPlaceholder('{MOTHER_NAME}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Mother's Name</span>
@@ -7171,7 +7337,7 @@ export default function StudentCertificateStudioView({
             <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">Class & Roll / Reg</div>
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(className || '{CLASS}')}
+              onClick={() => handleInsertPlaceholder('{CLASS}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Class</span>
@@ -7180,7 +7346,7 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(stream || '{STREAM}')}
+              onClick={() => handleInsertPlaceholder('{STREAM}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Stream</span>
@@ -7189,7 +7355,7 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(rollNo || '{ROLL_NO}')}
+              onClick={() => handleInsertPlaceholder('{ROLL_NO}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Class Roll No</span>
@@ -7198,7 +7364,7 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(regNo || '{REG_NO}')}
+              onClick={() => handleInsertPlaceholder('{REG_NO}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Registration No</span>
@@ -7207,7 +7373,7 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(admissionNo || '{ADMISSION_NO}')}
+              onClick={() => handleInsertPlaceholder('{ADMISSION_NO}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Admission No</span>
@@ -7216,7 +7382,7 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(admissionDate || '{ADMISSION_DATE}')}
+              onClick={() => handleInsertPlaceholder('{ADMISSION_DATE}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Admission Date</span>
@@ -7225,7 +7391,7 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(session || '{SESSION}')}
+              onClick={() => handleInsertPlaceholder('{SESSION}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Academic Session</span>
@@ -7235,28 +7401,28 @@ export default function StudentCertificateStudioView({
 
           {/* Group 3: DOB & Address */}
           <div className="pt-1 space-y-0.5">
-            <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">DOB & Record Dates</div>
+            <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">DOB & Residence</div>
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(parsedDob.figures || '{DOB_FIGURES}')}
+              onClick={() => handleInsertPlaceholder('{DOB_FIGURES}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>DOB (in Figures)</span>
-              <span className="text-[9px] text-slate-400">{parsedDob.figures || '{DOB_FIGURES}'}</span>
+              <span className="text-[9px] text-slate-400">{parsedDob?.figures || '{DOB_FIGURES}'}</span>
             </button>
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(parsedDob.words || '{DOB_WORDS}')}
+              onClick={() => handleInsertPlaceholder('{DOB_WORDS}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>DOB (in Words)</span>
-              <span className="text-[9px] text-slate-400 truncate max-w-[100px]">{parsedDob.words || '{DOB_WORDS}'}</span>
+              <span className="text-[9px] text-slate-400 truncate max-w-[100px]">{parsedDob?.words || '{DOB_WORDS}'}</span>
             </button>
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(address || '{ADDRESS}')}
+              onClick={() => handleInsertPlaceholder('{ADDRESS}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Permanent Address</span>
@@ -7265,11 +7431,47 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(dateStr || '{DATE}')}
+              onClick={() => handleInsertPlaceholder('{VILLAGE}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Village / Town</span>
+              <span className="text-[9px] text-slate-400 truncate max-w-[100px]">{resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).village || '{VILLAGE}'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{TEHSIL}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Tehsil</span>
+              <span className="text-[9px] text-slate-400 truncate max-w-[100px]">{resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).tehsil || '{TEHSIL}'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{DISTRICT}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>District</span>
+              <span className="text-[9px] text-slate-400 truncate max-w-[100px]">{resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).district || '{DISTRICT}'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{DATE}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Certificate Date</span>
               <span className="text-[9px] text-slate-400">{dateStr || '{DATE}'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{REF_NO}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Reference No</span>
+              <span className="text-[9px] text-slate-400 truncate max-w-[100px]">{refNo || '{REF_NO}'}</span>
             </button>
           </div>
 
@@ -7281,7 +7483,7 @@ export default function StudentCertificateStudioView({
                 <button
                   key={cf.id}
                   type="button"
-                  onClick={() => handleInsertPlaceholder(cf.value || `{${cf.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`)}
+                  onClick={() => handleInsertPlaceholder(`{${cf.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`)}
                   className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
                 >
                   <span className="truncate">{cf.label}</span>
