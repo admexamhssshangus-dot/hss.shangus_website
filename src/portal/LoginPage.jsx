@@ -200,8 +200,50 @@ export default function LoginPage() {
         : (roleKey === 'teacher' || roleKey === 'faculty') ? '/portal/teacher'
         : '/portal/admin';
       navigate(dest, { replace: true });
+      return;
+    }
+
+    // Check if another tab is already authenticated on this device
+    const isExplicitLogout = sessionStorage.getItem('hss_explicit_logout') === 'true' || localStorage.getItem('hss_explicit_logout') === 'true';
+    if (!isExplicitLogout && sessionManager.isLoggedIn()) {
+      const activeSession = sessionManager.getSession();
+      if (activeSession?.user?.role) {
+        const roleKey = String(activeSession.user.role).toLowerCase().trim();
+        const dest =
+          roleKey === 'student' ? '/portal/student'
+          : (roleKey === 'teacher' || roleKey === 'faculty') ? '/portal/teacher'
+          : '/portal/admin';
+        navigate(dest, { replace: true });
+      }
     }
   }, [isAuthenticated, user, navigate, window2VerifiedState, emailLinkSentState]);
+
+  // Real-time cross-tab login synchronization (e.g. if Tab 2 is open on LoginPage and Tab 1 logs in)
+  useEffect(() => {
+    if (isEmailVerificationTabRef.current) return;
+
+    let bc = null;
+    try {
+      bc = new BroadcastChannel('hss_portal_auth_sync');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'LOGIN' && event.data.user) {
+          const u = event.data.user;
+          const roleKey = String(u.role).toLowerCase().trim();
+          const dest =
+            roleKey === 'student' ? '/portal/student'
+            : (roleKey === 'teacher' || roleKey === 'faculty') ? '/portal/teacher'
+            : '/portal/admin';
+          navigate(dest, { replace: true });
+        }
+      };
+    } catch (_) {}
+
+    return () => {
+      if (bc) {
+        try { bc.close(); } catch (_) {}
+      }
+    };
+  }, [navigate]);
 
   // When Window 2 is opened via verification link, it stays on confirmation screen so the waiting device logs in.
 
@@ -643,7 +685,7 @@ export default function LoginPage() {
     setAlert(null);
     try {
       googleProvider.setCustomParameters({ prompt: 'select_account' });
-      await setPersistence(auth, keepLoggedIn ? browserLocalPersistence : browserSessionPersistence);
+      await setPersistence(auth, browserLocalPersistence);
       const result = await signInWithPopup(auth, googleProvider);
       const fbUser = result.user;
       const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
@@ -826,7 +868,7 @@ export default function LoginPage() {
 
     try {
       // 1. Authenticate credentials against Firebase Auth
-      await setPersistence(auth, keepLoggedIn ? browserLocalPersistence : browserSessionPersistence);
+      await setPersistence(auth, browserLocalPersistence);
       const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
       
       // 2. Resolve account profile from Firestore (configured strictly by Super Admin)
