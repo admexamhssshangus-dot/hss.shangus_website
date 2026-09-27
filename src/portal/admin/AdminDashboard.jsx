@@ -8,7 +8,7 @@ import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
 import { lazyWithChunkRecovery } from '../../utils/lazyWithChunkRecovery';
-import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, getPaginatedCollection, hydrateRemainingPages, ensureFirestoreConnected } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, getPaginatedCollection, hydrateRemainingPages, ensureFirestoreConnected, isCollectionFullyHydrated, markCollectionFullyHydrated } from '../../services/dbCache';
 import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 import { showToast } from '../../components/common/GlobalToast';
 
@@ -93,7 +93,7 @@ const ADMISSIONS_DATA_TABS = new Set([
   'mergeStudio',
   'automations'
 ]);
-const ADMISSIONS_REALTIME_TABS = new Set(['reports', 'rollNo', 'mergeStudio', 'automations']);
+const ADMISSIONS_REALTIME_TABS = new Set(['reports', 'rollNo', 'mergeStudio', 'automations', 'admRegisterSuite']);
 const IDENTITY_DATA_TABS = new Set(['gkTest', 'customRoster', 'docStudio', 'certStudio', 'certificate']);
 
 
@@ -405,17 +405,20 @@ export default function AdminDashboard() {
     }, 2500);
 
     try {
-      // 1. If we have cached data and not forcing, use cached and hydrate in background if needed
+      // 1. If we have cached data and not forcing, ensure it is fully hydrated before skipping network fetch
       const cached = getCachedCollectionSync('admissions');
-      if (cached && cached.length > 0 && !force) {
+      const isHydrated = isCollectionFullyHydrated('admissions');
+      if (cached && cached.length > 0 && isHydrated && !force) {
         commitApplications(cached, true);
         setLoading(false);
       } else {
-        // 2. Cold start / force sync: Fetch first 50 applications instantly
+        // 2. Cold start / force sync / partial cache recovery: Fetch first 50 applications instantly
         const page1 = await getPaginatedCollection('admissions', 50);
         if (page1.docs && page1.docs.length > 0) {
-          commitApplications(page1.docs, true);
-          setLoading(false);
+          if (appsRef.current.length === 0) {
+            commitApplications(page1.docs, true);
+            setLoading(false);
+          }
 
           if (page1.hasMore && page1.lastDoc) {
             // 3. Hydrate remaining pages in the background. Document studios
@@ -433,8 +436,12 @@ export default function AdminDashboard() {
                 }
               }
             );
-          } else if (force) {
-            showToast('Cloud database synchronized successfully', 'success');
+          } else {
+            markCollectionFullyHydrated('admissions', true);
+            commitApplications(page1.docs);
+            if (force) {
+              showToast('Cloud database synchronized successfully', 'success');
+            }
           }
         } else {
           // Fallback to full fetch if paginated query returns empty

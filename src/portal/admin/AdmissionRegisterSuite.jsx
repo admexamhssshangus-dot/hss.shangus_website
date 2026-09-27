@@ -3002,13 +3002,45 @@ export default function AdmissionRegisterSuite({
           }
         }
 
+        // PRESERVE AUTHENTIC ASSIGNED ROLL NUMBER AND AUTHORITATIVE FORM NUMBER:
+        const existingHasRoll = Boolean(existing.rollNo && existing.rollNo !== '—' && existing.rollNo !== 'NA' && cleanStr(existing.rollNo) !== '');
+        const incomingHasRoll = Boolean(st.rollNo && st.rollNo !== '—' && st.rollNo !== 'NA' && cleanStr(st.rollNo) !== '');
+        const assignedRollNo = incomingHasRoll ? st.rollNo : (existingHasRoll ? existing.rollNo : '');
+        const authoritativeFormNo = (incomingHasRoll || !existingHasRoll) ? (st.formNo || existing.formNo) : existing.formNo;
+
         const merged = {
           ...existing,
           ...st,
           ...(reRecord ? reRecord : {}),
+          name: st.name || existing.name || '',
+          father: st.father || existing.father || '',
+          mother: st.mother || existing.mother || '',
+          dob: st.dob || existing.dob || '',
+          gender: st.gender || existing.gender || '',
+          class: st.class || existing.class || '',
+          session: st.session || existing.session || '',
           isReadmission: isRe,
           admNo: assignedAdm,
           oldAdmNo: oldAdm,
+          rollNo: assignedRollNo,
+          formNo: authoritativeFormNo,
+          status: (assignedRollNo || existing.status === 'Approved' || st.status === 'Approved') ? 'Approved' : (st.status || existing.status || 'Submitted'),
+          stream: (st.stream && st.stream !== '—') ? st.stream : (existing.stream || '—'),
+          subs: (st.subs && st.subs.length > 0) ? st.subs : (existing.subs || []),
+          directPhoto: st.directPhoto || existing.directPhoto || '',
+          boardReg: st.boardReg || existing.boardReg || '',
+          mobile: st.mobile || existing.mobile || '',
+          parentMobile: st.parentMobile || existing.parentMobile || '',
+          village: st.village || existing.village || '',
+          block: st.block || existing.block || '',
+          tehsil: st.tehsil || existing.tehsil || '',
+          district: st.district || existing.district || '',
+          pen: st.pen || existing.pen || '',
+          aadhar: st.aadhar || existing.aadhar || '',
+          category: st.category || existing.category || '',
+          blood: st.blood || existing.blood || '',
+          account: st.account || existing.account || '',
+          ifsc: st.ifsc || existing.ifsc || '',
           remarks: reRecord?.remarks || st.remarks || existing.remarks || ''
         };
 
@@ -6953,13 +6985,28 @@ export default function AdmissionRegisterSuite({
                   </button>
                 </div>
 
-                {/* 2. Record count badge */}
-                <div className="py-0.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-black shrink-0 shadow-2xs">
-                  {filteredStudents.length} Students
-                  {statusCounts.readmissions > 0 && (
-                    <span className="ml-1 text-purple-700 dark:text-purple-300 font-extrabold">
-                      ({statusCounts.readmissions} Re-Adm)
-                    </span>
+                {/* 2. Record count badge & quick sync */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <div className="py-0.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-black shadow-2xs">
+                    {filteredStudents.length} Students
+                    {statusCounts.readmissions > 0 && (
+                      <span className="ml-1 text-purple-700 dark:text-purple-300 font-extrabold">
+                        ({statusCounts.readmissions} Re-Adm)
+                      </span>
+                    )}
+                  </div>
+                  {onDataUpdated && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sessionCacheRef.current) sessionCacheRef.current = {};
+                        onDataUpdated();
+                      }}
+                      className="p-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-all cursor-pointer shadow-2xs"
+                      title="Clear session cache & sync complete roster from cloud database"
+                    >
+                      <RefreshCw size={11} className={isLoadingSession ? 'animate-spin text-teal-600' : ''} />
+                    </button>
                   )}
                 </div>
 

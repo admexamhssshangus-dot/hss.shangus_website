@@ -38,6 +38,26 @@ export function isValidPhotoKey(k) {
 const memoryCache = new Map();
 const memoryTs = new Map();
 const privatePhotoCache = new Map();
+const fullyHydratedCollections = new Set();
+
+/**
+ * Checks whether a collection's cache represents the complete dataset from Firestore,
+ * rather than a partial or paginated slice.
+ */
+export function isCollectionFullyHydrated(collectionName) {
+  return fullyHydratedCollections.has(collectionName);
+}
+
+/**
+ * Mark a collection as fully hydrated (or not).
+ */
+export function markCollectionFullyHydrated(collectionName, isHydrated = true) {
+  if (isHydrated) {
+    fullyHydratedCollections.add(collectionName);
+  } else {
+    fullyHydratedCollections.delete(collectionName);
+  }
+}
 
 /**
  * Clear all in-memory collection caches.
@@ -46,6 +66,7 @@ export function clearAllMemoryCache() {
   memoryCache.clear();
   memoryTs.clear();
   privatePhotoCache.clear();
+  fullyHydratedCollections.clear();
   if (typeof window !== 'undefined') {
     delete window._hssMasterRegistersCache;
     delete window._hss_central_photo_map;
@@ -73,6 +94,7 @@ export function clearAllMemoryCache() {
  */
 export function invalidateCollectionCache(collectionName) {
   if (!collectionName) return;
+  fullyHydratedCollections.delete(collectionName);
   memoryCache.delete(collectionName);
   memoryTs.delete(collectionName);
   if (collectionName === 'masterRegisters' && typeof window !== 'undefined') {
@@ -600,6 +622,7 @@ export function hydrateRemainingPages(collectionName, initialCursor, initialDocs
         // Yield to event loop for 40ms to keep 60fps animations smooth
         setTimeout(fetchNextBatch, 40);
       } else {
+        markCollectionFullyHydrated(collectionName, true);
         setCachedCollectionData(collectionName, accumulated);
         if (onComplete && typeof onComplete === 'function') {
           onComplete(accumulated);
@@ -685,6 +708,7 @@ export function subscribeToCollection(collectionName, onUpdate, onError) {
 
       const list = Array.from(rowsByDocument.values()).flat();
 
+      markCollectionFullyHydrated(collectionName, true);
       setCachedCollectionData(collectionName, list);
       if (onUpdate && typeof onUpdate === 'function') {
         onUpdate(list);
@@ -801,6 +825,7 @@ async function fetchFreshFromFirestore(collectionName) {
       }, 0);
     }
 
+    markCollectionFullyHydrated(collectionName, true);
     return list;
   } catch (err) {
     if (typeof window !== 'undefined') {
@@ -827,6 +852,7 @@ export function invalidateCache(collectionName) {
   const cacheKey = `${CACHE_PREFIX}${collectionName}`;
   const timestampKey = `${CACHE_PREFIX}${collectionName}_ts`;
 
+  fullyHydratedCollections.delete(collectionName);
   memoryCache.delete(collectionName);
   memoryTs.delete(collectionName);
 

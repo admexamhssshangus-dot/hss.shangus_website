@@ -78,3 +78,6 @@ omr_system/*.docx
 omr_system/*.pdf
 omr_system/docs/*.pdf
 
+# Local scratch scripts and debug files
+scratch/
+
