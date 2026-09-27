@@ -1,6 +1,6 @@
 import { 
   collection, doc, getDocs, query, where, orderBy, documentId, limit, 
-  startAfter, writeBatch, serverTimestamp, setDoc, deleteDoc, getDoc 
+  startAfter, writeBatch, serverTimestamp, setDoc, deleteDoc 
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { sessionKey, recordIdentity } from '../utils/recordIdentity';
@@ -48,7 +48,176 @@ export async function loadSessionAdmissions(session) {
  * 3. Harvests any missing non-empty legacy fields into the admissions record.
  * 4. Permanently purges the duplicate entries from masterRegisters chunks/documents.
  */
-export async function reconcileAndDeduplicateSession({ session = '2025-26', onProgress = null } = {}) {
+// Authoritative 28-field harvest mapping for deduplication & legacy enrichment
+export const HARVESTABLE_FIELD_MAPPING = [
+  {
+    targetKey: 'Admission No',
+    canonicalKey: 'Admission No',
+    aliases: ['Admission No', 'admissionNo', 'admNo', 'Adm. No.', 'Adm No', 'Adm No.', 'admissionNumber', 'Old Admission No.', 'Old Adm. No.']
+  },
+  {
+    targetKey: 'Adm. Date',
+    canonicalKey: 'Adm. Date',
+    aliases: ['Adm. Date', 'admissionDate', 'admDate', 'Admission Date', 'Adm Date']
+  },
+  {
+    targetKey: 'Board Registration Number',
+    canonicalKey: 'Board Registration Number',
+    aliases: [
+      'Board Registration Number', 'Board Registration No. (Class 11th)', 'Board Registration No. (Class 10th)',
+      'Board Registration No. (Class 9th)', 'Board Registration No. (Class 8th)',
+      'Board Registration No.', 'Board Reg. No.', 'Registration No. (allotted by JKBOSE)',
+      'DIET Registration No.', 'boardRegNo', 'regNo', 'REG. NO.', 'Registration No.'
+    ]
+  },
+  {
+    targetKey: "Father's/Guardian's Name (as per school records)",
+    canonicalKey: "Father's Name",
+    aliases: [
+      "Father's/Guardian's Name (as per school records)", "Father's Name (as per school records)",
+      "Father's Name", "Father's/Guardian's Name", "Parent's Name", 'fatherName', 'parentName', 'parentage'
+    ]
+  },
+  {
+    targetKey: "Mother's Name (as per school records)",
+    canonicalKey: "Mother's Name",
+    aliases: [
+      "Mother's Name (as per school records)", "Mother's Name", 'Mother Name', 'motherName', 'Mother'
+    ]
+  },
+  {
+    targetKey: 'DoB (as per school records)',
+    canonicalKey: 'DoB (figures)',
+    aliases: [
+      'DoB (as per school records)', 'DoB (figures)', 'DoB (in figures)', 'Date of Birth',
+      'Date of Birth (as per school records)', 'dob', 'DoB', 'dateOfBirth'
+    ]
+  },
+  {
+    targetKey: 'DoB in words',
+    canonicalKey: 'DoB in words',
+    aliases: ['DoB in words', 'dobWords', 'DoB (words)', 'DoB (in words)', 'dateOfBirthInWords']
+  },
+  {
+    targetKey: 'Stream for Class 11th',
+    canonicalKey: 'Stream',
+    aliases: [
+      'Stream for Class 11th', 'Stream opted in Class 11th', 'Stream & Subjects for Class 12th',
+      'Stream', 'stream', 'faculty', 'Academic Stream'
+    ]
+  },
+  {
+    targetKey: 'PEN No',
+    canonicalKey: 'PEN No',
+    aliases: ['PEN number (given by UDISE portal)', 'PEN No', 'PEN No.', 'Permanent Education Number (PEN)', 'penNo', 'pen', 'APAAR ID', 'apaarId']
+  },
+  {
+    targetKey: 'Aadhar No.',
+    canonicalKey: 'Aadhaar Number',
+    aliases: ['Aadhar No.', 'Aadhaar Number', 'Aadhaar No.', 'Aadhaar Number (12 Digits)', 'aadhaar', 'aadhar', 'aadhaarNo']
+  },
+  {
+    targetKey: "Father's Aadhar No.",
+    canonicalKey: "Father's Aadhaar No.",
+    aliases: ["Father's Aadhar No.", "Father's Aadhaar No.", "Father's Aadhaar Number", 'fatherAadhaar']
+  },
+  {
+    targetKey: 'Gender',
+    canonicalKey: 'Gender',
+    aliases: ['Gender', 'gender', 'Sex', 'sex']
+  },
+  {
+    targetKey: 'Social category',
+    canonicalKey: 'Category',
+    aliases: ['Social category', 'Category', 'Cat._JKBOSE', 'Social Category', 'category']
+  },
+  {
+    targetKey: 'Mobile No. (with working WhatsApp)',
+    canonicalKey: 'Mobile No.',
+    aliases: ['Mobile No. (with working WhatsApp)', 'Mobile No.', 'Mobile Number', "Student's Contact", 'mobile']
+  },
+  {
+    targetKey: "Parent's Mobile No. (must be working)",
+    canonicalKey: "Parent's Contact",
+    aliases: ["Parent's Mobile No. (must be working)", "Parent's Contact", 'Alternate Mobile No.', 'parentContact']
+  },
+  {
+    targetKey: 'Email Address',
+    canonicalKey: 'Email',
+    aliases: ['Email Address', 'Email', 'email']
+  },
+  {
+    targetKey: 'Name of your village',
+    canonicalKey: 'Permanent Address',
+    aliases: ['Name of your village', 'Village/Town', 'Permanent Address', 'residence', 'address', 'village']
+  },
+  {
+    targetKey: 'Tehsil',
+    canonicalKey: 'Tehsil',
+    aliases: ['Tehsil', 'tehsil']
+  },
+  {
+    targetKey: 'District',
+    canonicalKey: 'District',
+    aliases: ['District', 'district']
+  },
+  {
+    targetKey: 'PIN code',
+    canonicalKey: 'PIN code',
+    aliases: ['PIN code', 'Pin Code', 'Pincode', 'pincode']
+  },
+  {
+    targetKey: 'Name of the Institution last attended',
+    canonicalKey: 'Previous School',
+    aliases: ['Name of the Institution last attended', 'Previous School', 'Name of Previous School (Class 10th)', 'Name of Previous School (Class 11th)', 'Name of Previous School (Class 8th)', 'prevSchool']
+  },
+  {
+    targetKey: 'Roll No. (Class 10th)',
+    canonicalKey: 'Exam R.No. (Prev.)',
+    aliases: ['Roll No. (Class 10th)', 'Exam Roll Number of Class 10th', 'Exam Roll Number of Class 11th', 'Exam R.No. (Prev.)', 'prevExamRollNo', 'prevRollNo']
+  },
+  {
+    targetKey: 'Marks Obtained (Class 10th)',
+    canonicalKey: 'Marks Obt. (Prev.)',
+    aliases: ['Marks Obtained (Class 10th)', 'Total Marks Obtained in Class 10th', 'Total Marks Obtained in Class 11th', 'Marks Obt. (Prev.)', 'prevMarksObt', 'prevMarks']
+  },
+  {
+    targetKey: 'Total Max. Marks in Class 10th',
+    canonicalKey: 'Max. Marks (Prev.)',
+    aliases: ['Total Max. Marks in Class 10th', 'Total Max. Marks in Class 11th', 'Max Marks (Class 10th)', 'Max. Marks (Prev.)', 'prevMaxMarks']
+  },
+  {
+    targetKey: 'Percentage (Class 10th)',
+    canonicalKey: '%age (Prev.)',
+    aliases: ['Percentage (Class 10th)', '%age (Prev.)', 'prevPercentage']
+  },
+  {
+    targetKey: 'Previous Result / Marks',
+    canonicalKey: 'Div/Distinc (Prev.)',
+    aliases: ['Previous Result / Marks', 'Div/Distinc (Prev.)', 'prevDivision']
+  },
+  {
+    targetKey: 'Bank Account No.',
+    canonicalKey: 'Bank Account No.',
+    aliases: ['Bank Account No.', 'Bank Account No', 'bankAccount', 'accountNo']
+  },
+  {
+    targetKey: 'Name of Bank',
+    canonicalKey: 'Bank Name',
+    aliases: ['Name of Bank', 'Bank Name', 'bankName']
+  },
+  {
+    targetKey: 'IFSC code',
+    canonicalKey: 'IFSC Code',
+    aliases: ['IFSC code', 'IFSC Code', 'ifsc']
+  }
+];
+
+/**
+ * Phase 1 Step 1: Scan for Duplicates & Preview Harvestable Fields.
+ * 100% READ-ONLY: Scans masterRegisters and verified catalog without modifying anything in Firestore.
+ */
+export async function scanSessionDuplicates({ session = '2025-26', onProgress = null } = {}) {
   const normTargetSession = session.trim();
   onProgress?.(5, 'Loading active admissions records for session ' + normTargetSession + '...');
 
@@ -57,7 +226,7 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
     throw new Error(`No active admissions records found for session ${normTargetSession}.`);
   }
 
-  // Build index by Form Number
+  // Build index of admissions by Form Number
   const admByFormNo = new Map();
   admissionsList.forEach(adm => {
     const rawForm = adm['Form Number'] || adm['Form No.'] || adm.formNo || adm.id || '';
@@ -77,7 +246,7 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
   let purgedCount = 0;
   const harvestedDetails = [];
   const admissionsPatches = new Map(); // admDocId -> patchObject
-  const chunkUpdates = []; // { docId, remainingItems, shouldDelete }
+  const chunkUpdates = []; // { docId, remainingItems, shouldDelete, originalData }
   const flatDocsToDelete = []; // docId[]
 
   onProgress?.(30, `Scanning ${masterSnap.size} master registers documents for duplicates...`);
@@ -115,29 +284,13 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
             // Scan for missing fields to harvest into admissions
             const admDocId = matchedAdm._docId || matchedAdm.id;
             const currentPatch = admissionsPatches.get(admDocId) || {};
-            let harvestedForThis = 0;
+            const studentFieldGains = [];
 
-            const fieldsToCheck = [
-              ['Admission No', 'admissionNo', 'admNo', 'Adm. No.'],
-              ['Adm. Date', 'admissionDate', 'admDate', 'Admission Date'],
-              ['PEN No', 'penNo', 'pen', 'PEN No.', 'APAAR ID', 'apaarId'],
-              ['DoB in words', 'dobWords', 'DoB (words)', 'DoB (in words)'],
-              ['Name of the Institution last attended', 'prevSchool', 'Previous School'],
-              ['Roll No. (Class 10th)', 'prevExamRollNo', 'prevRollNo', 'Exam R.No. (Prev.)'],
-              ['Marks Obtained (Class 10th)', 'prevMarksObt', 'Marks Obt. (Prev.)'],
-              ['Max Marks (Class 10th)', 'prevMaxMarks', 'Max. Marks (Prev.)'],
-              ['Percentage (Class 10th)', 'prevPercentage', '%age (Prev.)'],
-              ['Previous Result / Marks', 'prevDivision', 'Div/Distinc (Prev.)'],
-              ['Bank Account No.', 'bankAccount', 'accountNo'],
-              ['Bank Name', 'bankName', 'Name of Bank'],
-              ['IFSC Code', 'ifsc', 'IFSC code']
-            ];
-
-            fieldsToCheck.forEach(aliasGroup => {
-              const primaryKey = aliasGroup[0];
+            for (const fieldDef of HARVESTABLE_FIELD_MAPPING) {
+              const primaryKey = fieldDef.targetKey;
               // Find first non-empty value in master record
               let masterVal = '';
-              for (const k of aliasGroup) {
+              for (const k of fieldDef.aliases) {
                 if (item[k] !== undefined && item[k] !== null && String(item[k]).trim() !== '' && String(item[k]).trim() !== '—') {
                   masterVal = String(item[k]).trim();
                   break;
@@ -146,7 +299,7 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
 
               // Check if admissions record already has this value
               let admVal = '';
-              for (const k of aliasGroup) {
+              for (const k of fieldDef.aliases) {
                 if (matchedAdm[k] !== undefined && matchedAdm[k] !== null && String(matchedAdm[k]).trim() !== '' && String(matchedAdm[k]).trim() !== '—') {
                   admVal = String(matchedAdm[k]).trim();
                   break;
@@ -155,23 +308,31 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
 
               if (masterVal && !admVal && !currentPatch[primaryKey]) {
                 currentPatch[primaryKey] = masterVal;
+                // Also write canonical alias if applicable
+                if (fieldDef.canonicalKey && fieldDef.canonicalKey !== primaryKey && !currentPatch[fieldDef.canonicalKey]) {
+                  currentPatch[fieldDef.canonicalKey] = masterVal;
+                }
                 fieldsHarvestedCount++;
-                harvestedForThis++;
+                studentFieldGains.push({
+                  field: fieldDef.canonicalKey || primaryKey,
+                  val: masterVal
+                });
               }
-            });
+            }
 
-            if (harvestedForThis > 0) {
+            if (studentFieldGains.length > 0) {
               admissionsPatches.set(admDocId, currentPatch);
               harvestedDetails.push({
                 formNo: itemForm,
-                studentName: matchedAdm["Student's Name (as per school records)"] || matchedAdm.studentName,
-                harvestedFields: Object.keys(currentPatch)
+                studentName: matchedAdm["Student's Name (as per school records)"] || matchedAdm["Student's Name"] || matchedAdm.studentName || 'Student',
+                className: matchedAdm['Admission sought for class'] || matchedAdm.Class || matchedAdm.class || '—',
+                rollNo: matchedAdm['Class Roll No'] || matchedAdm.classRollNo || '—',
+                fields: studentFieldGains
               });
             }
 
             purgedCount++;
-            // Exclude from remaining items (purging duplicate from masterRegisters)
-            continue;
+            continue; // Exclude from remaining items
           }
         }
 
@@ -200,18 +361,12 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
           matchedCount++;
           const admDocId = matchedAdm._docId || matchedAdm.id;
           const currentPatch = admissionsPatches.get(admDocId) || {};
+          const studentFieldGains = [];
 
-          const fieldsToCheck = [
-            ['Admission No', 'admissionNo', 'admNo', 'Adm. No.'],
-            ['Adm. Date', 'admissionDate', 'admDate', 'Admission Date'],
-            ['PEN No', 'penNo', 'pen', 'PEN No.', 'APAAR ID', 'apaarId'],
-            ['DoB in words', 'dobWords', 'DoB (words)', 'DoB (in words)']
-          ];
-
-          fieldsToCheck.forEach(aliasGroup => {
-            const primaryKey = aliasGroup[0];
+          for (const fieldDef of HARVESTABLE_FIELD_MAPPING) {
+            const primaryKey = fieldDef.targetKey;
             let masterVal = '';
-            for (const k of aliasGroup) {
+            for (const k of fieldDef.aliases) {
               if (dData[k] !== undefined && dData[k] !== null && String(dData[k]).trim() !== '' && String(dData[k]).trim() !== '—') {
                 masterVal = String(dData[k]).trim();
                 break;
@@ -219,7 +374,7 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
             }
 
             let admVal = '';
-            for (const k of aliasGroup) {
+            for (const k of fieldDef.aliases) {
               if (matchedAdm[k] !== undefined && matchedAdm[k] !== null && String(matchedAdm[k]).trim() !== '' && String(matchedAdm[k]).trim() !== '—') {
                 admVal = String(matchedAdm[k]).trim();
                 break;
@@ -228,12 +383,26 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
 
             if (masterVal && !admVal && !currentPatch[primaryKey]) {
               currentPatch[primaryKey] = masterVal;
+              if (fieldDef.canonicalKey && fieldDef.canonicalKey !== primaryKey && !currentPatch[fieldDef.canonicalKey]) {
+                currentPatch[fieldDef.canonicalKey] = masterVal;
+              }
               fieldsHarvestedCount++;
+              studentFieldGains.push({
+                field: fieldDef.canonicalKey || primaryKey,
+                val: masterVal
+              });
             }
-          });
+          }
 
-          if (Object.keys(currentPatch).length > 0) {
+          if (studentFieldGains.length > 0) {
             admissionsPatches.set(admDocId, currentPatch);
+            harvestedDetails.push({
+              formNo: flatForm,
+              studentName: matchedAdm["Student's Name (as per school records)"] || matchedAdm["Student's Name"] || matchedAdm.studentName || 'Student',
+              className: matchedAdm['Admission sought for class'] || matchedAdm.Class || matchedAdm.class || '—',
+              rollNo: matchedAdm['Class Roll No'] || matchedAdm.classRollNo || '—',
+              fields: studentFieldGains
+            });
           }
         }
 
@@ -243,10 +412,49 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
     }
   }
 
-  onProgress?.(60, `Harvested fields for ${admissionsPatches.size} students. Writing updates to admissions...`);
+  onProgress?.(100, `Scan completed: Found ${duplicatesFound} duplicates, ${fieldsHarvestedCount} harvestable fields.`);
+
+  return {
+    targetSession: normTargetSession,
+    admissionsCount: admissionsList.length,
+    duplicatesFound,
+    matchedCount,
+    unmatchedCount: duplicatesFound - matchedCount,
+    fieldsHarvestedCount,
+    admissionsPatchedCount: admissionsPatches.size,
+    purgedCount,
+    harvestedDetails,
+    admissionsPatches,
+    chunkUpdates,
+    flatDocsToDelete
+  };
+}
+
+/**
+ * Phase 1 Step 2: Execute Reconciliation & Deduplication based on authorized Scan Plan.
+ * Applies patches to admissions and safely purges duplicates from masterRegisters.
+ */
+export async function executeDuplicatesReconciliation({ scanPlan, onProgress = null } = {}) {
+  if (!scanPlan) throw new Error('Missing scan plan for reconciliation execution.');
+
+  const {
+    targetSession,
+    admissionsPatches,
+    chunkUpdates,
+    flatDocsToDelete,
+    purgedCount,
+    matchedCount,
+    fieldsHarvestedCount,
+    harvestedDetails
+  } = scanPlan;
+
+  onProgress?.(20, `Writing harvested fields to ${admissionsPatches.size} admissions documents in Firestore...`);
 
   // Apply patches to admissions in batches of 400
-  const patchEntries = [...admissionsPatches.entries()];
+  const patchEntries = admissionsPatches instanceof Map 
+    ? [...admissionsPatches.entries()] 
+    : Object.entries(admissionsPatches);
+
   for (let i = 0; i < patchEntries.length; i += 400) {
     const chunk = patchEntries.slice(i, i + 400);
     const batch = writeBatch(db);
@@ -260,10 +468,10 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
     await batch.commit();
   }
 
-  onProgress?.(80, `Purging ${purgedCount} duplicates from master registers...`);
+  onProgress?.(60, `Purging ${purgedCount} duplicates from master registers...`);
 
   // Purge from masterRegisters chunk documents
-  for (const upd of chunkUpdates) {
+  for (const upd of (chunkUpdates || [])) {
     if (upd.shouldDelete) {
       await deleteDoc(doc(db, 'masterRegisters', upd.docId)).catch(() => {});
     } else {
@@ -276,7 +484,7 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
   }
 
   // Delete flat docs
-  for (let i = 0; i < flatDocsToDelete.length; i += 400) {
+  for (let i = 0; i < (flatDocsToDelete || []).length; i += 400) {
     const chunk = flatDocsToDelete.slice(i, i + 400);
     const batch = writeBatch(db);
     chunk.forEach(dId => {
@@ -293,13 +501,22 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
   onProgress?.(100, `Reconciliation completed successfully! Purged ${purgedCount} duplicates.`);
 
   return {
-    duplicatesFound,
+    success: true,
+    targetSession,
     matchedCount,
     fieldsHarvestedCount,
-    admissionsPatchedCount: admissionsPatches.size,
+    admissionsPatchedCount: patchEntries.length,
     purgedCount,
     harvestedDetails
   };
+}
+
+/**
+ * Backward-compatible single-call reconciliation.
+ */
+export async function reconcileAndDeduplicateSession({ session = '2025-26', onProgress = null } = {}) {
+  const plan = await scanSessionDuplicates({ session, onProgress });
+  return await executeDuplicatesReconciliation({ scanPlan: plan, onProgress });
 }
 
 /**
@@ -371,6 +588,12 @@ export async function archiveSessionRecords(records, { session, newSession, onPr
         delete cleaned._arrayKey;
         delete cleaned._isHistorical;
         delete cleaned._isMasterRegister;
+        delete cleaned._masterMatch;
+        delete cleaned._masterAdmNo;
+        delete cleaned._masterRegNo;
+        delete cleaned._masterFatherName;
+        delete cleaned._masterMotherName;
+        delete cleaned._masterDob;
 
         // Strip legacy duplicate photo keys, preserving only canonical photo_id
         delete cleaned['Student Photo'];
@@ -378,6 +601,23 @@ export async function archiveSessionRecords(records, { session, newSession, onPr
         delete cleaned.photoId;
         delete cleaned.studentPhoto;
         delete cleaned.passport_photo;
+
+        // Canonical master registers fields
+        const sName = student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || student.name || '';
+        const fName = student["Father's Name"] || student["Father's/Guardian's Name (as per school records)"] || student["Father's/Guardian's Name"] || student.fatherName || '';
+        const mName = student["Mother's Name"] || student["Mother's Name (as per school records)"] || student.motherName || '';
+        const sDob = student['DoB (figures)'] || student['DoB (as per school records)'] || student['Date of Birth'] || student.dob || '';
+        const sReg = student['Board Registration Number'] || student['Board Registration No. (Class 11th)'] || student['Board Registration No. (Class 10th)'] || student['Board Reg. No.'] || student.boardRegNo || student.regNo || '';
+        const sAdm = student['Admission No'] || student['Admission No.'] || student['Adm. No.'] || student.admNo || student.admissionNo || '';
+        const sRoll = student['Class Roll No'] || student.classRollNo || student.rollNo || '';
+
+        if (sName) cleaned["Student's Name"] = sName;
+        if (fName) cleaned["Father's Name"] = fName;
+        if (mName) cleaned["Mother's Name"] = mName;
+        if (sDob) cleaned["DoB (figures)"] = sDob;
+        if (sReg) cleaned["Board Registration Number"] = sReg;
+        if (sAdm) cleaned["Admission No"] = sAdm;
+        if (sRoll) cleaned["Class Roll No"] = sRoll;
 
         cleaned.Session = session;
         cleaned.session = session;
