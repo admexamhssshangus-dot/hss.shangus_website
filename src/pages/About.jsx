@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, BookOpen, Award, Globe, Eye, Compass, Sparkles, ChevronDown, ChevronUp, Landmark, GraduationCap, ArrowDown } from 'lucide-react';
+import { Users, BookOpen, Award, Globe, Eye, Compass, Sparkles, ChevronDown, ChevronUp, Landmark, GraduationCap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { doc, getDoc } from 'firebase/firestore';
@@ -12,15 +12,21 @@ export default function About() {
   const [dynamicData, setDynamicData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showFullGlimpse, setShowFullGlimpse] = useState(false);
-  const fullGlimpseRef = useRef(null);
+  const cardRef = useRef(null);
 
   const handleToggleGlimpses = () => {
-    const nextState = !showFullGlimpse;
-    setShowFullGlimpse(nextState);
-    if (nextState) {
-      setTimeout(() => {
-        fullGlimpseRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 120);
+    setShowFullGlimpse(prev => !prev);
+  };
+
+  const handleCollapseGlimpses = () => {
+    setShowFullGlimpse(false);
+    if (cardRef.current) {
+      const navOffset = 110;
+      const elementTop = cardRef.current.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({
+        top: Math.max(0, elementTop - navOffset),
+        behavior: 'smooth'
+      });
     }
   };
 
@@ -91,7 +97,7 @@ export default function About() {
 
         {/* Glimpse + Vision & Mission */}
         <div className="max-w-6xl mx-auto px-3 sm:px-4 py-8 sm:py-12 relative -mt-10 sm:-mt-16 z-20">
-          <div className="bg-white rounded-2xl shadow-xl p-3.5 sm:p-8 border-t-4 border-teal-500 mb-6 sm:mb-8 relative overflow-hidden border border-slate-200/80">
+          <div ref={cardRef} className="bg-white rounded-2xl shadow-xl p-3.5 sm:p-8 border-t-4 border-teal-500 mb-6 sm:mb-8 relative overflow-hidden border border-slate-200/80">
             {/* Large decorative chinar leaf watermark */}
             <svg className="absolute -right-12 -top-8 w-64 h-64 text-teal-500/[0.04] pointer-events-none select-none" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
@@ -151,26 +157,24 @@ export default function About() {
 
             {/* Expandable Detailed 4 Pillar Glimpses */}
             {showFullGlimpse && (
-              <div ref={fullGlimpseRef} className="space-y-3.5 pt-2 animate-fadeIn relative z-10 scroll-mt-20">
-                {/* Visual Scroll-Down Indicator Clue Banner */}
-                <div className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3.5 rounded-xl bg-gradient-to-r from-teal-800 via-teal-700 to-emerald-800 text-white shadow-md border border-teal-500/40 animate-pulse">
+              <div className="space-y-3.5 pt-2 animate-fadeIn relative z-10">
+                {/* 4 Pillars Header Banner */}
+                <div className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3.5 rounded-xl bg-gradient-to-r from-teal-800 via-teal-700 to-emerald-800 text-white shadow-md border border-teal-500/40">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="p-1 rounded-lg bg-white/20 flex-shrink-0">
-                      <ArrowDown size={16} className="animate-bounce" />
+                    <span className="p-1.5 rounded-lg bg-white/20 flex-shrink-0">
+                      <GraduationCap size={16} />
                     </span>
                     <div className="min-w-0">
                       <p className="text-xs sm:text-sm font-bold truncate xs:whitespace-normal">
                         4 Institutional Pillars Expanded Below
                       </p>
                       <p className="text-[10px] sm:text-[11px] text-teal-100 hidden xs:block">
-                        Scroll down to explore Campus, Heritage, Academics &amp; Leadership
+                        Campus, Heritage, Academics &amp; Leadership in detail
                       </p>
                     </div>
                   </div>
-                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-white/20 text-teal-50 px-2 sm:px-2.5 py-1 rounded-full flex-shrink-0 flex items-center gap-1">
-                    <span className="hidden xs:inline">Scroll to Read</span>
-                    <span className="xs:hidden">Scroll</span>
-                    <ArrowDown size={11} className="animate-bounce" />
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider bg-white/20 text-teal-50 px-2.5 py-1 rounded-full flex-shrink-0">
+                    Full Details
                   </span>
                 </div>
 
@@ -210,14 +214,11 @@ export default function About() {
                 <div className="flex justify-center pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowFullGlimpse(false);
-                      window.scrollTo({ top: Math.max(0, window.scrollY - 300), behavior: 'smooth' });
-                    }}
-                    className="inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-xl border border-teal-300 bg-white hover:bg-teal-50 text-teal-900 font-bold text-xs shadow-2xs hover:shadow transition-all duration-200 cursor-pointer"
+                    onClick={handleCollapseGlimpses}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-teal-300 bg-white hover:bg-teal-50 text-teal-900 font-bold text-xs sm:text-sm shadow-xs hover:shadow transition-all duration-200 cursor-pointer"
                   >
                     <span>Collapse Glimpses</span>
-                    <ChevronUp size={14} />
+                    <ChevronUp size={15} />
                   </button>
                 </div>
               </div>
