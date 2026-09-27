@@ -21,6 +21,8 @@ import {
   getAssignedClassRollNumber,
   resolveStudentAdmissionStatus
 } from '../../utils/studentApprovalStatus';
+import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
+import { loadCentralStudentPhotosFromFirestore, preloadStudentPhotosCache, normalizeCanonicalClass } from '../../services/dbCache';
 
 // The 48 standard official column headers matching Student Records & Reports
 const STANDARD_48_COLUMNS = [
@@ -129,6 +131,16 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
     setLoading(true);
     setErrorMsg(null);
     try {
+      // 0. Preload central student photos into memory map so photos resolve across all sources
+      try {
+        await Promise.race([
+          loadCentralStudentPhotosFromFirestore(),
+          new Promise(r => setTimeout(r, 2000))
+        ]);
+      } catch (_) {
+        preloadStudentPhotosCache().catch(() => {});
+      }
+
       const list = await loadSessionAdmissions(archiveSessionTag);
 
       // 1. Index verifiedStudentsCatalog by Form Number
@@ -163,16 +175,40 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
         }
       });
 
-      // 3. Enrich raw admissions with verified fields so no student has missing data
+      // 3. Enrich raw admissions with verified fields and photos so no student has missing data
       const enrichedList = list.map(adm => {
         const fNo = normalizeFormNo(adm['Form Number'] || adm['Form No.'] || adm.formNo || adm.id || '');
         const masterMatch = fNo ? masterByForm.get(fNo) : null;
         const catMatch = fNo ? catalogByForm.get(fNo) : null;
 
+        // Universal photo resolution: check admissions, master registers match, and central cache
+        const directPhoto = formatPhotoDisplayUrl(getStudentPhotoUrl(adm)) ||
+          formatPhotoDisplayUrl(adm.photo_id) ||
+          formatPhotoDisplayUrl(adm['Student Photo']) ||
+          formatPhotoDisplayUrl(adm['Student Photograph']) ||
+          formatPhotoDisplayUrl(adm.photoUrl) ||
+          formatPhotoDisplayUrl(adm.photoData) ||
+          formatPhotoDisplayUrl(adm.studentPhoto) ||
+          '';
+
+        const masterPhoto = masterMatch ? (
+          formatPhotoDisplayUrl(getStudentPhotoUrl(masterMatch)) ||
+          formatPhotoDisplayUrl(masterMatch.photo_id) ||
+          formatPhotoDisplayUrl(masterMatch['Student Photo']) ||
+          formatPhotoDisplayUrl(masterMatch['Student Photograph']) ||
+          formatPhotoDisplayUrl(masterMatch.photoUrl) ||
+          formatPhotoDisplayUrl(masterMatch.photoData) ||
+          formatPhotoDisplayUrl(masterMatch.studentPhoto) ||
+          ''
+        ) : '';
+
+        const resolvedPhoto = directPhoto || masterPhoto || '';
+
         return {
           ...adm,
           _masterMatch: masterMatch,
           _catMatch: catMatch,
+          _resolvedPhoto: resolvedPhoto,
           _masterAdmNo: masterMatch?.['Admission No'] || masterMatch?.['Admission No.'] || masterMatch?.admNo || masterMatch?.admissionNo,
           _masterRegNo: catMatch?.boardRegNo || masterMatch?.['Board Registration Number'] || masterMatch?.boardRegNo || masterMatch?.regNo,
           _masterFatherName: catMatch?.fatherName || masterMatch?.["Father's Name"] || masterMatch?.["Father's/Guardian's Name"] || masterMatch?.fatherName,
@@ -253,24 +289,30 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
   const analysis = useMemo(() => {
     const approved = [];
     const unapproved = [];
-    const byClass = { '9th': 0, '10th': 0, '11th': 0, '12th': 0, 'Other': 0 };
-    const byClassApproved = { '9th': 0, '10th': 0, '11th': 0, '12th': 0, 'Other': 0 };
+    const byClass = { '9th': 0, '10th': 0, '11th': 0, '12th': 0, Other: 0 };
+    const byClassApproved = { '9th': 0, '10th': 0, '11th': 0, '12th': 0, Other: 0 };
+    const byClassUnapproved = { '9th': 0, '10th': 0, '11th': 0, '12th': 0, Other: 0 };
     let totalPhotos = 0;
 
     rawAdmissions.forEach(rec => {
       const effectiveStatus = resolveStudentAdmissionStatus(rec);
 
-      const cls = String(rec['Admission sought for class'] || rec.Class || rec.class || '').toLowerCase();
+      const cls = normalizeCanonicalClass(
+        rec['Admission sought for class'] || rec.Class || rec.class || rec._catMatch?.className || ''
+      );
       let classKey = 'Other';
-      if (cls.includes('9')) classKey = '9th';
-      else if (cls.includes('10')) classKey = '10th';
-      else if (cls.includes('11')) classKey = '11th';
-      else if (cls.includes('12')) classKey = '12th';
+      if (cls === '9th') classKey = '9th';
+      else if (cls === '10th') classKey = '10th';
+      else if (cls === '11th') classKey = '11th';
+      else if (cls === '12th') classKey = '12th';
 
       byClass[classKey] = (byClass[classKey] || 0) + 1;
 
-      const photoVal = rec.photo_id || rec['Student Photo'] || rec.photoUrl || rec.photoId || '';
-      if (photoVal && typeof photoVal === 'string' && photoVal.length > 10 && photoVal !== '—') {
+      const p = rec._resolvedPhoto || 
+        formatPhotoDisplayUrl(getStudentPhotoUrl(rec)) || 
+        (rec._masterMatch ? formatPhotoDisplayUrl(getStudentPhotoUrl(rec._masterMatch)) : '') || 
+        '';
+      if (p && typeof p === 'string' && p.length > 20 && p !== '/logo.png') {
         totalPhotos++;
       }
 
@@ -279,6 +321,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
         byClassApproved[classKey] = (byClassApproved[classKey] || 0) + 1;
       } else {
         unapproved.push(rec);
+        byClassUnapproved[classKey] = (byClassUnapproved[classKey] || 0) + 1;
       }
     });
 
@@ -288,9 +331,58 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
       unapproved,
       byClass,
       byClassApproved,
+      byClassUnapproved,
       totalPhotos
     };
   }, [rawAdmissions]);
+
+  // Contextual counts for Status filter buttons based on selectedClassTab
+  const statusCounts = useMemo(() => {
+    if (selectedClassTab === 'ALL') {
+      return {
+        all: analysis.total,
+        approved: analysis.approved.length,
+        unapproved: analysis.unapproved.length
+      };
+    }
+    const totalInClass = analysis.byClass[selectedClassTab] || 0;
+    const apprInClass = analysis.byClassApproved[selectedClassTab] || 0;
+    const unapprInClass = analysis.byClassUnapproved[selectedClassTab] || 0;
+    return {
+      all: totalInClass,
+      approved: apprInClass,
+      unapproved: unapprInClass
+    };
+  }, [analysis, selectedClassTab]);
+
+  // Contextual counts for Class filter buttons based on filterTab
+  const classTabCounts = useMemo(() => {
+    if (filterTab === 'approved') {
+      return {
+        ALL: analysis.approved.length,
+        '9th': analysis.byClassApproved['9th'] || 0,
+        '10th': analysis.byClassApproved['10th'] || 0,
+        '11th': analysis.byClassApproved['11th'] || 0,
+        '12th': analysis.byClassApproved['12th'] || 0
+      };
+    }
+    if (filterTab === 'unapproved') {
+      return {
+        ALL: analysis.unapproved.length,
+        '9th': analysis.byClassUnapproved['9th'] || 0,
+        '10th': analysis.byClassUnapproved['10th'] || 0,
+        '11th': analysis.byClassUnapproved['11th'] || 0,
+        '12th': analysis.byClassUnapproved['12th'] || 0
+      };
+    }
+    return {
+      ALL: analysis.total,
+      '9th': analysis.byClass['9th'] || 0,
+      '10th': analysis.byClass['10th'] || 0,
+      '11th': analysis.byClass['11th'] || 0,
+      '12th': analysis.byClass['12th'] || 0
+    };
+  }, [analysis, filterTab]);
 
   // Comprehensive extraction engine across all 48 official columns
   const getStudentColumnValue = (s, colKey, idx) => {
@@ -352,8 +444,15 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
       case 'ifsc': return s['IFSC code'] || s['IFSC Code'] || s.ifsc || '—';
       case 'paymentRef': return s['Payment Reference'] || s['Payment Ref'] || s.paymentRef || s.utrNo || s.transactionId || '—';
       case 'photoStatus': {
-        const p = s.photo_id || s['Student Photo'] || s.photoUrl || s.photoId;
-        return (p && p.length > 20) ? 'Available' : 'Missing';
+        const p = s._resolvedPhoto || 
+          formatPhotoDisplayUrl(getStudentPhotoUrl(s)) ||
+          formatPhotoDisplayUrl(s.photo_id) || 
+          formatPhotoDisplayUrl(s['Student Photo']) || 
+          formatPhotoDisplayUrl(s.photoUrl) || 
+          formatPhotoDisplayUrl(s.photoId) ||
+          (s._masterMatch ? formatPhotoDisplayUrl(getStudentPhotoUrl(s._masterMatch)) : '') ||
+          '';
+        return (p && p.length > 20 && p !== '/logo.png') ? 'Available' : 'Missing';
       }
       case 'remarks': return s.remarks || s['Remarks'] || '—';
       case 'rolloverAction': {
@@ -372,12 +471,10 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
 
     if (selectedClassTab !== 'ALL') {
       list = list.filter(r => {
-        const cls = String(r['Admission sought for class'] || r.Class || r.class || r._catMatch?.className || '').toLowerCase();
-        if (selectedClassTab === '9th') return cls.includes('9');
-        if (selectedClassTab === '10th') return cls.includes('10');
-        if (selectedClassTab === '11th') return cls.includes('11');
-        if (selectedClassTab === '12th') return cls.includes('12');
-        return false;
+        const cls = normalizeCanonicalClass(
+          r['Admission sought for class'] || r.Class || r.class || r._catMatch?.className || ''
+        );
+        return cls === selectedClassTab;
       });
     }
 
@@ -656,11 +753,11 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
                 {/* Left: Class Pills */}
                 <div className="flex items-center gap-1 overflow-x-auto no-scrollbar p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10.5px] font-black shrink-0">
                   {[
-                    { id: 'ALL', label: `All (${analysis.total})` },
-                    { id: '9th', label: `9th (${analysis.byClass['9th']})` },
-                    { id: '10th', label: `10th (${analysis.byClass['10th']})` },
-                    { id: '11th', label: `11th (${analysis.byClass['11th']})` },
-                    { id: '12th', label: `12th (${analysis.byClass['12th']})` }
+                    { id: 'ALL', label: `All (${classTabCounts.ALL})` },
+                    { id: '9th', label: `9th (${classTabCounts['9th']})` },
+                    { id: '10th', label: `10th (${classTabCounts['10th']})` },
+                    { id: '11th', label: `11th (${classTabCounts['11th']})` },
+                    { id: '12th', label: `12th (${classTabCounts['12th']})` }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -683,23 +780,23 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
                     <button
                       type="button"
                       onClick={() => setFilterTab('all')}
-                      className={`px-2 py-0.5 rounded transition-all ${filterTab === 'all' ? 'bg-purple-700 text-white' : 'text-slate-600 dark:text-slate-400'}`}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${filterTab === 'all' ? 'bg-purple-700 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'}`}
                     >
-                      All ({analysis.total})
+                      All ({statusCounts.all})
                     </button>
                     <button
                       type="button"
                       onClick={() => setFilterTab('approved')}
-                      className={`px-2 py-0.5 rounded transition-all ${filterTab === 'approved' ? 'bg-emerald-700 text-white' : 'text-slate-600 dark:text-slate-400'}`}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${filterTab === 'approved' ? 'bg-emerald-700 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'}`}
                     >
-                      Approved ({analysis.approved.length})
+                      Approved ({statusCounts.approved})
                     </button>
                     <button
                       type="button"
                       onClick={() => setFilterTab('unapproved')}
-                      className={`px-2 py-0.5 rounded transition-all ${filterTab === 'unapproved' ? 'bg-amber-700 text-white' : 'text-slate-600 dark:text-slate-400'}`}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${filterTab === 'unapproved' ? 'bg-amber-700 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'}`}
                     >
-                      Drafts ({analysis.unapproved.length})
+                      Drafts ({statusCounts.unapproved})
                     </button>
                   </div>
 
@@ -714,8 +811,8 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
                     />
                   </div>
 
-                  <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold whitespace-nowrap pl-1">
-                    Showing {previewRecords.length} records (48 columns) &rarr;
+                  <span className="text-[10px] text-purple-700 dark:text-purple-300 font-black whitespace-nowrap pl-1 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800/60">
+                    Showing {previewRecords.length} {selectedClassTab !== 'ALL' ? `Class ${selectedClassTab} ` : ''}{filterTab === 'approved' ? 'Approved ' : filterTab === 'unapproved' ? 'Draft ' : ''}records (48 columns) &rarr;
                   </span>
                 </div>
               </div>
@@ -772,6 +869,21 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
                                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                                       : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                                   }`}>
+                                    {cellVal}
+                                  </span>
+                                </td>
+                              );
+                            }
+                            if (col.key === 'photoStatus') {
+                              const isAvailable = cellVal === 'Available';
+                              return (
+                                <td key={col.key} className="px-2 py-1 border-r border-slate-100 dark:border-slate-800">
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-black ${
+                                    isAvailable
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/40'
+                                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                                  }`}>
+                                    {isAvailable ? <Check size={9} /> : null}
                                     {cellVal}
                                   </span>
                                 </td>

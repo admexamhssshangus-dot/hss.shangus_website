@@ -48,8 +48,16 @@ export async function loadSessionAdmissions(session) {
  * 3. Harvests any missing non-empty legacy fields into the admissions record.
  * 4. Permanently purges the duplicate entries from masterRegisters chunks/documents.
  */
-// Authoritative 28-field harvest mapping for deduplication & legacy enrichment
+// Authoritative 29-field harvest mapping for deduplication & legacy enrichment
 export const HARVESTABLE_FIELD_MAPPING = [
+  {
+    targetKey: 'photo_id',
+    canonicalKey: 'Photo ID',
+    aliases: [
+      'photo_id', 'photoId', 'Student Photo', 'Student Photograph', 'Student Photo URL',
+      'photoUrl', 'photo', 'Photo', 'studentPhoto', 'photoData'
+    ]
+  },
   {
     targetKey: 'Admission No',
     canonicalKey: 'Admission No',
