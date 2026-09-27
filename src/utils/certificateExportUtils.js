@@ -358,7 +358,7 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   }
   if (contextData.rollNo && contextData.rollNo.trim().length >= 1 && contextData.rollNo !== '—' && !contextData.rollNo.includes('{')) {
     const esc = escapeRegex(contextData.rollNo.trim());
-    res = res.replace(new RegExp(`((?:Roll\\s*(?:No\\.?)?:?|Class\\s+Roll\\s+No:?)\\s*<strong>?\\s*)${esc}(\\s*<\\/strong>?)`, 'gi'), '$1{ROLL_NO}$2');
+    res = res.replace(new RegExp(`((?:Roll\\s*(?:No\\.?)?:?|Class\\s+Roll\\s+No:?)\\s*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)`, 'gi'), '$1{ROLL_NO}$2');
   }
   if (contextData.regNo && contextData.regNo.trim().length >= 4 && contextData.regNo !== '—' && !contextData.regNo.includes('{')) {
     const esc = escapeRegex(contextData.regNo.trim());
@@ -372,17 +372,18 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
     const esc = escapeRegex(contextData.dobWords.trim());
     res = res.replace(new RegExp(esc, 'gi'), '{DOB_WORDS}');
   }
-  if (contextData.session && contextData.session.trim().length >= 4 && !contextData.session.includes('{')) {
+  if (contextData.session && contextData.session.trim().length >= 3 && !contextData.session.includes('{')) {
     const esc = escapeRegex(contextData.session.trim());
-    res = res.replace(new RegExp(`((?:session|academic\\s+session)\\s*<strong>?\\s*)${esc}(\\s*<\\/strong>?)`, 'gi'), '$1{SESSION}$2');
+    res = res.replace(new RegExp(`((?:(?:current\\s+)?academic\\s+session|session|academic\\s+year|batch)[,:\\s-]*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)?`, 'gi'), '$1{SESSION}$2');
+    res = res.replace(new RegExp(`((?:during|in|for)(?:\\s+the)?(?:\\s+current)?(?:\\s+academic)?(?:\\s+session)?[,:\\s-]*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)?`, 'gi'), '$1{SESSION}$2');
   }
   if (contextData.className && contextData.className.trim() && !contextData.className.includes('{')) {
     const esc = escapeRegex(contextData.className.trim());
-    res = res.replace(new RegExp(`(Class\\s*<strong>?\\s*)${esc}(\\s*<\\/strong>?)`, 'gi'), '$1{CLASS}$2');
+    res = res.replace(new RegExp(`(Class\\s*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)`, 'gi'), '$1{CLASS}$2');
   }
   if (contextData.stream && contextData.stream.trim().length >= 3 && !contextData.stream.includes('{')) {
     const esc = escapeRegex(contextData.stream.trim());
-    res = res.replace(new RegExp(`(Stream:\\s*<strong>?\\s*)${esc}(\\s*<\\/strong>?)`, 'gi'), '$1{STREAM}$2');
+    res = res.replace(new RegExp(`(Stream:\\s*(?:<strong>)?\\s*)${esc}(\\s*(?:<\\/strong>)?)`, 'gi'), '$1{STREAM}$2');
   }
   if (contextData.address && contextData.address.trim().length >= 5 && !contextData.address.includes('{')) {
     const esc = escapeRegex(contextData.address.trim());
@@ -432,7 +433,7 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
 
   // Matches Roll No: 1101 or Class Roll No: 1101
   res = res.replace(
-    /((?:bearing\s+Class\s+Roll\s+No:?|Class\s+Roll\s+No:?|Roll\s+No:?)\s*<strong>?\s*)([0-9A-Za-z—–-]+?)(\s*<\/strong>?(?:\s+and\s+Registration|\s*,\s*(?:Session|academic)))/gi,
+    /((?:bearing\s+Class\s+Roll\s+No:?|Class\s+Roll\s+No:?|Roll\s+No:?)\s*(?:<strong>)?\s*)([0-9A-Za-z—–-]+?)(\s*(?:<\/strong>)?(?:\s+and\s+Registration|\s*,\s*(?:Session|academic)))/gi,
     (m, p1, roll, p3) => {
       if (roll.includes('{') || roll.trim() === '{ROLL_NO}') return m;
       return `${p1}{ROLL_NO}${p3}`;
@@ -441,7 +442,7 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
 
   // Matches Registration No: 24SHG1101
   res = res.replace(
-    /((?:and\s+Registration\s+No:?|Registration\s+No:?|Reg\s+No:?)\s*<strong>?\s*)([0-9A-Za-z/—–-]+?)(\s*<\/strong>?(?:\s+in\s+academic\s+session|\s+during\s+the\s+academic\s+session|\s+in\s+this\s+institution))/gi,
+    /((?:and\s+Registration\s+No:?|Registration\s+No:?|Reg\s+No:?)\s*(?:<strong>)?\s*)([0-9A-Za-z/—–-]+?)(\s*(?:<\/strong>)?(?:\s+in\s+academic\s+session|\s+during\s+the\s+academic\s+session|\s+during\s+the\s+current\s+academic\s+session|\s+in\s+this\s+institution))/gi,
     (m, p1, reg, p3) => {
       if (reg.includes('{') || reg.trim() === '{REG_NO}') return m;
       return `${p1}{REG_NO}${p3}`;
@@ -450,7 +451,7 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
 
   // Matches Class 11th / Class 12th in reading/studying phrases
   res = res.replace(
-    /((?:reading\s+in|studying\s+in|admitted\s+to|enrolled\s+in)\s+<strong>?\s*Class\s+)([0-9]{1,2}(?:st|nd|rd|th)?)(\s*<\/strong>?)/gi,
+    /((?:reading\s+in|studying\s+in|admitted\s+to|enrolled\s+in)\s+(?:<strong>)?\s*Class\s+)([0-9]{1,2}(?:st|nd|rd|th)?)(\s*(?:<\/strong>)?)/gi,
     (m, p1, cls, p3) => {
       if (cls.includes('{')) return m;
       return `${p1}{CLASS}${p3}`;
@@ -459,25 +460,25 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
 
   // Matches (Stream: Medical)
   res = res.replace(
-    /(\(\s*Stream:\s*<strong>?\s*)([A-Za-z\s]+?)(\s*<\/strong>?\s*\))/gi,
+    /(\(\s*Stream:\s*(?:<strong>)?\s*)([A-Za-z\s]+?)(\s*(?:<\/strong>)?\s*\))/gi,
     (m, p1, str, p3) => {
       if (str.includes('{')) return m;
       return `${p1}{STREAM}${p3}`;
     }
   );
 
-  // Matches academic session 2024-25 / 2025-26 / 2026-27
+  // Matches academic session 2024-25 / 2025-26 / 2026 APR/BIAN / etc.
   res = res.replace(
-    /((?:academic\s+session|session)\s*<strong>?\s*)(202[0-9]-[23][0-9])(\s*<\/strong>?)/gi,
+    /((?:(?:current\s+)?academic\s+session|session|academic\s+year|batch)[,:\s-]*(?:<strong>)?\s*)(202[0-9]-[23][0-9](?:\s*\([^)]+\))?|202[0-9]\s+(?:APR\/BIAN|BIAN|Pvt\/Bi-Ann|Bi-Annual)|202[0-9])(\s*(?:<\/strong>)?)?/gi,
     (m, p1, sess, p3) => {
       if (sess.includes('{')) return m;
-      return `${p1}{SESSION}${p3}`;
+      return `${p1}{SESSION}${p3 || ''}`;
     }
   );
 
   // Matches resident of / residing at address
   res = res.replace(
-    /((?:resident\s+of|residing\s+at)\s*<strong>?\s*)([^<>{}\r\n]+?)(\s*<\/strong>?)/gi,
+    /((?:resident\s+of|residing\s+at)\s*(?:<strong>)?\s*)([^<>{}\r\n]+?)(\s*(?:<\/strong>)?)/gi,
     (m, p1, addr, p3) => {
       if (addr.includes('{') || addr.trim().length < 3) return m;
       return `${p1}{ADDRESS}${p3}`;
@@ -1066,8 +1067,8 @@ export function printStudentCertificate({
     doc: certificateTitle,
     name: metaDetails.name || metaDetails.studentName || '',
     father: metaDetails.fatherName || metaDetails.parentName || '',
-    className: metaDetails.className || metaDetails.selectedClass || '',
-    session: metaDetails.session || metaDetails.sessionYear || '',
+    className: metaDetails.className || metaDetails.selectedClass || metaDetails.class || metaDetails.cls || '',
+    session: metaDetails.session || metaDetails.sessionYear || metaDetails.academicSession || metaDetails.sessionTag || '',
     stream: metaDetails.stream || metaDetails.selectedStream || ''
   });
   const qrSvg = createQrSvg(verifyUrl, { margin: 2, errorCorrectionLevel: 'M', darkColor: '#000000', lightColor: '#ffffff' });
@@ -1961,7 +1962,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       doc: certificateTitle,
       name: metaDetails.name || metaDetails.studentName || student?.name || student?.studentName || '',
       father: metaDetails.fatherName || metaDetails.parentName || student?.fatherName || student?.parentName || '',
-      className: metaDetails.className || metaDetails.selectedClass || student?.className || '',
+      className: metaDetails.className || metaDetails.selectedClass || student?.className || student?.cls || '',
       session: metaDetails.session || metaDetails.sessionYear || student?.session || '',
       stream: metaDetails.stream || student?.stream || ''
     });

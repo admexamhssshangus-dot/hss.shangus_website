@@ -14,7 +14,12 @@ const classKey = value => {
   return str.match(/\d+/)?.[0] || '';
 };
 const sessionKey = value => {
-  const text = String(value || ''); const match = text.match(/(20\d{2})\s*[-/]\s*(\d{2,4})/);
+  const text = String(value || '');
+  const isBian = /bian|bi-annual|apr|pvt|private/i.test(text);
+  const match = text.match(/(20\d{2})\s*[-/]\s*(\d{2,4})/);
+  if (match && !isBian) return `${match[1]}-${match[2].slice(-2)}`;
+  const singleYear = text.match(/\b(20\d{2})\b/);
+  if (singleYear && isBian) return `${singleYear[1]}-bian`;
   if (match) return `${match[1]}-${match[2].slice(-2)}`;
   if (/^20\d{2}$/.test(text)) return `${Number(text) - 1}-${text.slice(-2)}`;
   return normalize(text);

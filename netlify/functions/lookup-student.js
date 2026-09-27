@@ -45,7 +45,11 @@ async function verifyStudent(db, body) {
       throw Object.assign(new Error('The issuing student record is unavailable or has been withdrawn.'), { status: 404 });
     }
     // Identity and labels are returned from trusted records, never from URL text.
-    return { student: studentProjection(source), verification: { kind: 'certificate', certificateNo: issue.certificateNo,
+    const student = studentProjection(source);
+    if (issue.session) student.session = issue.session;
+    if (issue.className) student.className = issue.className;
+    if (issue.stream) student.stream = issue.stream;
+    return { student, verification: { kind: 'certificate', certificateNo: issue.certificateNo,
       documentType: issue.documentType || 'Discharge / Transfer Certificate', issuedAt: issue.issueDate || '', status: 'Active' } };
   }
   const formNo = String(body.formNo || '').trim();
