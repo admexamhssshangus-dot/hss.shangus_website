@@ -2307,6 +2307,7 @@ export default function AdmissionRegisterSuite({
         map.set(id, {
           raw: s,
           id,
+          formNo: cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s.FormNo),
           name: cleanStr(s.studentName || s["Student's Name (as per school records)"] || s['Student Name'] || s.name),
           father: cleanStr(s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s.father),
           class: cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th'),
@@ -2333,6 +2334,7 @@ export default function AdmissionRegisterSuite({
             map.set(id, {
               raw: item,
               id,
+              formNo: cleanStr(item.formNo || item['Form Number'] || item['Form No.'] || item.FormNo),
               name: cleanStr(item.studentName || item["Student's Name (as per school records)"] || item['Student Name'] || item.name),
               father: cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"] || item.father),
               class: cleanStr(item.class || item.Class || '10th'),
@@ -2361,6 +2363,7 @@ export default function AdmissionRegisterSuite({
       return (
         s.name.toLowerCase().includes(q) ||
         s.father.toLowerCase().includes(q) ||
+        (s.formNo && s.formNo.toLowerCase().includes(q)) ||
         s.rollNo.toLowerCase().includes(q) ||
         s.admNo.toLowerCase().includes(q) ||
         s.oldAdmNo.toLowerCase().includes(q) ||
@@ -2483,6 +2486,68 @@ export default function AdmissionRegisterSuite({
               return sSess === selectedSession;
             });
           }
+        }
+
+        // 4. Clean duplicates from loaded records & purge historical orphan documents from Firestore
+        if (loadedRecords.length > 0) {
+          const formDocMap = new Map();
+          loadedRecords.forEach(d => {
+            if (!d?.id) return;
+            const fNo = cleanStr(d.formNo || d['Form Number'] || d['Form No.'] || d.FormNo);
+            if (fNo) {
+              if (!formDocMap.has(fNo)) formDocMap.set(fNo, []);
+              formDocMap.get(fNo).push(d.id);
+            }
+          });
+          formDocMap.forEach((ids, fNo) => {
+            if (ids.length > 1) {
+              const orphanId = ids.find(id => id === `form_${fNo}`);
+              const realId = ids.find(id => id !== `form_${fNo}`);
+              if (orphanId && realId) {
+                // Delete orphan ghost document from Firestore in background
+                deleteDoc(doc(db, 'admissions', orphanId)).catch(() => {});
+              }
+            }
+          });
+
+          // In-memory deduplication of loaded records
+          const seenKeys = new Set();
+          const deduped = [];
+          loadedRecords.forEach(r => {
+            if (!r) return;
+            const fNo = cleanStr(r.formNo || r['Form Number'] || r['Form No.'] || r.FormNo);
+            const cId = cleanStr(r.id || '').replace(/^form_/, '');
+            const cReg = cleanStr(r.boardRegNo || r['Board Registration Number'] || r.boardReg).replace(/[^a-zA-Z0-9]/g, '');
+            const cName = cleanStr(r.studentName || r["Student's Name (as per school records)"] || r['Student Name'] || r.name).toLowerCase();
+            const cFather = cleanStr(r.fatherName || r["Father's/Guardian's Name (as per school records)"] || r["Father's Name"] || r.father).toLowerCase();
+
+            const existingIdx = deduped.findIndex(ex => {
+              const exF = cleanStr(ex.formNo || ex['Form Number'] || ex['Form No.'] || ex.FormNo);
+              const exId = cleanStr(ex.id || '').replace(/^form_/, '');
+              const exReg = cleanStr(ex.boardRegNo || ex['Board Registration Number'] || ex.boardReg).replace(/[^a-zA-Z0-9]/g, '');
+              const exName = cleanStr(ex.studentName || ex["Student's Name (as per school records)"] || ex['Student Name'] || ex.name).toLowerCase();
+              const exFather = cleanStr(ex.fatherName || ex["Father's/Guardian's Name (as per school records)"] || ex["Father's Name"] || ex.father).toLowerCase();
+
+              if (fNo && exF && fNo === exF) return true;
+              if (cReg && exReg && cReg.length >= 6 && cReg === exReg) return true;
+              if (cId && exId && cId === exId) return true;
+              if (cName && exName && cFather && exFather && cName === exName && cFather === exFather) return true;
+              return false;
+            });
+
+            if (existingIdx !== -1) {
+              const ex = deduped[existingIdx];
+              const isRe = r.readmission === 'Yes' || r.isReadmission === true || r['Re-admission'] === 'Yes';
+              if (isRe) {
+                deduped[existingIdx] = { ...ex, ...r };
+              } else {
+                deduped[existingIdx] = { ...r, ...ex };
+              }
+            } else {
+              deduped.push(r);
+            }
+          });
+          loadedRecords = deduped;
         }
 
         if (!isCancelled) {
@@ -2918,61 +2983,68 @@ export default function AdmissionRegisterSuite({
     });
 
     // Deduplicate students across potential document duplicates (e.g. form_12345 vs 12345 or re-admission dual docs)
-    const seenMap = new Map();
+    const uniqueStudents = [];
+    const entityIndex = new Map(); // identifier -> index in uniqueStudents
+
     list.forEach(st => {
-      const formKey = st.formNo ? `form_${st.formNo}` : null;
-      const regKey = st.boardReg ? `reg_${st.boardReg.replace(/[^a-zA-Z0-9]/g, '')}` : null;
-      const idKey = st.id ? `id_${st.id.replace(/^form_/, '')}` : null;
+      const cleanForm = cleanStr(st.formNo);
+      const formKey = cleanForm ? `form_${cleanForm}` : null;
+      const cleanReg = cleanStr(st.boardReg).replace(/[^a-zA-Z0-9]/g, '');
+      const regKey = cleanReg && cleanReg.length >= 6 ? `reg_${cleanReg}` : null;
+      const cleanId = cleanStr(st.id || '').replace(/^form_/, '');
+      const idKey = cleanId && !cleanId.startsWith('adm_') ? `id_${cleanId}` : null;
+      const cleanName = cleanStr(st.name).toLowerCase();
+      const cleanFather = cleanStr(st.father).toLowerCase();
+      const nameKey = (cleanName && cleanFather) ? `nf_${cleanName}_${cleanFather}` : null;
 
-      const matchedKey = (formKey && seenMap.has(formKey) ? formKey : null) ||
-                         (regKey && seenMap.has(regKey) ? regKey : null) ||
-                         (idKey && seenMap.has(idKey) ? idKey : null);
+      // Find if this student matches an already indexed entity
+      let targetIdx = -1;
+      if (formKey && entityIndex.has(formKey)) targetIdx = entityIndex.get(formKey);
+      else if (regKey && entityIndex.has(regKey)) targetIdx = entityIndex.get(regKey);
+      else if (idKey && entityIndex.has(idKey)) targetIdx = entityIndex.get(idKey);
+      else if (nameKey && entityIndex.has(nameKey)) targetIdx = entityIndex.get(nameKey);
 
-      if (matchedKey) {
-        const existing = seenMap.get(matchedKey);
-        // If current record is marked as re-admission and existing is not, current record takes precedence
-        if (st.isReadmission && !existing.isReadmission) {
-          const merged = {
-            ...existing,
-            ...st,
-            oldAdmNo: st.oldAdmNo || existing.oldAdmNo || existing.admNo
-          };
-          seenMap.set(matchedKey, merged);
-          if (formKey) seenMap.set(formKey, merged);
-          if (regKey) seenMap.set(regKey, merged);
-        } else if (!st.isReadmission && existing.isReadmission) {
-          // Existing record is already the re-admission record, enrich with any missing fields
-          const merged = {
-            ...st,
-            ...existing,
-            oldAdmNo: existing.oldAdmNo || st.oldAdmNo || st.admNo
-          };
-          seenMap.set(matchedKey, merged);
-          if (formKey) seenMap.set(formKey, merged);
-          if (regKey) seenMap.set(regKey, merged);
-        } else {
-          // Both are same type: keep whichever has more complete admission or roll number info
-          const merged = {
-            ...existing,
-            ...st,
-            admNo: st.admNo || existing.admNo,
-            oldAdmNo: st.oldAdmNo || existing.oldAdmNo,
-            rollNo: st.rollNo || existing.rollNo
-          };
-          seenMap.set(matchedKey, merged);
-          if (formKey) seenMap.set(formKey, merged);
-          if (regKey) seenMap.set(regKey, merged);
+      if (targetIdx !== -1) {
+        const existing = uniqueStudents[targetIdx];
+        const isRe = Boolean(existing.isReadmission || st.isReadmission);
+        const reRecord = st.isReadmission ? st : (existing.isReadmission ? existing : null);
+        const nonReRecord = !st.isReadmission ? st : (!existing.isReadmission ? existing : null);
+
+        let assignedAdm = reRecord?.admNo || existing.admNo || st.admNo || '';
+        let oldAdm = reRecord?.oldAdmNo || '';
+        if (!oldAdm && isRe) {
+          if (nonReRecord?.admNo && nonReRecord.admNo !== assignedAdm) {
+            oldAdm = nonReRecord.admNo;
+          }
         }
+
+        const merged = {
+          ...existing,
+          ...st,
+          ...(reRecord ? reRecord : {}),
+          isReadmission: isRe,
+          admNo: assignedAdm,
+          oldAdmNo: oldAdm,
+          remarks: reRecord?.remarks || st.remarks || existing.remarks || ''
+        };
+
+        uniqueStudents[targetIdx] = merged;
+
+        // Register all available aliases to point to this index
+        if (formKey) entityIndex.set(formKey, targetIdx);
+        if (regKey) entityIndex.set(regKey, targetIdx);
+        if (idKey) entityIndex.set(idKey, targetIdx);
+        if (nameKey) entityIndex.set(nameKey, targetIdx);
       } else {
-        const primaryKey = formKey || regKey || idKey || `doc_${st.id || Math.random()}`;
-        seenMap.set(primaryKey, st);
-        if (formKey) seenMap.set(formKey, st);
-        if (regKey) seenMap.set(regKey, st);
-        if (idKey) seenMap.set(idKey, st);
+        const newIdx = uniqueStudents.length;
+        uniqueStudents.push({ ...st });
+        if (formKey) entityIndex.set(formKey, newIdx);
+        if (regKey) entityIndex.set(regKey, newIdx);
+        if (idKey) entityIndex.set(idKey, newIdx);
+        if (nameKey) entityIndex.set(nameKey, newIdx);
       }
     });
 
-    const uniqueStudents = Array.from(new Set(seenMap.values()));
     return uniqueStudents.map((st, i) => ({ ...st, sno: i + 1 }));
   }, [dataset, selectedSession, historyLookups, flatHistoryRecords, universalBoardRegMap, historicalAdmissionsByNameMap]);
 
@@ -3555,20 +3627,10 @@ export default function AdmissionRegisterSuite({
         lastEditedBy: `Admin (${user?.email || 'Readmission Tool'})`
       };
 
-      // 3. Fast atomic merge to Firestore (executes in ~30-50ms)
-      await setDoc(docRef, deltaUpdates, { merge: true });
-
-      // Clean up any historical orphan duplicate document like form_250199 if realDocId is 250199
-      if (targetFormNo && realDocId !== `form_${targetFormNo}`) {
-        try {
-          deleteDoc(doc(db, 'admissions', `form_${targetFormNo}`)).catch(() => {});
-        } catch (_) {}
-      }
-
-      // 4. Update memory / IndexedDB cache immediately
+      // 3. Instant Optimistic UI Update: update cache, memory dataset, and close modal immediately!
       updateCachedItem('admissions', realDocId, deltaUpdates);
 
-      // 5. Update local dataset state in place & collapse any duplicate entries
+      let newDataset = [];
       setDataset(prev => {
         let found = false;
         const updated = (prev || []).map(item => {
@@ -3585,35 +3647,50 @@ export default function AdmissionRegisterSuite({
           return item;
         });
 
-        // Deduplicate in memory
-        const seen = new Set();
+        // Deduplicate in memory across formNo, boardReg, ID, and student name
+        const seenKeys = new Set();
         const deduplicated = [];
         updated.forEach(item => {
           if (!item) return;
           const iForm = cleanStr(item.formNo || item['Form Number'] || item['Form No.'] || item.FormNo);
-          const key = iForm ? `form_${iForm}` : (item.id || `doc_${Math.random()}`);
-          if (!seen.has(key)) {
-            seen.add(key);
+          const iReg = cleanStr(item.boardRegNo || item['Board Registration Number'] || item.boardReg).replace(/[^a-zA-Z0-9]/g, '');
+          const iId = cleanStr(item.id || '').replace(/^form_/, '');
+          const iName = cleanStr(item.studentName || item.name).toLowerCase();
+          const iFather = cleanStr(item.fatherName || item.father).toLowerCase();
+
+          let isDup = false;
+          if (iForm && seenKeys.has(`form_${iForm}`)) isDup = true;
+          if (iReg && iReg.length >= 6 && seenKeys.has(`reg_${iReg}`)) isDup = true;
+          if (iId && !iId.startsWith('adm_') && seenKeys.has(`id_${iId}`)) isDup = true;
+          if (iName && iFather && seenKeys.has(`nf_${iName}_${iFather}`)) isDup = true;
+
+          if (!isDup) {
+            if (iForm) seenKeys.add(`form_${iForm}`);
+            if (iReg && iReg.length >= 6) seenKeys.add(`reg_${iReg}`);
+            if (iId && !iId.startsWith('adm_')) seenKeys.add(`id_${iId}`);
+            if (iName && iFather) seenKeys.add(`nf_${iName}_${iFather}`);
             deduplicated.push(item);
           }
         });
 
-        if (found) return deduplicated;
-        if (targetSess === selectedSession) {
-          return [{ ...baseData, ...deltaUpdates, id: realDocId }, ...deduplicated];
+        if (found) {
+          newDataset = deduplicated;
+          return deduplicated;
         }
+        if (targetSess === selectedSession) {
+          const res = [{ ...baseData, ...deltaUpdates, id: realDocId }, ...deduplicated];
+          newDataset = res;
+          return res;
+        }
+        newDataset = deduplicated;
         return deduplicated;
       });
 
-      // 6. Non-blocking asynchronous audit log (never stalls UI)
-      logAdminActivity({
-        actionType: 'student_readmission_update',
-        actionTitle: `Configured Re-admission: ${readmissionModalStudent.name} (${targetCls})`,
-        details: `${readmissionModalStudent.name} mapped to Class ${targetCls} Session ${targetSess} as ${isRe ? `Re-admission (Adm No: ${assignedAdm || '—'}, Old Adm: ${oldAdm || 'N/A'})` : 'Fresh'}.`,
-        metadata: { studentId: realDocId, targetClass: targetCls, targetSession: targetSess, isReadmission: isRe, oldAdmNo: oldAdm }
-      }).catch(err => console.warn('Activity logging background warning:', err));
+      if (sessionCacheRef.current[selectedSession]) {
+        sessionCacheRef.current[selectedSession] = newDataset;
+      }
 
-      // 7. Instant UI closure & Toast
+      // Close modal and show success toast immediately (0ms perceptible delay!)
       setToast({
         message: `✨ ${readmissionModalStudent.name} mapped to Class ${targetCls} (${targetSess}) as ${isRe ? 'Re-admission' : 'Fresh'}!`,
         type: 'success'
@@ -3623,12 +3700,35 @@ export default function AdmissionRegisterSuite({
       setSearchCandidateQuery('');
       setSavingReAdm(false);
 
-      // 8. Non-blocking data notification
-      if (onDataUpdated) {
-        setTimeout(() => {
-          try { onDataUpdated(); } catch (_) {}
-        }, 150);
-      }
+      // 4. Background Server Persistence & Cleanups (Fast & Non-blocking)
+      (async () => {
+        try {
+          await setDoc(docRef, deltaUpdates, { merge: true });
+
+          // Clean up historical orphan duplicate document like form_250199 if realDocId is 250199
+          if (targetFormNo && realDocId !== `form_${targetFormNo}`) {
+            deleteDoc(doc(db, 'admissions', `form_${targetFormNo}`)).catch(() => {});
+          }
+
+          // Non-blocking asynchronous audit log
+          logAdminActivity({
+            actionType: 'student_readmission_update',
+            actionTitle: `Configured Re-admission: ${readmissionModalStudent.name} (${targetCls})`,
+            details: `${readmissionModalStudent.name} mapped to Class ${targetCls} Session ${targetSess} as ${isRe ? `Re-admission (Adm No: ${assignedAdm || '—'}, Old Adm: ${oldAdm || 'N/A'})` : 'Fresh'}.`,
+            metadata: { studentId: realDocId, targetClass: targetCls, targetSession: targetSess, isReadmission: isRe, oldAdmNo: oldAdm }
+          }).catch(err => console.warn('Activity logging background warning:', err));
+
+          // Non-blocking data notification
+          if (onDataUpdated) {
+            setTimeout(() => {
+              try { onDataUpdated(); } catch (_) {}
+            }, 100);
+          }
+        } catch (serverErr) {
+          console.error('Background Firestore save error:', serverErr);
+          setToast({ message: `⚠️ Warning: Local update applied, but server sync failed: ${serverErr.message}`, type: 'error' });
+        }
+      })();
     } catch (err) {
       console.error('Error saving readmission:', err);
       setToast({ message: `❌ Failed to update readmission: ${err.message}`, type: 'error' });
