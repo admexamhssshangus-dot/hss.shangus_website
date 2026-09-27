@@ -4107,7 +4107,8 @@ export default function AdmissionRegisterSuite({
 
   const candidateAssignStudents = useMemo(() => {
     const list = normalizedStudents.filter(st => {
-      if (onlyApprovedAssign && st.status !== 'Approved') return false;
+      const hasRollNo = Boolean(st.rollNo && st.rollNo !== '—' && st.rollNo !== 'NA' && cleanStr(st.rollNo) !== '');
+      if (onlyApprovedAssign && st.status !== 'Approved' && !hasRollNo) return false;
       if (assignSessionFilter !== 'ALL' && st.session !== assignSessionFilter) return false;
       if (assignClasses.length > 0) {
         const match = assignClasses.some(c => matchesClassVal(c, st.class));
@@ -4425,7 +4426,8 @@ export default function AdmissionRegisterSuite({
     }
 
     return pool.filter(st => {
-      if (onlyApprovedAssign && st.status !== 'Approved' && st.status !== 'Historical') return false;
+      const hasRollNo = Boolean(st.rollNo && st.rollNo !== '—' && st.rollNo !== 'NA' && cleanStr(st.rollNo) !== '');
+      if (onlyApprovedAssign && st.status !== 'Approved' && st.status !== 'Historical' && !hasRollNo) return false;
       if (assignSessionFilter !== 'ALL' && st.session && st.session !== assignSessionFilter) return false;
       if (assignClasses.length > 0) {
         const match = assignClasses.some(c => matchesClassVal(c, st.class));
@@ -4787,7 +4789,8 @@ export default function AdmissionRegisterSuite({
 
   const dateTargetStudents = useMemo(() => {
     const list = normalizedStudents.filter(st => {
-      if (onlyApprovedDates && st.status !== 'Approved') return false;
+      const hasRollNo = Boolean(st.rollNo && st.rollNo !== '—' && st.rollNo !== 'NA' && cleanStr(st.rollNo) !== '');
+      if (onlyApprovedDates && st.status !== 'Approved' && !hasRollNo) return false;
       if (assignDateSession !== 'ALL' && st.session !== assignDateSession) return false;
       if (assignDateClass !== 'ALL' && !matchesClassVal(assignDateClass, st.class)) return false;
       return true;
@@ -9600,7 +9603,7 @@ export default function AdmissionRegisterSuite({
                     onChange={(e) => setOnlyApprovedAssign(e.target.checked)}
                     className="rounded text-emerald-600 cursor-pointer"
                   />
-                  <span className="text-[10.5px] font-bold text-emerald-700 dark:text-emerald-400">Only Approved</span>
+                  <span className="text-[10.5px] font-bold text-emerald-700 dark:text-emerald-400">Only Approved / Roll Assigned</span>
                 </label>
 
                 {/* Only Missing Checkbox */}
@@ -10206,7 +10209,7 @@ export default function AdmissionRegisterSuite({
                       onChange={(e) => setOnlyApprovedDates(e.target.checked)}
                       className="rounded text-emerald-600 cursor-pointer"
                     />
-                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Only Approved</span>
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Only Approved / Roll Assigned</span>
                   </label>
                   <button
                     type="button"
