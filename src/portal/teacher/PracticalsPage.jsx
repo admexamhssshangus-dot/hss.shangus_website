@@ -1853,7 +1853,10 @@ export default function PracticalsPage() {
               }
               if (rBoard) savedMarksMap[rBoard] = recObj;
               if (rForm) savedMarksMap[rForm] = recObj;
-              if (rName) savedMarksMap[rName] = recObj;
+              if (rName) {
+                if (!savedMarksMap[rName]) savedMarksMap[rName] = recObj;
+                if (rRoll) savedMarksMap[`name_${rRoll}_${rName}`] = recObj;
+              }
               if (rReg) {
                 const cleanRReg = rReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
                 if (cleanRReg.length >= 8) {
@@ -1928,7 +1931,10 @@ export default function PracticalsPage() {
             }
             if (rBoard) savedMarksMap[rBoard] = recObj;
             if (rForm) savedMarksMap[rForm] = recObj;
-            if (rName) savedMarksMap[rName] = recObj;
+            if (rName) {
+              if (!savedMarksMap[rName]) savedMarksMap[rName] = recObj;
+              if (rRoll) savedMarksMap[`name_${rRoll}_${rName}`] = recObj;
+            }
             if (rReg) {
               const cleanRReg = rReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
               if (cleanRReg.length >= 8) {
@@ -2348,10 +2354,13 @@ export default function PracticalsPage() {
           const subsAbbr = st._subjectsAbbr || getAbbreviatedSubjects(st, selectedClass);
           const rawSubjFull = st._rawSubjects || (() => { const r = extractRawSubjectsString(st, selectedClass); return Array.isArray(r) ? r.join(', ') : String(r); })();
           const key = roll || st.formNo || st.id;
+          const rollNumStr = roll && !isNaN(parseInt(roll, 10)) ? String(parseInt(roll, 10)) : '';
           const saved = savedMarksMap[String(key).trim()] || 
+                        (rollNumStr ? savedMarksMap[rollNumStr] : null) ||
+                        (roll && name ? savedMarksMap[`name_${roll}_${name.toLowerCase().trim()}`] : null) ||
                         savedMarksMap[String(st.formNo || '').trim()] || 
                         savedMarksMap[String(st.id || '').trim()] || 
-                        savedMarksMap[String(name || '').toLowerCase().trim()] || 
+                        (!roll && savedMarksMap[String(name || '').toLowerCase().trim()]) || 
                         {};
           const draft = draftMap[key] || {};
 
@@ -2479,7 +2488,8 @@ export default function PracticalsPage() {
           if (!isNaN(num)) marksByRoll.set(String(num), mObj);
         }
         if (rForm) marksByForm.set(rForm, mObj);
-        if (rName) marksByName.set(rName, mObj);
+        if (rName && !marksByName.has(rName)) marksByName.set(rName, mObj);
+        if (rRoll && rName) marksByName.set(`${rRoll}_${rName}`, mObj);
       });
 
       setStudentMarks(prev => {
@@ -2488,7 +2498,12 @@ export default function PracticalsPage() {
             const rollKey = String(st.rollNo || '').trim();
             const formKey = String(st.formNo || '').trim();
             const nameKey = String(st.name || '').toLowerCase().trim();
-            const found = marksByRoll.get(rollKey) || marksByForm.get(formKey) || marksByName.get(nameKey);
+            const rollKeyNum = rollKey && !isNaN(parseInt(rollKey, 10)) ? String(parseInt(rollKey, 10)) : '';
+            const found = marksByRoll.get(rollKey) || 
+                          (rollKeyNum ? marksByRoll.get(rollKeyNum) : null) || 
+                          (rollKey && nameKey ? marksByName.get(`${rollKey}_${nameKey}`) : null) ||
+                          marksByForm.get(formKey) || 
+                          (!rollKey && marksByName.get(nameKey));
             if (found) {
               return {
                 ...st,
@@ -2689,61 +2704,71 @@ export default function PracticalsPage() {
       if (typeof studentOrIdx === 'number') {
         targetIdx = studentOrIdx;
       } else if (studentOrIdx && typeof studentOrIdx === 'object') {
+        // 0. Direct object reference equality (instant, 100% collision-proof)
+        targetIdx = prev.indexOf(studentOrIdx);
+
         const targetUid = studentOrIdx._uid || studentOrIdx.id;
         const targetRoll = studentOrIdx.rollNo !== undefined && studentOrIdx.rollNo !== null ? String(studentOrIdx.rollNo).trim() : '';
-        const targetName = (studentOrIdx.name || studentOrIdx.studentName || '').toLowerCase().trim();
+        const targetName = (studentOrIdx.name || studentOrIdx.studentName || '').toLowerCase().replace(/\s+/g, ' ').trim();
         const targetReg = studentOrIdx.registrationNumber || studentOrIdx.regNo || studentOrIdx.registration_no || '';
         const cleanReg = targetReg ? String(targetReg).replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
         const isPlaceholderReg = !cleanReg || cleanReg.length < 4 || /^(na|nil|none|pending|null)$/.test(cleanReg);
         const targetForm = studentOrIdx.formNo ? String(studentOrIdx.formNo).trim() : '';
         const isPlaceholderForm = !targetForm || targetForm.length < 3 || /^(0|na|nil|null|-)$/i.test(targetForm);
 
-        // 1. Primary check: Exact unique identifier (_uid or id)
-        if (targetUid) {
-          targetIdx = prev.findIndex(s => (s._uid && s._uid === targetUid) || (s.id && s.id === targetUid));
-        }
-
-        // 2. Strict Roll Number matching
-        if (targetIdx < 0 && targetRoll) {
+        // 1. Primary check: Exact unique identifier (_uid or id) with string coercion
+        if (targetIdx < 0 && targetUid !== undefined && targetUid !== null) {
+          const targetUidStr = String(targetUid).trim();
           targetIdx = prev.findIndex(s => {
-            const sRoll = s.rollNo !== undefined && s.rollNo !== null ? String(s.rollNo).trim() : '';
-            if (sRoll && sRoll === targetRoll) {
-              const sName = (s.name || s.studentName || '').toLowerCase().trim();
-              if (!targetName || !sName || targetName === sName) return true;
-            }
-            return false;
+            const sUid = s._uid !== undefined && s._uid !== null ? String(s._uid).trim() : '';
+            const sId = s.id !== undefined && s.id !== null ? String(s.id).trim() : '';
+            return (sUid && sUid === targetUidStr) || (sId && sId === targetUidStr);
           });
         }
 
-        // 3. Verified Board Registration Number matching (ONLY if real, non-placeholder registration number)
+        // 2. Strict Roll Number matching (PRIORITIZED FOR NAMESAKES)
+        if (targetIdx < 0 && targetRoll) {
+          targetIdx = prev.findIndex(s => {
+            const sRoll = s.rollNo !== undefined && s.rollNo !== null ? String(s.rollNo).trim() : '';
+            if (!sRoll) return false;
+            const rollMatches = sRoll === targetRoll || parseInt(sRoll, 10) === parseInt(targetRoll, 10);
+            if (!rollMatches) return false;
+
+            const sName = (s.name || s.studentName || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            if (!targetName || !sName) return true;
+            return sName === targetName || sName.includes(targetName) || targetName.includes(sName);
+          });
+        }
+
+        // 3. Verified Board Registration Number matching
         if (targetIdx < 0 && !isPlaceholderReg) {
           targetIdx = prev.findIndex(s => {
             const sReg = s.registrationNumber || s.regNo || s.registration_no || '';
             const sClean = sReg ? String(sReg).replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
             if (sClean && sClean.length >= 4 && sClean === cleanReg) {
               const sRoll = s.rollNo !== undefined && s.rollNo !== null ? String(s.rollNo).trim() : '';
-              if (!targetRoll || !sRoll || targetRoll === sRoll) return true;
+              if (!targetRoll || !sRoll || targetRoll === sRoll || parseInt(targetRoll, 10) === parseInt(sRoll, 10)) return true;
             }
             return false;
           });
         }
 
-        // 4. Form Number matching (ONLY if valid, non-placeholder form number)
+        // 4. Form Number matching
         if (targetIdx < 0 && !isPlaceholderForm) {
           targetIdx = prev.findIndex(s => {
             const sForm = s.formNo ? String(s.formNo).trim() : '';
             if (sForm && sForm === targetForm) {
               const sRoll = s.rollNo !== undefined && s.rollNo !== null ? String(s.rollNo).trim() : '';
-              if (!targetRoll || !sRoll || targetRoll === sRoll) return true;
+              if (!targetRoll || !sRoll || targetRoll === sRoll || parseInt(targetRoll, 10) === parseInt(sRoll, 10)) return true;
             }
             return false;
           });
         }
 
-        // 5. Exact Student Name match as last resort
-        if (targetIdx < 0 && targetName) {
+        // 5. Exact Student Name match ONLY IF NO ROLL NUMBER WAS SPECIFIED (avoids namesake hijacking!)
+        if (targetIdx < 0 && targetName && !targetRoll) {
           targetIdx = prev.findIndex(s => {
-            const sName = (s.name || s.studentName || '').toLowerCase().trim();
+            const sName = (s.name || s.studentName || '').toLowerCase().replace(/\s+/g, ' ').trim();
             return sName && targetName === sName;
           });
         }
@@ -3006,6 +3031,84 @@ export default function PracticalsPage() {
       incompleteList
     });
     setShowValidationModal(true);
+  };
+
+  // Helper: Inline resolve an incomplete student directly from inside the Validation Modal
+  const handleModalResolveMark = (targetStudent, val) => {
+    const rawVal = String(val !== undefined && val !== null ? val : '').trim().toUpperCase();
+    
+    // 1. Update canonical studentMarks state
+    handleMarkChange(targetStudent, 'practicalMarks', rawVal);
+
+    // 2. Dynamically recalculate validationData so modal updates immediately in real-time
+    setValidationData(prev => {
+      if (!prev) return prev;
+      const targetRoll = String(targetStudent.rollNo || '').trim();
+      const targetUid = targetStudent._uid || targetStudent.id;
+      
+      const nextList = prev.incompleteList.map(st => {
+        const sRoll = String(st.rollNo || '').trim();
+        const sUid = st._uid || st.id;
+        const isMatch = (targetUid && sUid && String(targetUid).trim() === String(sUid).trim()) || 
+                        (targetRoll && sRoll && (targetRoll === sRoll || parseInt(targetRoll, 10) === parseInt(sRoll, 10)));
+        if (isMatch) {
+          const isAbs = rawVal === 'A' || rawVal === 'AB' || rawVal === 'ABS' || rawVal === 'ABSENT';
+          return {
+            ...st,
+            practicalMarks: isAbs ? 'AB' : rawVal,
+            vivaMarks: isAbs ? 'AB' : st.vivaMarks
+          };
+        }
+        return st;
+      });
+
+      const remainingIncomplete = nextList.filter(st => {
+        const p = String(st.practicalMarks !== undefined && st.practicalMarks !== null ? st.practicalMarks : '').trim();
+        const v = String(st.vivaMarks !== undefined && st.vivaMarks !== null ? st.vivaMarks : '').trim();
+        return p === '' && v === '';
+      });
+
+      const totalCount = prev.totalCount;
+      const incompleteCount = remainingIncomplete.length;
+      const completedCount = totalCount - incompleteCount;
+
+      let currentAbsent = 0;
+      nextList.forEach(st => {
+        const p = String(st.practicalMarks || '').trim().toUpperCase();
+        const v = String(st.vivaMarks || '').trim().toUpperCase();
+        if (p === 'A' || p === 'AB' || p === 'ABS' || p === 'ABSENT' || v === 'A' || v === 'AB' || v === 'ABS' || v === 'ABSENT') {
+          currentAbsent++;
+        }
+      });
+
+      return {
+        ...prev,
+        incompleteList: remainingIncomplete,
+        incompleteCount,
+        completedCount,
+        absentCount: currentAbsent
+      };
+    });
+  };
+
+  // Helper: Mark all remaining incomplete students in the modal as Absent with one click
+  const handleModalMarkAllAbsent = () => {
+    if (!validationData?.incompleteList || validationData.incompleteList.length === 0) return;
+    
+    validationData.incompleteList.forEach(st => {
+      handleMarkChange(st, 'practicalMarks', 'AB');
+    });
+
+    setValidationData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        incompleteList: [],
+        incompleteCount: 0,
+        completedCount: prev.totalCount,
+        absentCount: prev.absentCount + prev.incompleteCount
+      };
+    });
   };
 
   // 3. Execute Final Submission to Firestore
@@ -4511,6 +4614,23 @@ export default function PracticalsPage() {
             />
           ) : displayedStudents.length > 0 ? (
             <>
+              {/* Active Filter Banner when filtering failing/incomplete students */}
+              {showFailOnly && (
+                <div className="mb-2 p-2 sm:p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-300 flex items-center justify-between gap-2 text-xs shadow-2xs animate-fadeIn">
+                  <div className="flex items-center gap-1.5 font-bold min-w-0">
+                    <AlertCircle size={15} className="shrink-0 text-rose-600 dark:text-rose-400" />
+                    <span className="truncate">Showing incomplete, failing, or absent entries only ({displayedStudents.length} candidates)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowFailOnly(false)}
+                    className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-[11px] cursor-pointer shrink-0 shadow-2xs active:scale-95 transition-all"
+                  >
+                    Show All Students
+                  </button>
+                </div>
+              )}
+
               {/* ── MOBILE CARDS (hidden on sm+) — High-Density Standard Roster Layout ── */}
               <div className="sm:hidden space-y-1.5">
                 {displayedStudents.map((st, idx) => {
@@ -4551,7 +4671,10 @@ export default function PracticalsPage() {
                         <div className="flex items-center gap-1 shrink-0">
                           <input
                             type="text"
-                            inputMode="decimal"
+                            inputMode="text"
+                            autoCapitalize="characters"
+                            autoCorrect="off"
+                            spellCheck="false"
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
                             disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
@@ -4567,7 +4690,7 @@ export default function PracticalsPage() {
                           <button
                             type="button"
                             disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
-                            onClick={() => handleMarkChange(st, 'practicalMarks', isAbsent ? '' : 'A')}
+                            onClick={() => handleMarkChange(st, 'practicalMarks', isAbsent ? '' : 'AB')}
                             className={`practicals-ab-btn rounded-md font-mono text-[10.5px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
                               isAbsent
                                 ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
@@ -4908,23 +5031,73 @@ export default function PracticalsPage() {
             {validationData.incompleteCount > 0 ? (
               <div className="space-y-2">
                 <div className="p-2.5 sm:p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-bold flex items-start gap-2">
-                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-black">Unentered Student Marks Found ({validationData.incompleteCount})</div>
-                    <div className="text-[10.5px] sm:text-[11px] mt-0.5">Please review the incomplete student list below. You can return to edit or auto-mark unfilled entries as Absent.</div>
+                  <AlertCircle size={16} className="shrink-0 mt-0.5 text-rose-600" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-black text-xs sm:text-sm">Unentered Student Marks Found ({validationData.incompleteCount})</span>
+                      <button
+                        type="button"
+                        onClick={handleModalMarkAllAbsent}
+                        className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black text-[11px] shadow-2xs active:scale-95 cursor-pointer transition-all flex items-center gap-1"
+                        title="Mark all incomplete students as Absent right now"
+                      >
+                        <Zap size={12} /> Mark All ({validationData.incompleteCount}) as Absent
+                      </button>
+                    </div>
+                    <div className="text-[10.5px] sm:text-[11.5px] mt-1 text-slate-600 dark:text-slate-300 font-medium">
+                      Enter marks directly or tap <strong>AB</strong> for any student below:
+                    </div>
                   </div>
                 </div>
 
-                <div className="max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl p-2 divide-y divide-slate-100 dark:divide-slate-800 text-xs space-y-1">
-                  {validationData.incompleteList.map((st, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-1 px-1.5 gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-mono font-black text-indigo-600 text-xs shrink-0">#{st.rollNo}</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate text-[11.5px]">{st.name}</span>
+                <div className="max-h-52 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl p-2 divide-y divide-slate-100 dark:divide-slate-800 text-xs space-y-1.5">
+                  {validationData.incompleteList.map((st, idx) => {
+                    const isAbs = st.practicalMarks === 'A' || st.practicalMarks === 'AB';
+                    return (
+                      <div key={st._uid || st.id || idx} className="flex items-center justify-between py-1.5 px-2 gap-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-xs shrink-0 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                            #{st.rollNo}
+                          </span>
+                          <div className="min-w-0 truncate">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate text-[12px] block leading-tight">
+                              {st.name}
+                            </span>
+                            {st.formNo && (
+                              <span className="text-[9.5px] text-slate-400 font-mono">F#{st.formNo}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Inline Marks Input & AB Toggle Button */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <input
+                            type="text"
+                            inputMode="text"
+                            autoCapitalize="characters"
+                            autoCorrect="off"
+                            spellCheck="false"
+                            placeholder={`0-${subjectMaxMarks}`}
+                            value={st.practicalMarks || ''}
+                            onChange={(e) => handleModalResolveMark(st, e.target.value)}
+                            className="w-16 h-8 text-center text-xs font-bold font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white uppercase focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleModalResolveMark(st, isAbs ? '' : 'AB')}
+                            className={`h-8 px-2.5 rounded-lg text-xs font-black font-mono border transition-all cursor-pointer flex items-center justify-center active:scale-95 ${
+                              isAbs
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-amber-600 border-slate-300 dark:border-slate-700'
+                            }`}
+                            title="Toggle Absent"
+                          >
+                            {isAbs ? 'ABSENT' : 'AB'}
+                          </button>
+                        </div>
                       </div>
-                      <span className="text-[9.5px] sm:text-[10px] font-black text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 shrink-0">Empty Marks</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (
