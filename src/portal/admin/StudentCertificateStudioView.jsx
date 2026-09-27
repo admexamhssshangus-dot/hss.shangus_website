@@ -926,6 +926,74 @@ export default function StudentCertificateStudioView({
   const [signatoryRight, setSignatoryRight] = useState('Principal');
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
+  // ─── Templates State (Built-in + Custom) ───
+  const [defaultTemplateId, setDefaultTemplateId] = useState(() => {
+    try {
+      return localStorage.getItem('hss_default_cert_template_id') || 'bonafide_dob';
+    } catch {
+      return 'bonafide_dob';
+    }
+  });
+  const [selectedTemplateId, setSelectedTemplateId] = useState(() => {
+    try {
+      return localStorage.getItem('hss_default_cert_template_id') || 'bonafide_dob';
+    } catch {
+      return 'bonafide_dob';
+    }
+  });
+  const [templateBody, setTemplateBody] = useState(() => {
+    try {
+      const defId = localStorage.getItem('hss_default_cert_template_id') || 'bonafide_dob';
+      const found = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === defId);
+      return retokenizeCertificateBody(found ? found.bodyHtml : BUILTIN_CERTIFICATE_TEMPLATES[0].bodyHtml);
+    } catch {
+      return retokenizeCertificateBody(BUILTIN_CERTIFICATE_TEMPLATES[0].bodyHtml);
+    }
+  });
+  const [customCanvasHtml, setCustomCanvasHtml] = useState(null);
+  const [templateToDelete, setTemplateToDelete] = useState(null);
+  const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_custom_certificate_templates');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const sanitized = parsed.map(sanitizeTemplateObject);
+          try {
+            localStorage.setItem('hss_custom_certificate_templates', JSON.stringify(sanitized));
+          } catch (_) {}
+          return sanitized;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return [];
+  });
+
+  const [templateFilterTab, setTemplateFilterTab] = useState('all'); // 'all' | 'builtin' | 'custom'
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [templateSaveMode, setTemplateSaveMode] = useState('update'); // 'update' | 'new'
+  const [makeTemplateDefault, setMakeTemplateDefault] = useState(true);
+  const [newTplName, setNewTplName] = useState('');
+  const [newTplCategory, setNewTplCategory] = useState('Bonafide & Age Certificates');
+
+  // ─── JKBOSE Result Hub & TC/DC Dual Copy State ───
+  const [showResultEditorModal, setShowResultEditorModal] = useState(false);
+  const [showResultIngestionModal, setShowResultIngestionModal] = useState(false);
+  const [showBulkGeneratorModal, setShowBulkGeneratorModal] = useState(false);
+  const [isDualCopy, setIsDualCopy] = useState(true);
+  const [pageMargin, setPageMargin] = useState(0.3);
+  const [headerGap, setHeaderGap] = useState(0.50); // Default 0.5 inch vertical space between Section 1 & Section 2
+  const [titleMetaGap, setTitleMetaGap] = useState(0); // Tightly coupled Title and Cert No.
+  const [metaBodyGap, setMetaBodyGap] = useState(0.50); // Default 0.5 inch vertical space between Section 2 & Section 3
+  const [paraSpacing, setParaSpacing] = useState(8);
+  const [bodyLineHeight, setBodyLineHeight] = useState(1.85);
+  const [bodyDateGap, setBodyDateGap] = useState(12);
+  const [dateSigGap, setDateSigGap] = useState(1.0); // Fixed 1 inch vertical space between Section 3 (body/dates) & Section 4 (signatories)
+  const [sigReceiptGap, setSigReceiptGap] = useState(12);
+
   // Initialize general certificate reference sequence from Cloud/localStorage (1454 -> 1455 -> 1456...)
   useEffect(() => {
     let isMounted = true;
@@ -1106,74 +1174,6 @@ export default function StudentCertificateStudioView({
     setShowSettingsDrawer(false);
     if (onToggleSettingsDrawer) onToggleSettingsDrawer(false);
   }, [onToggleSettingsDrawer]);
-
-  // ─── Templates State (Built-in + Custom) ───
-  const [defaultTemplateId, setDefaultTemplateId] = useState(() => {
-    try {
-      return localStorage.getItem('hss_default_cert_template_id') || 'bonafide_dob';
-    } catch {
-      return 'bonafide_dob';
-    }
-  });
-  const [selectedTemplateId, setSelectedTemplateId] = useState(() => {
-    try {
-      return localStorage.getItem('hss_default_cert_template_id') || 'bonafide_dob';
-    } catch {
-      return 'bonafide_dob';
-    }
-  });
-  const [templateBody, setTemplateBody] = useState(() => {
-    try {
-      const defId = localStorage.getItem('hss_default_cert_template_id') || 'bonafide_dob';
-      const found = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === defId);
-      return retokenizeCertificateBody(found ? found.bodyHtml : BUILTIN_CERTIFICATE_TEMPLATES[0].bodyHtml);
-    } catch {
-      return retokenizeCertificateBody(BUILTIN_CERTIFICATE_TEMPLATES[0].bodyHtml);
-    }
-  });
-  const [customCanvasHtml, setCustomCanvasHtml] = useState(null);
-  const [templateToDelete, setTemplateToDelete] = useState(null);
-  const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
-  const [customTemplates, setCustomTemplates] = useState(() => {
-    try {
-      const saved = localStorage.getItem('hss_custom_certificate_templates');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const sanitized = parsed.map(sanitizeTemplateObject);
-          try {
-            localStorage.setItem('hss_custom_certificate_templates', JSON.stringify(sanitized));
-          } catch (_) {}
-          return sanitized;
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return [];
-  });
-
-  const [templateFilterTab, setTemplateFilterTab] = useState('all'); // 'all' | 'builtin' | 'custom'
-  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
-  const [templateSaveMode, setTemplateSaveMode] = useState('update'); // 'update' | 'new'
-  const [makeTemplateDefault, setMakeTemplateDefault] = useState(true);
-  const [newTplName, setNewTplName] = useState('');
-  const [newTplCategory, setNewTplCategory] = useState('Bonafide & Age Certificates');
-
-  // ─── JKBOSE Result Hub & TC/DC Dual Copy State ───
-  const [showResultEditorModal, setShowResultEditorModal] = useState(false);
-  const [showResultIngestionModal, setShowResultIngestionModal] = useState(false);
-  const [showBulkGeneratorModal, setShowBulkGeneratorModal] = useState(false);
-  const [isDualCopy, setIsDualCopy] = useState(true);
-  const [pageMargin, setPageMargin] = useState(0.3);
-  const [headerGap, setHeaderGap] = useState(0.50); // Default 0.5 inch vertical space between Section 1 & Section 2
-  const [titleMetaGap, setTitleMetaGap] = useState(0); // Tightly coupled Title and Cert No.
-  const [metaBodyGap, setMetaBodyGap] = useState(0.50); // Default 0.5 inch vertical space between Section 2 & Section 3
-  const [paraSpacing, setParaSpacing] = useState(8);
-  const [bodyLineHeight, setBodyLineHeight] = useState(1.85);
-  const [bodyDateGap, setBodyDateGap] = useState(12);
-  const [dateSigGap, setDateSigGap] = useState(1.0); // Fixed 1 inch vertical space between Section 3 (body/dates) & Section 4 (signatories)
-  const [sigReceiptGap, setSigReceiptGap] = useState(12);
 
   // TC/DC Active check: Only show Result Hub and Bulk TC Generator when TC/DC is selected
   const isTcDcActive = useMemo(() => {
