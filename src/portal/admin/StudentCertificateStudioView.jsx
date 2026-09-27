@@ -912,10 +912,10 @@ export default function StudentCertificateStudioView({
   });
   const [isSavingCertTitle, setIsSavingCertTitle] = useState(false);
   const [certTitleSavedStatus, setCertTitleSavedStatus] = useState(false);
-  const [refNo, setRefNo] = useState('HSS/SHG/1454/2026');
+  const [refNo, setRefNo] = useState(() => `HSS/1454/${String(new Date().getFullYear()).slice(-2)}`);
   const [generalRefSerial, setGeneralRefSerial] = useState(DEFAULT_INITIAL_GENERAL_REF_SERIAL);
-  const [generalRefPrefix, setGeneralRefPrefix] = useState('HSS/SHG');
-  const [generalRefYear, setGeneralRefYear] = useState(() => String(new Date().getFullYear()));
+  const [generalRefPrefix, setGeneralRefPrefix] = useState('HSS');
+  const [generalRefYear, setGeneralRefYear] = useState(() => String(new Date().getFullYear()).slice(-2));
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleDateString('en-GB'));
   const [showPhoto, setShowPhoto] = useState(false);
   const [watermark, setWatermark] = useState(true);
@@ -936,7 +936,7 @@ export default function StudentCertificateStudioView({
           setGeneralRefPrefix(genRef.prefix);
           setGeneralRefYear(genRef.year);
           setRefNo(prev => {
-            if (!prev || prev.includes('Bonafide/2026/01') || prev.includes('1454')) {
+            if (!prev || prev.includes('Bonafide/2026/01') || prev.includes('1454') || prev.includes('HSS/SHG')) {
               return genRef.fullRef || formatGeneralRefNo(genRef.prefix, genRef.serial, genRef.year);
             }
             return prev;
@@ -1006,8 +1006,8 @@ export default function StudentCertificateStudioView({
     const targetRef = currentRef || refNo;
     const parsed = parseGeneralRefNo(targetRef);
     const nextSerial = (parsed.serial || generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL) + 1;
-    const nextYear = parsed.year || generalRefYear || String(new Date().getFullYear());
-    const nextPrefix = parsed.prefix || generalRefPrefix || 'HSS/SHG';
+    const nextYear = String(parsed.year || generalRefYear || new Date().getFullYear()).slice(-2);
+    const nextPrefix = (parsed.prefix || generalRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
     const nextFormatted = formatGeneralRefNo(nextPrefix, nextSerial, nextYear);
 
     setGeneralRefSerial(nextSerial);
@@ -1814,7 +1814,9 @@ export default function StudentCertificateStudioView({
           setGeneralRefYear(genSeq.year);
         } catch (_) {}
         if (selectionRequestRef.current !== requestId) return;
-        const assignedRef = formatGeneralRefNo(activeTpl.refPrefix || genSeq.prefix || 'HSS/SHG', genSeq.serial, genSeq.year);
+        const rawPrefix = activeTpl.refPrefix || genSeq.prefix || 'HSS';
+        const cleanPrefix = rawPrefix.replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+        const assignedRef = formatGeneralRefNo(cleanPrefix, genSeq.serial, genSeq.year);
         setRefNo(assignedRef);
       }
     }
@@ -2050,10 +2052,12 @@ export default function StudentCertificateStudioView({
         .then(lastNo => setRefNo(String(lastNo + 1)))
         .catch(error => showToast(error.message || 'Certificate registry could not be verified.', 'error'));
     } else if (sanitizedTpl.refPrefix) {
+      const cleanPrefix = (sanitizedTpl.refPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
       const cleanSerial = (rollNo && rollNo !== '—' && String(rollNo).length < 8)
         ? rollNo
-        : (admissionNo && admissionNo !== '—' && String(admissionNo).length < 8 ? admissionNo : '1368');
-      setRefNo(`${sanitizedTpl.refPrefix}/${cleanSerial}/${new Date().getFullYear()}`);
+        : (admissionNo && admissionNo !== '—' && String(admissionNo).length < 8 ? admissionNo : (generalRefSerial || '1369'));
+      const shortYear = String(generalRefYear || new Date().getFullYear()).slice(-2);
+      setRefNo(`${cleanPrefix}/${cleanSerial}/${shortYear}`);
     } else if (sanitizedTpl.refNo) {
       setRefNo(sanitizedTpl.refNo);
     }
@@ -4749,7 +4753,7 @@ export default function StudentCertificateStudioView({
                 value={refNo}
                 onChange={(e) => handleGeneralRefChange(e.target.value)}
                 onBlur={handleGeneralRefBlur}
-                placeholder="HSS/SHG/1454/2026"
+                placeholder="HSS/1454/26"
                 className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
               />
             </div>
@@ -4931,7 +4935,7 @@ export default function StudentCertificateStudioView({
                   type="text"
                   value={refNo}
                   onChange={(e) => setRefNo(e.target.value)}
-                  placeholder="e.g. HSS/SHG/Bonafide/2026/01"
+                  placeholder="e.g. HSS/Bonafide/1454/26"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-teal-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
                   autoFocus
                 />
@@ -6561,10 +6565,10 @@ export default function StudentCertificateStudioView({
                       value={refNo}
                       onChange={(e) => handleGeneralRefChange(e.target.value)}
                       onBlur={handleGeneralRefBlur}
-                      placeholder="e.g. HSS/SHG/1454/2026"
+                      placeholder="e.g. HSS/1454/26"
                       title="Click to directly edit Certificate Reference Number"
                       aria-label="Certificate Reference Number"
-                      className="studio-inline-input font-mono font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[130px] sm:max-w-[280px] truncate text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0"
+                      className="studio-inline-input font-mono font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[240px] sm:max-w-[360px] text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0 print:max-w-none print:w-auto"
                       style={{ fontSize: '11px', height: '22px' }}
                     />
                   </div>

@@ -714,35 +714,41 @@ const LOCAL_STORAGE_GENERAL_REF_KEY = 'hss_last_general_cert_ref_serial';
 const LOCAL_STORAGE_GENERAL_REF_FULL_KEY = 'hss_last_general_cert_ref_full';
 
 /**
- * Parses a general certificate reference string like "HSS/SHG/1454/2026",
+ * Parses a general certificate reference string like "HSS/Char-Past/1369/26" or "HSS/1454/26",
  * extracting prefix, numeric serial, and year.
  */
 export function parseGeneralRefNo(refStr) {
   const text = String(refStr || '').trim();
-  const currentYear = String(new Date().getFullYear());
+  const currentYearFull = String(new Date().getFullYear());
+  const currentYearShort = currentYearFull.slice(-2);
   if (!text) {
-    return { prefix: 'HSS/SHG', serial: DEFAULT_INITIAL_GENERAL_REF_SERIAL, year: currentYear, formatted: `HSS/SHG/${DEFAULT_INITIAL_GENERAL_REF_SERIAL}/${currentYear}` };
+    return { prefix: 'HSS', serial: DEFAULT_INITIAL_GENERAL_REF_SERIAL, year: currentYearShort, formatted: `HSS/${DEFAULT_INITIAL_GENERAL_REF_SERIAL}/${currentYearShort}` };
   }
 
-  // 1. Match pattern: Prefix / Serial / Year (e.g. HSS/SHG/1454/2026 or HSS/SHG/Bonafide/1454/2026)
-  const matchWithYear = text.match(/^(.*?)[/_-](\d{1,6})[/_-]((?:19|20)\d{2})$/);
+  // 1. Match pattern: Prefix / Serial / Year (e.g. HSS/Char-Past/1369/26, HSS/1454/26, HSS/SHG/1454/2026)
+  const matchWithYear = text.match(/^(.*?)[/_-](\d{1,6})[/_-]((?:19|20)?\d{2})$/);
   if (matchWithYear) {
+    let cleanPrefix = matchWithYear[1].trim().replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+    if (!cleanPrefix) cleanPrefix = 'HSS';
+    const cleanYear = matchWithYear[3].trim().slice(-2);
     return {
-      prefix: matchWithYear[1].trim(),
+      prefix: cleanPrefix,
       serial: parseInt(matchWithYear[2], 10),
-      year: matchWithYear[3].trim(),
-      formatted: `${matchWithYear[1].trim()}/${matchWithYear[2]}/${matchWithYear[3].trim()}`
+      year: cleanYear,
+      formatted: `${cleanPrefix}/${matchWithYear[2]}/${cleanYear}`
     };
   }
 
-  // 2. Match pattern: Prefix / Serial (without year, e.g. HSS/SHG/1454)
+  // 2. Match pattern: Prefix / Serial (without year, e.g. HSS/1454 or HSS/SHG/1454)
   const matchNoYear = text.match(/^(.*?)[/_-](\d{1,6})$/);
   if (matchNoYear) {
+    let cleanPrefix = matchNoYear[1].trim().replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+    if (!cleanPrefix) cleanPrefix = 'HSS';
     return {
-      prefix: matchNoYear[1].trim(),
+      prefix: cleanPrefix,
       serial: parseInt(matchNoYear[2], 10),
-      year: currentYear,
-      formatted: `${matchNoYear[1].trim()}/${matchNoYear[2]}/${currentYear}`
+      year: currentYearShort,
+      formatted: `${cleanPrefix}/${matchNoYear[2]}/${currentYearShort}`
     };
   }
 
@@ -750,20 +756,21 @@ export function parseGeneralRefNo(refStr) {
   const numbers = Array.from(text.matchAll(/\b\d+\b/g)).map(m => parseInt(m[0], 10));
   const candidate = numbers.find(n => n < 1900 || n > 2099) || numbers[0] || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
   return {
-    prefix: 'HSS/SHG',
+    prefix: 'HSS',
     serial: candidate,
-    year: currentYear,
-    formatted: `HSS/SHG/${candidate}/${currentYear}`
+    year: currentYearShort,
+    formatted: `HSS/${candidate}/${currentYearShort}`
   };
 }
 
 /**
  * Formats a general reference string preserving prefix and year suffix.
- * e.g. formatGeneralRefNo('HSS/SHG', 1455, '2026') -> "HSS/SHG/1455/2026"
+ * e.g. formatGeneralRefNo('HSS/Char-Past', 1369, '2026') -> "HSS/Char-Past/1369/26"
  */
-export function formatGeneralRefNo(prefix = 'HSS/SHG', serial = DEFAULT_INITIAL_GENERAL_REF_SERIAL, year = null) {
-  const y = year || String(new Date().getFullYear());
-  const cleanPrefix = (prefix || 'HSS/SHG').replace(/[/_-]+$/, '');
+export function formatGeneralRefNo(prefix = 'HSS', serial = DEFAULT_INITIAL_GENERAL_REF_SERIAL, year = null) {
+  const y = year ? String(year).slice(-2) : String(new Date().getFullYear()).slice(-2);
+  let cleanPrefix = (prefix || 'HSS').replace(/[/_-]+$/, '');
+  cleanPrefix = cleanPrefix.replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
   return `${cleanPrefix}/${serial}/${y}`;
 }
 
@@ -772,9 +779,9 @@ export function formatGeneralRefNo(prefix = 'HSS/SHG', serial = DEFAULT_INITIAL_
  * Distinct from TC/DC certificates. Defaults to 1454 if uninitialized.
  */
 export async function fetchLastGeneralCertificateRef() {
-  const currentYear = String(new Date().getFullYear());
+  const currentYear = String(new Date().getFullYear()).slice(-2);
   let localSerial = DEFAULT_INITIAL_GENERAL_REF_SERIAL;
-  let localFull = `HSS/SHG/${DEFAULT_INITIAL_GENERAL_REF_SERIAL}/${currentYear}`;
+  let localFull = `HSS/${DEFAULT_INITIAL_GENERAL_REF_SERIAL}/${currentYear}`;
 
   try {
     const rawLocal = localStorage.getItem(LOCAL_STORAGE_GENERAL_REF_KEY);
@@ -792,9 +799,9 @@ export async function fetchLastGeneralCertificateRef() {
       const data = snap.data();
       const cloudSerial = parseInt(data.lastGeneralRefSerial, 10);
       if (!isNaN(cloudSerial) && cloudSerial > 0) {
-        const prefix = data.lastGeneralRefPrefix || 'HSS/SHG';
-        const year = data.lastGeneralRefYear || currentYear;
-        const fullRef = data.lastGeneralRefFull || formatGeneralRefNo(prefix, cloudSerial, year);
+        let prefix = (data.lastGeneralRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+        const year = String(data.lastGeneralRefYear || currentYear).slice(-2);
+        const fullRef = formatGeneralRefNo(prefix, cloudSerial, year);
         try {
           localStorage.setItem(LOCAL_STORAGE_GENERAL_REF_KEY, String(cloudSerial));
           localStorage.setItem(LOCAL_STORAGE_GENERAL_REF_FULL_KEY, fullRef);
@@ -809,19 +816,20 @@ export async function fetchLastGeneralCertificateRef() {
   const parsed = parseGeneralRefNo(localFull);
   return {
     serial: localSerial > 0 ? localSerial : DEFAULT_INITIAL_GENERAL_REF_SERIAL,
-    prefix: parsed.prefix || 'HSS/SHG',
+    prefix: parsed.prefix || 'HSS',
     year: parsed.year || currentYear,
-    fullRef: localFull
+    fullRef: parsed.formatted || localFull
   };
 }
 
 /**
  * Commits the general certificate reference sequence to Firestore & localStorage.
  */
-export async function commitGeneralCertificateRef({ serial, prefix = 'HSS/SHG', year = null, fullRef = '' }) {
-  const currentYear = year || String(new Date().getFullYear());
+export async function commitGeneralCertificateRef({ serial, prefix = 'HSS', year = null, fullRef = '' }) {
+  const currentYear = String(year || new Date().getFullYear()).slice(-2);
   const cleanSerial = parseInt(serial, 10) || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
-  const cleanPrefix = (prefix || 'HSS/SHG').replace(/[/_-]+$/, '');
+  let cleanPrefix = (prefix || 'HSS').replace(/[/_-]+$/, '');
+  cleanPrefix = cleanPrefix.replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
   const cleanFull = fullRef || formatGeneralRefNo(cleanPrefix, cleanSerial, currentYear);
 
   try {
@@ -836,11 +844,11 @@ export async function commitGeneralCertificateRef({ serial, prefix = 'HSS/SHG', 
       lastGeneralRefPrefix: cleanPrefix,
       lastGeneralRefYear: currentYear,
       lastGeneralRefFull: cleanFull,
-      updatedAt: new Date().toISOString()
+      lastGeneralRefUpdated: serverTimestamp()
     }, { merge: true });
-    return { success: true, serial: cleanSerial, fullRef: cleanFull };
   } catch (err) {
-    console.warn('Could not persist general certificate reference to cloud:', err);
-    return { success: false, serial: cleanSerial, fullRef: cleanFull, error: err.message };
+    console.warn('Could not commit general certificate registry to cloud:', err);
   }
+
+  return { serial: cleanSerial, prefix: cleanPrefix, year: currentYear, fullRef: cleanFull, success: true };
 }

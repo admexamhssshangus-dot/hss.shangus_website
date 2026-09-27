@@ -126,7 +126,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     name: 'Bonafide Certificate (with DOB in Figures & Words)',
     category: 'Bonafide & Age Certificates',
     certificateTitle: 'BONAFIDE CERTIFICATE',
-    refPrefix: 'HSS/SHG/Bonafide',
+    refPrefix: 'HSS/Bonafide',
     showPhoto: false,
     watermark: true,
     bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, residing at <strong>{ADDRESS}</strong>, is a bonafide student of this institution studying in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) under Class Roll No: <strong>{ROLL_NO}</strong> and Registration No: <strong>{REG_NO}</strong> during the academic session <strong>{SESSION}</strong>.</p>
@@ -138,7 +138,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     name: 'Character Certificate (Present Student)',
     category: 'Character & Conduct Certificates',
     certificateTitle: 'CHARACTER & CONDUCT CERTIFICATE',
-    refPrefix: 'HSS/SHG/Char-Pres',
+    refPrefix: 'HSS/Char-Pres',
     showPhoto: false,
     watermark: true,
     bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, is a regular student of this institution reading in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) bearing Class Roll No: <strong>{ROLL_NO}</strong> and Registration No: <strong>{REG_NO}</strong> in academic session <strong>{SESSION}</strong>.</p>
@@ -150,7 +150,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     name: 'Character Certificate (Ex-Student / Past Student)',
     category: 'Character & Conduct Certificates',
     certificateTitle: 'CHARACTER CERTIFICATE (EX-STUDENT)',
-    refPrefix: 'HSS/SHG/Char-Past',
+    refPrefix: 'HSS/Char-Past',
     showPhoto: false,
     watermark: true,
     bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, was a bonafide student of this institution and has successfully completed {PRONOUN_HIS_HER} studies in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) under Registration No: <strong>{REG_NO}</strong> and Roll No: <strong>{ROLL_NO}</strong> during the academic session <strong>{SESSION}</strong>.</p>
@@ -162,7 +162,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     name: 'Provisional Admission Bonafide Certificate',
     category: 'Admission & Enrollment',
     certificateTitle: 'PROVISIONAL ADMISSION CERTIFICATE',
-    refPrefix: 'HSS/SHG/Prov-Adm',
+    refPrefix: 'HSS/Prov-Adm',
     showPhoto: false,
     watermark: true,
     bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, has been provisionally admitted to <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) at Govt. Higher Secondary School Shangus for the academic session <strong>{SESSION}</strong>.</p>
@@ -174,7 +174,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     name: 'No Objection Certificate (NOC) / Transfer Bonafide',
     category: 'Transfer & Migration',
     certificateTitle: 'NO OBJECTION CERTIFICATE (NOC)',
-    refPrefix: 'HSS/SHG/NOC',
+    refPrefix: 'HSS/NOC',
     showPhoto: false,
     watermark: true,
     bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, was enrolled in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) under Registration No: <strong>{REG_NO}</strong> and Roll No: <strong>{ROLL_NO}</strong> during session <strong>{SESSION}</strong> in this institution.</p>
@@ -186,7 +186,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     name: 'Fee Clearance & Regular Enrollment Certificate',
     category: 'Bonafide & Age Certificates',
     certificateTitle: 'ENROLLMENT & FEE CLEARANCE CERTIFICATE',
-    refPrefix: 'HSS/SHG/Fee-Bonafide',
+    refPrefix: 'HSS/Fee-Bonafide',
     showPhoto: false,
     watermark: true,
     bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, is a regular bonafide student of <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>), Roll No: <strong>{ROLL_NO}</strong> and Registration No: <strong>{REG_NO}</strong> during academic session <strong>{SESSION}</strong> in Govt. Higher Secondary School Shangus.</p>
@@ -198,7 +198,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     name: 'Discharge / Transfer cum Character Certificate (Qualified / Passed)',
     category: 'Transfer & Character Certificates (TC/DC)',
     certificateTitle: 'Discharge/Transfer cum Character Certificate',
-    refPrefix: 'HSS/SHG/TC-DC',
+    refPrefix: 'HSS/TC-DC',
     showPhoto: false,
     watermark: true,
     isTcDc: true,
@@ -214,7 +214,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     name: 'Discharge / Transfer cum Character Certificate (Re-appear / Not Qualified / Transfer)',
     category: 'Transfer & Character Certificates (TC/DC)',
     certificateTitle: 'Discharge/Transfer cum Character Certificate',
-    refPrefix: 'HSS/SHG/TC-DC',
+    refPrefix: 'HSS/TC-DC',
     showPhoto: false,
     watermark: true,
     isTcDc: true,
@@ -230,7 +230,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     name: 'Discharge / Transfer cum Character Certificate (Awaiting Result / In-Course)',
     category: 'Transfer & Character Certificates (TC/DC)',
     certificateTitle: 'Discharge/Transfer cum Character Certificate',
-    refPrefix: 'HSS/SHG/TC-DC',
+    refPrefix: 'HSS/TC-DC',
     showPhoto: false,
     watermark: true,
     isTcDc: true,
@@ -612,7 +612,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     session = '2025-26',
     address = '',
     gender = 'M',
-    refNo = 'HSS/SHG/Bonafide/2026/01',
+    refNo = 'HSS/Bonafide/1454/26',
     date = new Date().toLocaleDateString('en-GB'),
     includeSalutations = false, // Hide/unhide Mr./Mrs./Ms. (Default: false / unchecked)
     studentTitle = null,
@@ -1022,7 +1022,7 @@ export function printStudentCertificate({
   institutionName = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
   institutionAddress = 'District Anantnag, Kashmir — 192201 (J&K)',
   certificateTitle = 'BONAFIDE CERTIFICATE',
-  refNo = 'HSS/SHG/Bonafide/2026/01',
+  refNo = 'HSS/Bonafide/1454/26',
   dateStr = new Date().toLocaleDateString('en-GB'),
   bodyHtml = '',
   studentPhotoUrl = null,
@@ -1115,7 +1115,7 @@ export function printStudentCertificate({
             <div class="meta-grid-box">
               <div class="meta-grid-cell">
                 <span class="meta-label">Certificate No.:</span>
-                <span class="meta-val val-red">${formatBlank(metaDetails.certificateNo || refNo, '----------------')}</span>
+                <span class="meta-val val-red ${String(metaDetails.certificateNo || refNo || '').length > 18 ? 'val-long-ref' : ''}">${formatBlank(metaDetails.certificateNo || refNo, '----------------')}</span>
               </div>
               <div class="meta-grid-cell">
                 <span class="meta-label">Reg. No.:</span>
@@ -1518,8 +1518,12 @@ export function printStudentCertificate({
       font-family: 'Plus Jakarta Sans', 'Inter', monospace;
       letter-spacing: 0.1px;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow: visible;
+    }
+
+    .meta-val.val-long-ref {
+      font-size: 7.2pt !important;
+      letter-spacing: -0.25px !important;
     }
 
     .meta-val.val-long-reg {
@@ -2007,7 +2011,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
               <div class="meta-grid-box">
                 <div class="meta-grid-cell">
                   <span class="meta-label">Certificate No.:</span>
-                  <span class="meta-val val-red">${formatBlank(metaDetails.certificateNo, '----------------')}</span>
+                  <span class="meta-val val-red ${String(metaDetails.certificateNo || '').length > 18 ? 'val-long-ref' : ''}">${formatBlank(metaDetails.certificateNo, '----------------')}</span>
                 </div>
                 <div class="meta-grid-cell">
                   <span class="meta-label">Reg. No.:</span>
@@ -2405,8 +2409,12 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       font-family: 'Plus Jakarta Sans', 'Inter', monospace;
       letter-spacing: 0.1px;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow: visible;
+    }
+
+    .meta-val.val-long-ref {
+      font-size: 7.2pt !important;
+      letter-spacing: -0.25px !important;
     }
 
     .meta-val.val-long-reg {
@@ -2796,7 +2804,7 @@ export async function generateStudentCertificateDocx({
   institutionName = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
   institutionAddress = 'District Anantnag, Kashmir — 192201 (J&K)',
   certificateTitle = 'BONAFIDE CERTIFICATE',
-  refNo = 'HSS/SHG/Bonafide/2026/01',
+  refNo = 'HSS/Bonafide/1454/26',
   dateStr = new Date().toLocaleDateString('en-GB'),
   bodyHtml = '',
   signatories = ['Incharge Admissions & Exam', 'Principal'],
