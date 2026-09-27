@@ -238,10 +238,30 @@ button.practicals-ab-btn {
   justify-content: center !important;
 }
 
+@media (max-width: 640px) {
+  input.practicals-marks-input,
+  button.practicals-ab-btn {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    border-radius: 8px !important;
+  }
+}
+
 input.practicals-marks-input {
   font-size: 11px !important;
   text-align: center !important;
   padding: 0 2px !important;
+}
+
+@media (max-width: 640px) {
+  input.practicals-marks-input {
+    font-size: 12px !important;
+    padding: 0 4px !important;
+  }
 }
 
 button.practicals-ab-btn {
@@ -249,6 +269,12 @@ button.practicals-ab-btn {
   font-weight: 800 !important;
   cursor: pointer !important;
   padding: 0 !important;
+}
+
+@media (max-width: 640px) {
+  button.practicals-ab-btn {
+    font-size: 11.5px !important;
+  }
 }
 
 /* Attendance Mobile Roster Cards — Ultra-compact 32px height (40% height reduction) */
