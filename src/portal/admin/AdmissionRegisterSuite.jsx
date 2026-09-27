@@ -1999,6 +1999,7 @@ export default function AdmissionRegisterSuite({
   const [isUniversalModalOpen, setIsUniversalModalOpen] = useState(false);
   const [searchCandidateQuery, setSearchCandidateQuery] = useState('');
   const [candidateClassFilter, setCandidateClassFilter] = useState('All');
+  const [candidateOnlyApproved, setCandidateOnlyApproved] = useState(true);
   const [reAdmFormState, setReAdmFormState] = useState({
     isReAdm: true,
     targetSession: '2025-26',
@@ -2334,7 +2335,8 @@ export default function AdmissionRegisterSuite({
           admNo: data.admNo || existing.admNo,
           oldAdmNo: data.oldAdmNo || existing.oldAdmNo,
           boardReg: data.boardReg || existing.boardReg,
-          class: data.class || existing.class
+          class: data.class || existing.class,
+          isApproved: data.isApproved !== undefined ? data.isApproved : existing.isApproved
         });
       }
     };
@@ -2344,6 +2346,12 @@ export default function AdmissionRegisterSuite({
       const fNo = cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s.FormNo);
       const bReg = cleanStr(s.boardRegNo || s['Board Registration Number'] || s.boardReg || s['Board Reg. No.']);
       const id = cleanStr(s.id || s.docId || fNo || `adm_${idx}`);
+      const isApproved = Boolean(
+        hasAssignedClassRollNumber(s) ||
+        (s.classRollNo && s.classRollNo !== '—' && s.classRollNo !== '-') ||
+        (s.rollNo && s.rollNo !== '—' && s.rollNo !== '-') ||
+        s.status === 'Approved'
+      );
       const entry = {
         raw: s,
         id,
@@ -2359,7 +2367,8 @@ export default function AdmissionRegisterSuite({
         boardReg: bReg,
         dob: cleanStr(s.dob || s['DoB (as per school records)'] || s['Date of Birth']),
         mobile: cleanStr(s.mobile || s['Mobile No. (with working WhatsApp)'] || s['Student Mobile']),
-        isReadmission: String(s.readmission || s['Re-admission'] || s.isReadmission || '').toLowerCase() === 'yes' || s.readmission === true || s.isReadmission === true
+        isReadmission: String(s.readmission || s['Re-admission'] || s.isReadmission || '').toLowerCase() === 'yes' || s.readmission === true || s.isReadmission === true,
+        isApproved
       };
       registerCandidate(id, entry);
       if (fNo) registerCandidate(`form_${fNo}`, entry);
@@ -2377,6 +2386,11 @@ export default function AdmissionRegisterSuite({
           const bReg = cleanStr(item.boardRegNo || item['Board Registration Number'] || item.boardReg);
           const id = cleanStr(item.id || fNo || `${h.id}_${i}`);
           const itemCls = cleanStr(item.class || item.Class || item['Admission sought for class'] || item.className || pClass || '10th');
+          const isApproved = Boolean(
+            (item.classRollNo && item.classRollNo !== '—' && item.classRollNo !== '-') ||
+            (item.rollNo && item.rollNo !== '—' && item.rollNo !== '-') ||
+            item.status === 'Approved'
+          );
           const entry = {
             raw: item,
             id,
@@ -2392,7 +2406,8 @@ export default function AdmissionRegisterSuite({
             boardReg: bReg,
             dob: cleanStr(item.dob || item['Date of Birth']),
             mobile: cleanStr(item.mobile || item['Mobile No.']),
-            isReadmission: String(item.readmission || item['Re-admission'] || item.isReadmission || '').toLowerCase() === 'yes' || item.readmission === true
+            isReadmission: String(item.readmission || item['Re-admission'] || item.isReadmission || '').toLowerCase() === 'yes' || item.readmission === true,
+            isApproved
           };
           registerCandidate(id, entry);
           if (fNo) registerCandidate(`form_${fNo}`, entry);
@@ -2406,6 +2421,7 @@ export default function AdmissionRegisterSuite({
       const fNo = cleanStr(c.fNo || c.formNo || c['Form Number']);
       const bReg = cleanStr(c.boardRegNo || c.boardReg);
       const id = fNo ? `form_${fNo}` : (bReg ? `reg_${bReg}` : `cat_${idx}`);
+      const isApproved = Boolean(c.classRollNo && c.classRollNo !== '—' && c.classRollNo !== '-');
       const entry = {
         raw: c,
         id: c.id || id,
@@ -2421,7 +2437,8 @@ export default function AdmissionRegisterSuite({
         boardReg: bReg,
         dob: cleanStr(c.dob || ''),
         mobile: cleanStr(c.mobile || ''),
-        isReadmission: false
+        isReadmission: false,
+        isApproved
       };
       if (fNo && !map.has(`form_${fNo}`)) registerCandidate(`form_${fNo}`, entry);
       else if (bReg && !map.has(`reg_${bReg}`)) registerCandidate(`reg_${bReg}`, entry);
@@ -2446,6 +2463,7 @@ export default function AdmissionRegisterSuite({
   const candidateClassCounts = useMemo(() => {
     const counts = { 'All': 0, '12th': 0, '11th': 0, '10th': 0, '9th': 0 };
     (allAvailableDatabaseStudents || []).forEach(s => {
+      if (candidateOnlyApproved && !s.isApproved) return;
       counts['All'] = (counts['All'] || 0) + 1;
       const c = cleanStr(s.class).toLowerCase();
       if (c.includes('12')) counts['12th'] = (counts['12th'] || 0) + 1;
@@ -2454,11 +2472,16 @@ export default function AdmissionRegisterSuite({
       else if (c.includes('9')) counts['9th'] = (counts['9th'] || 0) + 1;
     });
     return counts;
-  }, [allAvailableDatabaseStudents]);
+  }, [allAvailableDatabaseStudents, candidateOnlyApproved]);
 
   // Candidates Search Results
   const candidateSearchResults = useMemo(() => {
     let list = allAvailableDatabaseStudents;
+
+    if (candidateOnlyApproved) {
+      list = list.filter(s => s.isApproved);
+    }
+
     if (candidateClassFilter !== 'All') {
       list = list.filter(s => {
         const cls = cleanStr(s.class).toLowerCase();
@@ -2470,20 +2493,64 @@ export default function AdmissionRegisterSuite({
     if (!searchCandidateQuery.trim()) {
       return list.slice(0, 50);
     }
+
     const q = searchCandidateQuery.toLowerCase().trim();
+    const rawTokens = q.split(/\s+/).filter(Boolean);
+
+    // Phonetic & transliteration normalizer for Kashmiri / Indian names
+    // Handles w <-> v (Sarwat <-> Sarvat), mohd <-> moham, shk <-> sheikh,
+    // diphthongs (aie/aye/ie/ei/ai/ay/ey -> i), ee -> i, oo/ou -> u, q <-> k, ph <-> f
+    const toPhonetic = (str) => (str || '')
+      .toLowerCase()
+      .replace(/\bmohd\b|\bmd\b/g, 'moham')
+      .replace(/\bshk\b/g, 'sheikh')
+      .replace(/w/g, 'v')
+      .replace(/ph/g, 'f')
+      .replace(/q/g, 'k')
+      .replace(/aie|aye|ie|ei|ai|ay|ey/g, 'i')
+      .replace(/ee/g, 'i')
+      .replace(/oo|ou/g, 'u')
+      .replace(/y/g, 'i')
+      .replace(/(.)\1+/g, (m, c) => c);
+
     return list.filter(s => {
-      return (
-        s.name.toLowerCase().includes(q) ||
-        s.father.toLowerCase().includes(q) ||
-        (s.formNo && s.formNo.toLowerCase().includes(q)) ||
-        s.rollNo.toLowerCase().includes(q) ||
-        s.admNo.toLowerCase().includes(q) ||
-        s.oldAdmNo.toLowerCase().includes(q) ||
-        s.boardReg.toLowerCase().includes(q) ||
-        s.class.toLowerCase().includes(q)
-      );
+      const name = (s.name || '').toLowerCase();
+      const father = (s.father || '').toLowerCase();
+      const formNo = (s.formNo || '').toLowerCase();
+      const rollNo = (s.rollNo || '').toLowerCase();
+      const admNo = (s.admNo || '').toLowerCase();
+      const oldAdmNo = (s.oldAdmNo || '').toLowerCase();
+      const boardReg = (s.boardReg || '').toLowerCase();
+      const cls = (s.class || '').toLowerCase();
+
+      const namePhonetic = toPhonetic(name);
+      const fatherPhonetic = toPhonetic(father);
+
+      return rawTokens.every(tok => {
+        // 1. Literal match in any field
+        if (
+          name.includes(tok) ||
+          father.includes(tok) ||
+          formNo.includes(tok) ||
+          rollNo.includes(tok) ||
+          admNo.includes(tok) ||
+          oldAdmNo.includes(tok) ||
+          boardReg.includes(tok) ||
+          cls.includes(tok)
+        ) {
+          return true;
+        }
+
+        // 2. Phonetic normalized match in name or father
+        const pTok = toPhonetic(tok);
+        if (pTok && (namePhonetic.includes(pTok) || fatherPhonetic.includes(pTok))) {
+          return true;
+        }
+
+        return false;
+      });
     }).slice(0, 50);
-  }, [allAvailableDatabaseStudents, searchCandidateQuery, candidateClassFilter]);
+  }, [allAvailableDatabaseStudents, searchCandidateQuery, candidateClassFilter, candidateOnlyApproved]);
 
   // 1. DYNAMICALLY FETCH ALL SESSIONS AVAILABLE IN DATABASE
   const [availableSessions, setAvailableSessions] = useState(['2025-26', '2024-25', '2023-24', '2022-23']);
@@ -8334,33 +8401,49 @@ export default function AdmissionRegisterSuite({
                   />
                 </div>
 
-                {/* Class Filter Quick Tabs */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                  {['All', '12th', '11th', '10th', '9th'].map((clsKey) => {
-                    const count = candidateClassCounts[clsKey] || 0;
-                    const isActive = candidateClassFilter === clsKey;
-                    return (
-                      <button
-                        key={clsKey}
-                        type="button"
-                        onClick={() => setCandidateClassFilter(clsKey)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border cursor-pointer ${
-                          isActive
-                            ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600'
-                        }`}
-                      >
-                        <span>{clsKey === 'All' ? 'All Classes' : `Class ${clsKey}`}</span>
-                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                          isActive
-                            ? 'bg-purple-700 text-purple-100'
-                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                        }`}>
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
+                {/* Class Filter Quick Tabs & Approved Only Toggle */}
+                <div className="flex items-center justify-between gap-1.5 overflow-x-auto pb-1">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {['All', '12th', '11th', '10th', '9th'].map((clsKey) => {
+                      const count = candidateClassCounts[clsKey] || 0;
+                      const isActive = candidateClassFilter === clsKey;
+                      return (
+                        <button
+                          key={clsKey}
+                          type="button"
+                          onClick={() => setCandidateClassFilter(clsKey)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border cursor-pointer ${
+                            isActive
+                              ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600'
+                          }`}
+                        >
+                          <span>{clsKey === 'All' ? 'All Classes' : `Class ${clsKey}`}</span>
+                          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                            isActive
+                              ? 'bg-purple-700 text-purple-100'
+                              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCandidateOnlyApproved(prev => !prev)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border cursor-pointer ${
+                      candidateOnlyApproved
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                    }`}
+                    title={candidateOnlyApproved ? 'Showing only approved students with roll numbers. Click to view all records.' : 'Showing all records including unapproved drafts. Click to restrict to approved students only.'}
+                  >
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${candidateOnlyApproved ? 'bg-emerald-500 ring-2 ring-emerald-300/50' : 'bg-slate-400'}`} />
+                    <span className="whitespace-nowrap">Approved Only</span>
+                  </button>
                 </div>
 
                 <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
