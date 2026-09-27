@@ -12539,7 +12539,18 @@ export default function AdvancedReports({
 
     try {
       for (const item of matchedItems) {
-        const compressed = await compressImageFile(item.file, 300, 360, 0.75);
+        // Smart Compression Decision: Bypass if already <= 15 KB to preserve crisp original quality
+        let compressed;
+        if (item.file && item.file.size <= 15 * 1024) {
+          compressed = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(item.file);
+          });
+        } else {
+          compressed = await compressImageFile(item.file, 300, 360, 0.75);
+        }
         const s = item.matchedStudent;
 
         // 1. Sync to central studentPhotos collection
@@ -16045,7 +16056,41 @@ export default function AdvancedReports({
                   </div>
                 </div>
 
-                {/* ─── GROUP 2: SYSTEM DISASTER RECOVERY & JSON BACKUP ─── */}
+                {/* ─── GROUP 2: SESSION LIFECYCLE & ROLLOVER PIPELINE ─── */}
+                <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-purple-200/80 dark:border-purple-900/50 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-start gap-1.5 min-w-0">
+                      <div className="p-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0">
+                        <Database size={13} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>Annual Session Rollover & Lifecycle Manager</span>
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            PIN Guarded
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                          Form Number deduplication, class-wise 48-column preview, commit approved to master registers & auto-download unapproved JSON.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setShowArchivalModal(true)}
+                        className="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-600 text-white font-bold text-[11px] sm:text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all shrink-0"
+                        title="Open Session Rollover, Deduplication & Preview Modal"
+                      >
+                        <Database size={11} />
+                        <span>Open Session Rollover Manager</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── GROUP 3: SYSTEM DISASTER RECOVERY & JSON BACKUP ─── */}
                 <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-start gap-1.5 min-w-0">
