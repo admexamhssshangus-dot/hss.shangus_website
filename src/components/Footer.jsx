@@ -300,7 +300,7 @@ export default function Footer() {
                 </button>
               </div>
 
-              <span className="dev-badge-divider font-bold select-none text-xs">|</span>
+              <span className="hidden sm:inline dev-badge-divider font-bold select-none text-xs">|</span>
 
               {/* Developer Contact Actions */}
               <div className="flex items-center gap-2 font-mono text-xs">
