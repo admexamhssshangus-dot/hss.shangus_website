@@ -2,38 +2,33 @@
 
 ## Current Working Changes
 
-### 1. Default to Approved-Only in Universal Re-admission Student Finder (`AdmissionRegisterSuite.jsx`)
-- **Issue Addressed:** Unapproved draft form submissions (such as stray entry `Life sciences` with Form 250001) were appearing at the top of the candidate selection list.
+### 1. Fix Session Switch Freeze & Wire Real-Time Progress Bar (`AdmissionRegisterSuite.jsx`)
+- **Issue Diagnosed:**
+  - When switching Academic Session to entries such as `2024–25 (Oct-Nov)`:
+    1. The previous session filtering used strict equality (`===`). Differences between Unicode en-dashes (`–`) vs hyphens (`-`) or session descriptor tags (`(Oct-Nov)`) caused 0 records to match in cached datasets.
+    2. This triggered an un-throttled fallback fetch of the entire `admissions` collection from Firestore.
+    3. The `availableSessions` effect had `[dataset, historyDataset]` as dependencies, causing a cascading re-render loop on every dataset update.
+    4. The Filters popover remained open and froze the screen because no progress bar modal was wired to session transitions.
 - **Solution:**
-  - Added `candidateOnlyApproved` state (defaulting to `true`).
-  - Added `isApproved` identification across current admissions, historical registers, and verified student catalog based on assigned class roll number or `status === 'Approved'`.
-  - Added an interactive **`[✓ Approved Only]`** toggle button in the modal filter bar with an emerald indicator dot, allowing administrators to easily toggle between approved students and all database records.
+  - Added `normalizeSessionKey` (normalizing en-dash/hyphen, whitespace, and case) and `isSessionMatching` (year-range and semantic match between `2024-25` and `2024–25 (Oct-Nov)`).
+  - Wired the high-fidelity **`taskProgress`** modal into `handleSessionChange` and `loadSessionData` with step-by-step percentage and status messages:
+    - `25%`: Preparing register and loading session data
+    - `35%`: Querying admissions & historical registers
+    - `60%`: Checking master registers archive
+    - `80%`: Querying Firestore admissions database
+    - `100%`: Session Ready (`Successfully loaded N student records`)
+  - Added async event-loop yielding (`await new Promise(...)`) between loading stages so the browser thread remains fluid and the progress bar animates without freezing.
+  - Automatically closes the Filters popover upon session selection so the progress modal and table are visible immediately.
+  - Decoupled `availableSessions` effect to run once on component mount (`[]`), eliminating cascading re-render loops.
 
-### 2. Multi-Token Phonetic & Transliteration Search (`AdmissionRegisterSuite.jsx`)
-- **Issue Diagnosed ("why certain students are not showing search here like sarwat?"):**
-  - In the database and official records, the student's registered name is **`Sarvat Abbas`** (spelled with a `v`, S/o Peer Mohammad Abbas, Form `250188`, Class 12th Roll `50`).
-  - The previous search only performed strict literal matching (`includes('sarwat')`). Because `v !== w`, typing `sarwat` yielded 0 results.
-- **Solution:**
-  - Upgraded candidate search with a multi-token transliteration and phonetic normalizer tailored for Kashmiri/Urdu names:
-    - `w` $\leftrightarrow$ `v` (e.g. `sarwat` $\leftrightarrow$ `Sarvat Abbas`, `gowher` $\leftrightarrow$ `Gowher`, `parveez` $\leftrightarrow$ `Parvaiz`)
-    - `mohd` / `md` $\leftrightarrow$ `moham` (e.g. `peer mohd` $\leftrightarrow$ `Peer Mohammad Abbas`)
-    - `shk` $\leftrightarrow$ `sheikh`
-    - `ee` $\leftrightarrow$ `i` (e.g. `mehwish` $\leftrightarrow$ `Mehvish Iqbal`, `sabreena` $\leftrightarrow$ `Sabrina`)
-    - `oo` / `ou` $\leftrightarrow$ `u` (e.g. `abru` $\leftrightarrow$ `Abroo Ashraf`, `durdana` $\leftrightarrow$ `Doordana Bilal`, `mumin` $\leftrightarrow$ `Moomin Rashid Reshi`)
-    - Diphthongs `aie`, `aye`, `ie`, `ei`, `ai`, `ay`, `ey` $\leftrightarrow$ `i` (e.g. `shaista` $\leftrightarrow$ `Shaiesta Parveez`)
-    - `q` $\leftrightarrow$ `k` (e.g. `mukeet` $\leftrightarrow$ `Muqeet Ahmad`)
-    - `ph` $\leftrightarrow$ `f` (e.g. `phaizan` $\leftrightarrow$ `Faizan`)
-    - Collapsed consecutive duplicate characters (e.g. `abbas` $\leftrightarrow$ `abas`).
-  - Tokenized query matching: multi-word searches (e.g. `sarwat abbas`, `sarwat 50`, `peer mohd`, `sarwat 12th`) match across student name, father name, roll number, admission number, old admission number, board registration, and class.
-
-### 3. Automatic Historical Fallback for Old Admission Number in Brackets
-- Added an automatic fallback ladder in `AdmissionRegisterSuite.jsx`:
-  - When `s.oldAdmNo` is empty on the live form document, the register retrieves the historical admission number using `historicalAdmissionLookup.json` by Board Registration No, Form No, or Name + Father.
-  - Correctly renders old admission numbers in brackets for re-admission candidates:
-    - *Sartaj Ahmad Mir*: `5482 (4904)`
-    - *Sarvat Abbas*: `5480 (4887)`
-    - *Faizan Bilal Najar*: `5498 (5195)`
-    - *Kifayat Jabbar Kutay*: `5503 (4809)`
+### 2. Consolidated Remarks & Marks Card Particulars (`AdmissionRegisterSuite.jsx`)
+- **Feature Implemented:**
+  - Added `customRemarks` to `reAdmFormState` and an interactive editable textarea in View 2 of the Re-admission Modal.
+  - Automatically formats the statutory consolidated remark:
+    > `Gap case, hence, readmitted for class 12th, 2026 (oct-nov session) • Prev Adm: [OldAdmNo] • Marks card submitted & verified`
+  - Added a **"⚡ Reset to Standard Remark"** shortcut button inside the modal.
+  - Automatically saves the consolidated text into Firestore (`remarks` and `Remarks` fields in `admissions/{docId}`).
+  - Renders the full consolidated text in Column 18 (**REMARKS**) of the General Admission Register and official exports.
 
 ---
 
@@ -45,7 +40,7 @@
 
 ## Local Commit Message
 ```bash
-git commit -m "feat(re-admission): filter approved students by default and add transliteration phonetic search"
+git commit -m "fix(register): eliminate session switch freeze with real-time progress bar and add consolidated remarks"
 ```
 
 ---
@@ -60,7 +55,7 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "feat(re-admission): filter approved students by default and add transliteration phonetic search"
+git commit -m "fix(register): eliminate session switch freeze with real-time progress bar and add consolidated remarks"
 ```
 
 ### If you want to undo/re-commit the latest local commit manually:

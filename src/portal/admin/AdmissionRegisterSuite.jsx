@@ -350,6 +350,29 @@ function cleanStr(val) {
   return String(val).trim();
 }
 
+function normalizeSessionKey(sess) {
+  return cleanStr(sess)
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
+}
+
+function isSessionMatching(itemSess, targetSess) {
+  if (!targetSess || targetSess === 'ALL') return true;
+  const nItem = normalizeSessionKey(itemSess);
+  const nTarget = normalizeSessionKey(targetSess);
+  if (!nItem && (nTarget.includes('2025-26') || nTarget === 'live')) return true;
+  if (nItem === nTarget) return true;
+
+  const matchItemYears = nItem.match(/\d{4}-\d{2,4}/);
+  const matchTargetYears = nTarget.match(/\d{4}-\d{2,4}/);
+  if (matchItemYears && matchTargetYears && matchItemYears[0] === matchTargetYears[0]) {
+    return true;
+  }
+  return nItem.includes(nTarget) || nTarget.includes(nItem);
+}
+
 function firstCleanValue(record, keys) {
   if (!record) return '';
   for (const key of keys) {
@@ -1470,12 +1493,26 @@ export default function AdmissionRegisterSuite({
 
   const handleSessionChange = useCallback((newSession) => {
     if (newSession === selectedSession) return;
+    setShowFiltersPopover(false);
     setIsLoadingSession(true);
+    setTaskProgress({
+      title: `Switching to Session ${newSession}`,
+      step: 'Preparing registers and student data...',
+      progress: 25,
+      icon: 'calendar'
+    });
     setSelectedSession(newSession);
   }, [selectedSession]);
 
   const handleResetFilters = useCallback(() => {
+    setShowFiltersPopover(false);
     setIsLoadingSession(true);
+    setTaskProgress({
+      title: 'Resetting Filters',
+      step: 'Returning to live 2025-26 approved register...',
+      progress: 50,
+      icon: 'calendar'
+    });
     setSelectedSession('2025-26');
     setSelectedStatus('Approved');
     setSelectedAdmissionType('ALL');
@@ -2008,7 +2045,8 @@ export default function AdmissionRegisterSuite({
     assignedAdmNo: '',
     oldAdmNo: '',
     prevSchoolOrClass: '',
-    reason: 'Gap in Studies / Re-enrolled'
+    reason: 'Gap in Studies / Re-enrolled',
+    customRemarks: ''
   });
   const [savingReAdm, setSavingReAdm] = useState(false);
   const [showUndoConfirmModal, setShowUndoConfirmModal] = useState(false);
@@ -2556,31 +2594,20 @@ export default function AdmissionRegisterSuite({
   const [availableSessions, setAvailableSessions] = useState(['2025-26', '2024-25', '2023-24', '2022-23']);
 
   useEffect(() => {
+    let active = true;
     const sessionsFound = new Set(['2025-26', '2024-25', '2023-24', '2022-23']);
-    (dataset || []).forEach(s => {
-      const sess = cleanStr(s.session || s.Session || s['Academic Session']);
-      if (sess) sessionsFound.add(sess);
-    });
-    (historyDataset || []).forEach(h => {
-      const sess = cleanStr(h.session || h.Session || h['Academic Session']);
-      if (sess) sessionsFound.add(sess);
-      if (Array.isArray(h.items || h.students)) {
-        (h.items || h.students).forEach(item => {
-          const sItem = cleanStr(item.session || item.Session || item['Academic Session']);
-          if (sItem) sessionsFound.add(sItem);
+    getDocs(collection(db, 'academicSessions'))
+      .then(snap => {
+        if (!active) return;
+        snap.docs.forEach(d => {
+          const sessName = cleanStr(d.data()?.name || d.data()?.session || d.id);
+          if (sessName) sessionsFound.add(sessName);
         });
-      }
-    });
-    getDocs(collection(db, 'academicSessions')).then(snap => {
-      snap.docs.forEach(d => {
-        const sessName = cleanStr(d.data()?.name || d.data()?.session || d.id);
-        if (sessName) sessionsFound.add(sessName);
-      });
-      setAvailableSessions(Array.from(sessionsFound).sort().reverse());
-    }).catch(() => {
-      setAvailableSessions(Array.from(sessionsFound).sort().reverse());
-    });
-  }, [dataset, historyDataset]);
+        setAvailableSessions(Array.from(sessionsFound).sort().reverse());
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   // 2. ON-DEMAND SESSION DATA FETCHER (Loads particular session dynamically from DB)
   useEffect(() => {
@@ -2588,16 +2615,26 @@ export default function AdmissionRegisterSuite({
 
     // Dashboard data hydrates progressively (first page, then the complete collection).
     // Always let the newest current-session prop replace an older session cache snapshot.
-    if (selectedSession === '2025-26' && Array.isArray(propStudents) && propStudents.length > 0) {
-      sessionCacheRef.current['2025-26'] = propStudents;
+    if ((selectedSession === '2025-26' || isSessionMatching('2025-26', selectedSession)) && Array.isArray(propStudents) && propStudents.length > 0) {
+      sessionCacheRef.current[selectedSession] = propStudents;
       setDataset(propStudents);
       setIsLoadingSession(false);
+      setTaskProgress(null);
       return;
     }
 
     if (sessionCacheRef.current[selectedSession]) {
-      setDataset(sessionCacheRef.current[selectedSession]);
+      const cached = sessionCacheRef.current[selectedSession];
+      setTaskProgress({
+        title: `Session ${selectedSession}`,
+        step: `Loaded from cache (${cached.length} students)`,
+        progress: 100,
+        status: 'success',
+        icon: 'calendar'
+      });
+      setDataset(cached);
       setIsLoadingSession(false);
+      setTimeout(() => setTaskProgress(null), 700);
       return;
     }
 
@@ -2606,6 +2643,16 @@ export default function AdmissionRegisterSuite({
 
     const loadSessionData = async () => {
       try {
+        setTaskProgress({
+          title: `Loading Session ${selectedSession}`,
+          step: 'Querying admissions & historical registers...',
+          progress: 35,
+          icon: 'calendar'
+        });
+
+        // Yield to allow the browser to paint the progress bar modal
+        await new Promise(r => setTimeout(r, 40));
+
         let loadedRecords = [];
 
         // 1. Check admissions collection (live & cached)
@@ -2615,11 +2662,7 @@ export default function AdmissionRegisterSuite({
           const matched = allAdmissions.filter(d => {
             if (!d) return false;
             const sSess = cleanStr(d.session || d.Session || d['Academic Session'] || '');
-            if (selectedSession === 'ALL') return true;
-            if (selectedSession === '2025-26') {
-              return sSess === '2025-26' || !sSess;
-            }
-            return sSess === selectedSession;
+            return isSessionMatching(sSess, selectedSession);
           });
           if (matched.length > 0) {
             loadedRecords = matched;
@@ -2628,6 +2671,13 @@ export default function AdmissionRegisterSuite({
 
         // 2. If not found in admissions, check masterRegisters collection
         if (loadedRecords.length === 0) {
+          setTaskProgress(prev => ({
+            ...(prev || {}),
+            step: 'Checking master registers archive...',
+            progress: 60
+          }));
+          await new Promise(r => setTimeout(r, 20));
+
           const masterList = await getCachedCollection('masterRegisters');
           const flat = [];
           (masterList || []).forEach(docItem => {
@@ -2637,7 +2687,7 @@ export default function AdmissionRegisterSuite({
             if (Array.isArray(chunk)) {
               chunk.forEach((item, i) => {
                 const iSess = cleanStr(item.session || item.Session || item['Academic Session'] || pSess);
-                if (iSess === selectedSession || selectedSession === 'ALL') {
+                if (isSessionMatching(iSess, selectedSession)) {
                   flat.push({
                     ...item,
                     id: item.id || item['Form Number'] || `${docItem.id}_${i}`,
@@ -2646,7 +2696,7 @@ export default function AdmissionRegisterSuite({
                   });
                 }
               });
-            } else if (pSess === selectedSession || selectedSession === 'ALL') {
+            } else if (isSessionMatching(pSess, selectedSession)) {
               flat.push({ ...docItem, session: pSess, Session: pSess });
             }
           });
@@ -2655,14 +2705,19 @@ export default function AdmissionRegisterSuite({
 
         // 3. Fallback direct Firestore fetch if cache was empty
         if (loadedRecords.length === 0) {
+          setTaskProgress(prev => ({
+            ...(prev || {}),
+            step: 'Querying Firestore admissions database...',
+            progress: 80
+          }));
+          await new Promise(r => setTimeout(r, 20));
+
           const admSnap = await getDocs(collection(db, 'admissions'));
           if (!admSnap.empty) {
             const rawDocs = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             loadedRecords = rawDocs.filter(d => {
               const sSess = cleanStr(d.session || d.Session || d['Academic Session'] || '');
-              if (selectedSession === 'ALL') return true;
-              if (selectedSession === '2025-26') return sSess === '2025-26' || !sSess;
-              return sSess === selectedSession;
+              return isSessionMatching(sSess, selectedSession);
             });
           }
         }
@@ -2693,9 +2748,24 @@ export default function AdmissionRegisterSuite({
         if (!isCancelled) {
           sessionCacheRef.current[selectedSession] = loadedRecords;
           setDataset(loadedRecords);
+
+          setTaskProgress({
+            title: `Session ${selectedSession} Ready`,
+            step: `Successfully loaded ${loadedRecords.length} student records`,
+            progress: 100,
+            status: 'success',
+            icon: 'calendar'
+          });
+          setTimeout(() => {
+            if (!isCancelled) setTaskProgress(null);
+          }, 800);
         }
       } catch (err) {
         console.error(`Error loading session ${selectedSession}:`, err);
+        if (!isCancelled) {
+          setTaskProgress(null);
+          setToast({ message: `Failed to load session ${selectedSession}`, type: 'error' });
+        }
       } finally {
         if (!isCancelled) setIsLoadingSession(false);
       }
@@ -3179,7 +3249,9 @@ export default function AdmissionRegisterSuite({
         withdrawal: finalWithdrawal || '—',
         issuedCC: finalIssuedCC,
         receipt: finalReceipt,
-        remarks: isReadmission ? `Re-admission (Gap)${oldAdmNo ? ` • Prev Adm: ${oldAdmNo}` : ''}` : cleanStr(s.remarks || s.Remarks || s['Remarks/Feedback (if any)'] || ''),
+        remarks: isReadmission
+          ? (cleanStr(s.remarks || s.Remarks) || `Gap case, hence, readmitted for class ${cls}, 2026 (oct-nov session)${finalOldAdmNo ? ` • Prev Adm: ${finalOldAdmNo}` : ''} • Marks card submitted & verified`)
+          : cleanStr(s.remarks || s.Remarks || s['Remarks/Feedback (if any)'] || ''),
         inheritedSource,
         hasInheritedData: inheritedFields.size > 0
       });
@@ -3199,7 +3271,7 @@ export default function AdmissionRegisterSuite({
     };
 
     const getCleanSessionNorm = (sess) => {
-      return cleanStr(sess || selectedSession || '2025-26');
+      return normalizeSessionKey(sess || selectedSession || '2025-26');
     };
 
     list.forEach(st => {
@@ -3774,6 +3846,7 @@ export default function AdmissionRegisterSuite({
     // For 11th candidate, keep their current admission number intact!
     const assignedAdm = is11th && candidate.admNo ? candidate.admNo : nextSequentialAdmNo;
     const prevAdm = candidate.oldAdmNo || (is11th ? '' : candidate.admNo) || '';
+    const defaultRemarks = `Gap case, hence, readmitted for class ${defaultTargetCls}, 2026 (oct-nov session)${prevAdm ? ` • Prev Adm: ${prevAdm}` : ''} • Marks card submitted & verified`;
 
     setReAdmFormState({
       isReAdm: true,
@@ -3783,7 +3856,8 @@ export default function AdmissionRegisterSuite({
       assignedAdmNo: assignedAdm,
       oldAdmNo: prevAdm,
       prevSchoolOrClass: `HSS Shangus (Class ${prevCls}, ${candidate.session || 'Past Session'})`,
-      reason: 'Gap in Studies / Re-enrolled'
+      reason: 'Gap in Studies / Re-enrolled',
+      customRemarks: cleanStr(candidate.remarks || candidate.raw?.remarks) || defaultRemarks
     });
   };
 
@@ -3805,16 +3879,19 @@ export default function AdmissionRegisterSuite({
     }
 
     const prevAdm = student.oldAdmNo || (isJuniorClass ? (student.raw?.['Old Admission No.'] || student.raw?.oldAdmNo || '') : (student.admNo || '')) || '';
+    const targetCls = student.class || (isJuniorClass ? '11th' : '12th');
+    const defaultRemarks = `Gap case, hence, readmitted for class ${targetCls}, 2026 (oct-nov session)${prevAdm ? ` • Prev Adm: ${prevAdm}` : ''} • Marks card submitted & verified`;
 
     setReAdmFormState({
       isReAdm: true,
       targetSession: student.session || selectedSession || '2025-26',
-      targetClass: student.class || (isJuniorClass ? '11th' : '12th'),
+      targetClass: targetCls,
       targetStream: (student.stream === 'Science' || student.stream?.toLowerCase().includes('sci') || student.stream?.toLowerCase().includes('med')) ? 'Science' : 'Humanities',
       assignedAdmNo: assignedAdm,
       oldAdmNo: prevAdm,
       prevSchoolOrClass: `HSS Shangus (Class ${student.class || '11th'})`,
-      reason: 'Gap in Studies / Re-enrolled'
+      reason: 'Gap in Studies / Re-enrolled',
+      customRemarks: cleanStr(student.remarks || student.raw?.remarks) || defaultRemarks
     });
   };
 
@@ -4144,7 +4221,12 @@ export default function AdmissionRegisterSuite({
         isReadmission: isRe,
         oldAdmNo: isRe ? oldAdm : '',
         'Old Admission No.': isRe ? oldAdm : '',
-        remarks: isRe ? `Re-admission (${reasonText})${oldAdm ? ` • Prev Adm: ${oldAdm}` : ''}` : cleanStr(baseData.remarks || ''),
+        remarks: isRe
+          ? (reAdmFormState.customRemarks?.trim() || `Gap case, hence, readmitted for class ${targetCls}, 2026 (oct-nov session)${oldAdm ? ` • Prev Adm: ${oldAdm}` : ''} • Marks card submitted & verified`)
+          : cleanStr(baseData.remarks || ''),
+        Remarks: isRe
+          ? (reAdmFormState.customRemarks?.trim() || `Gap case, hence, readmitted for class ${targetCls}, 2026 (oct-nov session)${oldAdm ? ` • Prev Adm: ${oldAdm}` : ''} • Marks card submitted & verified`)
+          : cleanStr(baseData.remarks || ''),
         updatedAt: new Date().toISOString(),
         lastEditedBy: `Admin (${user?.email || 'Readmission Tool'})`
       };
@@ -8732,6 +8814,38 @@ export default function AdmissionRegisterSuite({
                       </strong>
                     </span>
                   </div>
+                </div>
+
+                {/* Consolidated Register Remarks (Column 18) */}
+                <div className="p-3 bg-purple-50/50 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold text-purple-950 dark:text-purple-200">
+                      Consolidated Register Remarks (Col. 18):
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetCls = reAdmFormState.targetClass || '12th';
+                        const oldAdm = reAdmFormState.oldAdmNo;
+                        const autoRemarks = `Gap case, hence, readmitted for class ${targetCls}, 2026 (oct-nov session)${oldAdm ? ` • Prev Adm: ${oldAdm}` : ''} • Marks card submitted & verified`;
+                        setReAdmFormState(prev => ({ ...prev, customRemarks: autoRemarks }));
+                      }}
+                      className="text-[9.5px] font-bold text-purple-700 dark:text-purple-300 hover:underline cursor-pointer bg-purple-100 dark:bg-purple-900/60 px-1.5 py-0.2 rounded"
+                      title="Reset to default official consolidated remark format"
+                    >
+                      ⚡ Reset to Standard Remark
+                    </button>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={reAdmFormState.customRemarks || ''}
+                    onChange={(e) => setReAdmFormState(prev => ({ ...prev, customRemarks: e.target.value }))}
+                    placeholder="e.g. Gap case, hence, readmitted for class 12th, 2026 (oct-nov session)..."
+                    className="w-full p-2 text-xs rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-900 font-medium text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-purple-500"
+                  />
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Saved directly to Firestore <code className="font-mono text-purple-700 dark:text-purple-300">remarks</code> and rendered on Column 18 of General Admission Register & exports.
+                  </p>
                 </div>
               </div>
             )}
