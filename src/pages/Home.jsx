@@ -651,7 +651,7 @@ export default function Home() {
               <div className="hero-news-ticker__track">
                 {[0, 1].map((copy) => (
                   <div key={copy} className="hero-news-ticker__set" aria-hidden={copy === 1 ? 'true' : undefined}>
-                    {notices.slice(0, 6).map((notice, idx) => {
+                    {notices.slice(0, 4).map((notice, idx) => {
                       const isNew = isNoticeNew(notice.date, notice.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
                       const external = notice.link && (notice.link.startsWith('http') || notice.link.startsWith('mailto:'));
                       const content = (
