@@ -8443,47 +8443,393 @@ export default function AdvancedReports({
     return { wb, studentHeaders };
   };
 
+  // ─── Comprehensive Full Disaster Recovery Database Compiler ───
+  // Compiles all Firestore collections into a unified, lossless disaster recovery payload:
+  // admissions, masterRegisters (raw chunks + unpacked records), studentPhotos (lossless Base64),
+  // attendance, holidays, practicals, funds, site configs, system settings, admin permissions, and recycle bin.
+  const compileFullDisasterRecoveryDatabase = async () => {
+    // 1. Fetch raw admissions collection from Firestore
+    showToast('Fetching raw Admissions & Master Registers...', 'info');
+    let rawAdmissionsList = [];
+    try {
+      const admSnap = await getDocs(collection(db, 'admissions'));
+      admSnap.forEach(d => {
+        rawAdmissionsList.push({ id: d.id, ...d.data() });
+      });
+    } catch (err) {
+      console.warn('Direct admissions fetch fallback to currentAdmissions:', err);
+      rawAdmissionsList = currentAdmissions || [];
+    }
+
+    // 2. Fetch full Master Registers (raw chunks + unpacked records across 2006-2026)
+    let rawMasterChunks = [];
+    let formattedMasterRecords = [];
+    try {
+      const fullChunks = await getMasterRegistersScoped({ forceAll: true });
+      if (Array.isArray(fullChunks) && fullChunks.length > 0) {
+        rawMasterChunks = fullChunks;
+        formattedMasterRecords = flattenAndFormatMasterRegisters(fullChunks);
+        setMasterHistoricalRecords(formattedMasterRecords);
+      }
+    } catch (err) {
+      console.warn('Master registers fetch warning:', err);
+    }
+
+    // 3. Fetch entire studentPhotos collection (contains all Base64 strings & photoHistory)
+    showToast('Fetching all student passport photos (lossless Base64)...', 'info');
+    let studentPhotosList = [];
+    const photoBase64Map = new Map();
+    try {
+      const photosSnap = await getDocs(collection(db, 'studentPhotos'));
+      photosSnap.forEach(d => {
+        const pData = d.data();
+        studentPhotosList.push({ id: d.id, ...pData });
+        const rawPhoto = pData.photo_id || pData.photoData || pData.photo || pData.photoUrl || '';
+        if (typeof rawPhoto === 'string' && (rawPhoto.startsWith('data:image/') || rawPhoto.length > 100)) {
+          const docIdClean = d.id.replace(/^photo_/, '').replace(/^form_/, '').trim();
+          photoBase64Map.set(d.id, rawPhoto);
+          photoBase64Map.set(docIdClean, rawPhoto);
+          photoBase64Map.set(docIdClean.toLowerCase(), rawPhoto);
+
+          if (pData.boardRegNo) {
+            const bReg = String(pData.boardRegNo).trim();
+            photoBase64Map.set(bReg, rawPhoto);
+            photoBase64Map.set(bReg.toLowerCase(), rawPhoto);
+          }
+          if (pData.regNo) {
+            const rReg = String(pData.regNo).trim();
+            photoBase64Map.set(rReg, rawPhoto);
+            photoBase64Map.set(rReg.toLowerCase(), rawPhoto);
+          }
+          if (pData.formNo) {
+            const fNo = String(pData.formNo).trim();
+            photoBase64Map.set(fNo, rawPhoto);
+            photoBase64Map.set(`photo_form_${fNo}`, rawPhoto);
+            photoBase64Map.set(`form_${fNo}`, rawPhoto);
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('studentPhotos collection fetch warning:', err);
+    }
+
+    // Pull in any in-memory photos from window._hss_central_photo_map
+    if (typeof window !== 'undefined' && window._hss_central_photo_map) {
+      Object.entries(window._hss_central_photo_map).forEach(([k, v]) => {
+        if (v && typeof v === 'string' && v.startsWith('data:image/')) {
+          if (!photoBase64Map.has(k)) photoBase64Map.set(k, v);
+        }
+      });
+    }
+
+    // Helper to resolve and embed student Base64 photo directly on any student object
+    const attachPhotoBase64 = (st) => {
+      if (!st || typeof st !== 'object') return st;
+      const curPhoto = st.photo_id || st['Student Photo'] || st.photoData || st.photo || st.photoUrl;
+      if (typeof curPhoto === 'string' && curPhoto.startsWith('data:image/')) {
+        return { ...st, photo_id: curPhoto };
+      }
+
+      const candidateKeys = [
+        st.boardRegNo,
+        st['Board Registration Number'],
+        st['Board Registration No.'],
+        st['Registration No.'],
+        st['Registration No. (allotted by JKBOSE)'],
+        st.regNo,
+        st['Form Number'],
+        st['Form No.'],
+        st.formNo,
+        st.id,
+        st._docId,
+        st.docId
+      ].filter(Boolean);
+
+      for (const k of candidateKeys) {
+        const sKey = String(k).trim();
+        if (!sKey || sKey === '—' || sKey === 'N/A') continue;
+        if (photoBase64Map.has(sKey)) {
+          return { ...st, photo_id: photoBase64Map.get(sKey) };
+        }
+        if (photoBase64Map.has(sKey.toLowerCase())) {
+          return { ...st, photo_id: photoBase64Map.get(sKey.toLowerCase()) };
+        }
+        if (photoBase64Map.has(`photo_${sKey}`)) {
+          return { ...st, photo_id: photoBase64Map.get(`photo_${sKey}`) };
+        }
+        if (photoBase64Map.has(`photo_form_${sKey}`)) {
+          return { ...st, photo_id: photoBase64Map.get(`photo_form_${sKey}`) };
+        }
+      }
+
+      return st;
+    };
+
+    // Attach Base64 photos to raw admissions
+    const enrichedAdmissions = rawAdmissionsList.map(attachPhotoBase64);
+
+    // Attach Base64 photos to formatted master historical records
+    const enrichedMasterRecords = formattedMasterRecords.map(attachPhotoBase64);
+
+    // 4. Build unified students universe (with Base64 photos on every record)
+    const histMap = new Map();
+    enrichedMasterRecords.forEach((item, idx) => {
+      const key = item.boardRegNo || item.formNo || item.classRollNo 
+        ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` 
+        : `h_${idx}`;
+      histMap.set(key, item);
+    });
+    const unifiedStudents = [...enrichedAdmissions, ...Array.from(histMap.values())];
+
+    // 5. Fetch Attendance collection
+    showToast('Fetching Attendance records & holidays...', 'info');
+    let attendanceList = [];
+    try {
+      const attSnap = await getDocs(collection(db, 'attendance'));
+      attSnap.forEach(d => attendanceList.push({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.warn('Attendance collection fetch warning:', err);
+    }
+
+    // 6. Fetch Holidays collection
+    let holidaysList = [];
+    try {
+      const holSnap = await getDocs(collection(db, 'holidays'));
+      holSnap.forEach(d => holidaysList.push({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.warn('Holidays collection fetch warning:', err);
+    }
+
+    // 7. Fetch PracticalsData collection
+    let practicalsList = [];
+    try {
+      const pracSnap = await getDocs(collection(db, 'practicalsData'));
+      pracSnap.forEach(d => practicalsList.push({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.warn('PracticalsData collection fetch warning:', err);
+    }
+
+    // 8. Fetch Funds collections (fund_distributions, fund_rates, fund_config)
+    let fundsData = { distributions: [], rates: [], config: [] };
+    try {
+      const distSnap = await getDocs(collection(db, 'fund_distributions'));
+      distSnap.forEach(d => fundsData.distributions.push({ id: d.id, ...d.data() }));
+    } catch (_) {}
+    try {
+      const rateSnap = await getDocs(collection(db, 'fund_rates'));
+      rateSnap.forEach(d => fundsData.rates.push({ id: d.id, ...d.data() }));
+    } catch (_) {}
+    try {
+      const cfgSnap = await getDocs(collection(db, 'fund_config'));
+      cfgSnap.forEach(d => fundsData.config.push({ id: d.id, ...d.data() }));
+    } catch (_) {}
+
+    // 9. Fetch Site collection (settings, faculty, notices, admins)
+    let siteData = {};
+    let settingsObj = {};
+    let noticesList = [];
+    let facultyList = [];
+    let adminsList = [];
+
+    try {
+      const setSnap = await getDoc(doc(db, 'site', 'settings'));
+      if (setSnap.exists()) {
+        settingsObj = setSnap.data() || {};
+        siteData.settings = settingsObj;
+      }
+    } catch (_) {}
+
+    try {
+      const notSnap = await getDoc(doc(db, 'site', 'notices'));
+      if (notSnap.exists()) {
+        noticesList = notSnap.data();
+        siteData.notices = noticesList;
+      }
+    } catch (_) {}
+
+    try {
+      const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
+      if (facSnap.exists()) {
+        const data = facSnap.data();
+        const list = data?.items || data?.members || data?.faculty;
+        if (Array.isArray(list) && list.length > 0) facultyList = list;
+      } else {
+        const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
+        if (facSnap2.exists()) {
+          const data2 = facSnap2.data();
+          const list2 = data2?.items || data2?.members || data2?.faculty;
+          if (Array.isArray(list2) && list2.length > 0) facultyList = list2;
+        }
+      }
+      siteData.faculty = facultyList;
+    } catch (_) {}
+
+    if (!facultyList.length) {
+      try {
+        const cached = localStorage.getItem('site_faculty') || localStorage.getItem('hss_public_faculty');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) facultyList = parsed;
+        }
+      } catch (_) {}
+    }
+
+    try {
+      const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
+      if (permSnap.exists() && Array.isArray(permSnap.data()?.users)) {
+        adminsList = permSnap.data().users;
+      } else {
+        const admSnap = await getDoc(doc(db, 'systemSettings', 'adminDirectory'));
+        if (admSnap.exists()) adminsList = admSnap.data()?.admins || admSnap.data()?.users || [];
+        else {
+          const admSnap2 = await getDoc(doc(db, 'site', 'admins'));
+          if (admSnap2.exists()) adminsList = admSnap2.data()?.admins || [];
+        }
+      }
+      siteData.admins = adminsList;
+    } catch (_) {}
+
+    // 10. Fetch systemSettings & adminSettings
+    let systemSettingsData = {};
+    const sysSettingDocs = ['facultyPrivate', 'adminDirectory', 'taxConfig', 'attendanceConfig', 'idCardConfig', 'admission_register_layout', 'rosterFeeRules', 'certificateRegistry'];
+    for (const sDoc of sysSettingDocs) {
+      try {
+        const sSnap = await getDoc(doc(db, 'systemSettings', sDoc));
+        if (sSnap.exists()) systemSettingsData[sDoc] = sSnap.data();
+      } catch (_) {}
+    }
+
+    let adminPermissions = null;
+    try {
+      const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
+      if (permSnap.exists()) adminPermissions = permSnap.data();
+    } catch (_) {}
+
+    // 11. Fetch formStructure & subjectsConfig
+    let formStructureData = null;
+    try {
+      const fsSnap = await getDoc(doc(db, 'formStructure', 'config'));
+      if (fsSnap.exists()) formStructureData = fsSnap.data();
+      else {
+        const fsAll = await getDocs(collection(db, 'formStructure'));
+        if (!fsAll.empty) {
+          formStructureData = {};
+          fsAll.forEach(d => { formStructureData[d.id] = d.data(); });
+        }
+      }
+    } catch (_) {}
+
+    let subjectsConfigData = null;
+    try {
+      const scSnap = await getDoc(doc(db, 'subjectsConfig', 'config'));
+      if (scSnap.exists()) subjectsConfigData = scSnap.data();
+      else {
+        const scAll = await getDocs(collection(db, 'subjectsConfig'));
+        if (!scAll.empty) {
+          subjectsConfigData = {};
+          scAll.forEach(d => { subjectsConfigData[d.id] = d.data(); });
+        }
+      }
+    } catch (_) {}
+
+    // 12. Fetch Recycle Bin
+    let recycleBinList = [];
+    try {
+      const rbSnap = await getDocs(collection(db, 'recycleBin'));
+      rbSnap.forEach(d => recycleBinList.push({ id: d.id, ...d.data() }));
+    } catch (_) {}
+
+    // 13. Assemble Complete Lossless Disaster Recovery Payload
+    const fullBackupPayload = {
+      meta: {
+        institution: 'Govt. Higher Secondary School Shangus',
+        system: 'GHSS Shangus Enterprise Portal',
+        version: '2026.5',
+        exportTimestamp: new Date().toISOString(),
+        totalStudents: unifiedStudents.length,
+        totalAdmissions: enrichedAdmissions.length,
+        totalMasterRegisterChunks: rawMasterChunks.length,
+        totalMasterHistoricalRecords: enrichedMasterRecords.length,
+        totalStudentPhotos: studentPhotosList.length,
+        totalFaculty: facultyList.length,
+        totalNotices: Array.isArray(noticesList) ? noticesList.length : Object.keys(noticesList || {}).length,
+        totalAdmins: adminsList.length,
+        totalAttendanceRecords: attendanceList.length,
+        totalHolidayRecords: holidaysList.length,
+        totalPracticalsBatches: practicalsList.length,
+        totalFundDistributions: fundsData.distributions.length,
+        totalRecycledItems: recycleBinList.length,
+        photoEncoding: 'Embedded lossless Base64 JPEG/PNG in studentPhotos and student records'
+      },
+      // Raw direct Firestore collections
+      admissions: enrichedAdmissions,
+      masterRegisters: rawMasterChunks,
+      masterHistoricalRecords: enrichedMasterRecords,
+      studentPhotos: studentPhotosList,
+      attendance: attendanceList,
+      holidays: holidaysList,
+      practicals: practicalsList,
+      funds: fundsData,
+      site: siteData,
+      systemSettings: systemSettingsData,
+      adminSettings: adminPermissions,
+      formStructure: formStructureData,
+      subjectsConfig: subjectsConfigData,
+      recycleBin: recycleBinList,
+
+      // High-level unified convenience entities (with embedded Base64 photos on every student)
+      students: unifiedStudents,
+      faculty: facultyList,
+      notices: noticesList,
+      settings: settingsObj,
+      admins: adminsList
+    };
+
+    return {
+      fullBackupPayload,
+      unifiedStudents,
+      enrichedAdmissions,
+      rawMasterChunks,
+      enrichedMasterRecords,
+      studentPhotosList,
+      facultyList,
+      noticesList,
+      settingsObj,
+      adminsList,
+      practicalsList,
+      attendanceList,
+      holidaysList,
+      fundsData
+    };
+  };
+
   // ─── All-in-One Master Backup ZIP Exporter (.zip) ───
   const handleDownloadMasterBackupZip = async () => {
     setIsExportingDbZip(true);
     try {
       showToast('Compiling Complete All-in-One Master Backup ZIP Archive...', 'info');
 
-      // 1. Compile student register across all sessions
-      let candidatePool = [];
-      if (masterHistoricalRecords && masterHistoricalRecords.length > 0) {
-        const histMap = new Map();
-        masterHistoricalRecords.forEach((item, idx) => {
-          const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
-          histMap.set(key, item);
-        });
-        candidatePool = [...(currentAdmissions || []), ...Array.from(histMap.values())];
-      } else {
-        candidatePool = (allStudents && allStudents.length > 0) ? allStudents : (currentAdmissions || []);
-      }
+      const compiled = await compileFullDisasterRecoveryDatabase();
+      const {
+        fullBackupPayload,
+        unifiedStudents,
+        enrichedAdmissions,
+        rawMasterChunks,
+        studentPhotosList,
+        facultyList,
+        noticesList,
+        settingsObj,
+        adminsList,
+        practicalsList
+      } = compiled;
 
-      if (!window._hssMasterRegistersIsFull) {
-        showToast('Hydrating complete 2006–2026 master register archives...', 'info');
-        const fullChunks = await getMasterRegistersScoped({ forceAll: true });
-        if (Array.isArray(fullChunks) && fullChunks.length > 0) {
-          const formatted = flattenAndFormatMasterRegisters(fullChunks);
-          setMasterHistoricalRecords(formatted);
-          const histMap = new Map();
-          formatted.forEach((item, idx) => {
-            const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
-            histMap.set(key, item);
-          });
-          candidatePool = [...(currentAdmissions || []), ...Array.from(histMap.values())];
-        }
-      }
-
-      let studentsToExport = candidatePool;
+      let studentsToExport = unifiedStudents;
       if (masterMultiScope === 'filtered') {
         const isAllSess = masterExportSelectedSessions.length === 0 || masterExportSelectedSessions.length === allKnownSessions.length;
         const activeSessList = masterExportSelectedSessions.length === 0 ? allKnownSessions : masterExportSelectedSessions.filter(s => s !== '__NONE__');
         const normSelectedSessions = new Set(activeSessList.map(s => String(s).trim().toLowerCase()));
 
-        studentsToExport = candidatePool.filter(s => {
+        studentsToExport = unifiedStudents.filter(s => {
           const sSess = String(s.session || '').trim().toLowerCase();
           if (!isAllSess && !normSelectedSessions.has(sSess)) return false;
           if (masterExportSelectedClasses && masterExportSelectedClasses.length > 0) {
@@ -8506,50 +8852,6 @@ export default function AdvancedReports({
         });
       }
 
-      // 2. Fetch other collections
-      let facultyList = [];
-      try {
-        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
-        if (facSnap.exists()) {
-          const data = facSnap.data();
-          const list = data?.items || data?.members || data?.faculty;
-          if (Array.isArray(list) && list.length > 0) facultyList = list;
-        } else {
-          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
-          if (facSnap2.exists()) {
-            const data2 = facSnap2.data();
-            const list2 = data2?.items || data2?.members || data2?.faculty;
-            if (Array.isArray(list2) && list2.length > 0) facultyList = list2;
-          }
-        }
-      } catch (_) {}
-
-      let noticesList = [];
-      try {
-        const notSnap = await getDoc(doc(db, 'site', 'notices'));
-        if (notSnap.exists()) noticesList = notSnap.data();
-      } catch (_) {}
-
-      let settingsObj = {};
-      try {
-        const setSnap = await getDoc(doc(db, 'site', 'settings'));
-        if (setSnap.exists()) settingsObj = setSnap.data() || {};
-      } catch (_) {}
-
-      let adminsList = [];
-      try {
-        const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
-        if (permSnap.exists() && Array.isArray(permSnap.data()?.users)) {
-          adminsList = permSnap.data().users;
-        }
-      } catch (_) {}
-
-      let practicalsList = [];
-      try {
-        const pracSnap = await getDocs(collection(db, 'practicalsData'));
-        pracSnap.forEach(d => practicalsList.push({ id: d.id, ...d.data() }));
-      } catch (_) {}
-
       // 3. Build Excel Workbook
       const scopeDesc = masterMultiScope === 'filtered' 
         ? `Filtered Scope (${masterExportSelectedSessions.join(', ')} | ${masterExportSelectedClasses.length > 0 ? masterExportSelectedClasses.join(', ') : masterExportClass} | ${masterExportStream} | ${masterExportSelectedStatuses.join(', ')})`
@@ -8568,32 +8870,13 @@ export default function AdvancedReports({
 
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
 
-      // 4. Build JSON Disaster Recovery Payload
-      const fullBackupPayload = {
-        meta: {
-          institution: 'Govt. Higher Secondary School Shangus',
-          system: 'GHSS Shangus Enterprise Portal',
-          version: '2026.4',
-          exportTimestamp: new Date().toISOString(),
-          totalStudents: studentsToExport.length,
-          totalFaculty: facultyList.length,
-          totalAdmins: adminsList.length
-        },
-        students: studentsToExport,
-        faculty: facultyList,
-        notices: noticesList,
-        settings: settingsObj,
-        admins: adminsList,
-        practicals: practicalsList
-      };
-
       const dateStr = new Date().toISOString().slice(0, 10);
       const zip = new JSZip();
 
       // Excel inside ZIP
       zip.file(`HSS_Shangus_Master_Database_${dateStr}.xlsx`, excelBuffer);
 
-      // JSON Disaster Recovery inside ZIP
+      // JSON Disaster Recovery inside ZIP (contains ALL collections + Base64 photos)
       zip.file(`HSS_Shangus_Disaster_Recovery_${dateStr}.json`, JSON.stringify(fullBackupPayload, null, 2));
 
       // CMS Public Mirrors inside ZIP
@@ -8613,6 +8896,9 @@ export default function AdvancedReports({
         'GOVT. HIGHER SECONDARY SCHOOL SHANGUS — MASTER ALL-IN-ONE SYSTEM BACKUP ARCHIVE',
         `Generated At   : ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
         `Students Scope : ${studentsToExport.length} Students (${masterMultiScope === 'filtered' ? 'Filtered Scope' : 'Full Database Universe'})`,
+        `Admissions Coll: ${enrichedAdmissions.length} active admission documents`,
+        `Master Register: ${rawMasterChunks.length} chunk documents`,
+        `Student Photos : ${studentPhotosList.length} Base64 passport photo documents`,
         `Column Mode    : ${masterMultiColumnMode === 'all' ? '100+ Complete Details' : '48 Standardized Columns'}`,
         `Faculty Members: ${facultyList.length}`,
         `Notices Feed   : ${Array.isArray(noticesList) ? noticesList.length : Object.keys(noticesList || {}).length}`,
@@ -8631,8 +8917,9 @@ export default function AdvancedReports({
       document.body.removeChild(a);
       URL.revokeObjectURL(zipUrl);
 
-      logAdminActivity('Master Backup ZIP Exported', `Exported all-in-one ZIP archive (${(zipBlob.size / 1024 / 1024).toFixed(2)} MB) for ${studentsToExport.length} students.`);
-      showToast(`✅ All-in-One Master Backup ZIP successfully downloaded (${(zipBlob.size / 1024 / 1024).toFixed(2)} MB)!`, 'success');
+      const mbSize = (zipBlob.size / 1024 / 1024).toFixed(2);
+      logAdminActivity('Master Backup ZIP Exported', `Exported all-in-one ZIP archive (${mbSize} MB) for ${studentsToExport.length} students with full raw JSON and Base64 photos.`);
+      showToast(`✅ All-in-One Master Backup ZIP successfully downloaded (${mbSize} MB)!`, 'success');
     } catch (err) {
       console.error('Master ZIP backup error:', err);
       showToast('Error generating Master ZIP backup: ' + (err.message || 'Unknown error'), 'error');
@@ -8644,118 +8931,17 @@ export default function AdvancedReports({
   const handleDownloadFullDatabaseJson = async () => {
     setIsExportingDbJson(true);
     try {
-      showToast('Compiling Full JSON Disaster Recovery Backup...', 'info');
+      showToast('Compiling Full JSON Disaster Recovery Backup with all collections & Base64 photos...', 'info');
 
-      // 1. Compile full student records
-      let fullCandidateStudents = allStudents || [];
-      try {
-        if (!window._hssMasterRegistersIsFull) {
-          const fullChunks = await getMasterRegistersScoped({ forceAll: true });
-          if (Array.isArray(fullChunks) && fullChunks.length > 0) {
-            const formatted = flattenAndFormatMasterRegisters(fullChunks);
-            setMasterHistoricalRecords(formatted);
-            const histMap = new Map();
-            formatted.forEach((item, idx) => {
-              const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
-              histMap.set(key, item);
-            });
-            fullCandidateStudents = [...(currentAdmissions || []), ...Array.from(histMap.values())];
-          }
-        }
-      } catch (_) {}
-
-      // 2. Load faculty with items support
-      let facultyList = [];
-      try {
-        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
-        if (facSnap.exists()) {
-          const data = facSnap.data();
-          const list = data?.items || data?.members || data?.faculty;
-          if (Array.isArray(list) && list.length > 0) facultyList = list;
-        } else {
-          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
-          if (facSnap2.exists()) {
-            const data2 = facSnap2.data();
-            const list2 = data2?.items || data2?.members || data2?.faculty;
-            if (Array.isArray(list2) && list2.length > 0) facultyList = list2;
-          }
-        }
-      } catch (_) {}
-
-      if (!facultyList.length) {
-        try {
-          const cached = localStorage.getItem('site_faculty') || localStorage.getItem('hss_public_faculty');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) facultyList = parsed;
-          }
-        } catch (_) {}
-      }
-
-      if (!facultyList.length) {
-        try {
-          const r = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
-          if (r.ok) {
-            const data = await r.json();
-            if (Array.isArray(data) && data.length > 0) facultyList = data;
-          }
-        } catch (_) {}
-      }
-
-      // 3. Load notices
-      let noticesList = [];
-      try {
-        const notSnap = await getDoc(doc(db, 'site', 'notices'));
-        if (notSnap.exists()) noticesList = notSnap.data();
-      } catch (_) {}
-
-      // 4. Load settings
-      let settingsObj = {};
-      try {
-        const setSnap = await getDoc(doc(db, 'site', 'settings'));
-        if (setSnap.exists()) settingsObj = setSnap.data() || {};
-      } catch (_) {}
-
-      // 5. Load admins
-      let adminsList = [];
-      try {
-        const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
-        if (permSnap.exists() && Array.isArray(permSnap.data()?.users)) {
-          adminsList = permSnap.data().users;
-        } else {
-          const admSnap = await getDoc(doc(db, 'systemSettings', 'adminDirectory'));
-          if (admSnap.exists()) adminsList = admSnap.data()?.admins || admSnap.data()?.users || [];
-          else {
-            const admSnap2 = await getDoc(doc(db, 'site', 'admins'));
-            if (admSnap2.exists()) adminsList = admSnap2.data()?.admins || [];
-          }
-        }
-      } catch (_) {}
-
-      // 6. Load practicals
-      let practicalsList = [];
-      try {
-        const pracSnap = await getDocs(collection(db, 'practicalsData'));
-        pracSnap.forEach(d => practicalsList.push({ id: d.id, ...d.data() }));
-      } catch (_) {}
-
-      const fullBackupPayload = {
-        meta: {
-          institution: 'Govt. Higher Secondary School Shangus',
-          system: 'GHSS Shangus Enterprise Portal',
-          version: '2026.2',
-          exportTimestamp: new Date().toISOString(),
-          totalStudents: fullCandidateStudents.length,
-          totalFaculty: facultyList.length,
-          totalAdmins: adminsList.length
-        },
-        students: fullCandidateStudents,
-        faculty: facultyList,
-        notices: noticesList,
-        settings: settingsObj,
-        admins: adminsList,
-        practicals: practicalsList
-      };
+      const compiled = await compileFullDisasterRecoveryDatabase();
+      const {
+        fullBackupPayload,
+        unifiedStudents,
+        enrichedAdmissions,
+        rawMasterChunks,
+        studentPhotosList,
+        facultyList
+      } = compiled;
 
       const dateStr = new Date().toISOString().slice(0, 10);
       const jsonStr = JSON.stringify(fullBackupPayload, null, 2);
@@ -8769,11 +8955,12 @@ export default function AdvancedReports({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      logAdminActivity('Full JSON Disaster Recovery Backup', `Exported full database JSON containing ${fullCandidateStudents.length} students, ${facultyList.length} faculty, notices, and system rules.`);
-      showToast(`✅ Full JSON Disaster Recovery Backup downloaded successfully (${fullCandidateStudents.length} students)!`, 'success');
+      const mbSize = (blob.size / 1024 / 1024).toFixed(2);
+      logAdminActivity('Full JSON Disaster Recovery Backup', `Exported full database JSON (${mbSize} MB) containing ${unifiedStudents.length} students, ${enrichedAdmissions.length} admissions, ${rawMasterChunks.length} master chunks, ${studentPhotosList.length} Base64 photos, attendance, holidays, practicals & rules.`);
+      showToast(`✅ Full JSON Disaster Recovery Backup downloaded (${mbSize} MB | ${unifiedStudents.length} students | ${studentPhotosList.length} Base64 photos)!`, 'success');
     } catch (err) {
       console.error('JSON backup error:', err);
-      showToast('Failed to export JSON disaster recovery backup.', 'error');
+      showToast('Failed to export JSON disaster recovery backup: ' + (err.message || 'Unknown error'), 'error');
     } finally {
       setIsExportingDbJson(false);
     }
@@ -8792,19 +8979,31 @@ export default function AdvancedReports({
         }
 
         const hasStudents = Array.isArray(backupData.students) && backupData.students.length > 0;
+        const hasAdmissions = Array.isArray(backupData.admissions) && backupData.admissions.length > 0;
+        const hasMasterRegisters = Array.isArray(backupData.masterRegisters) && backupData.masterRegisters.length > 0;
+        const hasStudentPhotos = Array.isArray(backupData.studentPhotos) && backupData.studentPhotos.length > 0;
+        const hasAttendance = Array.isArray(backupData.attendance) && backupData.attendance.length > 0;
+        const hasHolidays = Array.isArray(backupData.holidays) && backupData.holidays.length > 0;
+        const hasPracticals = Array.isArray(backupData.practicals) && backupData.practicals.length > 0;
         const hasSettings = backupData.settings && typeof backupData.settings === 'object';
         const hasFaculty = Array.isArray(backupData.faculty);
         const hasNotices = Boolean(backupData.notices);
         const hasAdmins = Array.isArray(backupData.admins);
 
-        if (!hasStudents && !hasSettings && !hasFaculty && !hasNotices && !hasAdmins) {
-          throw new Error('No recognized collections (students, settings, faculty, notices, admins) found in this JSON backup.');
+        if (!hasStudents && !hasAdmissions && !hasMasterRegisters && !hasSettings && !hasFaculty && !hasNotices && !hasAdmins && !hasStudentPhotos) {
+          throw new Error('No recognized collections found in this JSON backup file.');
         }
 
         setConfirmModalConfig({
           title: 'Confirm Database Restore',
           message: `WARNING: You are about to restore data from this JSON backup file.\n\n` +
-            `• Students: ${hasStudents ? `${backupData.students.length} records detected` : 'Not present'}\n` +
+            `• Students Universe: ${hasStudents ? `${backupData.students.length} records detected` : 'Not present'}\n` +
+            `• Raw Admissions: ${hasAdmissions ? `${backupData.admissions.length} documents detected` : 'Not present'}\n` +
+            `• Master Register Chunks: ${hasMasterRegisters ? `${backupData.masterRegisters.length} chunks detected` : 'Not present'}\n` +
+            `• Student Photos (Base64): ${hasStudentPhotos ? `${backupData.studentPhotos.length} photo documents detected` : 'Not present'}\n` +
+            `• Attendance Records: ${hasAttendance ? `${backupData.attendance.length} records detected` : 'Not present'}\n` +
+            `• Holidays: ${hasHolidays ? `${backupData.holidays.length} records detected` : 'Not present'}\n` +
+            `• Practicals: ${hasPracticals ? `${backupData.practicals.length} batches detected` : 'Not present'}\n` +
             `• Settings: ${hasSettings ? 'Present' : 'Not present'}\n` +
             `• Faculty: ${hasFaculty ? `${backupData.faculty.length} records detected` : 'Not present'}\n` +
             `• Notices: ${hasNotices ? 'Present' : 'Not present'}\n` +
