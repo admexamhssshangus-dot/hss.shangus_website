@@ -1007,22 +1007,39 @@ html, body, #root {
   box-shadow: 0 6px 20px rgba(255, 255, 255, 0.25) !important;
 }
 
-/* Hero Slideshow Controls Pill - Idle transparent, outline & background appear on hover */
+/* Hero Slideshow Controls Pill - Idle transparent on desktop, outline & background appear on hover */
 .hero-slider-controls-pill {
-  background-color: transparent !important;
-  border: 1px solid transparent !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-.hero-slider-controls-pill:hover,
-.hero-slider-controls-pill:focus-within {
-  background-color: rgba(2, 6, 23, 0.75) !important;
-  border-color: rgba(255, 255, 255, 0.25) !important;
+@media (hover: hover) {
+  /* On desktop: minimalist idle state, outline appears on hover */
+  .hero-slider-controls-pill {
+    background-color: transparent !important;
+    border: 1px solid transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* Also show outline & background when hovering anywhere over the hero banner */
+.hero-container:hover .hero-slider-controls-pill,
+.hero-container:focus-within .hero-slider-controls-pill {
+  background-color: rgba(2, 6, 23, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Crisp, illuminated outline when hovering or focusing directly on the controls pill */
+.hero-slider-controls-pill:hover,
+.hero-slider-controls-pill:focus-within {
+  background-color: rgba(2, 6, 23, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.5) !important;
 }
 
 /* Responsive Hero Slider Height */
