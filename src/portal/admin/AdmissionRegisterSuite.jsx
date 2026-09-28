@@ -77,7 +77,7 @@ export const DEFAULT_COLUMN_WIDTHS = {
   p2_prevCC: 76,
   p2_withdrawal: 56,
   p2_issuedCC: 76,
-  p2_receipt: 138,
+  p2_receipt: 97,
   p2_remarks: 70,
 
   // SENTUP
@@ -1576,6 +1576,8 @@ export default function AdmissionRegisterSuite({
         if (parsed.columnWidths && typeof parsed.columnWidths === 'object') {
           const cachedReg = parsed.columnWidths.st_boardReg;
           const regWidth = (!cachedReg || cachedReg >= 130) ? DEFAULT_COLUMN_WIDTHS.st_boardReg : cachedReg;
+          const cachedReceipt = parsed.columnWidths.p2_receipt;
+          const p2ReceiptWidth = (!cachedReceipt || cachedReceipt >= 130) ? DEFAULT_COLUMN_WIDTHS.p2_receipt : cachedReceipt;
           return {
             ...DEFAULT_COLUMN_WIDTHS,
             ...parsed.columnWidths,
@@ -1589,6 +1591,7 @@ export default function AdmissionRegisterSuite({
             p2_socio: Math.max(DEFAULT_COLUMN_WIDTHS.p2_socio, parsed.columnWidths.p2_socio || 0),
             p2_blood: Math.max(DEFAULT_COLUMN_WIDTHS.p2_blood, parsed.columnWidths.p2_blood || 0),
             p2_account: Math.max(DEFAULT_COLUMN_WIDTHS.p2_account, parsed.columnWidths.p2_account || 0),
+            p2_receipt: p2ReceiptWidth,
             st_boardReg: regWidth,
             st_name: Math.max(DEFAULT_COLUMN_WIDTHS.st_name, parsed.columnWidths.st_name || 0),
             st_subs: Math.min(DEFAULT_COLUMN_WIDTHS.st_subs, parsed.columnWidths.st_subs || DEFAULT_COLUMN_WIDTHS.st_subs),
@@ -1778,6 +1781,9 @@ export default function AdmissionRegisterSuite({
             const cleanColWidths = { ...data.columnWidths };
             if (!cleanColWidths.st_boardReg || cleanColWidths.st_boardReg >= 130) {
               cleanColWidths.st_boardReg = DEFAULT_COLUMN_WIDTHS.st_boardReg;
+            }
+            if (!cleanColWidths.p2_receipt || cleanColWidths.p2_receipt >= 130) {
+              cleanColWidths.p2_receipt = DEFAULT_COLUMN_WIDTHS.p2_receipt;
             }
             setColumnWidths(prev => ({ ...prev, ...cleanColWidths }));
           }
@@ -9733,7 +9739,7 @@ export default function AdmissionRegisterSuite({
                               <col style={{ width: `${columnWidths.p2_prevCC || 76}px` }} />
                               <col style={{ width: `${columnWidths.p2_withdrawal || 56}px` }} />
                               <col style={{ width: `${columnWidths.p2_issuedCC || 76}px` }} />
-                              <col style={{ width: `${columnWidths.p2_receipt || 140}px` }} />
+                              <col style={{ width: `${columnWidths.p2_receipt || 97}px` }} />
                               <col style={{ width: `${columnWidths.p2_remarks || 70}px` }} />
                             </colgroup>
                             <thead>
@@ -9824,11 +9830,11 @@ export default function AdmissionRegisterSuite({
                                       <div className="handwrite-container flex flex-col justify-between h-full py-0.5 space-y-1 select-none font-medium text-slate-800">
                                         <div className="handwrite-line flex items-center gap-1 leading-none">
                                           <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">Rcvd on:</span>
-                                          <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[40px] h-2"></span>
+                                          <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[24px] h-2"></span>
                                         </div>
                                         <div className="handwrite-line flex items-center gap-1 leading-none">
                                           <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">Signature:</span>
-                                          <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[40px] h-2"></span>
+                                          <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[24px] h-2"></span>
                                         </div>
                                       </div>
                                     )}

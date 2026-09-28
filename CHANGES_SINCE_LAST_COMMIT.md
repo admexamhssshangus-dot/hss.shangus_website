@@ -2,26 +2,14 @@
 
 ## Current Working Changes
 
-### 1. Admission Register Part 1: Increased Column Data Font Size by 3 Points
+### 1. Admission Register Part 2: Reduced Receipt Column Default Width by 30%
 - **Objective:**
-  - Increase the font size by 3 points (+3pt / +3px) for data cells across the columns requested:
-    1. `BOARD REG. NO.` (`st_boardReg` / `boardReg`)
-    2. `STUDENT'S NAME` (`name`)
-    3. `PARENTAGE`:
-       - `FATHER'S NAME` (`father`)
-       - `MOTHER'S NAME` (`mother`)
+  - Make the `RECEIPT` column in Admission Register Part 2 by default 30% less wider (from 138px down to 97px).
 - **Key Enhancements in [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):**
-  - **Screen JSX Markup:**
-    - `BOARD REG. NO.` cell: Increased base font size from `text-[8px]` to `text-[11px]` (`+3px`).
-    - `STUDENT'S NAME` cell: Increased name label font size from `text-[8.5px]` to `text-[11.5px]` (`+3px`).
-    - `FATHER'S NAME` cell: Increased font size from `text-[8px]` to `text-[11px]` (`+3px`).
-    - `MOTHER'S NAME` cell: Increased font size from `text-[8px]` to `text-[11px]` (`+3px`).
-  - **Print Media Queries (`@media print`):**
-    - Board Registration split/single line: Adjusted from `7.5px / 8.0px` to `10.5px / 11.0px` (`+3.0px`).
-    - Candidate Name in print: Adjusted from `8.0px / 8.5px` to `11.0px / 11.5px` (`+3.0px`).
-    - Father Name & Mother Name in print: Adjusted from `7.4px / 7.8px` to `10.4px / 10.8px` (`+3.0px`).
-  - **Screen Media Queries (`@media screen`):**
-    - Added explicit CSS rules for `td[data-col="boardReg"]`, `td[data-col="name"] > div`, `td[data-col="father"]`, and `td[data-col="mother"]` guaranteeing exact 11px and 11.5px presentation while protecting interactive buttons (such as the re-admission badge/toggle).
+  - **`DEFAULT_COLUMN_WIDTHS`:** Reduced `p2_receipt` from 138px to 97px (`138 * 0.70 = 96.6 -> 97px`).
+  - **Colgroup Fallback:** Updated Part 2 `<colgroup>` fallback width from 140px to 97px (`columnWidths.p2_receipt || 97`).
+  - **Cached & Cloud Settings Migration:** Added auto-migration logic so any previously cached or stored old defaults (&ge; 130px) in `localStorage` or Firebase `adminSettings/admission_register_layout` immediately pick up the new 97px default without needing manual settings reset.
+  - **Handwriting Guide Flex:** Adjusted dotted signature and date guide lines (`min-w-[40px]` to `min-w-[24px]`) to ensure comfortable spacing inside the more compact 97px width without text wrapping.
 - **Build Verification:**
   - Verified with `npm run build` completing with `Exit Code 0` and zero breaking errors.
 
@@ -35,7 +23,7 @@
 
 ## Local Commit Message
 ```bash
-git commit -m "style(admission-register): increase font size by 3 points for board reg, student name, and parentage columns"
+style(admission-register): reduce receipt column default width by 30% to 97px
 ```
 
 ---
@@ -50,14 +38,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "style(admission-register): increase font size by 3 points for board reg, student name, and parentage columns"
+git commit -m "style(admission-register): reduce receipt column default width by 30% to 97px"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "style(admission-register): increase font size by 3 points for board reg, student name, and parentage columns"
+git commit -m "style(admission-register): reduce receipt column default width by 30% to 97px"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
