@@ -1073,12 +1073,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       return;
     }
 
-    const printWindow = window.open('', '_blank', 'width=1200,height=850');
-    if (!printWindow) {
-      window.print();
-      return;
-    }
-
     const title = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG';
     const subtitle = selectedSubject !== 'All'
       ? `OFFICIAL TABULATION REGISTER & RESULT GAZETTE — SUBJECT: ${selectedSubjectMeta?.name?.toUpperCase() || selectedSubject} (${selectedSubject})`
@@ -1276,13 +1270,60 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       </html>
     `;
 
-    printWindow.document.open();
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 450);
+    const existingFrame = document.getElementById('gazette-print-frame');
+    if (existingFrame && existingFrame.parentNode) {
+      try { existingFrame.parentNode.removeChild(existingFrame); } catch (_) {}
+    }
+    const iframe = document.createElement('iframe');
+    iframe.id = 'gazette-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    iframe.style.zIndex = '-9999';
+    document.body.appendChild(iframe);
+
+    const prevTitle = document.title;
+    let isCleanedUp = false;
+    const cleanupIframe = () => {
+      if (isCleanedUp) return;
+      isCleanedUp = true;
+      try {
+        document.title = prevTitle;
+        if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      } catch (_) {}
+    };
+
+    try { iframe.contentWindow.onafterprint = cleanupIframe; } catch (_) {}
+    setTimeout(cleanupIframe, 120000);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    try { document.title = `${title} - ${selectedClass} Gazette`; } catch (_) {}
+
+    const executePrint = () => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        console.warn('Iframe print error, falling back to window print:', err);
+        try { window.print(); } catch (_) {}
+      }
+    };
+
+    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+      iframe.contentWindow.document.fonts.ready
+        .then(() => setTimeout(executePrint, 50))
+        .catch(() => setTimeout(executePrint, 50));
+    } else {
+      setTimeout(executePrint, 150);
+    }
   };
 
   // Official Subject-Wise Award Roll Print Handler (2-column JKBOSE Format, supports custom selection)

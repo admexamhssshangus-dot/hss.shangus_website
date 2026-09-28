@@ -69,8 +69,9 @@ export default function ForgotPasswordPage() {
 
     try {
       // Send Firebase Auth password reset email — NO plain-text passwords stored
+      const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://hssshangus.in';
       await sendPasswordResetEmail(auth, emailClean, {
-        url: `${window.location.origin}/portal/login`,
+        url: `${origin}/portal/auth/action`,
         handleCodeInApp: false,
       });
 

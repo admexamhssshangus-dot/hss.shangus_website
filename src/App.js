@@ -158,6 +158,10 @@ function App() {
             <Route path="/verify-student" element={<StudentVerificationPage />} />
             <Route path="/verify" element={<StudentVerificationPage />} />
 
+            {/* ─── Firebase Auth Action Endpoints (Password Resets & Email Verifications) ─── */}
+            <Route path="/auth/action" element={<AuthActionPage />} />
+            <Route path="/__/auth/action" element={<AuthActionPage />} />
+
             {/* ─── React Portal Routes ─── */}
             <Route path="/portal" element={<PortalLayout />}>
               <Route index element={<LoginPage />} />

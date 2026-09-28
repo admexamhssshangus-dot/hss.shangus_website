@@ -2,64 +2,63 @@
 
 ## Current Working Changes
 
-### 1. Register Ledger Font Size Calibration (Legibility in Print & PDF Exports)
+### 1. Direct Print / "Save as PDF" Trigger (0 Extra Clicks & No Stray Tabs)
 - **Problem:**
-  - Table cells in the Admission Register (dual spread Part 1 & Part 2) were rendering with minuscule, hard-to-read font sizes (4.4px–5.8px / 3.3pt–4.3pt in print media), resulting in microscopic text in PDF exports (e.g. Foxit PDF Editor at 108% zoom).
+  - Clicking the **Print** button (e.g. on `/portal/teacher/practicals` or in administrative practical award roll views) previously opened a new browser popup window/tab via `window.open('', '_blank')` and attempted `pwin.document.write(...)`.
+  - In modern browsers, `window.onload` does not reliably fire in dynamically written `about:blank` popup tabs. As a result, the native print dialog never appeared automatically, forcing the teacher to click inside the new tab and press Ctrl+P or find a print button manually (requiring a second click).
 - **Resolution:**
-  - In [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):
-    - Adjusted print and screen CSS to replace 4.4px–5.8px fonts with crisp, legible 7.2px–9.0px typography across all table cells.
-    - Updated helper renderers (`renderOnlineSubmCell`, `renderAdmDateCell`, `renderPenCell`, `renderAdmittedVideCell`) to render between 7.5px and 8.0px.
-    - Calibrated cell line heights and max-height constraints to fit neatly within the 9.9mm–10.6mm row height budget without vertical overflow or page displacement.
+  - In [practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js):
+    - Refactored `triggerPrintWindow` to utilize an isolated, hidden `iframe` directly on the active document body (matching the proven pattern in [certificateExportUtils.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/certificateExportUtils.js)).
+    - Content is written directly to the iframe document; all images and web typography are awaited via `document.fonts.ready`.
+    - Temporarily updates the top-level document title to the award roll's official title so that the browser's "Save as PDF" dialog automatically suggests the exact file name (e.g. `Official Practical Award Roll — Physics (PH) — Class 11th.pdf`).
+    - Immediately focuses and triggers `iframe.contentWindow.print()`. The browser's native Print / Save as PDF modal opens in-place on the very first click with 0 extra clicks, and automatically cleans up the iframe upon print completion or cancellation.
+  - In [ConsolidatedGazetteView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/ConsolidatedGazetteView.jsx):
+    - Upgraded `handlePrintGazette` from popup window writing to the same hidden iframe print architecture.
 
-### 2. Relocation of `(RE-ADM)` Label to ADM. NO. Column Below Old Adm No
-- **Problem:**
-  - The `(RE-ADM)` label was previously rendered inline next to the student's name in the `STUDENT'S NAME` column, cluttering the name field and causing line wraps.
-- **Resolution:**
-  - Moved the `(RE-ADM)` label completely out of the `STUDENT'S NAME` column and into the `ADM. NO.` column.
-  - In the `ADM. NO.` column, the layout is now arranged cleanly in vertical stack:
-    1. New / Current Admission Number (e.g. `5906` / `5476`)
-    2. Old Admission Number enclosed in single parentheses (e.g. `(4819)` / `(4900)`)
-    3. `(RE-ADM)` badge displayed directly underneath in bold, high-contrast purple font.
-  - Removed the inline `(Re-Adm)` label from the student name cell while preserving the admin hover configuration button (`⚙ Edit Re-Adm`).
-  - Standardized this same display pattern in [AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx) for the main applications ledger.
+---
 
-### 3. Universal Parentheses Formatting for Old Admission Numbers Across Website
+### 2. Comprehensive Resolution for Password Reset Link "Expired or Used Wrongly"
 - **Problem:**
-  - Across certificates, exports, and tables, old admission numbers were occasionally displayed bare without parentheses or with nested/double parentheses (e.g. `((4819))`).
+  - Teachers reported that when receiving a password reset link and clicking it from their email, the portal displayed:
+    *"Link Expired or Already Used"* / *"The 2-step verification link is invalid, expired, or has already been used. Please sign in again."*
+  - Multiple underlying causes were diagnosed:
+    1. **Missing Top-Level Firebase Action Link Routes:** Firebase Auth emails send links to `https://<auth-domain>/__/auth/action?mode=resetPassword&oobCode=...`. Because `firebase.json` rewrites all requests to `/index.html`, React Router received `/__/auth/action` or `/auth/action`. React Router only had `/portal/auth/action`, causing the router to match the bottom catch-all `/:pageId` (`DynamicPage`), leading to 404 / broken page states.
+    2. **LoginPage Misinterpreting Reset Links as 2SV Handshakes:** When a reset link arrived at or redirected to `/portal/login`, `LoginPage.jsx` checked for `oobCode` in the URL and treated it as an admin 2-step email sign-in link (`isSignInWithEmailLink`). It failed with *"The 2-step verification link is invalid, expired, or has already been used. Please sign in again."*
+    3. **AuthActionPage Premature 'Invalid' State & StrictMode Guard:** In `AuthActionPage.jsx`, any network lag or error in `verifyPasswordResetCode` or `confirmPasswordReset` caught `_` and unconditionally displayed *"Link Expired or Already Used"*. Even during password entry, if a teacher entered a weak password or experienced a network glitch, they were permanently locked out with "Link Expired".
+    4. **Continue URL Misalignment:** `sendPasswordResetEmail` in `staffAuthService.js`, `ForgotPasswordPage.jsx`, and `AdvancedReports.jsx` passed `url: /portal/login`, pointing users to the login page instead of the dedicated auth action interface.
 - **Resolution:**
-  - In [jkboseResultManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/jkboseResultManager.js):
-    - Stripped any pre-existing parentheses before wrapping in `${resolved} (${cleanOld})`.
-  - In [certificateExportUtils.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/certificateExportUtils.js):
-    - Sanitized `cleanOldAdm` and `cleanMetaOld` across single certificate interpolation, print modal, and batch export flows.
-  - In [AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx):
-    - Standardized `formatStudentAdmNo` and table cell renderers to ensure `oldAdm` is consistently enclosed in clean single brackets `(...)`.
-  - In [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):
-    - Cleaned `oldAdmNo` and `displayAdmNo` so parentheses are applied consistently without duplicate brackets.
-
-### 4. Text Word-Wrapping & Column Width Optimization
-- **Problem:**
-  - Text in the `REMARKS` column was being truncated with ellipses (`...`) after 2 lines, preventing full sentences like `"Gap case, hence, readmitted for class 12th, 2026 (oct-nov session)..."` from being read.
-- **Resolution:**
-  - Decreased `p2_remarks` default column width from 80px to 70px to free up horizontal space for other columns.
-  - Enabled multi-line word wrapping with `break-words`, `overflow-wrap: break-word`, `white-space: normal`, and `line-clamp-3` at 7.2px font size. Full remarks now wrap across up to 3 lines cleanly without cut-off.
-  - Adjusted `admDate` column width from 50px to 56px to prevent date truncation (e.g. `03-01-202...`).
-  - Adjusted `gender` to 40px, `class` to 44px, and `village` to 62px.
-  - Added word wrapping to `name`, `father`, `mother`, `dobWords`, `village`, `p2_subs`, and `p2_prevSchool`.
+  - In [App.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/App.js):
+    - Mounted `<AuthActionPage />` at top-level routes `/__/auth/action` and `/auth/action` alongside `/portal/auth/action`.
+  - In [LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx):
+    - Added an immediate forwarder: when `mode === 'resetPassword' || mode === 'verifyEmail' || mode === 'recoverEmail'` and `oobCode` is present, instantly redirects to `/portal/auth/action` with all query and hash parameters preserved.
+    - Exempted auth action URLs from the 2-step verification ref guard (`isEmailVerificationTabRef`) and the Window 2 verification handshake.
+  - In [AuthActionPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/AuthActionPage.jsx):
+    - Added support for extracting action codes from both URL query search and URL hash fragments.
+    - Added `hasVerifiedRef` guard to prevent React 18 StrictMode double-verification and race conditions.
+    - Implemented specific error code handling (`auth/expired-action-code`, `auth/invalid-action-code`, `auth/network-request-failed`).
+    - Calibrated password requirements to 8+ characters with letters and numbers (consistent with portal standard), and retained the form state during weak password or connection errors rather than falsely claiming the link expired.
+    - Provided intuitive "Request a Fresh Link" button pre-populating the teacher's email, plus a "Retry Verification" action for transient network issues.
+  - In [staffAuthService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/staffAuthService.js), [ForgotPasswordPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/ForgotPasswordPage.jsx), and [AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx):
+    - Updated `sendPasswordResetEmail` to point its continue URL explicitly to `${origin}/portal/auth/action`.
 
 ---
 
 ## Files Modified
-- `src/portal/admin/AdmissionRegisterSuite.jsx`
+- `src/utils/practicalsPdfGenerator.js`
+- `src/portal/admin/ConsolidatedGazetteView.jsx`
+- `src/App.js`
+- `src/portal/LoginPage.jsx`
+- `src/portal/AuthActionPage.jsx`
+- `src/services/staffAuthService.js`
+- `src/portal/ForgotPasswordPage.jsx`
 - `src/portal/admin/AdvancedReports.jsx`
-- `src/utils/certificateExportUtils.js`
-- `src/utils/jkboseResultManager.js`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ## Local Commit Message
 ```bash
-git commit -m "fix(register): optimize cell font sizes, relocate (RE-ADM) to adm no column, wrap remarks text, and standardize bracketed old adm no"
+git commit -m "fix(portal): direct print as PDF on single click and fix password reset link expiration handling"
 ```
 
 ---
@@ -74,14 +73,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "fix(register): optimize cell font sizes, relocate (RE-ADM) to adm no column, wrap remarks text, and standardize bracketed old adm no"
+git commit -m "fix(portal): direct print as PDF on single click and fix password reset link expiration handling"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "fix(register): optimize cell font sizes, relocate (RE-ADM) to adm no column, wrap remarks text, and standardize bracketed old adm no"
+git commit -m "fix(portal): direct print as PDF on single click and fix password reset link expiration handling"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):

@@ -2713,8 +2713,11 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
       submittingText: 'Sending Reset Email...',
       onConfirm: async () => {
         try {
-          setIsSubmitting(true);
-          await sendPasswordResetEmail(auth, email);
+          const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://hssshangus.in';
+          await sendPasswordResetEmail(auth, email, {
+            url: `${origin}/portal/auth/action`,
+            handleCodeInApp: false,
+          });
           setDialogConfig({
             type: 'alert',
             title: 'Password Reset Dispatched',
