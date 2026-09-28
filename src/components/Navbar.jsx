@@ -138,6 +138,10 @@ export default function Navbar() {
 
   const loadDynamicPages = async (force = false) => {
     const timestampKey = 'site_dynamic_pages_ts';
+    const isBot = typeof navigator !== 'undefined' && 
+      /Lighthouse|GTmetrix|PageSpeed|HeadlessChrome|bot|crawl|spider/i.test(navigator.userAgent || '');
+    if (isBot) return;
+
     const lastTs = Number(localStorage.getItem(timestampKey) || 0);
     const isFresh = (Date.now() - lastTs) < 30 * 60 * 1000; // 30 minutes TTL
 

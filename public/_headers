@@ -1,0 +1,33 @@
+# Cache immutable static JS and CSS bundles for 1 year
+/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Cache media and images for 30 days with stale-while-revalidate
+/slides/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=604800
+
+/*.png
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=604800
+
+/*.jpg
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=604800
+
+/*.ico
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=604800
+
+# JSON settings and notices
+/slides/settings.json
+  Cache-Control: public, max-age=60, stale-while-revalidate=600
+
+/slides/notices.txt
+  Cache-Control: public, max-age=60, stale-while-revalidate=600
+
+# Service worker and app shell must revalidate
+/service-worker.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/app-shell.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
