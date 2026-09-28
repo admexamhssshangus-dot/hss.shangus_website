@@ -44,7 +44,7 @@ export default function LoginPortal() {
               </span>
             </h1>
             
-            <p className="text-sm sm:text-base leading-relaxed font-normal text-slate-200">
+            <p className="text-sm sm:text-base leading-relaxed font-normal text-slate-200 erp-card-desc" style={{ color: '#cbd5e1' }}>
               Unified enterprise school management suite powering online admissions, examination evaluations, verifiable student records, digital fee receipts, roll slips, and faculty workflows.
             </p>
 
@@ -121,7 +121,7 @@ export default function LoginPortal() {
 
                 <div>
                   <h3 className="text-base font-bold font-heading" style={textMain}>Student Services Desk</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Admissions, roll slips, receipts &amp; scorecards</p>
+                  <p className="text-xs mt-0.5" style={textMuted}>Admissions, roll slips, receipts &amp; scorecards</p>
                 </div>
 
                 <ul className="space-y-2 text-xs">
@@ -135,7 +135,7 @@ export default function LoginPortal() {
                   ].map((item, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <CheckCircle size={14} className="text-teal-500 shrink-0 mt-0.5" />
-                      <span className="font-medium" style={textMain}>{item}</span>
+                      <span className="font-medium leading-snug" style={textMain}>{item}</span>
                     </li>
                   ))}
                 </ul>
@@ -166,7 +166,7 @@ export default function LoginPortal() {
 
                 <div>
                   <h3 className="text-base font-bold font-heading" style={textMain}>Faculty Workspace</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Evaluation, attendance &amp; award rolls</p>
+                  <p className="text-xs mt-0.5" style={textMuted}>Evaluation, attendance &amp; award rolls</p>
                 </div>
 
                 <ul className="space-y-2 text-xs">
@@ -180,7 +180,7 @@ export default function LoginPortal() {
                   ].map((item, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <CheckCircle size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                      <span className="font-medium" style={textMain}>{item}</span>
+                      <span className="font-medium leading-snug" style={textMain}>{item}</span>
                     </li>
                   ))}
                 </ul>
@@ -211,7 +211,7 @@ export default function LoginPortal() {
 
                 <div>
                   <h3 className="text-base font-bold font-heading" style={textMain}>Admin Control Center</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Master registers, roll nos, certificates &amp; finance</p>
+                  <p className="text-xs mt-0.5" style={textMuted}>Master registers, roll nos, certificates &amp; finance</p>
                 </div>
 
                 <ul className="space-y-2 text-xs">
@@ -225,7 +225,7 @@ export default function LoginPortal() {
                   ].map((item, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <CheckCircle size={14} className="text-purple-500 shrink-0 mt-0.5" />
-                      <span className="font-medium" style={textMain}>{item}</span>
+                      <span className="font-medium leading-snug" style={textMain}>{item}</span>
                     </li>
                   ))}
                 </ul>
@@ -256,7 +256,7 @@ export default function LoginPortal() {
 
                 <div>
                   <h3 className="text-base font-bold font-heading" style={textMain}>Public Campus Desk</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Results, verification, notices &amp; talent tests</p>
+                  <p className="text-xs mt-0.5" style={textMuted}>Results, verification, notices &amp; talent tests</p>
                 </div>
 
                 <ul className="space-y-2 text-xs">
@@ -270,7 +270,7 @@ export default function LoginPortal() {
                   ].map((item, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <CheckCircle size={14} className="text-cyan-500 shrink-0 mt-0.5" />
-                      <span className="font-medium" style={textMain}>{item}</span>
+                      <span className="font-medium leading-snug" style={textMain}>{item}</span>
                     </li>
                   ))}
                 </ul>
