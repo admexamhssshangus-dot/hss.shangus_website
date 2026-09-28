@@ -411,9 +411,39 @@ function renderOnlineSubmCell(status) {
 }
 
 function renderAdmDateCell(date) {
-  if (!date || date === '—') return '—';
-  const formatted = formatRegisterDate(date);
-  return <span className="whitespace-nowrap font-bold text-[7.8px] ledger-mono-font">{formatted || date}</span>;
+  if (!date || date === '—' || date === '-') return '—';
+  const formatted = formatRegisterDate(date) || (typeof date === 'string' ? date.trim() : String(date));
+  if (!formatted || formatted === '—') return '—';
+
+  // If date contains date and time, e.g. "03-01-2026 10:30"
+  if (formatted.includes(' ')) {
+    const parts = formatted.split(' ');
+    return (
+      <div className="flex flex-col items-center justify-center leading-tight overflow-hidden text-center adm-date-cell">
+        <span className="font-bold text-[7.8px] ledger-mono-font leading-tight whitespace-nowrap">{parts[0]}</span>
+        <span className="text-[6.8px] text-slate-500 font-medium leading-tight whitespace-nowrap">{parts.slice(1).join(' ')}</span>
+      </div>
+    );
+  }
+
+  // Match DD-MM-YYYY, DD/MM/YYYY, or DD.MM.YYYY
+  const match = formatted.match(/^(\d{1,2}[-/.])(\d{1,2})([-/.])(\d{2,4})$/);
+  if (match) {
+    const dayMonth = `${match[1]}${match[2]}${match[3]}`; // e.g. "03-01-"
+    const year = match[4]; // e.g. "2026"
+    return (
+      <div className="flex flex-col items-center justify-center leading-tight overflow-hidden text-center adm-date-cell">
+        <span className="whitespace-nowrap font-bold text-[7.8px] ledger-mono-font leading-tight">{dayMonth}</span>
+        <span className="whitespace-nowrap font-bold text-[7.8px] ledger-mono-font leading-tight">{year}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center leading-tight overflow-hidden text-center font-bold text-[7.8px] ledger-mono-font break-words adm-date-cell">
+      {formatted}
+    </div>
+  );
 }
 
 function renderPenCell(pen) {
@@ -6446,6 +6476,7 @@ export default function AdmissionRegisterSuite({
           .admission-spread-table td[data-col="mother"],
           .admission-spread-table td[data-col="dobWords"],
           .admission-spread-table td[data-col="village"],
+          .admission-spread-table td[data-col="admDate"],
           .admission-spread-table td[data-col="p2_subs"],
           .admission-spread-table td[data-col="p2_prevSchool"],
           .admission-spread-table td[data-col="p2_remarks"],
@@ -6454,6 +6485,10 @@ export default function AdmissionRegisterSuite({
             word-break: break-word !important;
             overflow-wrap: break-word !important;
             text-overflow: clip !important;
+          }
+
+          .admission-spread-table td[data-col="admDate"] {
+            text-align: center !important;
           }
 
           .admission-spread-table tbody tr > td * {
@@ -7352,6 +7387,7 @@ export default function AdmissionRegisterSuite({
         .admission-spread-table td[data-col="mother"],
         .admission-spread-table td[data-col="dobWords"],
         .admission-spread-table td[data-col="village"],
+        .admission-spread-table td[data-col="admDate"],
         .admission-spread-table td[data-col="p2_subs"],
         .admission-spread-table td[data-col="p2_prevSchool"],
         .admission-spread-table td[data-col="p2_remarks"],
@@ -7359,6 +7395,10 @@ export default function AdmissionRegisterSuite({
           white-space: normal !important;
           word-break: break-word !important;
           overflow-wrap: break-word !important;
+        }
+
+        .admission-spread-table td[data-col="admDate"] {
+          text-align: center !important;
         }
 
         .admission-spread-table td[data-col="boardReg"],
@@ -9638,7 +9678,7 @@ export default function AdmissionRegisterSuite({
                                         {renderOnlineSubmCell(s.onlineStatus)}
                                       </div>
                                     </td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden text-[8px]" data-col="admDate">{renderAdmDateCell(s.admDate)}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center align-middle ledger-mono-font overflow-hidden text-[8px]" data-col="admDate">{renderAdmDateCell(s.admDate)}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 leading-tight" data-col="admNo">
                                       <div className="ledger-mono-font font-black text-[9px] leading-tight">{s.admNo || '—'}</div>
                                       {s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' && (
