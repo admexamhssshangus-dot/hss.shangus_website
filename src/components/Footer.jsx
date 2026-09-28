@@ -50,6 +50,58 @@ function handleEmailClick(e, email, subject = '', body = '') {
   }
 }
 
+function LazyFooterMap() {
+  const [loadMap, setLoadMap] = useState(false);
+  const containerRef = React.useRef(null);
+
+  useEffect(() => {
+    if (loadMap) return;
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setLoadMap(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '250px' });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMap]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full max-w-xs md:max-w-none rounded-xl overflow-hidden border-2 border-slate-800 leading-none m-0 mt-1 shadow-md hover:border-teal-500/50 transition-colors duration-300 min-h-[110px] bg-slate-900/60 flex items-center justify-center relative"
+    >
+      {loadMap ? (
+        <iframe
+          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d651.5363008761467!2d75.28722872804701!3d33.697775316694695!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38e20b9b41c3c13b%3A0xcf46d931eae137a!2sGovt%20Higher%20Secondry%20School%20Shangus!5e1!3m2!1sen!2sin!4v1776567033858!5m2!1sen!2sin"
+          width="100%"
+          height="110"
+          style={{ border: 0 }}
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          title="School Location Map"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setLoadMap(true)}
+          className="w-full h-[110px] flex flex-col items-center justify-center gap-1.5 p-2 text-slate-400 hover:text-teal-300 transition-colors cursor-pointer group"
+          title="Click to view interactive map"
+        >
+          <MapPin size={18} className="text-teal-400 group-hover:scale-110 transition-transform" />
+          <span className="text-[11px] font-semibold text-slate-300">Govt HSS Shangus Campus</span>
+          <span className="text-[9.5px] text-teal-400/90 underline font-medium">Load Interactive Map</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Footer() {
   // This state controls which popup is open ('privacy', 'terms', or null for closed)
   const [activeModal, setActiveModal] = useState(null);
@@ -199,19 +251,8 @@ export default function Footer() {
               </button>
             </div>
 
-            {/* 2. Map */}
-            <div className="w-full max-w-xs md:max-w-none rounded-xl overflow-hidden border-2 border-slate-800 leading-none m-0 mt-1 shadow-md hover:border-teal-500/50 transition-colors duration-300">
-              <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d651.5363008761467!2d75.28722872804701!3d33.697775316694695!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38e20b9b41c3c13b%3A0xcf46d931eae137a!2sGovt%20Higher%20Secondry%20School%20Shangus!5e1!3m2!1sen!2sin!4v1776567033858!5m2!1sen!2sin"
-                width="100%"
-                height="110"
-                style={{ border: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="School Location Map"
-              />
-            </div>
+            {/* 2. Map (Lazy Loaded) */}
+            <LazyFooterMap />
 
             {/* Line 1 */}
             <div className="w-[2px] h-[10px] bg-[#10b981] m-0 mt-3 md:self-start"></div>
