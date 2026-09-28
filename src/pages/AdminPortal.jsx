@@ -7949,6 +7949,28 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
             {/* TAB 3: FACULTY DIRECTORY */}
             {activeTab === 'faculty' && allowedTabs.includes('faculty') && (
               <div className="space-y-2.5 animate-in fade-in duration-200">
+                {/* Notice: Academic Faculty vs Clerk Staff Accounts */}
+                <div className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-r from-blue-900/30 via-slate-900/50 to-amber-900/20 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="p-1 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+                      <Users size={14} />
+                    </div>
+                    <div className="text-[11px] text-slate-300 leading-tight">
+                      <strong className="text-white">Website Academic Faculty:</strong> This section controls public faculty profiles shown to visitors on the school website (academics, bio, photos). For master establishment records, CPIS, PAN, NPS/GPF, and staff income tax, use the <strong>Clerk Portal Staff Directory</strong>.
+                    </div>
+                  </div>
+                  {allowedTabs.includes('tax') && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('tax')}
+                      className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black shrink-0 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                    >
+                      <span>Open Clerk Staff Directory</span>
+                      <ExternalLink size={11} />
+                    </button>
+                  )}
+                </div>
+
                 <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-2.5 mb-1">
                   <div className="max-w-2xl shrink-0">
                     <h3 className="text-sm font-bold text-slate-100">Faculty & Staff Directory</h3>

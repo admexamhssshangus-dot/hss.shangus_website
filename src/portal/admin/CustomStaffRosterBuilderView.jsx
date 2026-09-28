@@ -362,8 +362,8 @@ export default function CustomStaffRosterBuilderView({
               </span>
             </div>
 
-            {/* Standard Columns Checkboxes */}
-            <div className="grid grid-cols-2 gap-1.5 mb-2.5">
+            {/* Standard Columns Checkboxes (3-4 Columns Compact Grid) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-1 mb-2">
               {STANDARD_STAFF_ROSTER_COLUMNS.map(col => {
                 const isSelected = selectedColumnKeys.includes(col.key);
                 const isLocked = col.key === 'sno' || col.key === 'name';
@@ -374,16 +374,16 @@ export default function CustomStaffRosterBuilderView({
                     type="button"
                     disabled={isLocked}
                     onClick={() => toggleColumn(col.key)}
-                    className={`flex items-center gap-1.5 p-1.5 rounded-md text-[11px] font-semibold text-left transition-colors border ${
+                    className={`flex items-center gap-1 px-1.5 py-1 rounded text-[10px] font-semibold text-left transition-colors border ${
                       isSelected
                         ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200'
                         : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
                     } ${isLocked ? 'opacity-80 cursor-default' : 'cursor-pointer'}`}
                   >
                     {isSelected ? (
-                      <CheckSquare size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                      <CheckSquare size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
                     ) : (
-                      <Square size={13} className="text-slate-300 dark:text-slate-600 shrink-0" />
+                      <Square size={11} className="text-slate-300 dark:text-slate-600 shrink-0" />
                     )}
                     <span className="truncate">{col.label}</span>
                   </button>
@@ -391,25 +391,25 @@ export default function CustomStaffRosterBuilderView({
               })}
             </div>
 
-            {/* ─── EXPANDABLE: MORE STAFF COLUMNS SECTION ─── */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 mb-2.5">
-              <div className="flex items-center justify-between mb-1.5">
+            {/* ─── EXPANDABLE: MORE STAFF COLUMNS SECTION (3-4 Columns Compact Grid) ─── */}
+            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 mb-2">
+              <div className="flex items-center justify-between mb-1">
                 <button
                   type="button"
                   onClick={() => setShowMoreColumns(!showMoreColumns)}
-                  className="flex items-center gap-1.5 text-xs font-black text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 cursor-pointer select-none"
+                  className="flex items-center gap-1.5 text-[11px] font-black text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 cursor-pointer select-none"
                 >
-                  <ChevronDown size={14} className={`transition-transform duration-200 ${showMoreColumns ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={12} className={`transition-transform duration-200 ${showMoreColumns ? 'rotate-180' : ''}`} />
                   <span>More Staff Columns ({MORE_STAFF_ROSTER_COLUMNS.length} Available)</span>
                   {MORE_STAFF_ROSTER_COLUMNS.some(c => selectedColumnKeys.includes(c.key)) && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 font-mono font-bold">
+                    <span className="px-1.5 py-0.2 rounded-full text-[8.5px] bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 font-mono font-bold">
                       {MORE_STAFF_ROSTER_COLUMNS.filter(c => selectedColumnKeys.includes(c.key)).length} Active
                     </span>
                   )}
                 </button>
 
                 {showMoreColumns && (
-                  <div className="flex items-center gap-1 text-[9.5px] font-bold">
+                  <div className="flex items-center gap-1 text-[9px] font-bold">
                     <button
                       type="button"
                       onClick={() => {
@@ -436,21 +436,21 @@ export default function CustomStaffRosterBuilderView({
               </div>
 
               {showMoreColumns && (
-                <div className="space-y-1.5 animate-fadeIn">
+                <div className="space-y-1 animate-fadeIn">
                   {/* Search / Filter for more columns */}
                   <div className="relative">
-                    <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Search size={9} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
                       value={moreColumnsSearch}
                       onChange={(e) => setMoreColumnsSearch(e.target.value)}
                       placeholder="Filter more columns (e.g. parentage, dob, email)..."
-                      className="w-full pl-5 pr-2 py-0.5 text-[10.5px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
+                      className="w-full pl-5 pr-2 py-0.5 text-[9.5px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
                     />
                   </div>
 
-                  {/* Grid of More Columns */}
-                  <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-1 rounded-lg bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 no-scrollbar">
+                  {/* Multi-Column Grid of More Columns (4 columns on wide screens) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-1 max-h-36 overflow-y-auto p-1 rounded-lg bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 no-scrollbar">
                     {MORE_STAFF_ROSTER_COLUMNS.filter(col => {
                       if (!moreColumnsSearch.trim()) return true;
                       const q = moreColumnsSearch.toLowerCase();
@@ -462,16 +462,16 @@ export default function CustomStaffRosterBuilderView({
                           key={col.key}
                           type="button"
                           onClick={() => toggleColumn(col.key)}
-                          className={`flex items-center gap-1.5 p-1.5 rounded-md text-[10.5px] font-semibold text-left transition-colors border ${
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold text-left transition-colors border ${
                             isSelected
                               ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200'
                               : 'bg-white dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
                           } cursor-pointer`}
                         >
                           {isSelected ? (
-                            <CheckSquare size={12} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                            <CheckSquare size={10} className="text-amber-600 dark:text-amber-400 shrink-0" />
                           ) : (
-                            <Square size={12} className="text-slate-300 dark:text-slate-600 shrink-0" />
+                            <Square size={10} className="text-slate-300 dark:text-slate-600 shrink-0" />
                           )}
                           <span className="truncate">{col.label}</span>
                         </button>
@@ -483,27 +483,30 @@ export default function CustomStaffRosterBuilderView({
             </div>
 
             {/* Custom Blank / Sign-Off Columns Section */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Add Custom Blank / Sign-Off Columns:
+            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Custom Blank Columns:
+                </span>
+                <span className="text-[8.5px] text-slate-400">e.g. Signature, Room No</span>
               </div>
 
               {/* Input for new column */}
-              <div className="flex items-center gap-1.5 mb-2">
+              <div className="flex items-center gap-1 mb-1.5">
                 <input
                   type="text"
                   value={newColumnName}
                   onChange={(e) => setNewColumnName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomColumn(); }}
-                  placeholder="e.g. Signature, Exam Duty Room, Remarks..."
-                  className="flex-1 px-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
+                  placeholder="Column name (e.g. Signature)..."
+                  className="flex-1 px-2 py-0.5 text-[10px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
                 />
                 <button
                   type="button"
                   onClick={handleAddCustomColumn}
-                  className="px-2.5 py-1 text-xs font-black bg-amber-600 hover:bg-amber-500 text-white rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                  className="px-2 py-0.5 text-[10px] font-black bg-amber-600 hover:bg-amber-500 text-white rounded flex items-center gap-0.5 cursor-pointer transition-colors"
                 >
-                  <Plus size={13} />
+                  <Plus size={11} />
                   <span>Add</span>
                 </button>
               </div>
@@ -514,7 +517,7 @@ export default function CustomStaffRosterBuilderView({
                   {extraCustomColumns.map(col => (
                     <span
                       key={col.key}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
                     >
                       <span>{col.label}</span>
                       <button
@@ -532,23 +535,23 @@ export default function CustomStaffRosterBuilderView({
           </div>
 
           {/* Card 2: Staff Selection */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5">
-                <Users size={14} className="text-amber-600 dark:text-amber-500 shrink-0" />
-                <span className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 min-w-0">
+                <Users size={12} className="text-amber-600 dark:text-amber-500 shrink-0" />
+                <span className="font-extrabold text-[11px] text-slate-900 dark:text-white uppercase tracking-wider truncate">
                   Target Staff Enlistment
                 </span>
-                <span className="px-1.5 py-0.2 rounded-full text-[9.5px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                  {selectedStaffList.length} of {faculty.length}
+                <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+                  {selectedStaffList.length}/{faculty.length}
                 </span>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 text-[9px] font-bold shrink-0">
                 <button
                   type="button"
                   onClick={handleSelectAllFiltered}
-                  className="text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:underline px-1 py-0.5 cursor-pointer"
+                  className="text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
                 >
                   All
                 </button>
@@ -556,7 +559,7 @@ export default function CustomStaffRosterBuilderView({
                 <button
                   type="button"
                   onClick={handleDeselectAllFiltered}
-                  className="text-[10px] font-bold text-slate-500 hover:underline px-1 py-0.5 cursor-pointer"
+                  className="text-slate-500 hover:underline cursor-pointer"
                 >
                   None
                 </button>
@@ -564,32 +567,32 @@ export default function CustomStaffRosterBuilderView({
             </div>
 
             {/* Filter & Search Bar */}
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-1.5">
               <div className="relative flex-1">
-                <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={9} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Filter staff list..."
-                  className="w-full pl-7 pr-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
+                  className="w-full pl-5 pr-2 py-0.5 text-[10px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
                 />
               </div>
 
-              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800 shrink-0">
+              <div className="flex rounded overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800 shrink-0">
                 {[
                   { key: 'all', label: 'All' },
                   { key: 'teaching', label: 'Teach' },
-                  { key: 'non_teaching', label: 'Non-Teach' }
+                  { key: 'non_teaching', label: 'MTS' }
                 ].map(cat => (
                   <button
                     key={cat.key}
                     type="button"
                     onClick={() => setActiveCategoryFilter(cat.key)}
-                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-all cursor-pointer ${
+                    className={`px-1.5 py-0.2 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
                       activeCategoryFilter === cat.key
                         ? 'bg-amber-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
                     {cat.label}
@@ -598,8 +601,8 @@ export default function CustomStaffRosterBuilderView({
               </div>
             </div>
 
-            {/* Staff List Checkboxes */}
-            <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 no-scrollbar">
+            {/* Staff List Checkboxes in 2-Column Format */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-32 overflow-y-auto p-1 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 no-scrollbar">
               {filteredFaculty.map((emp, idx) => {
                 const empId = emp.id || emp.cpis_no || emp.pan || `emp_${idx}`;
                 const isSelected = selectedEmployeeIds.includes(empId);
@@ -609,21 +612,21 @@ export default function CustomStaffRosterBuilderView({
                   <div
                     key={empId}
                     onClick={() => toggleEmployeeSelection(empId)}
-                    className={`flex items-center justify-between px-2.5 py-1 text-xs cursor-pointer select-none ${
+                    className={`flex items-center justify-between px-1.5 py-0.5 rounded text-[9.5px] cursor-pointer select-none border ${
                       isSelected
-                        ? 'bg-amber-50/70 dark:bg-amber-950/20'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                        ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/80'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className="text-amber-600 dark:text-amber-400">
-                        {isSelected ? <CheckSquare size={13} /> : <Square size={13} className="text-slate-300 dark:text-slate-600" />}
+                    <div className="flex items-center gap-1 truncate">
+                      <span className="text-amber-600 dark:text-amber-400 shrink-0">
+                        {isSelected ? <CheckSquare size={11} /> : <Square size={11} className="text-slate-300 dark:text-slate-600" />}
                       </span>
-                      <span className="font-extrabold text-slate-900 dark:text-white truncate">{vars.name}</span>
-                      <span className="text-[10px] text-slate-500 truncate">({vars.designation})</span>
+                      <span className="font-extrabold text-[9px] text-slate-900 dark:text-white truncate">
+                        {vars.name}
+                      </span>
                     </div>
-
-                    <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 shrink-0">
+                    <span className="text-[8px] font-mono text-slate-500 shrink-0">
                       {vars.cpis}
                     </span>
                   </div>
