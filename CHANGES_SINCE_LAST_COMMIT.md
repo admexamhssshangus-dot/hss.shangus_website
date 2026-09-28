@@ -9,8 +9,9 @@
   - *"popup shall not be hidden"*
   - *"where are other templates here"*
 - **Detailed Changes Implemented:**
-  1. **2/3 Horizontal Layout ([StaffLetterheadWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffLetterheadWriterView.jsx)):**
+  1. **2/3 Horizontal Layout & Full Width Coverage ([StaffLetterheadWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffLetterheadWriterView.jsx)):**
      - Reordered studio workspace: The Official A4 Letterhead Preview is positioned on the **Left** occupying 2/3 of the horizontal screen width (`lg:col-span-8`).
+     - Removed restrictive `max-w-[620px]` constraint and expanded canvas padding to `w-full p-4 sm:p-7`, allowing the letterhead document to fully cover the entire 2/3 studio area without unnecessary empty side margins.
      - All studio controls (Template selection, Ref No, Dispatch Date, Signatories, Printing, Word Export, Rich-Text formatting toolbar, and Insert Variable action) are consolidated on the **Right** occupying 1/3 width (`lg:col-span-4`).
   2. **Dynamic Staff Pager Index:**
      - Updated the preview counter badge from static `31/31` to dynamic relative index `${previewEmployeeIndex + 1}/${selectedEmployees.length}` (e.g., `1/31`, `2/31`, etc.), correctly reflecting the currently previewed official as the clerk steps through the staff.
