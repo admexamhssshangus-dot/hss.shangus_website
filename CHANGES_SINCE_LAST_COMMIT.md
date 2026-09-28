@@ -2,22 +2,21 @@
 
 ## Current Working Changes
 
-### 1. Decrease Previous Exam Roll Number Font Size by 1 Point and Prevent Wrapping
+### 1. Allow Full Wrapping of Date of Birth in Words Without Truncation
 - **Context & Requirement:**
-  - In Part 2 of the Admission Register (`PREV R.NO.` column, `data-col="p2_prevRoll"`), 9-digit roll numbers (such as `201004341`, `201002005`, `201004340`) were slightly too wide for the column width at `6.5px`.
-  - This caused the last digit (e.g. `1`, `5`, `0`) to wrap awkwardly onto a second line inside the cell.
+  - In Part 1 of the Admission Register (`DATE OF BIRTH` -> `WORDS` column, `data-col="dobWords"`), long date-of-birth word strings (e.g. *"Twenty-Fifth of September Two Thousand Six"*, *"Twenty-Second of September Two Thousand Eight"*) were clamped to 2 lines (`line-clamp-2`).
+  - This resulted in premature truncation with ellipsis (`...`) at line 2 (e.g. *"September Two Thousan..."*).
   - The user requested:
-    > *"make previous exam roll no text smaller by 1 point"*
+    > *"wrap dob in words correctly"*
 - **Resolutions in [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):**
   - **Screen & Print CSS:**
-    - Decreased font size for `data-col="p2_prevRoll"` by exactly 1 point:
-      - Screen CSS: from `6.5px` to `5.5px` with `white-space: nowrap !important;`.
-      - Print CSS: from `6.5px` (`6.0px` for 16+ per page) to `5.5px` (`5.0px` for 16+ per page) with `white-space: nowrap !important;`.
-      - Separated rule from `p2_prevResult` so `p2_prevResult` retains its distinct styling.
+    - Updated `td[data-col="dobWords"]` to allow up to 3 lines via `-webkit-line-clamp: 3` (`line-clamp-3`).
+    - Adjusted font size to `7.2px` (screen/standard print) and `6.8px` (dense print 16+ per page) with tight line height (`line-height: 1.08`).
+    - Added `:not([data-col="dobWords"])` exclusion to the general `.line-clamp-2` rule so it does not clamp DOB words to 2 lines.
   - **Table Body JSX:**
-    - Updated `td` class and inline style from `text-[6.5px]` to `text-[5.5px] whitespace-nowrap` and `style={{ fontSize: '5.5px' }}`.
+    - Updated `td` and inner `div` to `line-clamp-3`, `text-[7.2px]`, `leading-[1.08]`, and added `dob-words-wrap`.
 - **Result:**
-  - Full 9-digit previous exam roll numbers now fit comfortably on a single line without wrapping or digit cutoff.
+  - Long multi-word dates of birth now wrap cleanly over up to 3 lines within the row height, showing all words in full without trailing ellipsis (`...`) or cutoff.
 - **Build Verification:**
   - Tested with `npm run build` — completed with `Exit Code 0` and zero breaking errors.
 
@@ -31,7 +30,7 @@
 
 ## Local Commit Message
 ```bash
-style(admission-register): decrease previous exam roll no font size by 1pt to prevent digit wrapping
+style(admission-register): allow 3-line wrap for dob in words to prevent truncation
 ```
 
 ---
@@ -46,14 +45,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "style(admission-register): decrease previous exam roll no font size by 1pt to prevent digit wrapping"
+git commit -m "style(admission-register): allow 3-line wrap for dob in words to prevent truncation"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "style(admission-register): decrease previous exam roll no font size by 1pt to prevent digit wrapping"
+git commit -m "style(admission-register): allow 3-line wrap for dob in words to prevent truncation"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):

@@ -6589,7 +6589,7 @@ export default function AdmissionRegisterSuite({
             overflow: hidden !important;
           }
 
-          .admission-spread-table td:not([data-col="name"]):not([data-col="father"]):not([data-col="mother"]) .line-clamp-2 {
+          .admission-spread-table td:not([data-col="name"]):not([data-col="father"]):not([data-col="mother"]):not([data-col="dobWords"]) .line-clamp-2 {
             display: -webkit-box !important;
             -webkit-line-clamp: 2 !important;
             -webkit-box-orient: vertical !important;
@@ -6597,6 +6597,22 @@ export default function AdmissionRegisterSuite({
             word-break: break-word !important;
             overflow-wrap: break-word !important;
             font-size: ${currentStudentsPerPage >= 16 ? '7.0px' : '7.5px'} !important;
+          }
+
+          /* DoB (in words) allow up to 3 lines with word wrapping so full words are never truncated */
+          .admission-spread-table td[data-col="dobWords"] .dob-words-wrap,
+          .admission-spread-table td[data-col="dobWords"] .line-clamp-3,
+          .admission-spread-table td[data-col="dobWords"] .line-clamp-2 {
+            display: -webkit-box !important;
+            -webkit-line-clamp: 3 !important;
+            -webkit-box-orient: vertical !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            line-height: 1.08 !important;
+            max-height: calc(${registerRowHeightMm}mm - 0.2mm) !important;
+            overflow: hidden !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '6.8px' : '7.2px'} !important;
           }
 
           /* Remarks specifically: allow up to 4-5 lines with word wrapping to show full text without truncation */
@@ -7559,6 +7575,21 @@ export default function AdmissionRegisterSuite({
           font-size: 7.2px !important;
           line-height: 1.12 !important;
           -webkit-line-clamp: 5 !important;
+        }
+
+        .admission-spread-table td[data-col="dobWords"],
+        .admission-spread-table td[data-col="dobWords"] .dob-words-wrap,
+        .admission-spread-table td[data-col="dobWords"] .line-clamp-3,
+        .admission-spread-table td[data-col="dobWords"] .line-clamp-2 {
+          font-size: 7.2px !important;
+          line-height: 1.08 !important;
+          display: -webkit-box !important;
+          -webkit-line-clamp: 3 !important;
+          -webkit-box-orient: vertical !important;
+          white-space: normal !important;
+          word-break: break-word !important;
+          overflow-wrap: break-word !important;
+          overflow: hidden !important;
         }
 
         .register-resizable-row:hover > td {
@@ -9862,8 +9893,8 @@ export default function AdmissionRegisterSuite({
                                       <div className="line-clamp-2 leading-tight break-words text-[9.5px]" style={{ fontSize: '9.5px' }}>{s.mother}</div>
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font text-[8px]" data-col="dobFigures">{formatRegisterDate(s.dobFigures) || s.dobFigures || '—'}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-serif overflow-hidden" data-col="dobWords">
-                                      <div className="line-clamp-2 leading-tight break-words">{s.dobWords}</div>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.2px] leading-tight font-serif overflow-hidden align-middle" data-col="dobWords" style={{ fontSize: '7.2px' }}>
+                                      <div className="line-clamp-3 leading-[1.08] break-words dob-words-wrap text-[7.2px]" style={{ fontSize: '7.2px', lineHeight: 1.08 }} title={s.dobWords}>{s.dobWords}</div>
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold text-[8px]" data-col="gender">{s.gender}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50 text-[8px] leading-tight" data-col="village">
