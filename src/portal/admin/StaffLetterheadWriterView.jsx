@@ -1,8 +1,8 @@
 // =================================================================
 // HSS SHANGUS — Clerk Official Staff Letterhead & Mail Merge Studio
 // High-Density 2-Column Minimal Layout:
-// Left: Consolidated Controls (Templates, Actions, Formatting, Placeholders, Staff)
-// Right: Official A4 Live Letterhead Preview & Canvas
+// Left: Consolidated Controls (Templates, Actions, Formatting, Insert Variable Picker)
+// Right: Official A4 Live Preview with Checkbox-Style Multi-Select Staff Dropdown
 // Supports Overwriting Templates, Duplicating & Modifying New Templates
 // =================================================================
 
@@ -13,7 +13,7 @@ import {
   AlignRight, AlignJustify, List, ListOrdered,
   Check, Copy, Users, Search, CheckSquare, Square,
   Sparkles, ChevronDown, ChevronLeft, ChevronRight, Download,
-  Eye, RefreshCw, AlertCircle, Info, Plus, Trash2, X
+  Eye, RefreshCw, AlertCircle, Info, Plus, Trash2, X, Tag
 } from 'lucide-react';
 import {
   STAFF_MERGE_VARIABLES,
@@ -27,6 +27,10 @@ import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
+import { db } from '../../services/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { toPublicFacultyList } from '../../utils/facultyPrivacy';
+import { getStaffPensionScheme, applyPensionSchemeToEmployee } from '../../utils/staffPensionHelper';
 
 const HSS_CLERK_TEMPLATES_STORAGE_KEY = 'hss_clerk_staff_letter_templates';
 
@@ -61,6 +65,12 @@ export default function StaffLetterheadWriterView({
   user = null,
   onOpenHistory = null
 }) {
+  // Local faculty copy to allow live pension labeling updates
+  const [localFaculty, setLocalFaculty] = useState(faculty);
+  useEffect(() => {
+    setLocalFaculty(faculty);
+  }, [faculty]);
+
   // Templates Management State
   const [templates, setTemplates] = useState(getInitialTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id || 'salary_service_certificate');
@@ -83,8 +93,8 @@ export default function StaffLetterheadWriterView({
   const [principalSignatory, setPrincipalSignatory] = useState('Principal / DDO');
   
   // Staff Selection State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState('all'); // 'all', 'teaching', 'non_teaching'
+  const [staffSearchTerm, setStaffSearchTerm] = useState('');
+  const [staffCategoryFilter, setStaffCategoryFilter] = useState('all'); // 'all', 'teaching', 'non_teaching', 'nps', 'gpf'
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [previewEmployeeIndex, setPreviewEmployeeIndex] = useState(0);
 
@@ -94,9 +104,11 @@ export default function StaffLetterheadWriterView({
   const [isSaving, setIsSaving] = useState(false);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
 
-  // UI Toggles for Compactness
+  // UI Popovers & Dropdowns
   const [showSignatories, setShowSignatories] = useState(false);
-  const [showPlaceholders, setShowPlaceholders] = useState(true);
+  const [showVariablePicker, setShowVariablePicker] = useState(false);
+  const [variableSearch, setVariableSearch] = useState('');
+  const [showStaffDropdown, setShowStaffDropdown] = useState(false);
 
   // Duplication Modal State
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
@@ -114,10 +126,10 @@ export default function StaffLetterheadWriterView({
 
   // Initialize selected employee IDs when faculty loads
   useEffect(() => {
-    if (Array.isArray(faculty) && faculty.length > 0 && selectedEmployeeIds.length === 0) {
-      setSelectedEmployeeIds(faculty.map((f, idx) => f.id || f.cpis_no || f.pan || `emp_${idx}`));
+    if (Array.isArray(localFaculty) && localFaculty.length > 0 && selectedEmployeeIds.length === 0) {
+      setSelectedEmployeeIds(localFaculty.map((f, idx) => f.id || f.cpis_no || f.pan || `emp_${idx}`));
     }
-  }, [faculty]);
+  }, [localFaculty]);
 
   // Helper Employee Getters
   const isNonTeaching = (emp) => {
@@ -128,15 +140,17 @@ export default function StaffLetterheadWriterView({
       d.includes('safaiwalla') || d.includes('class iv') || d.includes('driver');
   };
 
-  // Filtered Faculty
+  // Filtered Faculty for Multi-Select Dropdown
   const filteredFaculty = useMemo(() => {
-    if (!Array.isArray(faculty)) return [];
-    return faculty.filter((emp) => {
-      if (activeCategoryFilter === 'teaching' && isNonTeaching(emp)) return false;
-      if (activeCategoryFilter === 'non_teaching' && !isNonTeaching(emp)) return false;
+    if (!Array.isArray(localFaculty)) return [];
+    return localFaculty.filter((emp) => {
+      if (staffCategoryFilter === 'teaching' && isNonTeaching(emp)) return false;
+      if (staffCategoryFilter === 'non_teaching' && !isNonTeaching(emp)) return false;
+      if (staffCategoryFilter === 'nps' && getStaffPensionScheme(emp) !== 'NPS') return false;
+      if (staffCategoryFilter === 'gpf' && getStaffPensionScheme(emp) !== 'GPF') return false;
 
-      if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
+      if (staffSearchTerm.trim()) {
+        const q = staffSearchTerm.toLowerCase();
         const name = (emp.name || '').toLowerCase();
         const cpis = (emp.cpis_no || emp.cpis || '').toLowerCase();
         const pan = (emp.pan || '').toLowerCase();
@@ -146,21 +160,21 @@ export default function StaffLetterheadWriterView({
       }
       return true;
     });
-  }, [faculty, activeCategoryFilter, searchTerm]);
+  }, [localFaculty, staffCategoryFilter, staffSearchTerm]);
 
   // Selected Employee Objects
   const selectedEmployees = useMemo(() => {
-    if (!Array.isArray(faculty)) return [];
+    if (!Array.isArray(localFaculty)) return [];
     const idSet = new Set(selectedEmployeeIds);
-    return faculty.filter((f, idx) => idSet.has(f.id || f.cpis_no || f.pan || `emp_${idx}`));
-  }, [faculty, selectedEmployeeIds]);
+    return localFaculty.filter((f, idx) => idSet.has(f.id || f.cpis_no || f.pan || `emp_${idx}`));
+  }, [localFaculty, selectedEmployeeIds]);
 
   // Active Preview Employee
   const currentPreviewEmployee = useMemo(() => {
-    if (selectedEmployees.length === 0) return faculty[0] || {};
+    if (selectedEmployees.length === 0) return localFaculty[0] || {};
     const clamped = Math.max(0, Math.min(previewEmployeeIndex, selectedEmployees.length - 1));
     return selectedEmployees[clamped] || selectedEmployees[0] || {};
-  }, [selectedEmployees, previewEmployeeIndex, faculty]);
+  }, [selectedEmployees, previewEmployeeIndex, localFaculty]);
 
   // Interpolated Preview HTML for the active employee
   const previewInterpolatedHtml = useMemo(() => {
@@ -291,7 +305,7 @@ export default function StaffLetterheadWriterView({
   const handleResetToDefault = (templateId) => {
     const original = BUILTIN_STAFF_LETTER_TEMPLATES.find(t => t.id === templateId);
     if (!original) return;
-    if (!window.confirm(`Reset template "${original.name}" to official school default? Your custom modifications to this template will be cleared.`)) return;
+    if (!window.confirm(`Reset template "${original.name}" to official school default? Your custom modifications will be cleared.`)) return;
 
     const updated = templates.map(t => t.id === templateId ? { ...original } : t);
     saveTemplatesList(updated);
@@ -306,7 +320,7 @@ export default function StaffLetterheadWriterView({
   };
 
   // Insert Variable Token into Editor at cursor
-  const handleInsertVariable = (token) => {
+  const handleInsertVariable = (token, label) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
 
@@ -334,7 +348,8 @@ export default function StaffLetterheadWriterView({
     }
 
     setBodyHtml(editorRef.current.innerHTML);
-    showToast(`Inserted variable ${token}`, 'info');
+    setShowVariablePicker(false);
+    showToast(`Inserted variable ${label || token}`, 'info');
   };
 
   // Execute Rich Text Command directly in editor
@@ -371,6 +386,48 @@ export default function StaffLetterheadWriterView({
   const handleDeselectAllFiltered = () => {
     const filteredIds = new Set(filteredFaculty.map((f, idx) => f.id || f.cpis_no || f.pan || `emp_${idx}`));
     setSelectedEmployeeIds(prev => prev.filter(id => !filteredIds.has(id)));
+  };
+
+  // Toggle or Label NPS vs GPF for a Staff Member
+  const handleToggleStaffPension = async (empId, e) => {
+    if (e) e.stopPropagation();
+    const updated = localFaculty.map(emp => {
+      const id = emp.id || emp.cpis_no || emp.pan;
+      if (id === empId || emp.cpis_no === empId) {
+        const currentScheme = getStaffPensionScheme(emp);
+        const newScheme = currentScheme === 'NPS' ? 'GPF' : 'NPS';
+        return {
+          ...emp,
+          pension_scheme: newScheme,
+          pensionScheme: newScheme,
+          customFields: {
+            ...(emp.customFields || {}),
+            'Pension Scheme': newScheme
+          }
+        };
+      }
+      return emp;
+    });
+
+    setLocalFaculty(updated);
+    showToast(`Updated pension scheme for official to ${getStaffPensionScheme(updated.find(f => (f.id || f.cpis_no) === empId))}`, 'success');
+
+    // Sync to Firestore in background
+    try {
+      await setDoc(doc(db, 'systemSettings', 'facultyPrivate'), {
+        items: JSON.parse(JSON.stringify(updated)),
+        updatedAt: serverTimestamp(),
+        privacyVersion: 2
+      });
+      localStorage.setItem('hss_public_faculty', JSON.stringify(toPublicFacultyList(updated)));
+      try {
+        const ch = new BroadcastChannel('hss_data_sync');
+        ch.postMessage({ type: 'UPDATE_DATA' });
+        ch.close();
+      } catch (_) {}
+    } catch (err) {
+      console.warn('Background pension sync failed:', err);
+    }
   };
 
   // Batch Print All Merged Letters
@@ -486,13 +543,62 @@ export default function StaffLetterheadWriterView({
     setPreviewEmployeeIndex(prev => (prev < selectedEmployees.length - 1 ? prev + 1 : 0));
   };
 
+  // Grouped Placeholders for the [+] Popover
+  const VARIABLE_GROUPS = [
+    {
+      category: 'Identity & Particulars',
+      color: 'text-amber-700 dark:text-amber-300',
+      items: [
+        { token: '{{name}}', label: 'Employee Name', key: 'name' },
+        { token: '{{designation}}', label: 'Designation', key: 'designation' },
+        { token: '{{cpis}}', label: 'CPIS ID / Code', key: 'cpis' },
+        { token: '{{pan}}', label: 'PAN Card Number', key: 'pan' },
+        { token: '{{dob}}', label: 'Date of Birth', key: 'dob' },
+        { token: '{{parentage}}', label: "Father's / Parent Name", key: 'parentage' }
+      ]
+    },
+    {
+      category: 'Salary & Banking',
+      color: 'text-emerald-700 dark:text-emerald-300',
+      items: [
+        { token: '{{gross_salary}}', label: 'Annual Gross Salary', key: 'gross_salary' },
+        { token: '{{monthly_salary}}', label: 'Monthly Gross Salary', key: 'monthly_salary' },
+        { token: '{{net_salary}}', label: 'Net Take-Home Salary', key: 'net_salary' },
+        { token: '{{bank_account}}', label: 'Bank Account No.', key: 'bank_account' },
+        { token: '{{ifsc}}', label: 'IFSC Code', key: 'ifsc' },
+        { token: '{{bank_name}}', label: 'Bank Name', key: 'bank_name' }
+      ]
+    },
+    {
+      category: 'Service & Establishment',
+      color: 'text-indigo-700 dark:text-indigo-300',
+      items: [
+        { token: '{{department}}', label: 'Subject / Department', key: 'department' },
+        { token: '{{cadre}}', label: 'Service Cadre', key: 'cadre' },
+        { token: '{{pension_scheme}}', label: 'Pension (NPS/GPF)', key: 'pension_scheme' },
+        { token: '{{doj}}', label: 'Date of 1st Appointment', key: 'doj' },
+        { token: '{{mobile}}', label: 'Mobile Number', key: 'mobile' },
+        { token: '{{email}}', label: 'Email Address', key: 'email' }
+      ]
+    },
+    {
+      category: 'Dispatch & Session',
+      color: 'text-purple-700 dark:text-purple-300',
+      items: [
+        { token: '{{ref_no}}', label: 'Dispatch Reference No.', key: 'ref_no' },
+        { token: '{{date}}', label: 'Dispatch Date', key: 'date' },
+        { token: '{{academic_session}}', label: 'Academic Session', key: 'session' }
+      ]
+    }
+  ];
+
   return (
     <div className="animate-fadeIn">
-      {/* ─── 2-COLUMN MINIMAL STUDIO LAYOUT (CONTROLS ON LEFT, PREVIEW ON RIGHT) ─── */}
+      {/* ─── 2-COLUMN MINIMAL STUDIO LAYOUT (ALL CONTROLS ON LEFT, PREVIEW ON RIGHT) ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-start">
         
         {/* ══════════════════════════════════════════════════════════════════════
-            1. LEFT PANEL: ALL COMPACT CONTROLS & STUDIO TOOLS (5 COLS)
+            1. LEFT PANEL: ALL COMPACT CONTROLS & STUDIO TOOLS (5 COLS - NO SCROLL)
         ══════════════════════════════════════════════════════════════════════ */}
         <div className="lg:col-span-5 space-y-2">
           
@@ -619,14 +725,14 @@ export default function StaffLetterheadWriterView({
               </div>
             </div>
 
-            {/* Signatories Toggle & Fields */}
+            {/* Signatories Setup */}
             <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setShowSignatories(!showSignatories)}
                 className="w-full flex items-center justify-between text-[9px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
               >
-                <span>Signatories Setup ({clerkSignatory} • {principalSignatory})</span>
+                <span>Signatories: {clerkSignatory} • {principalSignatory}</span>
                 <span className="text-[8px]">{showSignatories ? '▲ Hide' : '▼ Edit'}</span>
               </button>
 
@@ -655,7 +761,7 @@ export default function StaffLetterheadWriterView({
             </div>
           </div>
 
-          {/* ── CARD B: PRIMARY ACTIONS & COMPACT FORMATTING RIBBON ── */}
+          {/* ── CARD B: PRIMARY ACTIONS, FORMATTING RIBBON & [+] INSERT VARIABLE POPUP ── */}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
             
             {/* Primary Print Button */}
@@ -706,8 +812,9 @@ export default function StaffLetterheadWriterView({
               )}
             </div>
 
-            {/* Compact Formatting Ribbon */}
+            {/* Compact Formatting Ribbon with [+] Insert Variable Popover Trigger */}
             <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1 flex-wrap">
+              {/* Text Styles */}
               <div className="flex items-center gap-0.5">
                 <button
                   type="button"
@@ -735,6 +842,7 @@ export default function StaffLetterheadWriterView({
                 </button>
               </div>
 
+              {/* Alignments */}
               <div className="flex items-center gap-0.5">
                 <button
                   type="button"
@@ -760,16 +868,9 @@ export default function StaffLetterheadWriterView({
                 >
                   <AlignRight size={11} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => executeCmd('justifyFull')}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  title="Justify"
-                >
-                  <AlignJustify size={11} />
-                </button>
               </div>
 
+              {/* Lists & Clear */}
               <div className="flex items-center gap-0.5">
                 <button
                   type="button"
@@ -781,219 +882,101 @@ export default function StaffLetterheadWriterView({
                 </button>
                 <button
                   type="button"
-                  onClick={() => executeCmd('insertOrderedList')}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  title="Numbered List"
-                >
-                  <ListOrdered size={11} />
-                </button>
-                <button
-                  type="button"
                   onClick={() => executeCmd('removeFormat')}
-                  className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer text-[9px] font-bold"
+                  className="px-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 cursor-pointer text-[8.5px] font-bold"
                   title="Clear formatting"
                 >
                   Clear
                 </button>
               </div>
-            </div>
-          </div>
 
-          {/* ── CARD C: INSERT PLACEHOLDERS (COMPACT COLLAPSIBLE) ── */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2 shadow-2xs space-y-1">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
-              <div className="flex items-center gap-1">
-                <Sparkles size={11} className="text-amber-500 shrink-0" />
-                <span className="font-black text-[10px] text-slate-900 dark:text-white uppercase tracking-wider">
-                  Insert Variables at Cursor
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPlaceholders(!showPlaceholders)}
-                className="text-[9px] font-bold text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                {showPlaceholders ? '▲ Hide' : '▼ Show'}
-              </button>
-            </div>
-
-            {showPlaceholders && (
-              <div className="pt-0.5 space-y-1 text-[9px]">
-                {/* Identity */}
-                <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[8px] font-black uppercase text-slate-400 w-11 shrink-0">Identity:</span>
-                  {[
-                    { token: '{{name}}', label: 'Name' },
-                    { token: '{{designation}}', label: 'Desig' },
-                    { token: '{{cpis}}', label: 'CPIS' },
-                    { token: '{{pan}}', label: 'PAN' },
-                    { token: '{{dob}}', label: 'DOB' },
-                    { token: '{{parentage}}', label: 'Parent' }
-                  ].map(item => (
-                    <button
-                      key={item.token}
-                      type="button"
-                      onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 cursor-pointer"
-                      title={`Insert ${item.token}`}
-                    >
-                      {item.token}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Salary */}
-                <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[8px] font-black uppercase text-slate-400 w-11 shrink-0">Salary:</span>
-                  {[
-                    { token: '{{gross_salary}}', label: 'Gross' },
-                    { token: '{{monthly_salary}}', label: 'Monthly' },
-                    { token: '{{net_salary}}', label: 'Net' },
-                    { token: '{{bank_account}}', label: 'Account' },
-                    { token: '{{ifsc}}', label: 'IFSC' }
-                  ].map(item => (
-                    <button
-                      key={item.token}
-                      type="button"
-                      onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 cursor-pointer"
-                      title={`Insert ${item.token}`}
-                    >
-                      {item.token}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Service & Meta */}
-                <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[8px] font-black uppercase text-slate-400 w-11 shrink-0">Service:</span>
-                  {[
-                    { token: '{{department}}', label: 'Dept' },
-                    { token: '{{cadre}}', label: 'Cadre' },
-                    { token: '{{mobile}}', label: 'Mobile' },
-                    { token: '{{doj}}', label: 'DOJ' },
-                    { token: '{{ref_no}}', label: 'Ref No' },
-                    { token: '{{date}}', label: 'Date' }
-                  ].map(item => (
-                    <button
-                      key={item.token}
-                      type="button"
-                      onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 cursor-pointer"
-                      title={`Insert ${item.token}`}
-                    >
-                      {item.token}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── CARD D: TARGET STAFF PICKER (COMPACT & RESPONSIVE) ── */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-1.5">
-            <div className="flex items-center justify-between gap-1">
-              <div className="flex items-center gap-1 min-w-0">
-                <Users size={12} className="text-amber-600 dark:text-amber-500 shrink-0" />
-                <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider truncate">
-                  Target Staff
-                </span>
-                <span className="px-1.5 py-0.2 rounded-full font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[8.5px] shrink-0">
-                  {selectedEmployees.length}/{faculty.length}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1 text-[9px] font-bold shrink-0">
+              {/* ─── [+] INSERT VARIABLE / PLACEHOLDER BUTTON WITH POPOVER ─── */}
+              <div className="relative">
                 <button
                   type="button"
-                  onClick={handleSelectAllFiltered}
-                  className="text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                  onClick={() => setShowVariablePicker(!showVariablePicker)}
+                  className="px-2 py-0.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition-transform active:scale-95"
+                  title="Insert dynamic staff variables at cursor"
                 >
-                  All
+                  <Plus size={12} className="stroke-[3]" />
+                  <span>Insert Variable</span>
                 </button>
-                <span className="text-slate-300 dark:text-slate-700">|</span>
-                <button
-                  type="button"
-                  onClick={handleDeselectAllFiltered}
-                  className="text-slate-500 hover:underline cursor-pointer"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
 
-            {/* Search Input & Category Pills in Single Row */}
-            <div className="flex items-center gap-1.5">
-              <div className="relative flex-1">
-                <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search staff, CPIS..."
-                  className="w-full pl-5 pr-2 py-0.5 text-[10px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 outline-none"
-                />
-              </div>
-
-              <div className="flex rounded overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800 shrink-0">
-                {[
-                  { key: 'all', label: 'All' },
-                  { key: 'teaching', label: 'Teach' },
-                  { key: 'non_teaching', label: 'MTS' }
-                ].map(cat => (
-                  <button
-                    key={cat.key}
-                    type="button"
-                    onClick={() => setActiveCategoryFilter(cat.key)}
-                    className={`px-1.5 py-0.2 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
-                      activeCategoryFilter === cat.key
-                        ? 'bg-amber-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Staff Checkbox List */}
-            <div className="max-h-28 sm:max-h-32 overflow-y-auto rounded border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 no-scrollbar">
-              {filteredFaculty.map((emp, idx) => {
-                const empId = emp.id || emp.cpis_no || emp.pan || `emp_${idx}`;
-                const isSelected = selectedEmployeeIds.includes(empId);
-                const vars = getEmployeeVariablesMap(emp);
-
-                return (
-                  <div
-                    key={empId}
-                    onClick={() => toggleEmployeeSelection(empId)}
-                    className={`flex items-center justify-between px-1.5 py-0.5 text-[10px] transition-colors cursor-pointer select-none ${
-                      isSelected
-                        ? 'bg-amber-50/70 dark:bg-amber-950/20'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1 min-w-0">
-                      <span className="shrink-0 text-amber-600 dark:text-amber-400">
-                        {isSelected ? <CheckSquare size={11} /> : <Square size={11} className="text-slate-300 dark:text-slate-600" />}
-                      </span>
-                      <div className="truncate">
-                        <span className="font-extrabold text-[9.5px] text-slate-900 dark:text-white truncate mr-1">
-                          {vars.name}
-                        </span>
-                        <span className="text-[8px] text-slate-500 truncate">
-                          ({vars.designation})
+                {/* Floating Variable Picker Popover */}
+                {showVariablePicker && (
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 sm:w-80 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl p-2.5 space-y-2 animate-fadeIn">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles size={13} className="text-amber-500" />
+                        <span className="font-black text-xs text-slate-900 dark:text-white">
+                          Select Variable to Insert
                         </span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowVariablePicker(false)}
+                        className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                      >
+                        <X size={13} />
+                      </button>
                     </div>
 
-                    <span className="text-[8px] font-mono text-slate-500 shrink-0">
-                      {vars.cpis}
-                    </span>
+                    {/* Search inside variable picker */}
+                    <div className="relative">
+                      <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={variableSearch}
+                        onChange={(e) => setVariableSearch(e.target.value)}
+                        placeholder="Search variable (e.g. name, salary, cpi, pan)..."
+                        className="w-full pl-5 pr-2 py-1 text-[10px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Categorized Variables List */}
+                    <div className="max-h-60 overflow-y-auto space-y-2 no-scrollbar pr-0.5">
+                      {VARIABLE_GROUPS.map((group) => {
+                        const filteredItems = group.items.filter(item => {
+                          if (!variableSearch.trim()) return true;
+                          const q = variableSearch.toLowerCase();
+                          return item.label.toLowerCase().includes(q) || item.token.toLowerCase().includes(q);
+                        });
+
+                        if (filteredItems.length === 0) return null;
+
+                        return (
+                          <div key={group.category} className="space-y-1">
+                            <span className={`text-[9px] font-black uppercase tracking-wider block ${group.color}`}>
+                              {group.category}
+                            </span>
+                            <div className="grid grid-cols-2 gap-1">
+                              {filteredItems.map(item => (
+                                <button
+                                  key={item.token}
+                                  type="button"
+                                  onClick={() => handleInsertVariable(item.token, item.label)}
+                                  className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/80 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-left border border-slate-200 dark:border-slate-700/80 hover:border-amber-400 transition-colors cursor-pointer group"
+                                >
+                                  <div className="truncate mr-1">
+                                    <div className="text-[9.5px] font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-800 dark:group-hover:text-amber-300 truncate">
+                                      {item.label}
+                                    </div>
+                                    <div className="text-[8px] font-mono text-slate-400 truncate">
+                                      {item.token}
+                                    </div>
+                                  </div>
+                                  <Plus size={10} className="text-slate-400 group-hover:text-amber-600 shrink-0" />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1003,52 +986,201 @@ export default function StaffLetterheadWriterView({
         ══════════════════════════════════════════════════════════════════════ */}
         <div className="lg:col-span-7 space-y-1.5">
           
-          {/* Top Canvas Bar: Official Selector, Employee Pager, Live/Token Toggle */}
+          {/* Top Canvas Bar: Unified Checkbox-Style Staff Dropdown, Employee Pager, Live/Token Toggle */}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 px-2.5 py-1.5 shadow-2xs flex items-center justify-between gap-1.5 flex-wrap">
             
-            {/* Left: Active Official Picker + Previous/Next Pager */}
-            <div className="flex items-center gap-1 min-w-0">
-              <Eye size={12} className="text-amber-600 dark:text-amber-400 shrink-0" />
-              <span className="text-[10.5px] font-extrabold text-slate-800 dark:text-slate-200 shrink-0">
+            {/* Left: Custom Multi-Select Checkbox Dropdown */}
+            <div className="relative flex items-center gap-1 min-w-0">
+              <span className="text-[10.5px] font-black text-slate-700 dark:text-slate-300 shrink-0">
                 Official:
               </span>
-              
-              {selectedEmployees.length > 0 && (
-                <div className="flex items-center gap-0.5 min-w-0">
-                  <select
-                    value={previewEmployeeIndex}
-                    onChange={(e) => setPreviewEmployeeIndex(Number(e.target.value))}
-                    className="text-[10.5px] font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none cursor-pointer max-w-[210px] truncate"
-                  >
-                    {selectedEmployees.map((emp, idx) => (
-                      <option key={idx} value={idx}>
-                        {emp.name} ({emp.designation || 'Staff'})
-                      </option>
-                    ))}
-                  </select>
 
-                  <div className="flex items-center gap-0.5 shrink-0 ml-0.5">
+              {/* Dropdown Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setShowStaffDropdown(!showStaffDropdown)}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-[10.5px] font-bold hover:border-amber-500 cursor-pointer max-w-[260px] truncate"
+                title="Click to view all staff, select for merge, or filter by Teaching/NPS/GPF"
+              >
+                <Users size={12} className="text-amber-600 shrink-0" />
+                <span className="truncate">
+                  {currentPreviewEmployee?.name || 'Select Staff'}
+                </span>
+                <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-mono font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 shrink-0">
+                  {selectedEmployeeIds.length}/{localFaculty.length}
+                </span>
+                <ChevronDown size={11} className={`shrink-0 transition-transform ${showStaffDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Prev / Next Quick Arrow Pager */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handlePrevEmployee}
+                  disabled={selectedEmployees.length <= 1}
+                  className="p-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 cursor-pointer"
+                  title="Previous Staff Member"
+                >
+                  <ChevronLeft size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextEmployee}
+                  disabled={selectedEmployees.length <= 1}
+                  className="p-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 cursor-pointer"
+                  title="Next Staff Member"
+                >
+                  <ChevronRight size={11} />
+                </button>
+              </div>
+
+              {/* ─── FLOATING CHECKBOX-STYLE DROPDOWN FOR TARGET STAFF ─── */}
+              {showStaffDropdown && (
+                <div className="absolute left-0 top-full mt-1.5 z-50 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl p-2.5 space-y-2 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-1.5">
+                      <Users size={13} className="text-amber-600" />
+                      <span className="font-black text-xs text-slate-900 dark:text-white">
+                        Target Staff &amp; Live Preview
+                      </span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                        {selectedEmployeeIds.length} of {localFaculty.length} Selected
+                      </span>
+                    </div>
                     <button
                       type="button"
-                      onClick={handlePrevEmployee}
-                      disabled={selectedEmployees.length <= 1}
-                      className="p-0.5 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 cursor-pointer"
-                      title="Previous Staff Member"
+                      onClick={() => setShowStaffDropdown(false)}
+                      className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
                     >
-                      <ChevronLeft size={11} />
+                      <X size={13} />
                     </button>
-                    <span className="text-[9px] font-mono text-slate-500 px-0.5">
-                      {previewEmployeeIndex + 1}/{selectedEmployees.length}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleNextEmployee}
-                      disabled={selectedEmployees.length <= 1}
-                      className="p-0.5 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 cursor-pointer"
-                      title="Next Staff Member"
-                    >
-                      <ChevronRight size={11} />
-                    </button>
+                  </div>
+
+                  {/* Search Box + All/Clear */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={staffSearchTerm}
+                        onChange={(e) => setStaffSearchTerm(e.target.value)}
+                        placeholder="Search staff, CPIS, PAN..."
+                        className="w-full pl-5 pr-2 py-0.5 text-[10px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 text-[9px] font-bold shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllFiltered}
+                        className="text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                      >
+                        All
+                      </button>
+                      <span className="text-slate-300 dark:text-slate-700">|</span>
+                      <button
+                        type="button"
+                        onClick={handleDeselectAllFiltered}
+                        className="text-slate-500 hover:underline cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter Pills: All, Teaching, Non-Teaching, NPS, GPF */}
+                  <div className="flex rounded overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
+                    {[
+                      { key: 'all', label: 'All' },
+                      { key: 'teaching', label: 'Teach' },
+                      { key: 'non_teaching', label: 'MTS' },
+                      { key: 'nps', label: 'NPS' },
+                      { key: 'gpf', label: 'GPF' }
+                    ].map(cat => (
+                      <button
+                        key={cat.key}
+                        type="button"
+                        onClick={() => setStaffCategoryFilter(cat.key)}
+                        className={`flex-1 py-0.5 text-center rounded text-[8.5px] font-bold transition-all cursor-pointer ${
+                          staffCategoryFilter === cat.key
+                            ? 'bg-amber-600 text-white shadow-2xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Staff Items List with Checkboxes & Clickable NPS/GPF Label */}
+                  <div className="max-h-56 overflow-y-auto space-y-0.5 no-scrollbar pr-0.5 divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {filteredFaculty.map((emp, idx) => {
+                      const empId = emp.id || emp.cpis_no || emp.pan || `emp_${idx}`;
+                      const isSelected = selectedEmployeeIds.includes(empId);
+                      const isPreviewing = (currentPreviewEmployee.id || currentPreviewEmployee.cpis_no) === empId || currentPreviewEmployee.name === emp.name;
+                      const scheme = getStaffPensionScheme(emp);
+
+                      return (
+                        <div
+                          key={empId}
+                          onClick={() => {
+                            // Set preview employee
+                            const foundIdx = selectedEmployees.findIndex(e => (e.id || e.cpis_no) === empId || e.name === emp.name);
+                            if (foundIdx !== -1) setPreviewEmployeeIndex(foundIdx);
+                          }}
+                          className={`flex items-center justify-between px-2 py-1 rounded text-[10px] transition-colors cursor-pointer select-none ${
+                            isPreviewing
+                              ? 'bg-amber-100/90 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700'
+                              : isSelected
+                              ? 'bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100'
+                              : 'opacity-60 hover:opacity-100 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0 mr-1.5">
+                            {/* Checkbox for merge inclusion */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleEmployeeSelection(empId);
+                              }}
+                              className="text-amber-600 dark:text-amber-400 shrink-0 cursor-pointer"
+                              title="Toggle merge inclusion"
+                            >
+                              {isSelected ? <CheckSquare size={13} /> : <Square size={13} className="text-slate-300 dark:text-slate-600" />}
+                            </button>
+
+                            <div className="truncate">
+                              <span className="font-extrabold text-[10px] text-slate-900 dark:text-white truncate mr-1">
+                                {emp.name}
+                              </span>
+                              <span className="text-[8.5px] text-slate-500 truncate">
+                                ({emp.designation})
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Clickable Pension Label: NPS or GPF */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleStaffPension(empId, e)}
+                              className={`px-1.5 py-0.2 rounded text-[8px] font-black font-mono tracking-wider cursor-pointer border transition-transform hover:scale-105 ${
+                                scheme === 'NPS'
+                                  ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                                  : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                              }`}
+                              title={`Pension scheme: ${scheme}. Click to toggle NPS/GPF.`}
+                            >
+                              {scheme} ⟳
+                            </button>
+
+                            <span className="text-[8px] font-mono text-slate-500">
+                              {emp.cpis_no || emp.cpis || '—'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
