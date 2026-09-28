@@ -2,21 +2,23 @@
 
 ## Current Working Changes
 
-### 1. Match `(RE-ADM)` Badge Color to New Admission Number
+### 1. Fix Admission Date Text Truncation by Wrapping Across Available Lines
 - **Context & Requirement:**
-  - In the Admission Register table (`data-col="admNo"` column), students with re-admission display:
-    - New admission number (e.g. `5507`) in emerald green (`text-emerald-800`, `#065f46`).
-    - Old admission number (e.g. `(4867)`) in purple (`text-purple-700`, `#7e22ce`).
-    - `(RE-ADM)` badge.
-  - Previously, the `(RE-ADM)` badge was colored purple (`text-purple-800`), visually grouping it with the old admission number.
-  - The user requested: *"color of re-adm label shall match to new adm no not old"*.
+  - In the Admission Register table, the `ADM. DATE` column (`data-col="admDate"`) had a default width of 56px and was previously styled with `white-space: nowrap` and `text-overflow: ellipsis`.
+  - As a result, standard 10-character dates like `03-01-2026` or `03-10-2026` were being truncated with ellipsis (`03-01-20...`, `03-10-20...`), even though vertical space was available on the next line within each row.
+  - The user requested: *"adm date shall wrap correctly to next line available"*.
 - **Resolutions in [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):**
-  - **Screen JSX:**
-    - Updated `readm-badge` element classes from `text-purple-800 dark:text-purple-300` to `text-emerald-800 dark:text-emerald-400`.
-  - **Print CSS:**
-    - Updated `.admission-spread-table td[data-col="admNo"] .readm-badge` color rule from `#6b21a8` (purple) to `#065f46` (emerald-800) with `!important`.
+  - **`renderAdmDateCell` Helper Function:**
+    - Updated to detect formatted date strings (`DD-MM-YYYY`, `DD/MM/YYYY`, `DD.MM.YYYY`).
+    - Stacks the day/month part (e.g. `03-01-`) on the first line and the year (e.g. `2026`) on the second line within a centered `flex flex-col` container.
+    - If a timestamp is present (`DD-MM-YYYY HH:mm:ss`), cleanly wraps date on line 1 and time on line 2.
+    - Fallback strings wrap cleanly with `break-words`.
+  - **Table Cell & Stylesheet Updates:**
+    - Changed `data-col="admDate"` cell padding from `px-1.5` to `px-1` and alignment to `text-center`.
+    - Added `data-col="admDate"` to the wrap selector list in both `@media print` and `@media screen`.
+    - Added explicit `text-align: center !important` rules for `data-col="admDate"`.
 - **Result:**
-  - The `(RE-ADM)` label now clearly and consistently visually matches the current/new admission number in dark emerald green, while the superseded old admission number remains distinct in purple.
+  - Dates in the `ADM. DATE` column now wrap gracefully onto available vertical lines (`03-01-` on line 1, `2026` on line 2) with zero truncation, matching the two-line header rhythm (`ADM.` / `DATE`).
 - **Build Verification:**
   - Tested with `npm run build` — completed with `Exit Code 0` and zero breaking errors.
 
@@ -30,7 +32,7 @@
 
 ## Local Commit Message
 ```bash
-style(admission-register): match re-adm badge color to new admission number (emerald-800)
+fix(admission-register): wrap admission date onto available lines to prevent truncation
 ```
 
 ---
@@ -45,14 +47,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "style(admission-register): match re-adm badge color to new admission number (emerald-800)"
+git commit -m "fix(admission-register): wrap admission date onto available lines to prevent truncation"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "style(admission-register): match re-adm badge color to new admission number (emerald-800)"
+git commit -m "fix(admission-register): wrap admission date onto available lines to prevent truncation"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
