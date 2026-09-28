@@ -2,14 +2,14 @@
 
 ## Current Working Changes
 
-### 1. Admission Register Part 2: Reduced Receipt Column Default Width by 30%
-- **Objective:**
-  - Make the `RECEIPT` column in Admission Register Part 2 by default 30% less wider (from 138px down to 97px).
-- **Key Enhancements in [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):**
-  - **`DEFAULT_COLUMN_WIDTHS`:** Reduced `p2_receipt` from 138px to 97px (`138 * 0.70 = 96.6 -> 97px`).
-  - **Colgroup Fallback:** Updated Part 2 `<colgroup>` fallback width from 140px to 97px (`columnWidths.p2_receipt || 97`).
-  - **Cached & Cloud Settings Migration:** Added auto-migration logic so any previously cached or stored old defaults (&ge; 130px) in `localStorage` or Firebase `adminSettings/admission_register_layout` immediately pick up the new 97px default without needing manual settings reset.
-  - **Handwriting Guide Flex:** Adjusted dotted signature and date guide lines (`min-w-[40px]` to `min-w-[24px]`) to ensure comfortable spacing inside the more compact 97px width without text wrapping.
+### 1. Fix Vertical Row Stretching on Partial / Last Pages in Admission Register & Sentup
+- **Issue:**
+  - On the final page containing remaining students (e.g. 3 students instead of the standard 10 or 15), the table rows stretched vertically to huge heights ("very high to fill the page") because the table and `tbody` containers had rigid `height` and `min-height` set to the full-page budget (`${sentupTableHeightMm}mm`, `${sentupTbodyHeightMm}mm`, `${registerTableHeightMm}mm`, `${registerTbodyHeightMm}mm`), forcing the browser table layout engine to distribute the full-page height among the few remaining rows.
+- **Resolution in [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):**
+  - Updated print stylesheets for `.admission-spread-table`, `.sentup-table`, and their `tbody` elements:
+    - Set `height: auto !important;` and `min-height: 0 !important;` while preserving the upper bounds (`max-height: ${...TableHeightMm}mm !important;`).
+  - Full pages (10 or 15 students) continue to fill the sheet exactly as before because each row has its own dedicated height (`${sentupRowHeightMm}mm` / `${registerRowHeightMm}mm`).
+  - Partial pages (such as the final page with remaining students) now maintain the exact same compact, uniform row height as preceding pages without vertical stretching.
 - **Build Verification:**
   - Verified with `npm run build` completing with `Exit Code 0` and zero breaking errors.
 
@@ -23,7 +23,7 @@
 
 ## Local Commit Message
 ```bash
-style(admission-register): reduce receipt column default width by 30% to 97px
+fix(admission-register): prevent vertical row stretching on last remaining students in register and sentup tables
 ```
 
 ---
@@ -38,14 +38,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "style(admission-register): reduce receipt column default width by 30% to 97px"
+git commit -m "fix(admission-register): prevent vertical row stretching on last remaining students in register and sentup tables"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "style(admission-register): reduce receipt column default width by 30% to 97px"
+git commit -m "fix(admission-register): prevent vertical row stretching on last remaining students in register and sentup tables"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
