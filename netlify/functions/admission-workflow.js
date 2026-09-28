@@ -919,32 +919,70 @@ async function submitApplication(db, token, body) {
       }
     }
 
-    // Duplicate Mobile Guard for Same Academic Session
+    // Duplicate Mobile & Aadhaar Guard: Allows same registration in any class-session and supports sibling family contacts
     const mobileDigits = digits(valueOf(sanitized, 'Mobile No. (with working WhatsApp)', 'mobile', 'Mobile Number')).slice(-10);
     const parentMobileDigits = digits(valueOf(sanitized, "Parent's Mobile No. (must be working)", 'parentMobile', 'Parent Mobile')).slice(-10);
-    let duplicateMobileField = 'Mobile No. (with working WhatsApp)';
-    if (mobileDigits) {
-      const mobileQuery = db.collection('admissions').where('sessionCanonical', '==', normalized.session);
-      const mobileSnaps = await tx.get(mobileQuery);
-      const dupMobileDoc = mobileSnaps.docs.find(d => {
+    const studentAadhaarDigits = digits(valueOf(sanitized, 'Aadhar No.', 'Aadhaar No.', 'Aadhaar Number', 'aadhar', 'aadhaar')).slice(-12);
+    let duplicateField = 'Mobile No. (with working WhatsApp)';
+
+    if (mobileDigits || studentAadhaarDigits) {
+      const sessionAdmissionsQuery = db.collection('admissions').where('sessionCanonical', '==', normalized.session);
+      const sessionSnaps = await tx.get(sessionAdmissionsQuery);
+      const dupDoc = sessionSnaps.docs.find(d => {
         if (d.id === appRef.id) return false;
         const dData = d.data();
         if (dData.ownerUid === token.uid) return false;
         if (['Withdrawn', 'Purged', 'Deleted', 'Rejected'].includes(dData.Status) || dData._deleted === true || dData._purged === true) return false;
+
+        // Allow same registration number in any class-session: if it's the same student, mobile and Aadhaar sharing is legitimate
+        const dReg = registrationNumberFrom(dData);
+        if (registrationNo && dReg && dReg === registrationNo) return false;
+
         const dMobile = digits(valueOf(dData, 'Mobile No. (with working WhatsApp)', 'mobile', 'Mobile Number')).slice(-10);
         const dParentMobile = digits(valueOf(dData, "Parent's Mobile No. (must be working)", 'parentMobile', 'Parent Mobile')).slice(-10);
-        if (dMobile === mobileDigits || dParentMobile === mobileDigits) return true;
-        if (parentMobileDigits && (dMobile === parentMobileDigits || dParentMobile === parentMobileDigits)) {
-          duplicateMobileField = "Parent's Mobile No. (must be working)";
+        const dAadhaar = digits(valueOf(dData, 'Aadhar No.', 'Aadhaar No.', 'Aadhaar Number', 'aadhar', 'aadhaar')).slice(-12);
+
+        // Student Aadhaar collision across different students
+        if (studentAadhaarDigits && studentAadhaarDigits.length === 12 && dAadhaar === studentAadhaarDigits) {
+          duplicateField = 'Aadhar No.';
           return true;
         }
+
+        // Student primary mobile collision
+        if (mobileDigits && dMobile === mobileDigits) {
+          duplicateField = 'Mobile No. (with working WhatsApp)';
+          return true;
+        }
+
+        // Parent contact check: allow siblings applying for different classes
+        const isDifferentClass = (dData.classCanonical || normalizeClass(valueOf(dData, 'Admission sought for class', 'class'))) !== normalized.cls;
+        if (isDifferentClass) {
+          return false; // Siblings in different classes can share parents' phone/contact
+        }
+
+        if (parentMobileDigits && (dMobile === parentMobileDigits || dParentMobile === parentMobileDigits)) {
+          duplicateField = "Parent's Mobile No. (must be working)";
+          return true;
+        }
+
+        if (mobileDigits && dParentMobile === mobileDigits) {
+          duplicateField = 'Mobile No. (with working WhatsApp)';
+          return true;
+        }
+
         return false;
       });
-      if (dupMobileDoc) {
-        throw Object.assign(new Error('This mobile number is already used by another application in this session. Contact the school office for assistance.'), {
+
+      if (dupDoc) {
+        const errorMsg = duplicateField === 'Aadhar No.'
+          ? 'This Aadhaar number is already associated with another active student application in this session.'
+          : 'This mobile number is already used by another application in this session. Contact the school office for assistance.';
+        throw Object.assign(new Error(errorMsg), {
           status: 409,
           errors: {
-            [duplicateMobileField]: 'This number is already used in this session. Contact the school office.'
+            [duplicateField]: duplicateField === 'Aadhar No.'
+              ? 'Aadhaar number already registered by another student.'
+              : 'This number is already used in this session. Contact the school office.'
           }
         });
       }

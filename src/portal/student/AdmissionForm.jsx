@@ -2102,15 +2102,20 @@ export default function AdmissionForm() {
         upgradeMode,
       });
 
-      if (res && (res.error === 'duplicate' || res.error === 'duplicate_mobile')) {
+      if (res && (res.error === 'duplicate' || res.error === 'duplicate_mobile' || res.error === 'duplicate_aadhaar' || res.status === 409)) {
         setAlert({
           type: 'error',
-          text: res.message || 'Duplicate submission detected. Please check your mobile number and details.',
+          text: res.message || 'Duplicate submission detected. Please check your details.',
         });
-        if (res.error === 'duplicate_mobile') {
+        if (res.error === 'duplicate_mobile' || res.errors?.["Mobile No. (with working WhatsApp)"]) {
           setFieldErrors((prev) => ({
             ...prev,
-            "Mobile No. (with working WhatsApp)": res.message,
+            "Mobile No. (with working WhatsApp)": res.errors?.["Mobile No. (with working WhatsApp)"] || res.message,
+          }));
+        } else if (res.error === 'duplicate_aadhaar' || res.errors?.["Aadhar No."]) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            "Aadhar No.": res.errors?.["Aadhar No."] || res.message,
           }));
         }
         setIsSubmitting(false);

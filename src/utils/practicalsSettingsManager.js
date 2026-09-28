@@ -749,10 +749,11 @@ export function isTeacherSubjectMatch(teacherSubject, selectedSubject) {
       // General Biology (BI) assignment can evaluate Botany or Zoology
       if (tNorm.code === 'BI' && (sNorm.code === 'BO' || sNorm.code === 'ZO')) return true;
       // Teacher assigned Botany or Zoology can evaluate general Biology (BI) as fallback
-      if (sNorm.code === 'BI' && (tNorm.code === 'BO' || tNorm.code === 'ZO')) return true;
-      // Science equivalence (Science / Physics / Chemistry / Biology in lower classes)
-      if (tNorm.code === 'SC' && ['PH', 'CH', 'BI', 'BO', 'ZO'].includes(sNorm.code)) return true;
-      if (sNorm.code === 'SC' && ['PH', 'CH', 'BI', 'BO', 'ZO'].includes(tNorm.code)) return true;
+      // Science isolation: Specialized Higher Secondary Botany (BO) and Zoology (ZO) must NEVER cross-match Secondary Science (SC)
+      if ((sNorm.code === 'SC' && ['BO', 'ZO'].includes(tNorm.code)) || (tNorm.code === 'SC' && ['BO', 'ZO'].includes(sNorm.code))) return false;
+      // General Science equivalence in lower classes
+      if (tNorm.code === 'SC' && ['PH', 'CH', 'BI'].includes(sNorm.code)) return true;
+      if (sNorm.code === 'SC' && ['PH', 'CH', 'BI'].includes(tNorm.code)) return true;
       return false;
     }
 
