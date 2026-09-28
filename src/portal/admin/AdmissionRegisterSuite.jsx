@@ -1038,7 +1038,40 @@ export const VERIFIED_CLASS12_READMISSION_ROSTER = [
 
 export function buildClass12ReadmissionRemark(targetCls = '12th', oldAdm = '') {
   const cleanOld = cleanStr(oldAdm).replace(/^\(|\)$/g, '').trim();
-  return `Gap case, hence, readmitted for class ${targetCls}, 2026 (oct-nov session)${cleanOld ? ` • Prev Adm: (${cleanOld})` : ''} • Marks card submitted & verified`;
+  const clsNorm = cleanStr(targetCls).replace(/^class\s*/i, '');
+  return `Gap case: Re-adm ${clsNorm || '12th'}, 2026 (Oct-Nov)${cleanOld ? ` • Prev Adm: ${cleanOld}` : ''} • Marks card verified`;
+}
+
+export function formatCompactRemark(remark) {
+  if (!remark || typeof remark !== 'string') return '';
+  let str = remark.trim();
+  
+  // Compact gap case re-admission phrasing
+  str = str.replace(
+    /Gap\s+case(?:,\s*hence)?,?\s*readmitted\s+for\s+class\s*(\d+\w*|\w+),?\s*([\d-]+)?\s*(?:\(([^)]+)\))?/gi,
+    (match, cls, year, sess) => {
+      let sessPart = '';
+      if (sess) {
+        const cleanSess = sess.replace(/\s*session/gi, '').trim();
+        const capSess = cleanSess.replace(/\b([a-z])/g, m => m.toUpperCase());
+        sessPart = ` (${capSess})`;
+      }
+      return `Gap case: Re-adm ${cls}${year ? `, ${year}` : ''}${sessPart}`;
+    }
+  );
+
+  str = str.replace(/hence,?\s*readmitted\s+for\s+class/gi, 'Re-adm');
+  str = str.replace(/readmitted\s+for\s+class/gi, 'Re-adm');
+  
+  str = str.replace(/\((oct-nov|annual|bi-annual|regular|private)\s+session\)/gi, (m, s) => {
+    return `(${s.replace(/\b([a-z])/g, c => c.toUpperCase())})`;
+  });
+
+  str = str.replace(/Marks\s*card\s*submitted\s*&\s*verified/gi, 'Marks card verified');
+  str = str.replace(/Prev\s*Adm:\s*\((\d+)\)/gi, 'Prev Adm: $1');
+  str = str.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim();
+
+  return str;
 }
 
 // Strict session equality matcher (prevents past session data leaking into current examination fields)
@@ -3366,9 +3399,9 @@ export default function AdmissionRegisterSuite({
         receipt: finalReceipt,
         remarks: isReadmission
           ? (cleanStr(s.remarks || s.Remarks) && (s.remarks || s.Remarks).includes('Gap case') && (s.remarks || s.Remarks).includes('Prev Adm')
-              ? cleanStr(s.remarks || s.Remarks)
+              ? formatCompactRemark(cleanStr(s.remarks || s.Remarks))
               : buildClass12ReadmissionRemark(cls, finalOldAdmNo))
-          : cleanStr(s.remarks || s.Remarks || s['Remarks/Feedback (if any)'] || ''),
+          : formatCompactRemark(cleanStr(s.remarks || s.Remarks || s['Remarks/Feedback (if any)'] || '')),
         inheritedSource,
         hasInheritedData: inheritedFields.size > 0
       });
@@ -6562,19 +6595,20 @@ export default function AdmissionRegisterSuite({
             font-size: ${currentStudentsPerPage >= 16 ? '7.0px' : '7.5px'} !important;
           }
 
-          /* Remarks specifically: allow up to 3 lines with word wrapping so column width is decreased */
+          /* Remarks specifically: allow up to 4-5 lines with word wrapping to show full text without truncation */
           .admission-spread-table td[data-col="p2_remarks"] .remarks-wrap,
-          .admission-spread-table td .line-clamp-3 {
+          .admission-spread-table td[data-col="p2_remarks"] .line-clamp-4,
+          .admission-spread-table td[data-col="p2_remarks"] .line-clamp-3 {
             display: -webkit-box !important;
-            -webkit-line-clamp: 3 !important;
+            -webkit-line-clamp: 5 !important;
             -webkit-box-orient: vertical !important;
             white-space: normal !important;
             word-break: break-word !important;
             overflow-wrap: break-word !important;
-            line-height: 1.08 !important;
-            max-height: calc(${registerRowHeightMm}mm - 0.3mm) !important;
+            line-height: 1.1 !important;
+            max-height: calc(${registerRowHeightMm}mm - 0.2mm) !important;
             overflow: hidden !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.2px'} !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '6.8px' : '7.2px'} !important;
           }
 
           /* Board Registration in Print (both split and single-line) */
@@ -7512,9 +7546,11 @@ export default function AdmissionRegisterSuite({
 
         .admission-spread-table td[data-col="p2_remarks"],
         .admission-spread-table td[data-col="p2_remarks"] .remarks-wrap,
+        .admission-spread-table td[data-col="p2_remarks"] .line-clamp-4,
         .admission-spread-table td[data-col="p2_remarks"] .line-clamp-3 {
-          font-size: 5.2px !important;
-          line-height: 1.1 !important;
+          font-size: 7.2px !important;
+          line-height: 1.12 !important;
+          -webkit-line-clamp: 5 !important;
         }
 
         .register-resizable-row:hover > td {
@@ -9370,7 +9406,7 @@ export default function AdmissionRegisterSuite({
                       onClick={() => {
                         const targetCls = reAdmFormState.targetClass || '12th';
                         const oldAdm = reAdmFormState.oldAdmNo;
-                        const autoRemarks = `Gap case, hence, readmitted for class ${targetCls}, 2026 (oct-nov session)${oldAdm ? ` • Prev Adm: ${oldAdm}` : ''} • Marks card submitted & verified`;
+                        const autoRemarks = buildClass12ReadmissionRemark(targetCls, oldAdm);
                         setReAdmFormState(prev => ({ ...prev, customRemarks: autoRemarks }));
                       }}
                       className="text-[9.5px] font-bold text-purple-700 dark:text-purple-300 hover:underline cursor-pointer bg-purple-100 dark:bg-purple-900/60 px-1.5 py-0.2 rounded"
@@ -9383,7 +9419,7 @@ export default function AdmissionRegisterSuite({
                     rows={2}
                     value={reAdmFormState.customRemarks || ''}
                     onChange={(e) => setReAdmFormState(prev => ({ ...prev, customRemarks: e.target.value }))}
-                    placeholder="e.g. Gap case, hence, readmitted for class 12th, 2026 (oct-nov session)..."
+                    placeholder="e.g. Gap case: Re-adm 12th, 2026 (Oct-Nov) • Prev Adm: 4769 • Marks card verified"
                     className="w-full p-2 text-xs rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-900 font-medium text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-purple-500"
                   />
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">
@@ -9986,8 +10022,8 @@ export default function AdmissionRegisterSuite({
                                       </div>
                                     )}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[5.2px] leading-tight overflow-hidden align-middle" style={{ fontSize: '5.2px' }} data-col="p2_remarks">
-                                    <div className="line-clamp-3 leading-tight break-words remarks-wrap" style={{ fontSize: '5.2px', lineHeight: 1.1 }} title={s.remarks}>{s.remarks}</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.2px] leading-tight overflow-hidden align-middle" style={{ fontSize: '7.2px' }} data-col="p2_remarks">
+                                    <div className="line-clamp-4 leading-[1.12] break-words remarks-wrap" style={{ fontSize: '7.2px', lineHeight: 1.12 }} title={s.remarks}>{formatCompactRemark(s.remarks)}</div>
                                   </td>
                                 </ResizableDataRow>
                               ))}
