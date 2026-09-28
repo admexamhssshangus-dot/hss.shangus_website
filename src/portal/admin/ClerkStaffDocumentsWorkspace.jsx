@@ -155,18 +155,13 @@ export default function ClerkStaffDocumentsWorkspace({
             }`}
           >
             <History size={13} />
-            <span>Clerk Dispatch History</span>
+            <span>Dispatch History</span>
             {historyItems.length > 0 && (
               <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono">
                 {historyItems.length}
               </span>
             )}
           </button>
-        </div>
-
-        <div className="flex items-center gap-1 text-[10.5px] text-slate-500 dark:text-slate-400 px-2 shrink-0">
-          <Shield size={12} className="text-amber-600 dark:text-amber-500" />
-          <span>Accounts Clerk Workspace &bull; Scoped Dispatch</span>
         </div>
       </div>
 

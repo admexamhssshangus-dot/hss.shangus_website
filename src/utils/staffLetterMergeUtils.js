@@ -5,6 +5,7 @@
 
 import * as XLSX from 'xlsx';
 import { sanitizeRichHtml } from './sanitizeRichHtml';
+import { generateOfficialLetterDocx } from './officialLetterExportUtils';
 
 /**
  * Standard Available Employee Mail Merge Variable Tokens
@@ -796,3 +797,32 @@ function executePrintIframe(htmlContent, title = 'Document') {
     }
   }, 400);
 }
+
+/**
+ * Export a single or merged staff letter to Word (.docx) file.
+ */
+export async function generateStaffLetterDocx({
+  bodyHtml = '',
+  employee = {},
+  extraContext = {},
+  officeTitle = 'OFFICE OF THE PRINCIPAL',
+  institutionName = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
+  institutionAddress = 'Anantnag, Kashmir — 192201 (J&K)',
+  signatoryDesignation = 'Principal / DDO'
+}) {
+  const interpolatedHtml = interpolateStaffVariables(bodyHtml, employee, extraContext);
+  const refNo = interpolateStaffVariables(extraContext.refNo || 'HSS/SHG/Estt/2026/___', employee, extraContext);
+  const dateStr = extraContext.dateStr || new Date().toLocaleDateString('en-GB');
+
+  return generateOfficialLetterDocx({
+    officeTitle,
+    institutionName,
+    institutionAddress,
+    refNo,
+    dateStr,
+    bodyHtml: interpolatedHtml,
+    signatoryDesignation,
+    signatoryInstitution: 'Govt. Hr. Sec. School Shangus'
+  });
+}
+
