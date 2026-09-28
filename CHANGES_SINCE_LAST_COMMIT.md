@@ -2,65 +2,40 @@
 
 ## Current Working Changes
 
-### 1. Light Theme Contrast & Text Wrapping Optimization Across ERP Showcases
-- **User Requests Addressed:**
-  1. *"proper contrast in light theme"*
-  2. *"and ensure text is made compact/wrapped correclty where required"*
+### 1. Notice Board Height Calibration & Principal Message Gap Elimination ([Home.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Home.jsx))
+- **User Request Addressed:**
+  - *"where there is gap below principal message box....seems notice board card taking more vertical space"*
 
 - **Root Cause Analysis:**
-  - In `src/index.css` (lines 1555–1563), a blanket override rule (`.theme-light .text-slate-100, .theme-light .text-slate-200, .theme-light .text-slate-300 { color: var(--text-main) !important; }`) was forcing all `text-slate-300` and `text-slate-200` elements to `--text-main` (`#0f172a`, near pure black) whenever `.theme-light` was active.
-  - While this was originally intended for light cards, it inadvertently caused paragraphs inside dark containers (e.g. the **Institutional ERP & Digital Campus** section in `src/pages/Home.jsx` and the header hero on `src/pages/LoginPortal.jsx`) to turn completely black against deep slate/teal backgrounds (contrast ratio ~1.05:1).
+  - In `src/pages/Home.jsx` (`#home-briefing` section):
+    - The section grid (`grid grid-cols-1 md:grid-cols-12 items-stretch`) forced both the left column (Notice Board) and the right column (Principal Message + Stats Cards) to match each other in total height.
+    - The notice list container was configured with `max-h-[400px] sm:max-h-[430px] md:max-h-[460px]`. With 8 active notices populated, the notice board expanded vertically to ~560px.
+    - The right column container had `flex flex-col justify-between gap-5 sm:gap-6`. Because the parent stretched to ~560px to accommodate the tall notice board, `justify-between` anchored the Principal's Message at the top and the Stats Cards at the very bottom, creating an awkward ~180px–190px dead vertical void in the middle.
 
-- **Key Implementations & Contrast Hardening:**
-
-  1. **Theme Inversion Protection in Stylesheet ([index.css](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/index.css)):**
-     - Added targeted overrides protecting all dark/inverted containers in Light Theme:
-       ```css
-       .theme-light .erp-ecosystem-section .text-slate-100,
-       .theme-light .erp-ecosystem-section .text-slate-200,
-       .theme-light .erp-ecosystem-section .text-slate-300,
-       .theme-light .erp-ecosystem-section .erp-card-desc,
-       .theme-light [class*="bg-slate-900"] .text-slate-100,
-       .theme-light [class*="bg-slate-900"] .text-slate-200,
-       .theme-light [class*="bg-slate-900"] .text-slate-300,
-       .theme-light [class*="bg-slate-950"] ...,
-       .theme-light [class*="bg-teal-950"] ...,
-       .theme-light [class*="from-slate-900"] ...,
-       .theme-light [class*="from-teal-950"] ... {
-         color: #cbd5e1 !important;
-       }
-       ```
-     - Guarantees bright, crisp light slate text (`#cbd5e1` / `#ffffff`) with contrast ratio > **10.2:1** (exceeding WCAG AAA standard).
-
-  2. **Homepage ERP Ecosystem Section ([Home.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Home.jsx)):**
-     - Attached the `erp-ecosystem-section` and `erp-card-desc` classes.
-     - Hardened all micro-descriptions and bullet point texts with guaranteed high-contrast inline color fallbacks (`style={{ color: '#cbd5e1' }}`, `#99f6e4`, `#a7f3d0`, `#e9d5ff`, `#a5f3fc`).
-     - Added `truncate` and `leading-snug` to prevent awkward word wrapping on 4-column desktop grids and mobile devices.
-
-  3. **Public Portal Directory ([LoginPortal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/LoginPortal.jsx)):**
-     - Protected hero description text with `style={{ color: '#cbd5e1' }}` and `.erp-card-desc`.
-     - Switched card subheadings from static classes to dynamic theme-aware `style={textMuted}` (`#2e3a4e` in light mode, `#94a3b8` in dark mode).
-     - Added `leading-snug` to all feature checklist items for compact, clean multi-line wrapping.
-
-  4. **Portal Login Page ([LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx)):**
-     - Refined all 24 module micro-descriptions in `ERP_PILLARS` to be punchy, high-information-density, and compact.
-     - Optimized both the desktop Left Showcase and the Mobile Phone Expander with `text-slate-600 dark:text-slate-400 font-semibold leading-snug`.
-     - Upgraded Direct Access chips and Quick System Stats for high readability in both Light and Dark themes.
+- **Key Implementations & Layout Calibration:**
+  1. **Notice List Max-Height Optimization:**
+     - Reduced the notice list scroll container from `max-h-[400px] sm:max-h-[430px] md:max-h-[460px]` to `max-h-[240px] sm:max-h-[255px] md:max-h-[265px]`.
+     - Displays 4–5 notices cleanly at a glance while allowing smooth vertical scrolling for older updates, with direct access to the full notice archive.
+     - Capped total Notice Board card height at ~355px.
+  2. **Right Column Alignment & Natural Spacing:**
+     - Switched right column alignment from `justify-between gap-5 sm:gap-6` to `justify-start md:justify-between gap-3.5 sm:gap-4`.
+     - Calibrated Principal Card inner padding from `p-3.5 sm:p-6` to `p-3.5 sm:p-5`.
+     - Tightened header margin from `mb-3` to `mb-2.5 sm:mb-3`.
+  3. **Visual & Geometric Balance:**
+     - Both columns now calibrate naturally to ~350px–360px.
+     - The dead vertical void below the Principal's Message is eliminated, replaced with a clean, cohesive, and balanced 14px–16px (`gap-3.5 sm:gap-4`) spacing directly above the Stats cards.
 
 ---
 
 ## Files Modified
-- `src/index.css`
 - `src/pages/Home.jsx`
-- `src/pages/LoginPortal.jsx`
-- `src/portal/LoginPage.jsx`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(theme): resolve light mode contrast and optimize compact text wrapping across ERP sections
+fix(home): eliminate vertical gap below principal message by calibrating notice board height
 ```
 
 ---
@@ -75,14 +50,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "fix(theme): resolve light mode contrast and optimize compact text wrapping across ERP sections"
+git commit -m "fix(home): eliminate vertical gap below principal message by calibrating notice board height"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "fix(theme): resolve light mode contrast and optimize compact text wrapping across ERP sections"
+git commit -m "fix(home): eliminate vertical gap below principal message by calibrating notice board height"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
@@ -91,3 +66,4 @@ git commit -m "fix(theme): resolve light mode contrast and optimize compact text
 ```bash
 git push origin main
 ```
+
