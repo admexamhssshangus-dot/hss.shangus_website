@@ -2,35 +2,40 @@
 
 ## Current Working Changes
 
-### 1. Allow Full Wrapping of Date of Birth in Words Without Truncation
+### 1. Enable Keyboard "Next" Key & Arrow Navigation for Student Marks Entry
 - **Context & Requirement:**
-  - In Part 1 of the Admission Register (`DATE OF BIRTH` -> `WORDS` column, `data-col="dobWords"`), long date-of-birth word strings (e.g. *"Twenty-Fifth of September Two Thousand Six"*, *"Twenty-Second of September Two Thousand Eight"*) were clamped to 2 lines (`line-clamp-2`).
-  - This resulted in premature truncation with ellipsis (`...`) at line 2 (e.g. *"September Two Thousan..."*).
+  - Teachers entering practical evaluation marks on mobile phones reported that the "Next" key on the on-screen keyboard (Gboard / iOS / Samsung Keyboard) did not advance to the next student.
+  - Teachers had to manually tap every single student's input box individually.
   - The user requested:
-    > *"wrap dob in words correctly"*
-- **Resolutions in [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):**
-  - **Screen & Print CSS:**
-    - Updated `td[data-col="dobWords"]` to allow up to 3 lines via `-webkit-line-clamp: 3` (`line-clamp-3`).
-    - Adjusted font size to `7.2px` (screen/standard print) and `6.8px` (dense print 16+ per page) with tight line height (`line-height: 1.08`).
-    - Added `:not([data-col="dobWords"])` exclusion to the general `.line-clamp-2` rule so it does not clamp DOB words to 2 lines.
-  - **Table Body JSX:**
-    - Updated `td` and inner `div` to `line-clamp-3`, `text-[7.2px]`, `leading-[1.08]`, and added `dob-words-wrap`.
-- **Result:**
-  - Long multi-word dates of birth now wrap cleanly over up to 3 lines within the row height, showing all words in full without trailing ellipsis (`...`) or cutoff.
+    > *"teachers are complaining that the next key on key board is not working...i mean it shall go to next student...currently we need to click each cell individually"*
+- **Resolutions in [PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx):**
+  - **Keyboard Event Handler (`handleInputKeyDown`):**
+    - Listens for `Enter`, `keyCode === 13`, `Tab` (without Shift), or `ArrowDown` to immediately advance focus to the next student's marks input cell (`idx + 1`).
+    - Listens for `Shift + Tab` or `ArrowUp` to navigate backward to the previous student's marks input cell (`idx - 1`).
+    - Uses `nextEl.focus()` and `nextEl.select()` so teachers can immediately type the next student's marks without needing to delete or backspace existing values.
+    - Uses `nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' })` to keep the active input visible in the middle of the screen above the virtual keyboard.
+    - Automatically blurs the active input when reaching the end of the student roster, smoothly dismissing the soft keyboard so teachers can review or submit.
+  - **Mobile Roster Cards & Desktop Table Inputs:**
+    - Added `id={`practical-mark-input-mobile-${idx}`}` and `id={`practical-mark-input-desktop-${idx}`}`.
+    - Added `enterKeyHint={idx === displayedStudents.length - 1 ? 'done' : 'next'}` to explicitly show the "Next" action button on mobile keyboards.
+    - Added `onFocus={(e) => e.target.select()}` for instant overwrite capability when clicking or navigating.
+    - Connected `onKeyDown={(e) => handleInputKeyDown(e, idx, 'mobile')}` and desktop equivalent.
+  - **Validation Incomplete Modal:**
+    - Applied identical keyboard navigation logic to incomplete mark resolution inputs in the pre-submission validation dialog.
 - **Build Verification:**
   - Tested with `npm run build` — completed with `Exit Code 0` and zero breaking errors.
 
 ---
 
 ## Files Modified
-- `src/portal/admin/AdmissionRegisterSuite.jsx`
+- `src/portal/teacher/PracticalsPage.jsx`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ## Local Commit Message
 ```bash
-style(admission-register): allow 3-line wrap for dob in words to prevent truncation
+feat(practicals): enable mobile keyboard next key and arrow navigation for marks entry
 ```
 
 ---
@@ -45,14 +50,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "style(admission-register): allow 3-line wrap for dob in words to prevent truncation"
+git commit -m "feat(practicals): enable mobile keyboard next key and arrow navigation for marks entry"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "style(admission-register): allow 3-line wrap for dob in words to prevent truncation"
+git commit -m "feat(practicals): enable mobile keyboard next key and arrow navigation for marks entry"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
