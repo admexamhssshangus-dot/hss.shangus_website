@@ -453,12 +453,12 @@ function renderPenCell(pen) {
     const parts = str.split(',');
     return (
       <div className="flex flex-col items-center justify-center leading-[1.05] break-all max-w-full overflow-hidden">
-        <span className="font-bold text-[7.5px] leading-tight break-all">{parts[0].trim()}</span>
-        {parts[1] && <span className="text-[6.5px] text-slate-600 font-medium leading-tight break-all">{parts[1].trim()}</span>}
+        <span className="font-bold text-[8.5px] leading-tight break-all pen-val">{parts[0].trim()}</span>
+        {parts[1] && <span className="text-[7.5px] text-slate-600 font-medium leading-tight break-all pen-sub">{parts[1].trim()}</span>}
       </div>
     );
   }
-  return <div className="break-all max-w-full leading-tight text-[7.5px] truncate">{str}</div>;
+  return <div className="break-all max-w-full leading-tight text-[8.5px] truncate pen-val">{str}</div>;
 }
 
 function renderAdmittedVideCell(val) {
@@ -471,16 +471,16 @@ function renderAdmittedVideCell(val) {
     const datePart = formatRegisterDate(rawDatePart) || rawDatePart;
     return (
       <div className="flex flex-col items-center justify-center leading-[1.05] overflow-hidden">
-        <span className="font-bold text-[7.5px] leading-tight">{noPart}{datePart ? ';' : ''}</span>
+        <span className="font-bold text-[8.5px] leading-tight cc-val">{noPart}{datePart ? ';' : ''}</span>
         {datePart && (
-          <span className="whitespace-nowrap font-medium text-[6.8px] text-emerald-950 leading-tight">
+          <span className="whitespace-nowrap font-medium text-[7.8px] text-emerald-950 leading-tight cc-date">
             {datePart}
           </span>
         )}
       </div>
     );
   }
-  return <span className="leading-tight break-words text-[7.5px]">{str}</span>;
+  return <span className="leading-tight break-words text-[8.5px] font-bold cc-val">{str}</span>;
 }
 
 const BOARD_REGISTRATION_KEYS = [
@@ -6498,6 +6498,34 @@ export default function AdmissionRegisterSuite({
             line-height: 1.1 !important;
           }
 
+          .admission-spread-table td[data-col="p2_account"] .account-num {
+            font-size: ${currentStudentsPerPage >= 16 ? '8.2px' : '9.0px'} !important;
+          }
+          .admission-spread-table td[data-col="p2_account"] .ifsc-code {
+            font-size: ${currentStudentsPerPage >= 16 ? '7.2px' : '8.0px'} !important;
+          }
+
+          .admission-spread-table td[data-col="p2_prevSchool"],
+          .admission-spread-table td[data-col="p2_prevSchool"] > div {
+            font-size: ${currentStudentsPerPage >= 16 ? '7.8px' : '8.5px'} !important;
+          }
+
+          .admission-spread-table td[data-col="p2_pen"],
+          .admission-spread-table td[data-col="p2_pen"] .pen-val {
+            font-size: ${currentStudentsPerPage >= 16 ? '7.8px' : '8.5px'} !important;
+          }
+          .admission-spread-table td[data-col="p2_pen"] .pen-sub {
+            font-size: ${currentStudentsPerPage >= 16 ? '6.8px' : '7.5px'} !important;
+          }
+
+          .admission-spread-table td[data-col="p2_prevCC"],
+          .admission-spread-table td[data-col="p2_prevCC"] .cc-val {
+            font-size: ${currentStudentsPerPage >= 16 ? '7.8px' : '8.5px'} !important;
+          }
+          .admission-spread-table td[data-col="p2_prevCC"] .cc-date {
+            font-size: ${currentStudentsPerPage >= 16 ? '7.0px' : '7.8px'} !important;
+          }
+
           .admission-spread-table tbody tr > td * {
             box-sizing: border-box !important;
           }
@@ -7430,6 +7458,34 @@ export default function AdmissionRegisterSuite({
         .admission-spread-table td[data-col="p2_prevResult"] span {
           font-size: 6.5px !important;
           line-height: 1.1 !important;
+        }
+
+        .admission-spread-table td[data-col="p2_account"] .account-num {
+          font-size: 9.0px !important;
+        }
+        .admission-spread-table td[data-col="p2_account"] .ifsc-code {
+          font-size: 8.0px !important;
+        }
+
+        .admission-spread-table td[data-col="p2_prevSchool"],
+        .admission-spread-table td[data-col="p2_prevSchool"] > div {
+          font-size: 8.5px !important;
+        }
+
+        .admission-spread-table td[data-col="p2_pen"],
+        .admission-spread-table td[data-col="p2_pen"] .pen-val {
+          font-size: 8.5px !important;
+        }
+        .admission-spread-table td[data-col="p2_pen"] .pen-sub {
+          font-size: 7.5px !important;
+        }
+
+        .admission-spread-table td[data-col="p2_prevCC"],
+        .admission-spread-table td[data-col="p2_prevCC"] .cc-val {
+          font-size: 8.5px !important;
+        }
+        .admission-spread-table td[data-col="p2_prevCC"] .cc-date {
+          font-size: 7.8px !important;
         }
 
         .register-resizable-row:hover > td {
@@ -9840,18 +9896,18 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-black text-[8px]" data-col="p2_cat">{s.category}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 text-[8px]" data-col="p2_socio">{s.socioEcon}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-bold text-[8px]" data-col="p2_blood">{s.blood}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left align-middle font-mono bg-yellow-50 ledger-mono-font overflow-hidden text-[7.8px]" data-col="p2_account">
-                                     <div className="font-bold text-[8px] text-slate-900 leading-tight truncate">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left align-middle font-mono bg-yellow-50 ledger-mono-font overflow-hidden text-[8.8px]" data-col="p2_account">
+                                     <div className="account-num font-bold text-[9px] text-slate-900 leading-tight truncate" style={{ fontSize: '9px' }}>
                                        {s.account && s.account !== '—' ? s.account : '—'}
                                      </div>
                                      {s.ifsc && s.ifsc !== '—' && s.ifsc !== 'NA' && (
-                                       <div className="text-[7px] text-slate-600 font-medium leading-tight truncate">
+                                       <div className="ifsc-code text-[8px] text-slate-600 font-medium leading-tight truncate" style={{ fontSize: '8px' }}>
                                          {s.ifsc}
                                        </div>
                                      )}
                                    </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight overflow-hidden align-middle" data-col="p2_prevSchool">
-                                    <div className="line-clamp-2 leading-tight break-words">{s.prevSchool}</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[8.5px] leading-tight overflow-hidden align-middle" style={{ fontSize: '8.5px' }} data-col="p2_prevSchool">
+                                    <div className="line-clamp-2 leading-tight break-words text-[8.5px]" style={{ fontSize: '8.5px' }}>{s.prevSchool}</div>
                                   </td>
                                   <td className="border border-slate-900 px-0.5 py-0.5 text-center font-mono ledger-mono-font text-[6.5px]" style={{ fontSize: '6.5px' }} data-col="p2_prevRoll">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-0.5 py-0.5 text-center font-bold text-[6.5px]" style={{ fontSize: '6.5px' }} data-col="p2_prevResult">
@@ -9864,8 +9920,8 @@ export default function AdmissionRegisterSuite({
                                       return <span className={pClass} style={pColor ? { color: pColor, fontSize: '6.5px' } : { fontSize: '6.5px' }}>{pRes || '—'}</span>;
                                     })()}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.8px] ledger-mono-font overflow-hidden" data-col="p2_pen">{renderPenCell(s.pen)}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7.8px] bg-emerald-50" data-col="p2_prevCC">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8.8px] ledger-mono-font overflow-hidden" data-col="p2_pen">{renderPenCell(s.pen)}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[8.8px] bg-emerald-50" data-col="p2_prevCC">
                                     {renderAdmittedVideCell(s.prevCC)}
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.8px] bg-rose-50" data-col="p2_withdrawal"></td>
