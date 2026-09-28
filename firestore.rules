@@ -597,13 +597,13 @@ service cloud.firestore {
     match /generatedDocumentHistory/{documentId} {
       allow read: if isTeacher();
       allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
-      allow delete: if canUse('officialLetter');
+      allow delete: if canUseAny(['officialLetter', 'accounts']) || isSuperAdmin();
     }
 
     match /documentHistory/{documentId} {
       allow read: if isTeacher();
       allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
-      allow delete: if canUse('certStudio');
+      allow delete: if canUseAny(['officialLetter', 'accounts', 'certStudio']) || isSuperAdmin();
     }
 
     // Permanent uniqueness ledger: a TC/CC number is owned by exactly one
