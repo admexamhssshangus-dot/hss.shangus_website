@@ -705,10 +705,10 @@ export default function Home() {
       <section id="home-briefing" className="home-briefing max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-12 grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-7 lg:gap-8 items-stretch" aria-label="School updates and Principal's message">
         
         {/* Notices Sidebar */}
-        <div className="col-span-1 md:col-span-5 lg:col-span-4 xl:col-span-4 flex flex-col">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300">
+        <div className="col-span-1 md:col-span-5 lg:col-span-4 xl:col-span-4 flex flex-col md:relative">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden flex flex-col h-full md:absolute md:inset-0 transition-all duration-300">
             {/* Header: Rich Emerald-Teal Gradient with Live Pulsing Beacon */}
-            <div className="bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-950 text-white px-3.5 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between border-b border-teal-700/50 shadow-2xs">
+            <div className="bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-950 text-white px-3.5 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between border-b border-teal-700/50 shadow-2xs shrink-0">
               <div className="flex items-center gap-2.5 min-w-0">
                 <span className="relative flex h-2.5 w-2.5 shrink-0">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -725,7 +725,7 @@ export default function Home() {
             </div>
 
             {/* List - Interactive Cards with Micro-Calendar Date Badges */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 max-h-[240px] sm:max-h-[255px] md:max-h-[265px]">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 max-h-[300px] md:max-h-none">
               <ul className="space-y-1.5 m-0 p-0 list-none">
                 {notices.map((n, idx) => {
                   const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
@@ -801,7 +801,7 @@ export default function Home() {
             </div>
 
             {/* Footer: Full-Width Executive Action Button */}
-            <div className="bg-slate-50/90 dark:bg-slate-900/90 p-2.5 sm:p-3 text-center border-t border-slate-100 dark:border-slate-800 mt-auto">
+            <div className="bg-slate-50/90 dark:bg-slate-900/90 p-2.5 sm:p-3 text-center border-t border-slate-100 dark:border-slate-800 shrink-0">
               <Link
                 to="/notices"
                 className="w-full py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100/90 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 border border-teal-200/80 dark:border-teal-800/80 text-teal-800 dark:text-teal-300 hover:text-teal-950 dark:hover:text-teal-200 font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-2xs hover:shadow-xs group/btn cursor-pointer"
