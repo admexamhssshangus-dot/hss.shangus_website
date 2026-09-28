@@ -6491,6 +6491,13 @@ export default function AdmissionRegisterSuite({
             text-align: center !important;
           }
 
+          .admission-spread-table td[data-col="p2_prevRoll"],
+          .admission-spread-table td[data-col="p2_prevResult"],
+          .admission-spread-table td[data-col="p2_prevResult"] span {
+            font-size: ${currentStudentsPerPage >= 16 ? '6.0px' : '6.5px'} !important;
+            line-height: 1.1 !important;
+          }
+
           .admission-spread-table tbody tr > td * {
             box-sizing: border-box !important;
           }
@@ -7416,6 +7423,13 @@ export default function AdmissionRegisterSuite({
         .admission-spread-table td[data-col="mother"],
         .admission-spread-table td[data-col="mother"] > div {
           font-size: 9.5px !important;
+        }
+
+        .admission-spread-table td[data-col="p2_prevRoll"],
+        .admission-spread-table td[data-col="p2_prevResult"],
+        .admission-spread-table td[data-col="p2_prevResult"] span {
+          font-size: 6.5px !important;
+          line-height: 1.1 !important;
         }
 
         .register-resizable-row:hover > td {
@@ -9839,15 +9853,15 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight overflow-hidden align-middle" data-col="p2_prevSchool">
                                     <div className="line-clamp-2 leading-tight break-words">{s.prevSchool}</div>
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font text-[8px]" data-col="p2_prevRoll">{s.prevRoll}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8px]" data-col="p2_prevResult">
+                                  <td className="border border-slate-900 px-0.5 py-0.5 text-center font-mono ledger-mono-font text-[6.5px]" style={{ fontSize: '6.5px' }} data-col="p2_prevRoll">{s.prevRoll}</td>
+                                  <td className="border border-slate-900 px-0.5 py-0.5 text-center font-bold text-[6.5px]" style={{ fontSize: '6.5px' }} data-col="p2_prevResult">
                                     {(() => {
                                       const pRes = String(s.prevResult || '').trim();
                                       const isPQual = /^(pass|passed|qual|qualified)\b/i.test(pRes) || /qualified/i.test(pRes) || /passed/i.test(pRes);
                                       const isPReap = /^(reap|reappear|fail|failed)\b/i.test(pRes) || /reappear/i.test(pRes) || /reap\b/i.test(pRes);
                                       const pColor = isPQual ? '#047857' : isPReap ? '#b91c1c' : undefined;
                                       const pClass = isPQual ? 'text-emerald-700 dark:text-emerald-400 font-black' : isPReap ? 'text-red-700 dark:text-red-400 font-black' : 'font-bold';
-                                      return <span className={pClass} style={pColor ? { color: pColor } : undefined}>{pRes || '—'}</span>;
+                                      return <span className={pClass} style={pColor ? { color: pColor, fontSize: '6.5px' } : { fontSize: '6.5px' }}>{pRes || '—'}</span>;
                                     })()}
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.8px] ledger-mono-font overflow-hidden" data-col="p2_pen">{renderPenCell(s.pen)}</td>
