@@ -21,9 +21,18 @@ import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 export default function ClerkStaffDocumentsWorkspace({
   faculty = [],
   user = null,
-  settings = {}
+  settings = {},
+  initialSubTab = 'letterhead',
+  onOpenHistory = null,
+  onBackToWorkspace = null
 }) {
-  const [activeSubTab, setActiveSubTab] = useState('letterhead'); // 'letterhead', 'roster', 'history'
+  const [activeSubTab, setActiveSubTab] = useState(initialSubTab || 'letterhead');
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   // History State
   const [historyItems, setHistoryItems] = useState([]);
@@ -51,6 +60,10 @@ export default function ClerkStaffDocumentsWorkspace({
       setLoadingHistory(false);
     }
   };
+
+  useEffect(() => {
+    loadClerkHistory();
+  }, []);
 
   useEffect(() => {
     if (activeSubTab === 'history') {
@@ -115,46 +128,55 @@ export default function ClerkStaffDocumentsWorkspace({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* ─── SUB-NAVIGATION BAR (LETTERHEAD WRITER | STAFF ROSTERS | CLERK HISTORY) ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-1 sm:p-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-1 rounded-lg bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           <button
             type="button"
-            onClick={() => setActiveSubTab('letterhead')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            onClick={() => {
+              setActiveSubTab('letterhead');
+              if (onBackToWorkspace) onBackToWorkspace();
+            }}
+            className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'letterhead'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
-            <FileText size={13} />
+            <FileText size={12} />
             <span>Official Letterhead &amp; Mail Merge</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveSubTab('roster')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            onClick={() => {
+              setActiveSubTab('roster');
+              if (onBackToWorkspace) onBackToWorkspace();
+            }}
+            className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'roster'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
-            <FileSpreadsheet size={13} />
+            <FileSpreadsheet size={12} />
             <span>Custom Staff Registers &amp; Rosters</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveSubTab('history')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            onClick={() => {
+              setActiveSubTab('history');
+              if (onOpenHistory) onOpenHistory();
+            }}
+            className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'history'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
-            <History size={13} />
+            <History size={12} />
             <span>Dispatch History</span>
             {historyItems.length > 0 && (
               <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono">

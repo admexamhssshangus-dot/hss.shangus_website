@@ -23,6 +23,11 @@ export const STAFF_MERGE_VARIABLES = [
   { token: '{{bank_name}}', label: 'Bank Name', key: 'bank_name', sample: 'J&K Bank Shangus' },
   { token: '{{ifsc}}', label: 'IFSC Code', key: 'ifsc', sample: 'JAKA0SHNGUS' },
   { token: '{{mobile}}', label: 'Mobile Number', key: 'mobile', sample: '9419000000' },
+  { token: '{{email}}', label: 'Email Address', key: 'email', sample: 'teacher@jk.gov.in' },
+  { token: '{{parentage}}', label: "Father's / Parent Name", key: 'parentage', sample: 'Ghulam Mohammad' },
+  { token: '{{dob}}', label: 'Date of Birth', key: 'dob', sample: '01-03-1980' },
+  { token: '{{qualification}}', label: 'Qualifications', key: 'qualification', sample: 'M.Sc, B.Ed, M.Phil' },
+  { token: '{{permanent_address}}', label: 'Permanent Address', key: 'permanent_address', sample: 'Shangus, Anantnag' },
   { token: '{{doj}}', label: 'Date of Joining', key: 'doj', sample: '15-04-2012' },
   { token: '{{ref_no}}', label: 'Reference / Dispatch No.', key: 'ref_no', sample: 'HSS/SHG/Estt/2026/042' },
   { token: '{{date}}', label: 'Dispatch Date', key: 'date', sample: new Date().toLocaleDateString('en-GB') },
@@ -43,6 +48,44 @@ export const STANDARD_STAFF_ROSTER_COLUMNS = [
   { key: 'bankAccount', label: 'Bank Account', defaultSelected: false, widthPct: 13, align: 'center' },
   { key: 'phone', label: 'Mobile No.', defaultSelected: false, widthPct: 10, align: 'center' },
   { key: 'remarks', label: 'Remarks', defaultSelected: true, widthPct: 10, align: 'left' }
+];
+
+/**
+ * All Other Available Columns about Staff (Expandable under "More Columns")
+ */
+export const MORE_STAFF_ROSTER_COLUMNS = [
+  { key: 'parentage', label: "Father's / Parent Name", widthPct: 14, align: 'left' },
+  { key: 'dob', label: 'Date of Birth', widthPct: 10, align: 'center' },
+  { key: 'gender', label: 'Gender', widthPct: 8, align: 'center' },
+  { key: 'category', label: 'Social Category', widthPct: 10, align: 'center' },
+  { key: 'email', label: 'Email Address', widthPct: 15, align: 'left' },
+  { key: 'gov_mail_id', label: 'Govt. Mail ID', widthPct: 14, align: 'left' },
+  { key: 'doj', label: 'Date of 1st Appointment', widthPct: 12, align: 'center' },
+  { key: 'designation_at_first_appointment', label: 'Designation at 1st Appt', widthPct: 14, align: 'left' },
+  { key: 'stay_period', label: 'Stay Period / From', widthPct: 10, align: 'center' },
+  { key: 'cadre', label: 'Service Cadre', widthPct: 10, align: 'center' },
+  { key: 'qualification', label: 'Qualifications', widthPct: 13, align: 'left' },
+  { key: 'subject_pg', label: 'PG Subject', widthPct: 11, align: 'left' },
+  { key: 'bed', label: 'B.Ed Status', widthPct: 9, align: 'center' },
+  { key: 'zone_name', label: 'Zone Name', widthPct: 10, align: 'center' },
+  { key: 'ddo_code', label: 'UDISE / DDO Code', widthPct: 11, align: 'center' },
+  { key: 'monthly_salary', label: 'Monthly Gross Salary', widthPct: 11, align: 'right' },
+  { key: 'net_salary', label: 'Net Take-Home Salary', widthPct: 11, align: 'right' },
+  { key: 'tds', label: 'TDS Paid', widthPct: 10, align: 'right' },
+  { key: 'tax_regime', label: 'Tax Regime', widthPct: 9, align: 'center' },
+  { key: 'deduction_80c', label: '80C Deductions', widthPct: 10, align: 'right' },
+  { key: 'deduction_80d', label: '80D Deductions', widthPct: 10, align: 'right' },
+  { key: 'bank_name', label: 'Bank Name', widthPct: 13, align: 'left' },
+  { key: 'ifsc', label: 'IFSC Code', widthPct: 11, align: 'center' },
+  { key: 'permanent_address', label: 'Permanent Address', widthPct: 16, align: 'left' },
+  { key: 'present_address', label: 'Present Address', widthPct: 16, align: 'left' },
+  { key: 'if_deployed', label: 'Deployment Status', widthPct: 10, align: 'center' },
+  { key: 'health_issues', label: 'Health / Security Grounds', widthPct: 14, align: 'left' }
+];
+
+export const ALL_STAFF_ROSTER_COLUMNS = [
+  ...STANDARD_STAFF_ROSTER_COLUMNS,
+  ...MORE_STAFF_ROSTER_COLUMNS
 ];
 
 /**
@@ -213,11 +256,36 @@ export function getEmployeeVariablesMap(emp = {}, extraContext = {}) {
   const monthlyNum = grossNum > 0 ? Math.round(grossNum / 12) : 0;
   const netNum = parseFloat(emp.netSalary) || 0;
 
-  const bankAccount = emp.bank_account || emp.accountNo || emp.bankAccount || emp.account_no || '—';
-  const bankName = emp.bank_name || emp.bank || 'J&K Bank Shangus';
-  const ifsc = emp.ifsc || emp.ifscCode || 'JAKA0SHNGUS';
-  const mobile = emp.phone || emp.mobile || emp.contact || '—';
-  const doj = emp.doj || emp.dateOfJoining || emp.joiningDate || '—';
+  const bankAccount = emp.bank_account || emp.accountNo || emp.bankAccount || emp.account_no || emp.customFields?.['Bank Account'] || '—';
+  const bankName = emp.bank_name || emp.bank || emp.customFields?.['Bank Name'] || 'J&K Bank Shangus';
+  const ifsc = emp.ifsc || emp.ifscCode || emp.customFields?.['IFSC Code'] || 'JAKA0SHNGUS';
+  const mobile = emp.phone || emp.mobile || emp.contact || emp.customFields?.['Mobile No.'] || '—';
+  const doj = emp.date_of_first_appointment || emp.doj || emp.dateOfJoining || emp.joiningDate || emp.customFields?.['Date of 1st Appointment'] || '—';
+  const parentage = emp.parentage || emp.fatherName || emp.father_name || emp.customFields?.["Father's Name"] || '—';
+  const dob = emp.dob || emp.dateOfBirth || emp.customFields?.['Date of Birth'] || '—';
+  const gender = emp.gender || emp.customFields?.Gender || '—';
+  const email = emp.email || emp.customFields?.['Email Address'] || '—';
+  const gov_mail_id = emp.gov_mail_id || emp.govEmail || emp.customFields?.['Govt. Mail ID'] || '—';
+  const stay_period = emp.stay_period || emp.stayFrom || emp.customFields?.['Stay Period'] || '—';
+  const qualification = emp.qualification || emp.qualifications || emp.customFields?.Qualifications || '—';
+  const permanent_address = emp.permanent_address || emp.address || emp.customFields?.['Permanent Address'] || '—';
+  const present_address = emp.present_address || emp.customFields?.['Present Address'] || '—';
+  const if_deployed = emp.if_deployed || emp.customFields?.['If Deployed'] || 'No';
+  const health_issues = emp.health_issues || emp.customFields?.['Health/Security Grounds'] || '—';
+  const tax_regime = (emp.taxRegime || emp.customFields?.['Tax Regime'] || 'new').toUpperCase();
+  const rawTds = parseFloat(emp.tds) || parseFloat(emp.customFields?.TDS) || parseFloat(emp.customFields?.tds) || 0;
+  const tds = rawTds > 0 ? formatCurrencyInr(rawTds) : '—';
+
+  const category = emp.category || emp.social_category || emp.customFields?.Category || '—';
+  const designation_at_first_appointment = emp.designation_at_first_appointment || emp.firstDesignation || emp.customFields?.['Designation at 1st Appt'] || '—';
+  const subject_pg = emp.subject_pg || emp.subject || emp.customFields?.['PG Subject'] || '—';
+  const bed = emp.bed || emp.customFields?.['B.ED'] || emp.customFields?.bed || '—';
+  const zone_name = emp.zone_name || emp.zone || 'Shangus';
+  const ddo_code = emp.ddo_code || emp.udise_code || '1061400618';
+  const raw80c = parseFloat(emp.deduction_80c) || parseFloat(emp.tax80C) || parseFloat(emp.customFields?.['80C']) || 0;
+  const deduction_80c = raw80c > 0 ? formatCurrencyInr(raw80c) : '—';
+  const raw80d = parseFloat(emp.deduction_80d) || parseFloat(emp.tax80D) || parseFloat(emp.customFields?.['80D']) || 0;
+  const deduction_80d = raw80d > 0 ? formatCurrencyInr(raw80d) : '—';
 
   return {
     name,
@@ -235,11 +303,83 @@ export function getEmployeeVariablesMap(emp = {}, extraContext = {}) {
     ifsc,
     mobile,
     phone: mobile,
+    email,
+    parentage,
+    dob,
+    gender,
+    category,
+    gov_mail_id,
     doj,
+    designation_at_first_appointment,
+    stay_period,
+    qualification,
+    subject_pg,
+    bed,
+    zone_name,
+    ddo_code,
+    permanent_address,
+    present_address,
+    if_deployed,
+    health_issues,
+    tax_regime,
+    tds,
+    deduction_80c,
+    deduction_80d,
     ref_no: extraContext.refNo || 'HSS/SHG/Estt/2026/___',
     date: extraContext.dateStr || new Date().toLocaleDateString('en-GB'),
     academic_session: extraContext.session || '2025–26'
   };
+}
+
+/**
+ * Standard Cell Resolver for any staff column (Standard or More Columns)
+ */
+export function resolveStaffColumnValue(col, emp = {}, idx = 0, vars = null, isPrint = false) {
+  if (!vars) vars = getEmployeeVariablesMap(emp);
+  const key = col.key;
+
+  if (key === 'sno') return idx + 1;
+  if (key === 'cpis') return vars.cpis;
+  if (key === 'name') return isPrint ? `<strong>${vars.name}</strong>` : vars.name;
+  if (key === 'designation') return vars.designation;
+  if (key === 'department') return vars.department;
+  if (key === 'pan') return vars.pan;
+  if (key === 'grossSalary') return vars.gross_salary;
+  if (key === 'bankAccount') return vars.bank_account;
+  if (key === 'phone' || key === 'mobile') return vars.mobile;
+  if (key === 'remarks') return emp.remarks || '—';
+
+  // More Staff Columns
+  if (key === 'parentage') return vars.parentage;
+  if (key === 'dob') return vars.dob;
+  if (key === 'gender') return vars.gender;
+  if (key === 'category') return vars.category;
+  if (key === 'email') return vars.email;
+  if (key === 'gov_mail_id') return vars.gov_mail_id;
+  if (key === 'doj') return vars.doj;
+  if (key === 'designation_at_first_appointment') return vars.designation_at_first_appointment;
+  if (key === 'stay_period') return vars.stay_period;
+  if (key === 'cadre') return vars.cadre;
+  if (key === 'qualification') return vars.qualification;
+  if (key === 'subject_pg') return vars.subject_pg;
+  if (key === 'bed') return vars.bed;
+  if (key === 'zone_name') return vars.zone_name;
+  if (key === 'ddo_code') return vars.ddo_code;
+  if (key === 'monthly_salary') return vars.monthly_salary;
+  if (key === 'net_salary') return vars.net_salary;
+  if (key === 'tds') return vars.tds;
+  if (key === 'tax_regime') return vars.tax_regime;
+  if (key === 'deduction_80c') return vars.deduction_80c;
+  if (key === 'deduction_80d') return vars.deduction_80d;
+  if (key === 'bank_name') return vars.bank_name;
+  if (key === 'ifsc') return vars.ifsc;
+  if (key === 'permanent_address') return vars.permanent_address;
+  if (key === 'present_address') return vars.present_address;
+  if (key === 'if_deployed') return vars.if_deployed;
+  if (key === 'health_issues') return vars.health_issues;
+
+  if (col.isCustom) return isPrint ? '&nbsp;' : '';
+  return vars[key] || emp[key] || emp.customFields?.[key] || emp.customFields?.[col.label] || '—';
 }
 
 /**
@@ -531,19 +671,7 @@ export function printCustomStaffRoster({
     totalGross += (vars.grossSalaryRaw || 0);
 
     const cells = allCols.map(col => {
-      let val = '';
-      if (col.key === 'sno') val = idx + 1;
-      else if (col.key === 'cpis') val = vars.cpis;
-      else if (col.key === 'name') val = `<strong>${vars.name}</strong>`;
-      else if (col.key === 'designation') val = vars.designation;
-      else if (col.key === 'department') val = vars.department;
-      else if (col.key === 'pan') val = vars.pan;
-      else if (col.key === 'grossSalary') val = vars.gross_salary;
-      else if (col.key === 'bankAccount') val = vars.bank_account;
-      else if (col.key === 'phone') val = vars.mobile;
-      else if (col.isCustom) val = '&nbsp;'; // Blank for physical signatures or notes
-      else val = emp[col.key] || '—';
-
+      const val = resolveStaffColumnValue(col, emp, idx, vars, true);
       return `<td style="text-align: ${col.align || 'left'};">${val}</td>`;
     }).join('');
 
@@ -707,17 +835,11 @@ export function exportStaffRosterExcel({ columns = [], rows = [], extraCustomCol
     const vars = getEmployeeVariablesMap(emp);
     const rowObj = {};
     allCols.forEach(col => {
-      if (col.key === 'sno') rowObj[col.label] = idx + 1;
-      else if (col.key === 'cpis') rowObj[col.label] = vars.cpis;
-      else if (col.key === 'name') rowObj[col.label] = vars.name;
-      else if (col.key === 'designation') rowObj[col.label] = vars.designation;
-      else if (col.key === 'department') rowObj[col.label] = vars.department;
-      else if (col.key === 'pan') rowObj[col.label] = vars.pan;
-      else if (col.key === 'grossSalary') rowObj[col.label] = vars.grossSalaryRaw || vars.gross_salary;
-      else if (col.key === 'bankAccount') rowObj[col.label] = vars.bank_account;
-      else if (col.key === 'phone') rowObj[col.label] = vars.mobile;
-      else if (col.isCustom) rowObj[col.label] = '';
-      else rowObj[col.label] = emp[col.key] || '';
+      if (col.key === 'grossSalary') {
+        rowObj[col.label] = vars.grossSalaryRaw || vars.gross_salary;
+      } else {
+        rowObj[col.label] = resolveStaffColumnValue(col, emp, idx, vars, false);
+      }
     });
     return rowObj;
   });
@@ -737,19 +859,7 @@ export function exportStaffRosterCsv({ columns = [], rows = [], extraCustomColum
   const lines = rows.map((emp, idx) => {
     const vars = getEmployeeVariablesMap(emp);
     return allCols.map(col => {
-      let val = '';
-      if (col.key === 'sno') val = idx + 1;
-      else if (col.key === 'cpis') val = vars.cpis;
-      else if (col.key === 'name') val = vars.name;
-      else if (col.key === 'designation') val = vars.designation;
-      else if (col.key === 'department') val = vars.department;
-      else if (col.key === 'pan') val = vars.pan;
-      else if (col.key === 'grossSalary') val = vars.gross_salary;
-      else if (col.key === 'bankAccount') val = vars.bank_account;
-      else if (col.key === 'phone') val = vars.mobile;
-      else if (col.isCustom) val = '';
-      else val = emp[col.key] || '';
-
+      const val = resolveStaffColumnValue(col, emp, idx, vars, false);
       return `"${String(val).replace(/"/g, '""')}"`;
     }).join(',');
   });

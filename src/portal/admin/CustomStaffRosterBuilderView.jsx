@@ -8,10 +8,13 @@ import {
   Printer, FileSpreadsheet, Download, Plus, Trash2,
   Sliders, CheckSquare, Square, Eye, RotateCcw,
   Save, Users, Search, Columns, FileText, CheckCircle2,
-  ArrowUpDown, Info
+  ArrowUpDown, Info, ChevronDown
 } from 'lucide-react';
 import {
   STANDARD_STAFF_ROSTER_COLUMNS,
+  MORE_STAFF_ROSTER_COLUMNS,
+  ALL_STAFF_ROSTER_COLUMNS,
+  resolveStaffColumnValue,
   getEmployeeVariablesMap,
   printCustomStaffRoster,
   exportStaffRosterExcel,
@@ -35,6 +38,10 @@ export default function CustomStaffRosterBuilderView({
   const [selectedColumnKeys, setSelectedColumnKeys] = useState(
     STANDARD_STAFF_ROSTER_COLUMNS.filter(c => c.defaultSelected).map(c => c.key)
   );
+
+  // More Staff Columns Section State (Default expanded so user immediately sees all available columns)
+  const [showMoreColumns, setShowMoreColumns] = useState(true);
+  const [moreColumnsSearch, setMoreColumnsSearch] = useState('');
 
   // Custom Extra Columns (e.g. "Signature", "Exam Duty Room", "Material Issued")
   const [extraCustomColumns, setExtraCustomColumns] = useState([
@@ -90,9 +97,9 @@ export default function CustomStaffRosterBuilderView({
     return faculty.filter((f, idx) => idSet.has(f.id || f.cpis_no || f.pan || `emp_${idx}`));
   }, [faculty, selectedEmployeeIds]);
 
-  // Active Standard Columns
+  // Active Standard & More Columns
   const activeStandardColumns = useMemo(() => {
-    return STANDARD_STAFF_ROSTER_COLUMNS.filter(c => selectedColumnKeys.includes(c.key));
+    return ALL_STAFF_ROSTER_COLUMNS.filter(c => selectedColumnKeys.includes(c.key));
   }, [selectedColumnKeys]);
 
   // All Columns combined
@@ -356,7 +363,7 @@ export default function CustomStaffRosterBuilderView({
             </div>
 
             {/* Standard Columns Checkboxes */}
-            <div className="grid grid-cols-2 gap-1.5 mb-3">
+            <div className="grid grid-cols-2 gap-1.5 mb-2.5">
               {STANDARD_STAFF_ROSTER_COLUMNS.map(col => {
                 const isSelected = selectedColumnKeys.includes(col.key);
                 const isLocked = col.key === 'sno' || col.key === 'name';
@@ -384,8 +391,99 @@ export default function CustomStaffRosterBuilderView({
               })}
             </div>
 
+            {/* ─── EXPANDABLE: MORE STAFF COLUMNS SECTION ─── */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 mb-2.5">
+              <div className="flex items-center justify-between mb-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowMoreColumns(!showMoreColumns)}
+                  className="flex items-center gap-1.5 text-xs font-black text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 cursor-pointer select-none"
+                >
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${showMoreColumns ? 'rotate-180' : ''}`} />
+                  <span>More Staff Columns ({MORE_STAFF_ROSTER_COLUMNS.length} Available)</span>
+                  {MORE_STAFF_ROSTER_COLUMNS.some(c => selectedColumnKeys.includes(c.key)) && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 font-mono font-bold">
+                      {MORE_STAFF_ROSTER_COLUMNS.filter(c => selectedColumnKeys.includes(c.key)).length} Active
+                    </span>
+                  )}
+                </button>
+
+                {showMoreColumns && (
+                  <div className="flex items-center gap-1 text-[9.5px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const moreKeys = MORE_STAFF_ROSTER_COLUMNS.map(c => c.key);
+                        setSelectedColumnKeys(prev => Array.from(new Set([...prev, ...moreKeys])));
+                      }}
+                      className="text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const moreKeys = new Set(MORE_STAFF_ROSTER_COLUMNS.map(c => c.key));
+                        setSelectedColumnKeys(prev => prev.filter(k => !moreKeys.has(k)));
+                      }}
+                      className="text-slate-500 hover:underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {showMoreColumns && (
+                <div className="space-y-1.5 animate-fadeIn">
+                  {/* Search / Filter for more columns */}
+                  <div className="relative">
+                    <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={moreColumnsSearch}
+                      onChange={(e) => setMoreColumnsSearch(e.target.value)}
+                      placeholder="Filter more columns (e.g. parentage, dob, email)..."
+                      className="w-full pl-5 pr-2 py-0.5 text-[10.5px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
+                    />
+                  </div>
+
+                  {/* Grid of More Columns */}
+                  <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-1 rounded-lg bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 no-scrollbar">
+                    {MORE_STAFF_ROSTER_COLUMNS.filter(col => {
+                      if (!moreColumnsSearch.trim()) return true;
+                      const q = moreColumnsSearch.toLowerCase();
+                      return col.label.toLowerCase().includes(q) || col.key.toLowerCase().includes(q);
+                    }).map(col => {
+                      const isSelected = selectedColumnKeys.includes(col.key);
+                      return (
+                        <button
+                          key={col.key}
+                          type="button"
+                          onClick={() => toggleColumn(col.key)}
+                          className={`flex items-center gap-1.5 p-1.5 rounded-md text-[10.5px] font-semibold text-left transition-colors border ${
+                            isSelected
+                              ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200'
+                              : 'bg-white dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+                          } cursor-pointer`}
+                        >
+                          {isSelected ? (
+                            <CheckSquare size={12} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                          ) : (
+                            <Square size={12} className="text-slate-300 dark:text-slate-600 shrink-0" />
+                          )}
+                          <span className="truncate">{col.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Custom Blank / Sign-Off Columns Section */}
-            <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
               <div className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
                 Add Custom Blank / Sign-Off Columns:
               </div>
@@ -589,18 +687,7 @@ export default function CustomStaffRosterBuilderView({
                     return (
                       <tr key={idx} className="hover:bg-slate-50">
                         {allActiveColumns.map(col => {
-                          let val = '';
-                          if (col.key === 'sno') val = idx + 1;
-                          else if (col.key === 'cpis') val = vars.cpis;
-                          else if (col.key === 'name') val = vars.name;
-                          else if (col.key === 'designation') val = vars.designation;
-                          else if (col.key === 'department') val = vars.department;
-                          else if (col.key === 'pan') val = vars.pan;
-                          else if (col.key === 'grossSalary') val = vars.gross_salary;
-                          else if (col.key === 'bankAccount') val = vars.bank_account;
-                          else if (col.key === 'phone') val = vars.mobile;
-                          else if (col.isCustom) val = ''; // Blank for physical signature
-                          else val = emp[col.key] || '—';
+                          const val = resolveStaffColumnValue(col, emp, idx, vars, false);
 
                           return (
                             <td
