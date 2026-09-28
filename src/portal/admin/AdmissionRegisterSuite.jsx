@@ -6559,7 +6559,7 @@ export default function AdmissionRegisterSuite({
             font-size: ${currentStudentsPerPage >= 16 ? '6.4px' : '6.8px'} !important;
             line-height: 1.05 !important;
             font-weight: 900 !important;
-            color: #6b21a8 !important;
+            color: #065f46 !important;
             letter-spacing: -0.2px !important;
           }
 
@@ -9647,7 +9647,7 @@ export default function AdmissionRegisterSuite({
                                         </div>
                                       )}
                                       {s.isReadmission && (
-                                        <div className="text-[6.8px] font-black text-purple-800 dark:text-purple-300 uppercase tracking-tight leading-tight mt-0.5 select-none readm-badge">
+                                        <div className="text-[6.8px] font-black text-emerald-800 dark:text-emerald-400 uppercase tracking-tight leading-tight mt-0.5 select-none readm-badge">
                                           (RE-ADM)
                                         </div>
                                       )}
