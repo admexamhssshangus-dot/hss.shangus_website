@@ -375,13 +375,13 @@ export default function OfficialLetterWriterView({
   const [aiError, setAiError] = useState('');
   const [aiSuccessKeyIndex, setAiSuccessKeyIndex] = useState(null);
 
-  // ─── Draggable Dual-Pane Splitter State (Left Sidebar % vs Right Canvas %) ───
+  // ─── Draggable Dual-Pane Splitter State (Left Preview % vs Right Controls %) ───
   const [leftSplitPct, setLeftSplitPct] = useState(() => {
     try {
-      const saved = localStorage.getItem('hss_letter_split_pct');
-      return saved ? Math.max(22, Math.min(60, Number(saved))) : 32;
+      const saved = localStorage.getItem('hss_letter_preview_split_pct');
+      return saved ? Math.max(35, Math.min(80, Number(saved))) : 68;
     } catch {
-      return 32;
+      return 68;
     }
   });
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
@@ -403,11 +403,11 @@ export default function OfficialLetterWriterView({
     const handleMouseMove = (moveEvt) => {
       moveEvt.preventDefault();
       const mouseX = moveEvt.clientX - rect.left;
-      const pct = Math.max(18, Math.min(60, (mouseX / rect.width) * 100));
+      const pct = Math.max(35, Math.min(80, (mouseX / rect.width) * 100));
       const rounded = Math.round(pct * 10) / 10;
       setLeftSplitPct(rounded);
       try {
-        localStorage.setItem('hss_letter_split_pct', String(rounded));
+        localStorage.setItem('hss_letter_preview_split_pct', String(rounded));
       } catch {}
     };
 
@@ -1849,1049 +1849,10 @@ export default function OfficialLetterWriterView({
       {/* ─── DUAL-PANE SPLIT CONTAINER: SIDEBAR + SPLITTER + WORKSPACE ─── */}
       <div className="letter-split-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
 
-        {/* ─── LEFT SIDEBAR: REUSABLE TEMPLATES & GEMINI AI ASSISTANT (DESKTOP INLINE) ─── */}
-        {isDesktop && (
-          <div
-            style={{ width: `${leftSplitPct}%` }}
-            className="w-full lg:w-auto shrink-0 space-y-1.5 overflow-hidden"
-          >
-            {/* Top Segmented Tab Switcher */}
-            <div className="flex items-center justify-between p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setActiveLeftTab('templates')}
-                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
-                    activeLeftTab === 'templates'
-                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <Sparkles size={11} className="text-amber-500" />
-                  <span>Templates ({allTemplates.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveLeftTab('ai')}
-                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
-                    activeLeftTab === 'ai'
-                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-2xs'
-                      : 'text-purple-700 dark:text-purple-300 hover:bg-purple-100/50 dark:hover:bg-purple-950/50'
-                  }`}
-                >
-                  <Bot size={11} />
-                  <span>✨ Gemini AI</span>
-                </button>
-              </div>
-
-              {activeLeftTab === 'ai' && (
-                <span className="px-2 py-0.5 rounded text-[9px] font-black border bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border-emerald-300 flex items-center gap-1" title="Gemini credentials are held only by the server">
-                  <Shield size={9} />
-                  Server secured
-                </span>
-              )}
-            </div>
-
-            {/* â•�â•�â•�â•�â•�â•�â•�â•� TAB 1: GEMINI AI ASSISTANT (COMPACT LEFT PANEL) â•�â•�â•�â•�â•�â•�â•�â•� */}
-            {activeLeftTab === 'ai' && (
-              <div className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/60 rounded-xl p-2.5 shadow-2xs space-y-2 animate-fadeIn text-xs">
-                
-                {/* API Keys Configuration Drawer */}
-                {showKeysConfig && (
-                  <div className="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-1.5 animate-fadeIn">
-                    <div className="flex items-center justify-between">
-                      <label className="font-black text-[10px] text-amber-950 dark:text-amber-200 flex items-center gap-1">
-                        <Key size={11} className="text-amber-600" />
-                        <span>Gemini API Key Pool:</span>
-                      </label>
-                      <a
-                        href="https://aistudio.google.com/app/apikey"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[9.5px] text-amber-800 dark:text-amber-400 font-extrabold hover:underline flex items-center gap-0.5"
-                      >
-                        <span>Free Key</span>
-                        <ExternalLink size={9} />
-                      </a>
-                    </div>
-                    <textarea
-                      rows={2}
-                      value={keysInputText}
-                      onChange={(e) => setKeysInputText(e.target.value)}
-                      placeholder="Paste API key here"
-                      className="w-full px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[10.5px] text-slate-900 dark:text-slate-100"
-                    />
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-amber-800 dark:text-amber-300">
-                        {keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length} keys detected
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleSaveKeys}
-                        className="px-2.5 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] cursor-pointer"
-                      >
-                        Save Keys
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Compact Mode Selector Pills */}
-                <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
-                  {[
-                    { id: 'draft', label: 'âœ�ï¸� Draft' },
-                    { id: 'humanize', label: '🪄 Polish' },
-                    { id: 'formalize', label: '📜 Formalize' },
-                    { id: 'shorten', label: '✂️� Shorten' },
-                    { id: 'expand', label: '📖 Expand' }
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => { setAiMode(m.id); setAiGeneratedHtml(''); }}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap cursor-pointer transition-all border ${
-                        aiMode === m.id
-                          ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
-                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-purple-50'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Prompt Input */}
-                <div className="space-y-1">
-                  <textarea
-                    rows={5}
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    placeholder={
-                      aiMode === 'draft'
-                        ? 'What should this letter say? (e.g. Schedule for admission fee submission by April 30th)'
-                        : 'Additional refinement notes (optional)'
-                    }
-                    className="w-full px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-medium text-xs text-slate-900 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 resize-y min-h-[110px]"
-                  />
-
-                  {/* Prompt Presets */}
-                  {aiMode === 'draft' && (
-                    <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
-                      {AI_PROMPT_SUGGESTIONS.slice(0, 4).map((sug, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setAiPrompt(sug)}
-                          className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-purple-50 text-slate-600 dark:text-slate-300 text-[8.5px] font-bold border border-slate-200 dark:border-slate-700 shrink-0 cursor-pointer"
-                        >
-                          + {sug.slice(0, 24)}...
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Model & Tone Selector Controls */}
-                <div className="grid grid-cols-2 gap-1.5">
-                  <div>
-                    <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Model</label>
-                    <select
-                      value={aiModel}
-                      onChange={(e) => setAiModel(e.target.value)}
-                      className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
-                    >
-                      {AVAILABLE_GEMINI_MODELS.map((m) => (
-                        <option key={m.id} value={m.id}>{m.name.split(' (')[0]}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Tone</label>
-                    <select
-                      value={aiTone}
-                      onChange={(e) => setAiTone(e.target.value)}
-                      className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
-                    >
-                      <option value="Formal Government">Formal Government</option>
-                      <option value="Urgent Notice">Urgent Circular</option>
-                      <option value="Polite Request">Polite Request</option>
-                      <option value="Legal Notice">Strict Notice</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Generate AI Button */}
-                <button
-                  type="button"
-                  disabled={isGeneratingAi}
-                  onClick={handleGenerateAi}
-                  className="w-full py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black text-xs cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all"
-                >
-                  {isGeneratingAi ? (
-                    <>
-                      <RefreshCw size={12} className="animate-spin" />
-                      <span>Drafting with Gemini...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={12} className="text-amber-200" />
-                      <span>{aiMode === 'draft' ? 'Generate Letter Draft' : 'Refine Letter Text'}</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Error Banner */}
-                {aiError && (
-                  <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-[10px] flex items-center gap-1.5">
-                    <AlertCircle size={12} className="shrink-0 text-rose-600" />
-                    <span>{aiError}</span>
-                  </div>
-                )}
-
-                {/* Generated Result Preview Card & Real-Time Live Insertion */}
-                {aiGeneratedHtml && (
-                  <div className="space-y-1.5 pt-2 border-t border-purple-200 dark:border-purple-900/60 animate-fadeIn">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                        <Check size={12} />
-                        <span>Draft Ready</span>
-                        {aiSuccessKeyIndex !== null && (
-                          <span className="text-slate-400 font-normal">
-                            (Key #{aiSuccessKeyIndex + 1})
-                          </span>
-                        )}
-                      </span>
-                    </div>
-
-                    <div
-                      className="p-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-[10.5px] max-h-36 overflow-y-auto leading-relaxed shadow-inner"
-                      dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(aiGeneratedHtml) }}
-                    />
-
-                    {/* Real-time Insert Actions */}
-                    <div className="grid grid-cols-2 gap-1 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleApplyAiContent('replace')}
-                        className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10.5px] cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
-                      >
-                        <Sparkles size={11} />
-                        <span>Replace Body</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleApplyAiContent('insert')}
-                        className="w-full py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[10.5px] cursor-pointer"
-                      >
-                        Insert at Cursor
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* â•�â•�â•�â•�â•�â•�â•�â•� TAB 2: TEMPLATES & PRESETS LIST (LEFT PANEL) â•�â•�â•�â•�â•�â•�â•�â•� */}
-            {activeLeftTab === 'templates' && (
-              <>
-                {/* Reusable Letter Templates Manager */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 shadow-2xs space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                      <Sparkles size={11} className="text-amber-600" />
-                      <span>Templates & Presets</span>
-                    </span>
-                  </div>
-
-                  {/* Template Filter Pills */}
-                  <div className="grid grid-cols-3 gap-0.5 text-[9px] font-bold text-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
-                    <button
-                      type="button"
-                      onClick={() => setTemplateFilterTab('all')}
-                      className={`py-0.5 rounded cursor-pointer transition-all ${
-                        templateFilterTab === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black' : 'text-slate-500'
-                      }`}
-                    >
-                      All ({allTemplates.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTemplateFilterTab('custom')}
-                      className={`py-0.5 rounded cursor-pointer transition-all ${
-                        templateFilterTab === 'custom' ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs font-black' : 'text-slate-500'
-                      }`}
-                    >
-                      Custom ({customTemplates.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTemplateFilterTab('builtin')}
-                      className={`py-0.5 rounded cursor-pointer transition-all ${
-                        templateFilterTab === 'builtin' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black' : 'text-slate-500'
-                      }`}
-                    >
-                      Built-in ({BUILTIN_LETTER_TEMPLATES.length})
-                    </button>
-                  </div>
-
-                  {/* Template Cards List (Spacious View) */}
-                  <div className="space-y-1.5 max-h-[calc(100vh-280px)] min-h-[380px] overflow-y-auto pr-0.5">
-                    {displayedTemplates.map((tpl) => {
-                      const isDefault = defaultTemplateId === tpl.id;
-                      return (
-                        <div
-                          key={tpl.id}
-                          onClick={() => handleSelectTemplate(tpl)}
-                          className={`w-full p-1.5 rounded-lg text-left border transition-all cursor-pointer relative group ${
-                            selectedTemplateId === tpl.id
-                              ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-400 dark:border-rose-700 text-rose-950 dark:text-rose-200 shadow-2xs'
-                              : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-black text-[10.5px] truncate flex-1 flex items-center gap-1">
-                              <span>{tpl.name}</span>
-                              {isDefault && (
-                                <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-0.5 shrink-0" title="Active Default Template">
-                                  ⭐� Default
-                                </span>
-                              )}
-                            </span>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={(e) => handleDuplicateTemplate(tpl, e)}
-                                className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 opacity-70 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
-                                title="Duplicate template to create new preset"
-                              >
-                                <Copy size={9} />
-                              </button>
-                              {!isDefault && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleSetDefaultTemplate(tpl.id, e)}
-                                  className="text-slate-400 hover:text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
-                                  title="Set as Default Template (Auto-load on startup)"
-                                >
-                                  <span className="text-[8px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/80 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">Set Default</span>
-                                </button>
-                              )}
-                              {tpl.isCustom ? (
-                                <>
-                                  <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                                    Custom
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleDeleteCustomTemplate(tpl, e)}
-                                    className="text-slate-400 hover:text-rose-600 cursor-pointer p-0.5"
-                                    title="Delete custom template"
-                                  >
-                                    <Trash2 size={9} />
-                                  </button>
-                                </>
-                              ) : (
-                                <span className="px-1 py-0.2 rounded text-[7.5px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                                  Built-in
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {tpl.desc && (
-                            <div className="text-[8.5px] text-slate-500 truncate mt-0.2">{tpl.desc}</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Quick Inserts Footer */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 shadow-2xs">
-                  <div className="relative" ref={quickInsertMenuRef}>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowQuickInsertMenu(prev => !prev);
-                      }}
-                      className="w-full px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-[10.5px] flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Plus size={12} className="text-rose-600 font-black" />
-                        <span>Quick Insert (Subject / Ref / Divider)</span>
-                      </span>
-                      <ChevronDown size={11} className="text-slate-400" />
-                    </button>
-
-                    {showQuickInsertMenu && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute left-0 bottom-full mb-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-1.5 space-y-1 text-xs font-bold animate-fadeIn"
-                      >
-                        <div className="px-2 py-0.5 text-[8.5px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                          Quick Document Inserts
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => { insertSubjectLine(); setShowQuickInsertMenu(false); }}
-                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                        >
-                          <span className="text-rose-600 font-black text-xs">+</span>
-                          <span>Subject Line</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { insertReferenceLine(); setShowQuickInsertMenu(false); }}
-                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                        >
-                          <span className="text-rose-600 font-black text-xs">+</span>
-                          <span>Reference Line</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { executeFormat('insertHorizontalRule'); setShowQuickInsertMenu(false); }}
-                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                        >
-                          <Minus size={11} className="text-slate-500" />
-                          <span>Divider Line</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ─── MOBILE POPUP MODAL FOR TEMPLATES & GEMINI AI ─── */}
-        {showRefDateModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fadeIn">
-          <div className="absolute inset-0" onClick={() => setShowRefDateModal(false)} />
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="relative w-full max-w-sm flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden z-10 animate-scaleUp"
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/90">
-              <div className="flex items-center gap-1.5">
-                <Calendar size={14} className="text-rose-600 dark:text-rose-400 shrink-0" />
-                <h3 className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider">
-                  Edit Reference No. & Date
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRefDateModal(false)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-3.5 space-y-3">
-              <div>
-                <label className="block text-[9.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
-                  Reference / Dispatch Number
-                </label>
-                <input
-                  type="text"
-                  value={refNo}
-                  onChange={(e) => setRefNo(e.target.value)}
-                  placeholder="e.g. HSS/SHG/2026/01"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[9.5px] font-black uppercase text-slate-600 dark:text-slate-400">
-                    Official Document Date
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setDateStr(new Date().toLocaleDateString('en-GB'))}
-                    className="text-[9px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
-                  >
-                    Set Today
-                  </button>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={dateStr}
-                    onChange={(e) => setDateStr(e.target.value)}
-                    placeholder="DD/MM/YYYY"
-                    className="flex-1 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
-                  />
-                  <input
-                    type="date"
-                    title="Pick date from calendar"
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const [y, m, d] = e.target.value.split('-');
-                        setDateStr(`${d}/${m}/${y}`);
-                      }
-                    }}
-                    className="w-10 h-10 p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer shrink-0"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowRefDateModal(false)}
-                className="w-full py-2 rounded-xl bg-gradient-to-r from-rose-700 to-amber-700 text-white font-black text-xs shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-              >
-                <Check size={14} />
-                <span>Apply & Done</span>
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {!isDesktop && showMobileTemplatesModal && createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
-            <div className="absolute inset-0" onClick={() => setShowMobileTemplatesModal(false)} />
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="relative w-full max-w-lg max-h-[90dvh] flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden z-10 animate-scaleUp"
-            >
-              {/* Modal Header */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/90 shrink-0">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Sparkles size={13} className="text-amber-500 shrink-0" />
-                  <h3 className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider truncate">
-                    Templates & Gemini AI
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowMobileTemplatesModal(false)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                  aria-label="Close modal"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-
-              {/* Modal Scrollable Body */}
-              <div className="overflow-y-auto p-2.5 space-y-2 flex-1 overscroll-contain">
-                {/* Mobile Popup: Quick Reference No. & Letter Date Section */}
-                <div className="p-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 shadow-2xs space-y-1.5">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-300">
-                    <span className="flex items-center gap-1">
-                      <FileText size={11} className="text-amber-600 dark:text-amber-400" />
-                      <span>Document Reference & Date</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setDateStr(new Date().toLocaleDateString('en-GB'))}
-                      className="text-[9px] font-bold text-amber-700 hover:text-amber-900 dark:text-amber-300 underline cursor-pointer"
-                    >
-                      Set Today
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    <div>
-                      <label className="block text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5">Reference No.</label>
-                      <input
-                        type="text"
-                        value={refNo}
-                        onChange={(e) => setRefNo(e.target.value)}
-                        placeholder="e.g. HSS/SHG/2026/01"
-                        className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-amber-500 transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5">Letter Date</label>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={dateStr}
-                          onChange={(e) => setDateStr(e.target.value)}
-                          placeholder="DD/MM/YYYY"
-                          className="flex-1 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-amber-500 transition-all"
-                        />
-                        <input
-                          type="date"
-                          title="Pick date from calendar"
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const [y, m, d] = e.target.value.split('-');
-                              setDateStr(`${d}/${m}/${y}`);
-                            }
-                          }}
-                          className="w-7 h-7 p-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer shrink-0"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Top Segmented Tab Switcher */}
-                <div className="flex items-center justify-between p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setActiveLeftTab('templates')}
-                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
-                        activeLeftTab === 'templates'
-                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
-                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      <Sparkles size={11} className="text-amber-500" />
-                      <span>Templates ({allTemplates.length})</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setActiveLeftTab('ai')}
-                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
-                        activeLeftTab === 'ai'
-                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-2xs'
-                          : 'text-purple-700 dark:text-purple-300 hover:bg-purple-100/50 dark:hover:bg-purple-950/50'
-                      }`}
-                    >
-                      <Bot size={11} />
-                      <span>✨ Gemini AI</span>
-                    </button>
-                  </div>
-
-                  {activeLeftTab === 'ai' && (
-                    <span className="px-2 py-0.5 rounded text-[9px] font-black border bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border-emerald-300 flex items-center gap-1" title="Gemini credentials are held only by the server">
-                      <Shield size={9} />
-                      Server secured
-                    </span>
-                  )}
-                </div>
-
-                {/* â•�â•�â•�â•�â•�â•�â•�â•� TAB 1: GEMINI AI ASSISTANT (COMPACT LEFT PANEL) â•�â•�â•�â•�â•�â•�â•�â•� */}
-                {activeLeftTab === 'ai' && (
-                  <div className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/60 rounded-xl p-2.5 shadow-2xs space-y-2 animate-fadeIn text-xs">
-                    
-                    {/* API Keys Configuration Drawer */}
-                    {showKeysConfig && (
-                      <div className="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-1.5 animate-fadeIn">
-                        <div className="flex items-center justify-between">
-                          <label className="font-black text-[10px] text-amber-950 dark:text-amber-200 flex items-center gap-1">
-                            <Key size={11} className="text-amber-600" />
-                            <span>Gemini API Key Pool:</span>
-                          </label>
-                          <a
-                            href="https://aistudio.google.com/app/apikey"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[9.5px] text-amber-800 dark:text-amber-400 font-extrabold hover:underline flex items-center gap-0.5"
-                          >
-                            <span>Free Key</span>
-                            <ExternalLink size={9} />
-                          </a>
-                        </div>
-                        <textarea
-                          rows={2}
-                          value={keysInputText}
-                          onChange={(e) => setKeysInputText(e.target.value)}
-                          placeholder="Paste API key here"
-                          className="w-full px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[10.5px] text-slate-900 dark:text-slate-100"
-                        />
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-bold text-amber-800 dark:text-amber-300">
-                            {keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length} keys detected
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleSaveKeys}
-                            className="px-2.5 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] cursor-pointer"
-                          >
-                            Save Keys
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Compact Mode Selector Pills */}
-                    <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
-                      {[
-                        { id: 'draft', label: 'âœ�ï¸� Draft' },
-                        { id: 'humanize', label: '🪄 Polish' },
-                        { id: 'formalize', label: '📜 Formalize' },
-                        { id: 'shorten', label: '✂️� Shorten' },
-                        { id: 'expand', label: '📖 Expand' }
-                      ].map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => { setAiMode(m.id); setAiGeneratedHtml(''); }}
-                          className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap cursor-pointer transition-all border ${
-                            aiMode === m.id
-                              ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
-                              : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-purple-50'
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Prompt Input */}
-                    <div className="space-y-1">
-                      <textarea
-                        rows={4}
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        placeholder={
-                          aiMode === 'draft'
-                            ? 'What should this letter say? (e.g. Schedule for admission fee submission by April 30th)'
-                            : 'Additional refinement notes (optional)'
-                        }
-                        className="w-full px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-medium text-xs text-slate-900 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 resize-y min-h-[90px]"
-                      />
-
-                      {/* Prompt Presets */}
-                      {aiMode === 'draft' && (
-                        <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
-                          {AI_PROMPT_SUGGESTIONS.slice(0, 4).map((sug, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => setAiPrompt(sug)}
-                              className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-purple-50 text-slate-600 dark:text-slate-300 text-[8.5px] font-bold border border-slate-200 dark:border-slate-700 shrink-0 cursor-pointer"
-                            >
-                              + {sug.slice(0, 24)}...
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Model & Tone Selector Controls */}
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <div>
-                        <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Model</label>
-                        <select
-                          value={aiModel}
-                          onChange={(e) => setAiModel(e.target.value)}
-                          className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
-                        >
-                          {AVAILABLE_GEMINI_MODELS.map((m) => (
-                            <option key={m.id} value={m.id}>{m.name.split(' (')[0]}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Tone</label>
-                        <select
-                          value={aiTone}
-                          onChange={(e) => setAiTone(e.target.value)}
-                          className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
-                        >
-                          <option value="Formal Government">Formal Government</option>
-                          <option value="Urgent Notice">Urgent Circular</option>
-                          <option value="Polite Request">Polite Request</option>
-                          <option value="Legal Notice">Strict Notice</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Generate AI Button */}
-                    <button
-                      type="button"
-                      disabled={isGeneratingAi}
-                      onClick={handleGenerateAi}
-                      className="w-full py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black text-xs cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all"
-                    >
-                      {isGeneratingAi ? (
-                        <>
-                          <RefreshCw size={12} className="animate-spin" />
-                          <span>Drafting with Gemini...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={12} className="text-amber-200" />
-                          <span>{aiMode === 'draft' ? 'Generate Letter Draft' : 'Refine Letter Text'}</span>
-                        </>
-                      )}
-                    </button>
-
-                    {/* Error Banner */}
-                    {aiError && (
-                      <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-[10px] flex items-center gap-1.5">
-                        <AlertCircle size={12} className="shrink-0 text-rose-600" />
-                        <span>{aiError}</span>
-                      </div>
-                    )}
-
-                    {/* Generated Result Preview Card & Real-Time Live Insertion */}
-                    {aiGeneratedHtml && (
-                      <div className="space-y-1.5 pt-2 border-t border-purple-200 dark:border-purple-900/60 animate-fadeIn">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                            <Check size={12} />
-                            <span>Draft Ready</span>
-                            {aiSuccessKeyIndex !== null && (
-                              <span className="text-slate-400 font-normal">
-                                (Key #{aiSuccessKeyIndex + 1})
-                              </span>
-                            )}
-                          </span>
-                        </div>
-
-                        <div
-                          className="p-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-[10.5px] max-h-36 overflow-y-auto leading-relaxed shadow-inner"
-                          dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(aiGeneratedHtml) }}
-                        />
-
-                        {/* Real-time Insert Actions */}
-                        <div className="grid grid-cols-2 gap-1 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => handleApplyAiContent('replace')}
-                            className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10.5px] cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
-                          >
-                            <Sparkles size={11} />
-                            <span>Replace Body</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleApplyAiContent('insert')}
-                            className="w-full py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[10.5px] cursor-pointer"
-                          >
-                            Insert at Cursor
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* â•�â•�â•�â•�â•�â•�â•�â•� TAB 2: TEMPLATES & PRESETS LIST (LEFT PANEL) â•�â•�â•�â•�â•�â•�â•�â•� */}
-                {activeLeftTab === 'templates' && (
-                  <>
-                    {/* Reusable Letter Templates Manager */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 shadow-2xs space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                          <Sparkles size={11} className="text-amber-600" />
-                          <span>Templates & Presets</span>
-                        </span>
-                      </div>
-
-                      {/* Template Filter Pills */}
-                      <div className="grid grid-cols-3 gap-0.5 text-[9px] font-bold text-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
-                        <button
-                          type="button"
-                          onClick={() => setTemplateFilterTab('all')}
-                          className={`py-0.5 rounded cursor-pointer transition-all ${
-                            templateFilterTab === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black' : 'text-slate-500'
-                          }`}
-                        >
-                          All ({allTemplates.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTemplateFilterTab('custom')}
-                          className={`py-0.5 rounded cursor-pointer transition-all ${
-                            templateFilterTab === 'custom' ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs font-black' : 'text-slate-500'
-                          }`}
-                        >
-                          Custom ({customTemplates.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTemplateFilterTab('builtin')}
-                          className={`py-0.5 rounded cursor-pointer transition-all ${
-                            templateFilterTab === 'builtin' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black' : 'text-slate-500'
-                          }`}
-                        >
-                          Built-in ({BUILTIN_LETTER_TEMPLATES.length})
-                        </button>
-                      </div>
-
-                      {/* Template Cards List (Spacious View) */}
-                      <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-0.5">
-                        {displayedTemplates.map((tpl) => {
-                          const isDefault = defaultTemplateId === tpl.id;
-                          return (
-                            <div
-                              key={tpl.id}
-                              onClick={() => handleSelectTemplate(tpl)}
-                              className={`w-full p-1.5 rounded-lg text-left border transition-all cursor-pointer relative group ${
-                                selectedTemplateId === tpl.id
-                                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-400 dark:border-rose-700 text-rose-950 dark:text-rose-200 shadow-2xs'
-                                  : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="font-black text-[10.5px] truncate flex-1 flex items-center gap-1">
-                                  <span>{tpl.name}</span>
-                                  {isDefault && (
-                                    <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-0.5 shrink-0" title="Active Default Template">
-                                      ⭐� Default
-                                    </span>
-                                  )}
-                                </span>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleDuplicateTemplate(tpl, e)}
-                                    className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 opacity-70 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
-                                    title="Duplicate template to create new preset"
-                                  >
-                                    <Copy size={9} />
-                                  </button>
-                                  {!isDefault && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => handleSetDefaultTemplate(tpl.id, e)}
-                                      className="text-slate-400 hover:text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
-                                      title="Set as Default Template (Auto-load on startup)"
-                                    >
-                                      <span className="text-[8px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/80 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">Set Default</span>
-                                    </button>
-                                  )}
-                                  {tpl.isCustom ? (
-                                    <>
-                                      <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                                        Custom
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => handleDeleteCustomTemplate(tpl, e)}
-                                        className="text-slate-400 hover:text-rose-600 cursor-pointer p-0.5"
-                                        title="Delete custom template"
-                                      >
-                                        <Trash2 size={9} />
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <span className="px-1 py-0.2 rounded text-[7.5px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                                      Built-in
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {tpl.desc && (
-                                <div className="text-[8.5px] text-slate-500 truncate mt-0.2">{tpl.desc}</div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Quick Inserts Footer */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 shadow-2xs">
-                      <div className="relative" ref={quickInsertMenuRef}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowQuickInsertMenu(prev => !prev);
-                          }}
-                          className="w-full px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-[10.5px] flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <Plus size={12} className="text-rose-600 font-black" />
-                            <span>Quick Insert (Subject / Ref / Divider)</span>
-                          </span>
-                          <ChevronDown size={11} className="text-slate-400" />
-                        </button>
-
-                        {showQuickInsertMenu && (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            className="absolute left-0 bottom-full mb-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-1.5 space-y-1 text-xs font-bold animate-fadeIn"
-                          >
-                            <div className="px-2 py-0.5 text-[8.5px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                              Quick Document Inserts
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => { insertSubjectLine(); setShowQuickInsertMenu(false); }}
-                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                            >
-                              <span className="text-rose-600 font-black text-xs">+</span>
-                              <span>Subject Line</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { insertReferenceLine(); setShowQuickInsertMenu(false); }}
-                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                            >
-                              <span className="text-rose-600 font-black text-xs">+</span>
-                              <span>Reference Line</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { executeFormat('insertHorizontalRule'); setShowQuickInsertMenu(false); }}
-                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                            >
-                              <Minus size={11} className="text-slate-500" />
-                              <span>Divider Line</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Sticky Done Footer */}
-              <div className="p-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900 shrink-0 flex items-center justify-between gap-2">
-                <div className="text-[10px] font-bold text-slate-500 truncate">
-                  {displayedTemplates.find(t => t.id === selectedTemplateId)?.name || 'Custom Template'}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowMobileTemplatesModal(false)}
-                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all"
-                >
-                  <Check size={13} />
-                  <span>Done & View Letter</span>
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
-
-        {/* ── DRAGGABLE VERTICAL SPLITTER HANDLE ── */}
-        {isDesktop && (
-          <div
-            onMouseDown={handleSplitterMouseDown}
-            title="Drag horizontally to adjust workspace split width (Double-click to reset)"
-            onDoubleClick={() => {
-              setLeftSplitPct(28);
-              try { localStorage.setItem('hss_letter_split_pct', '28'); } catch {}
-            }}
-            className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-rose-400/20 active:bg-rose-600/30 group transition-colors z-20 shrink-0 mx-0.5"
-          >
-            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-rose-700 ${isDraggingSplitter ? 'bg-rose-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
-          </div>
-        )}
-
-        {/* ─── RIGHT WORKSPACE: FORMATTING TOOLBAR & A4 LIVE PAPER SHEET ─── */}
+        {/* ─── LEFT WORKSPACE: FORMATTING TOOLBAR & A4 LIVE PAPER SHEET ─── */}
         <div
-          style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
-          className="w-full lg:flex-1 space-y-1.5 pl-0 lg:pl-1 min-w-0"
+          style={{ width: isDesktop ? `${leftSplitPct}%` : "100%" }}
+          className="w-full lg:flex-1 space-y-1.5 pr-0 lg:pr-1 min-w-0"
         >
           {/* ════════ WORKSPACE CANVAS & VERTICAL FLOATING DOCK CONTAINER ════════ */}
           <div className={`flex flex-col lg:flex-row items-start justify-center gap-2 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
@@ -4053,6 +3014,1066 @@ export default function OfficialLetterWriterView({
       </div>
 
       </div>
+
+
+        {/* ── DRAGGABLE VERTICAL SPLITTER HANDLE ── */}
+        {isDesktop && (
+          <div
+            onMouseDown={handleSplitterMouseDown}
+            title="Drag horizontally to adjust workspace split width (Double-click to reset)"
+            onDoubleClick={() => {
+              setLeftSplitPct(68);
+              try { localStorage.setItem('hss_letter_preview_split_pct', '68'); } catch {}
+            }}
+            className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-rose-400/20 active:bg-rose-600/30 group transition-colors z-20 shrink-0 mx-0.5"
+          >
+            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-rose-700 ${isDraggingSplitter ? 'bg-rose-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
+          </div>
+        )}
+
+
+        {/* ─── RIGHT CONTROLS: REUSABLE TEMPLATES & GEMINI AI ASSISTANT (DESKTOP INLINE) ─── */}
+        {isDesktop && (
+          <div
+            style={{ width: isDesktop ? `${100 - leftSplitPct}%` : "100%" }}
+            className="w-full lg:w-auto shrink-0 space-y-1.5 overflow-hidden pl-0 lg:pl-1"
+          >
+            {/* Top Segmented Tab Switcher */}
+            <div className="flex items-center justify-between p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveLeftTab('templates')}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                    activeLeftTab === 'templates'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Sparkles size={11} className="text-amber-500" />
+                  <span>Templates ({allTemplates.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveLeftTab('ai')}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                    activeLeftTab === 'ai'
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-2xs'
+                      : 'text-purple-700 dark:text-purple-300 hover:bg-purple-100/50 dark:hover:bg-purple-950/50'
+                  }`}
+                >
+                  <Bot size={11} />
+                  <span>✨ Gemini AI</span>
+                </button>
+              </div>
+
+              {activeLeftTab === 'ai' && (
+                <span className="px-2 py-0.5 rounded text-[9px] font-black border bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border-emerald-300 flex items-center gap-1" title="Gemini credentials are held only by the server">
+                  <Shield size={9} />
+                  Server secured
+                </span>
+              )}
+            </div>
+
+            {/* â•�â•�â•�â•�â•�â•�â•�â•� TAB 1: GEMINI AI ASSISTANT (COMPACT LEFT PANEL) â•�â•�â•�â•�â•�â•�â•�â•� */}
+            {activeLeftTab === 'ai' && (
+              <div className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/60 rounded-xl p-2.5 shadow-2xs space-y-2 animate-fadeIn text-xs">
+                
+                {/* API Keys Configuration Drawer */}
+                {showKeysConfig && (
+                  <div className="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-1.5 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <label className="font-black text-[10px] text-amber-950 dark:text-amber-200 flex items-center gap-1">
+                        <Key size={11} className="text-amber-600" />
+                        <span>Gemini API Key Pool:</span>
+                      </label>
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[9.5px] text-amber-800 dark:text-amber-400 font-extrabold hover:underline flex items-center gap-0.5"
+                      >
+                        <span>Free Key</span>
+                        <ExternalLink size={9} />
+                      </a>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={keysInputText}
+                      onChange={(e) => setKeysInputText(e.target.value)}
+                      placeholder="Paste API key here"
+                      className="w-full px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[10.5px] text-slate-900 dark:text-slate-100"
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-bold text-amber-800 dark:text-amber-300">
+                        {keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length} keys detected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleSaveKeys}
+                        className="px-2.5 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] cursor-pointer"
+                      >
+                        Save Keys
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Compact Mode Selector Pills */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+                  {[
+                    { id: 'draft', label: 'âœ�ï¸� Draft' },
+                    { id: 'humanize', label: '🪄 Polish' },
+                    { id: 'formalize', label: '📜 Formalize' },
+                    { id: 'shorten', label: '✂️� Shorten' },
+                    { id: 'expand', label: '📖 Expand' }
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => { setAiMode(m.id); setAiGeneratedHtml(''); }}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap cursor-pointer transition-all border ${
+                        aiMode === m.id
+                          ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-purple-50'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Prompt Input */}
+                <div className="space-y-1">
+                  <textarea
+                    rows={5}
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder={
+                      aiMode === 'draft'
+                        ? 'What should this letter say? (e.g. Schedule for admission fee submission by April 30th)'
+                        : 'Additional refinement notes (optional)'
+                    }
+                    className="w-full px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-medium text-xs text-slate-900 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 resize-y min-h-[110px]"
+                  />
+
+                  {/* Prompt Presets */}
+                  {aiMode === 'draft' && (
+                    <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+                      {AI_PROMPT_SUGGESTIONS.slice(0, 4).map((sug, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setAiPrompt(sug)}
+                          className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-purple-50 text-slate-600 dark:text-slate-300 text-[8.5px] font-bold border border-slate-200 dark:border-slate-700 shrink-0 cursor-pointer"
+                        >
+                          + {sug.slice(0, 24)}...
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Model & Tone Selector Controls */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Model</label>
+                    <select
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value)}
+                      className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
+                    >
+                      {AVAILABLE_GEMINI_MODELS.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name.split(' (')[0]}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Tone</label>
+                    <select
+                      value={aiTone}
+                      onChange={(e) => setAiTone(e.target.value)}
+                      className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
+                    >
+                      <option value="Formal Government">Formal Government</option>
+                      <option value="Urgent Notice">Urgent Circular</option>
+                      <option value="Polite Request">Polite Request</option>
+                      <option value="Legal Notice">Strict Notice</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Generate AI Button */}
+                <button
+                  type="button"
+                  disabled={isGeneratingAi}
+                  onClick={handleGenerateAi}
+                  className="w-full py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black text-xs cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  {isGeneratingAi ? (
+                    <>
+                      <RefreshCw size={12} className="animate-spin" />
+                      <span>Drafting with Gemini...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={12} className="text-amber-200" />
+                      <span>{aiMode === 'draft' ? 'Generate Letter Draft' : 'Refine Letter Text'}</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Error Banner */}
+                {aiError && (
+                  <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-[10px] flex items-center gap-1.5">
+                    <AlertCircle size={12} className="shrink-0 text-rose-600" />
+                    <span>{aiError}</span>
+                  </div>
+                )}
+
+                {/* Generated Result Preview Card & Real-Time Live Insertion */}
+                {aiGeneratedHtml && (
+                  <div className="space-y-1.5 pt-2 border-t border-purple-200 dark:border-purple-900/60 animate-fadeIn">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                        <Check size={12} />
+                        <span>Draft Ready</span>
+                        {aiSuccessKeyIndex !== null && (
+                          <span className="text-slate-400 font-normal">
+                            (Key #{aiSuccessKeyIndex + 1})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div
+                      className="p-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-[10.5px] max-h-36 overflow-y-auto leading-relaxed shadow-inner"
+                      dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(aiGeneratedHtml) }}
+                    />
+
+                    {/* Real-time Insert Actions */}
+                    <div className="grid grid-cols-2 gap-1 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAiContent('replace')}
+                        className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10.5px] cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
+                      >
+                        <Sparkles size={11} />
+                        <span>Replace Body</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAiContent('insert')}
+                        className="w-full py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[10.5px] cursor-pointer"
+                      >
+                        Insert at Cursor
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ════════ TAB 2: TEMPLATES & PRESETS (RIGHT CONTROLS) ════════ */}
+            {activeLeftTab === 'templates' && (
+              <>
+                {/* ── CARD: CLASSIFIED TEMPLATE SELECTOR (CLERK PORTAL STYLE) ── */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between gap-1 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <FileText className="text-amber-600 dark:text-amber-500 shrink-0" size={13} />
+                      <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                        Official Template
+                      </span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+                        {allTemplates.length} Templates
+                      </span>
+                      {(() => {
+                        const cur = allTemplates.find(t => t.id === selectedTemplateId);
+                        return cur?.isCustom ? (
+                          <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shrink-0">
+                            Custom
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          const cur = allTemplates.find(t => t.id === selectedTemplateId);
+                          if (cur) handleDuplicateTemplate(cur, e);
+                        }}
+                        className="px-2 py-0.5 rounded text-[9.5px] font-black border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 hover:bg-blue-100 flex items-center gap-1 cursor-pointer"
+                        title="Duplicate current template as new preset"
+                      >
+                        <Copy size={10} />
+                        <span>Duplicate</span>
+                      </button>
+                      {(() => {
+                        const cur = allTemplates.find(t => t.id === selectedTemplateId);
+                        return cur?.isCustom ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTemplateSaveMode('update');
+                              setShowSaveTemplateModal(true);
+                            }}
+                            className="px-2 py-0.5 rounded text-[9.5px] font-black border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-100 flex items-center gap-1 cursor-pointer"
+                            title="Overwrite this custom template"
+                          >
+                            <Save size={10} />
+                            <span>Overwrite</span>
+                          </button>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Template Select Dropdown with Classified optgroups */}
+                  <div>
+                    <select
+                      value={selectedTemplateId}
+                      onChange={(e) => {
+                        const target = allTemplates.find(t => t.id === e.target.value);
+                        if (target) handleSelectTemplate(target);
+                      }}
+                      className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer shadow-2xs"
+                    >
+                      {/* Builtin Categories */}
+                      {Array.from(new Set(allTemplates.filter(t => !t.isCustom).map(t => t.category || 'General'))).map(cat => (
+                        <optgroup key={cat} label={`📂 ${cat}`}>
+                          {allTemplates
+                            .filter(t => !t.isCustom && (t.category || 'General') === cat)
+                            .map(tpl => (
+                              <option key={tpl.id} value={tpl.id}>
+                                {tpl.name} {defaultTemplateId === tpl.id ? '⭐ (Default)' : ''}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))}
+
+                      {/* Custom Presets Group */}
+                      {customTemplates.length > 0 && (
+                        <optgroup label="✨ Custom Saved Presets">
+                          {customTemplates.map(tpl => (
+                            <option key={tpl.id} value={tpl.id}>
+                              {tpl.name} ★ {defaultTemplateId === tpl.id ? '⭐ (Default)' : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
+
+                    {(() => {
+                      const cur = allTemplates.find(t => t.id === selectedTemplateId);
+                      return cur?.desc ? (
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 italic mt-1 leading-snug px-0.5">
+                          {cur.desc}
+                        </p>
+                      ) : null;
+                    })()}
+                  </div>
+
+                  {/* Actions Bar: Set Default & Delete */}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-[9.5px]">
+                    <div>
+                      {defaultTemplateId !== selectedTemplateId ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleSetDefaultTemplate(selectedTemplateId, e)}
+                          className="text-amber-700 dark:text-amber-400 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <span>⭐ Set as Default</span>
+                        </button>
+                      ) : (
+                        <span className="text-amber-600 font-bold flex items-center gap-0.5">
+                          <span>⭐ Active Default</span>
+                        </span>
+                      )}
+                    </div>
+                    {(() => {
+                      const cur = allTemplates.find(t => t.id === selectedTemplateId);
+                      return cur?.isCustom ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteCustomTemplate(cur, e)}
+                          className="text-rose-600 dark:text-rose-400 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <Trash2 size={10} />
+                          <span>Delete Custom</span>
+                        </button>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+
+                {/* Quick Inserts Footer */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 shadow-2xs">
+                  <div className="relative" ref={quickInsertMenuRef}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowQuickInsertMenu(prev => !prev);
+                      }}
+                      className="w-full px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-[10.5px] flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Plus size={12} className="text-rose-600 font-black" />
+                        <span>Quick Insert (Subject / Ref / Divider)</span>
+                      </span>
+                      <ChevronDown size={11} className="text-slate-400" />
+                    </button>
+
+                    {showQuickInsertMenu && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute left-0 bottom-full mb-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-1.5 space-y-1 text-xs font-bold animate-fadeIn"
+                      >
+                        <div className="px-2 py-0.5 text-[8.5px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                          Quick Document Inserts
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { insertSubjectLine(); setShowQuickInsertMenu(false); }}
+                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                        >
+                          <span className="text-rose-600 font-black text-xs">+</span>
+                          <span>Subject Line</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { insertReferenceLine(); setShowQuickInsertMenu(false); }}
+                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                        >
+                          <span className="text-rose-600 font-black text-xs">+</span>
+                          <span>Reference Line</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { executeFormat('insertHorizontalRule'); setShowQuickInsertMenu(false); }}
+                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                        >
+                          <Minus size={11} className="text-slate-500" />
+                          <span>Divider Line</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ─── MOBILE POPUP MODAL FOR TEMPLATES & GEMINI AI ─── */}
+        {showRefDateModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fadeIn">
+          <div className="absolute inset-0" onClick={() => setShowRefDateModal(false)} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-sm flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden z-10 animate-scaleUp"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/90">
+              <div className="flex items-center gap-1.5">
+                <Calendar size={14} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                <h3 className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                  Edit Reference No. & Date
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRefDateModal(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-3.5 space-y-3">
+              <div>
+                <label className="block text-[9.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
+                  Reference / Dispatch Number
+                </label>
+                <input
+                  type="text"
+                  value={refNo}
+                  onChange={(e) => setRefNo(e.target.value)}
+                  placeholder="e.g. HSS/SHG/2026/01"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[9.5px] font-black uppercase text-slate-600 dark:text-slate-400">
+                    Official Document Date
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setDateStr(new Date().toLocaleDateString('en-GB'))}
+                    className="text-[9px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                  >
+                    Set Today
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={dateStr}
+                    onChange={(e) => setDateStr(e.target.value)}
+                    placeholder="DD/MM/YYYY"
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
+                  />
+                  <input
+                    type="date"
+                    title="Pick date from calendar"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const [y, m, d] = e.target.value.split('-');
+                        setDateStr(`${d}/${m}/${y}`);
+                      }
+                    }}
+                    className="w-10 h-10 p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer shrink-0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRefDateModal(false)}
+                className="w-full py-2 rounded-xl bg-gradient-to-r from-rose-700 to-amber-700 text-white font-black text-xs shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+              >
+                <Check size={14} />
+                <span>Apply & Done</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {!isDesktop && showMobileTemplatesModal && createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+            <div className="absolute inset-0" onClick={() => setShowMobileTemplatesModal(false)} />
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="relative w-full max-w-lg max-h-[90dvh] flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden z-10 animate-scaleUp"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/90 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Sparkles size={13} className="text-amber-500 shrink-0" />
+                  <h3 className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                    Templates & Gemini AI
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileTemplatesModal(false)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  aria-label="Close modal"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Modal Scrollable Body */}
+              <div className="overflow-y-auto p-2.5 space-y-2 flex-1 overscroll-contain">
+                {/* Mobile Popup: Quick Reference No. & Letter Date Section */}
+                <div className="p-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 shadow-2xs space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-300">
+                    <span className="flex items-center gap-1">
+                      <FileText size={11} className="text-amber-600 dark:text-amber-400" />
+                      <span>Document Reference & Date</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDateStr(new Date().toLocaleDateString('en-GB'))}
+                      className="text-[9px] font-bold text-amber-700 hover:text-amber-900 dark:text-amber-300 underline cursor-pointer"
+                    >
+                      Set Today
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    <div>
+                      <label className="block text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5">Reference No.</label>
+                      <input
+                        type="text"
+                        value={refNo}
+                        onChange={(e) => setRefNo(e.target.value)}
+                        placeholder="e.g. HSS/SHG/2026/01"
+                        className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-amber-500 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5">Letter Date</label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={dateStr}
+                          onChange={(e) => setDateStr(e.target.value)}
+                          placeholder="DD/MM/YYYY"
+                          className="flex-1 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-amber-500 transition-all"
+                        />
+                        <input
+                          type="date"
+                          title="Pick date from calendar"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setDateStr(`${d}/${m}/${y}`);
+                            }
+                          }}
+                          className="w-7 h-7 p-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer shrink-0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Segmented Tab Switcher */}
+                <div className="flex items-center justify-between p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveLeftTab('templates')}
+                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                        activeLeftTab === 'templates'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Sparkles size={11} className="text-amber-500" />
+                      <span>Templates ({allTemplates.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveLeftTab('ai')}
+                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                        activeLeftTab === 'ai'
+                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-2xs'
+                          : 'text-purple-700 dark:text-purple-300 hover:bg-purple-100/50 dark:hover:bg-purple-950/50'
+                      }`}
+                    >
+                      <Bot size={11} />
+                      <span>✨ Gemini AI</span>
+                    </button>
+                  </div>
+
+                  {activeLeftTab === 'ai' && (
+                    <span className="px-2 py-0.5 rounded text-[9px] font-black border bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border-emerald-300 flex items-center gap-1" title="Gemini credentials are held only by the server">
+                      <Shield size={9} />
+                      Server secured
+                    </span>
+                  )}
+                </div>
+
+                {/* â•�â•�â•�â•�â•�â•�â•�â•� TAB 1: GEMINI AI ASSISTANT (COMPACT LEFT PANEL) â•�â•�â•�â•�â•�â•�â•�â•� */}
+                {activeLeftTab === 'ai' && (
+                  <div className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/60 rounded-xl p-2.5 shadow-2xs space-y-2 animate-fadeIn text-xs">
+                    
+                    {/* API Keys Configuration Drawer */}
+                    {showKeysConfig && (
+                      <div className="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-1.5 animate-fadeIn">
+                        <div className="flex items-center justify-between">
+                          <label className="font-black text-[10px] text-amber-950 dark:text-amber-200 flex items-center gap-1">
+                            <Key size={11} className="text-amber-600" />
+                            <span>Gemini API Key Pool:</span>
+                          </label>
+                          <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[9.5px] text-amber-800 dark:text-amber-400 font-extrabold hover:underline flex items-center gap-0.5"
+                          >
+                            <span>Free Key</span>
+                            <ExternalLink size={9} />
+                          </a>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={keysInputText}
+                          onChange={(e) => setKeysInputText(e.target.value)}
+                          placeholder="Paste API key here"
+                          className="w-full px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[10.5px] text-slate-900 dark:text-slate-100"
+                        />
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-bold text-amber-800 dark:text-amber-300">
+                            {keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length} keys detected
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleSaveKeys}
+                            className="px-2.5 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] cursor-pointer"
+                          >
+                            Save Keys
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Compact Mode Selector Pills */}
+                    <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+                      {[
+                        { id: 'draft', label: 'âœ�ï¸� Draft' },
+                        { id: 'humanize', label: '🪄 Polish' },
+                        { id: 'formalize', label: '📜 Formalize' },
+                        { id: 'shorten', label: '✂️� Shorten' },
+                        { id: 'expand', label: '📖 Expand' }
+                      ].map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => { setAiMode(m.id); setAiGeneratedHtml(''); }}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap cursor-pointer transition-all border ${
+                            aiMode === m.id
+                              ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
+                              : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-purple-50'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Prompt Input */}
+                    <div className="space-y-1">
+                      <textarea
+                        rows={4}
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder={
+                          aiMode === 'draft'
+                            ? 'What should this letter say? (e.g. Schedule for admission fee submission by April 30th)'
+                            : 'Additional refinement notes (optional)'
+                        }
+                        className="w-full px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-medium text-xs text-slate-900 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 resize-y min-h-[90px]"
+                      />
+
+                      {/* Prompt Presets */}
+                      {aiMode === 'draft' && (
+                        <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+                          {AI_PROMPT_SUGGESTIONS.slice(0, 4).map((sug, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setAiPrompt(sug)}
+                              className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-purple-50 text-slate-600 dark:text-slate-300 text-[8.5px] font-bold border border-slate-200 dark:border-slate-700 shrink-0 cursor-pointer"
+                            >
+                              + {sug.slice(0, 24)}...
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Model & Tone Selector Controls */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Model</label>
+                        <select
+                          value={aiModel}
+                          onChange={(e) => setAiModel(e.target.value)}
+                          className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
+                        >
+                          {AVAILABLE_GEMINI_MODELS.map((m) => (
+                            <option key={m.id} value={m.id}>{m.name.split(' (')[0]}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Tone</label>
+                        <select
+                          value={aiTone}
+                          onChange={(e) => setAiTone(e.target.value)}
+                          className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
+                        >
+                          <option value="Formal Government">Formal Government</option>
+                          <option value="Urgent Notice">Urgent Circular</option>
+                          <option value="Polite Request">Polite Request</option>
+                          <option value="Legal Notice">Strict Notice</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Generate AI Button */}
+                    <button
+                      type="button"
+                      disabled={isGeneratingAi}
+                      onClick={handleGenerateAi}
+                      className="w-full py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black text-xs cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      {isGeneratingAi ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" />
+                          <span>Drafting with Gemini...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={12} className="text-amber-200" />
+                          <span>{aiMode === 'draft' ? 'Generate Letter Draft' : 'Refine Letter Text'}</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Error Banner */}
+                    {aiError && (
+                      <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-[10px] flex items-center gap-1.5">
+                        <AlertCircle size={12} className="shrink-0 text-rose-600" />
+                        <span>{aiError}</span>
+                      </div>
+                    )}
+
+                    {/* Generated Result Preview Card & Real-Time Live Insertion */}
+                    {aiGeneratedHtml && (
+                      <div className="space-y-1.5 pt-2 border-t border-purple-200 dark:border-purple-900/60 animate-fadeIn">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                            <Check size={12} />
+                            <span>Draft Ready</span>
+                            {aiSuccessKeyIndex !== null && (
+                              <span className="text-slate-400 font-normal">
+                                (Key #{aiSuccessKeyIndex + 1})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+
+                        <div
+                          className="p-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-[10.5px] max-h-36 overflow-y-auto leading-relaxed shadow-inner"
+                          dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(aiGeneratedHtml) }}
+                        />
+
+                        {/* Real-time Insert Actions */}
+                        <div className="grid grid-cols-2 gap-1 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleApplyAiContent('replace')}
+                            className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10.5px] cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
+                          >
+                            <Sparkles size={11} />
+                            <span>Replace Body</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyAiContent('insert')}
+                            className="w-full py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[10.5px] cursor-pointer"
+                          >
+                            Insert at Cursor
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* â•�â•�â•�â•�â•�â•�â•�â•� TAB 2: TEMPLATES & PRESETS LIST (LEFT PANEL) â•�â•�â•�â•�â•�â•�â•�â•� */}
+                {activeLeftTab === 'templates' && (
+                  <>
+                    {/* Reusable Letter Templates Manager */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 shadow-2xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                          <Sparkles size={11} className="text-amber-600" />
+                          <span>Templates & Presets</span>
+                        </span>
+                      </div>
+
+                      {/* Template Filter Pills */}
+                      <div className="grid grid-cols-3 gap-0.5 text-[9px] font-bold text-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => setTemplateFilterTab('all')}
+                          className={`py-0.5 rounded cursor-pointer transition-all ${
+                            templateFilterTab === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black' : 'text-slate-500'
+                          }`}
+                        >
+                          All ({allTemplates.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTemplateFilterTab('custom')}
+                          className={`py-0.5 rounded cursor-pointer transition-all ${
+                            templateFilterTab === 'custom' ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs font-black' : 'text-slate-500'
+                          }`}
+                        >
+                          Custom ({customTemplates.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTemplateFilterTab('builtin')}
+                          className={`py-0.5 rounded cursor-pointer transition-all ${
+                            templateFilterTab === 'builtin' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black' : 'text-slate-500'
+                          }`}
+                        >
+                          Built-in ({BUILTIN_LETTER_TEMPLATES.length})
+                        </button>
+                      </div>
+
+                      {/* Template Cards List (Spacious View) */}
+                      <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-0.5">
+                        {displayedTemplates.map((tpl) => {
+                          const isDefault = defaultTemplateId === tpl.id;
+                          return (
+                            <div
+                              key={tpl.id}
+                              onClick={() => handleSelectTemplate(tpl)}
+                              className={`w-full p-1.5 rounded-lg text-left border transition-all cursor-pointer relative group ${
+                                selectedTemplateId === tpl.id
+                                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-400 dark:border-rose-700 text-rose-950 dark:text-rose-200 shadow-2xs'
+                                  : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-black text-[10.5px] truncate flex-1 flex items-center gap-1">
+                                  <span>{tpl.name}</span>
+                                  {isDefault && (
+                                    <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-0.5 shrink-0" title="Active Default Template">
+                                      ⭐� Default
+                                    </span>
+                                  )}
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDuplicateTemplate(tpl, e)}
+                                    className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 opacity-70 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                    title="Duplicate template to create new preset"
+                                  >
+                                    <Copy size={9} />
+                                  </button>
+                                  {!isDefault && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleSetDefaultTemplate(tpl.id, e)}
+                                      className="text-slate-400 hover:text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+                                      title="Set as Default Template (Auto-load on startup)"
+                                    >
+                                      <span className="text-[8px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/80 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">Set Default</span>
+                                    </button>
+                                  )}
+                                  {tpl.isCustom ? (
+                                    <>
+                                      <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                        Custom
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleDeleteCustomTemplate(tpl, e)}
+                                        className="text-slate-400 hover:text-rose-600 cursor-pointer p-0.5"
+                                        title="Delete custom template"
+                                      >
+                                        <Trash2 size={9} />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="px-1 py-0.2 rounded text-[7.5px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                      Built-in
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {tpl.desc && (
+                                <div className="text-[8.5px] text-slate-500 truncate mt-0.2">{tpl.desc}</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Quick Inserts Footer */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 shadow-2xs">
+                      <div className="relative" ref={quickInsertMenuRef}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowQuickInsertMenu(prev => !prev);
+                          }}
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-[10.5px] flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Plus size={12} className="text-rose-600 font-black" />
+                            <span>Quick Insert (Subject / Ref / Divider)</span>
+                          </span>
+                          <ChevronDown size={11} className="text-slate-400" />
+                        </button>
+
+                        {showQuickInsertMenu && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute left-0 bottom-full mb-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-1.5 space-y-1 text-xs font-bold animate-fadeIn"
+                          >
+                            <div className="px-2 py-0.5 text-[8.5px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                              Quick Document Inserts
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => { insertSubjectLine(); setShowQuickInsertMenu(false); }}
+                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                            >
+                              <span className="text-rose-600 font-black text-xs">+</span>
+                              <span>Subject Line</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { insertReferenceLine(); setShowQuickInsertMenu(false); }}
+                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                            >
+                              <span className="text-rose-600 font-black text-xs">+</span>
+                              <span>Reference Line</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { executeFormat('insertHorizontalRule'); setShowQuickInsertMenu(false); }}
+                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                            >
+                              <Minus size={11} className="text-slate-500" />
+                              <span>Divider Line</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Sticky Done Footer */}
+              <div className="p-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900 shrink-0 flex items-center justify-between gap-2">
+                <div className="text-[10px] font-bold text-slate-500 truncate">
+                  {displayedTemplates.find(t => t.id === selectedTemplateId)?.name || 'Custom Template'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileTemplatesModal(false)}
+                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <Check size={13} />
+                  <span>Done & View Letter</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
 
       </div>
 
