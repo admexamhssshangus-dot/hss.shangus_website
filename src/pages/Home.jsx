@@ -725,7 +725,7 @@ export default function Home() {
             </div>
 
             {/* List - Interactive Cards with Micro-Calendar Date Badges */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 max-h-[400px] sm:max-h-[430px] md:max-h-[460px]">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 max-h-[240px] sm:max-h-[255px] md:max-h-[265px]">
               <ul className="space-y-1.5 m-0 p-0 list-none">
                 {notices.map((n, idx) => {
                   const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
@@ -814,10 +814,10 @@ export default function Home() {
         </div>
 
         {/* Principal Message & Stats Column */}
-        <div className="col-span-1 md:col-span-7 lg:col-span-8 xl:col-span-8 flex flex-col justify-between gap-5 sm:gap-6">
+        <div className="col-span-1 md:col-span-7 lg:col-span-8 xl:col-span-8 flex flex-col justify-start md:justify-between gap-3.5 sm:gap-4">
           {/* Principal Card Section */}
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-1.5 h-6 rounded-full bg-gradient-to-b from-teal-600 to-emerald-600" />
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-heading tracking-tight">
@@ -830,7 +830,7 @@ export default function Home() {
               </span>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-6 transition-all duration-300 hover:border-teal-500/30 relative overflow-hidden group">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-5 transition-all duration-300 hover:border-teal-500/30 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-bl from-teal-500/10 via-emerald-500/5 to-transparent rounded-bl-full pointer-events-none" />
 
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3.5 sm:gap-6 relative z-10">
