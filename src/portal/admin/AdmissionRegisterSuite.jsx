@@ -43,26 +43,26 @@ export const DEFAULT_COLUMN_WIDTHS = {
   rollNo: 42,
   formNo: 62,
   onlineStatus: 48,
-  admDate: 50,
+  admDate: 56,
   admNo: 56,
-  class: 46,
+  class: 44,
   boardReg: 96,
   name: 112,
   father: 90,
   mother: 90,
   dobFigures: 56,
   dobWords: 96,
-  gender: 42,
-  village: 64,
-  block: 54,
-  tehsil: 54,
-  district: 54,
+  gender: 40,
+  village: 62,
+  block: 52,
+  tehsil: 52,
+  district: 52,
   mobile: 66,
   parentMobile: 66,
 
   // PART 2
   p2_sno: 32,
-  p2_stream: 52,
+  p2_stream: 50,
   p2_subs: 96,
   p2_aadhar: 80,
   p2_cat: 38,
@@ -77,8 +77,8 @@ export const DEFAULT_COLUMN_WIDTHS = {
   p2_prevCC: 76,
   p2_withdrawal: 56,
   p2_issuedCC: 76,
-  p2_receipt: 140,
-  p2_remarks: 80,
+  p2_receipt: 138,
+  p2_remarks: 70,
 
   // SENTUP
   st_sno: 38,
@@ -401,19 +401,19 @@ function renderOnlineSubmCell(status) {
     const timePart = parts.slice(1).join(' ');
     return (
       <div className="flex flex-col justify-center items-start leading-[1.05] overflow-hidden">
-        <span className="whitespace-nowrap font-medium text-[7px] leading-tight truncate">{datePart}</span>
-        <span className="whitespace-nowrap text-[6px] text-slate-500 font-normal leading-tight truncate">{timePart}</span>
+        <span className="whitespace-nowrap font-medium text-[7.5px] leading-tight">{datePart}</span>
+        <span className="whitespace-nowrap text-[6.8px] text-slate-500 font-normal leading-tight">{timePart}</span>
       </div>
     );
   }
   const formatted = formatRegisterDate(str);
-  return <span className="whitespace-nowrap font-medium text-[7px] truncate">{formatted || str}</span>;
+  return <span className="whitespace-nowrap font-medium text-[7.5px]">{formatted || str}</span>;
 }
 
 function renderAdmDateCell(date) {
   if (!date || date === '—') return '—';
   const formatted = formatRegisterDate(date);
-  return <span className="whitespace-nowrap font-bold text-[7.5px] ledger-mono-font truncate">{formatted || date}</span>;
+  return <span className="whitespace-nowrap font-bold text-[7.8px] ledger-mono-font">{formatted || date}</span>;
 }
 
 function renderPenCell(pen) {
@@ -423,12 +423,12 @@ function renderPenCell(pen) {
     const parts = str.split(',');
     return (
       <div className="flex flex-col items-center justify-center leading-[1.05] break-all max-w-full overflow-hidden">
-        <span className="font-bold text-[6.8px] leading-tight break-all">{parts[0].trim()}</span>
-        {parts[1] && <span className="text-[5.8px] text-slate-600 font-medium leading-tight break-all">{parts[1].trim()}</span>}
+        <span className="font-bold text-[7.5px] leading-tight break-all">{parts[0].trim()}</span>
+        {parts[1] && <span className="text-[6.5px] text-slate-600 font-medium leading-tight break-all">{parts[1].trim()}</span>}
       </div>
     );
   }
-  return <div className="break-all max-w-full leading-tight text-[6.8px] truncate">{str}</div>;
+  return <div className="break-all max-w-full leading-tight text-[7.5px] truncate">{str}</div>;
 }
 
 function renderAdmittedVideCell(val) {
@@ -441,16 +441,16 @@ function renderAdmittedVideCell(val) {
     const datePart = formatRegisterDate(rawDatePart) || rawDatePart;
     return (
       <div className="flex flex-col items-center justify-center leading-[1.05] overflow-hidden">
-        <span className="font-bold text-[6.8px] leading-tight truncate">{noPart}{datePart ? ';' : ''}</span>
+        <span className="font-bold text-[7.5px] leading-tight">{noPart}{datePart ? ';' : ''}</span>
         {datePart && (
-          <span className="whitespace-nowrap font-medium text-[6px] text-emerald-950 leading-tight truncate">
+          <span className="whitespace-nowrap font-medium text-[6.8px] text-emerald-950 leading-tight">
             {datePart}
           </span>
         )}
       </div>
     );
   }
-  return <span className="leading-tight break-words text-[6.8px]">{str}</span>;
+  return <span className="leading-tight break-words text-[7.5px]">{str}</span>;
 }
 
 const BOARD_REGISTRATION_KEYS = [
@@ -1007,8 +1007,8 @@ export const VERIFIED_CLASS12_READMISSION_ROSTER = [
 ];
 
 export function buildClass12ReadmissionRemark(targetCls = '12th', oldAdm = '') {
-  const cleanOld = cleanStr(oldAdm);
-  return `Gap case, hence, readmitted for class ${targetCls}, 2026 (oct-nov session)${cleanOld ? ` • Prev Adm: ${cleanOld}` : ''} • Marks card submitted & verified`;
+  const cleanOld = cleanStr(oldAdm).replace(/^\(|\)$/g, '').trim();
+  return `Gap case, hence, readmitted for class ${targetCls}, 2026 (oct-nov session)${cleanOld ? ` • Prev Adm: (${cleanOld})` : ''} • Marks card submitted & verified`;
 }
 
 // Strict session equality matcher (prevents past session data leaking into current examination fields)
@@ -1031,14 +1031,14 @@ function formatBoardRegSplit(val) {
   if (!s) return '—';
   if (s.length > 12) {
     return (
-      <div className="leading-tight text-left font-mono text-[13px] st-reg-split">
+      <div className="leading-tight text-left font-mono st-reg-split">
         <span className="font-black text-slate-900 dark:text-slate-100 tracking-tight">{s.substring(0, 12)}</span>
         <br />
         <span className="font-extrabold text-slate-800 dark:text-slate-200 tracking-tight">{s.substring(12)}</span>
       </div>
     );
   }
-  return <span className="font-black font-mono text-[13px] tracking-tight">{s}</span>;
+  return <span className="font-black font-mono tracking-tight st-reg-split">{s}</span>;
 }
 
 // Comprehensive Academic Gap Detection for Class 12th & 10th Re-admissions
@@ -3250,10 +3250,10 @@ export default function AdmissionRegisterSuite({
       if (!finalOldAdmNo && matchedRosterEntry?.oldAdm) {
         finalOldAdmNo = matchedRosterEntry.oldAdm;
       }
-      const finalAdmDate = admDate || formatRegisterDate(firstRawValue(histMatch, ADMISSION_DATE_KEYS)) || (s.onlineSubmDate ? formatRegisterDate(s.onlineSubmDate) : '') || '02-03-2026';
-      const displayAdmNo = (isReadmission && finalOldAdmNo && finalOldAdmNo !== finalAdmNo)
-        ? `${finalAdmNo || '—'} (${finalOldAdmNo})`
-        : (finalAdmNo || '—');
+      const cleanOldAdm = finalOldAdmNo ? String(finalOldAdmNo).replace(/^\(|\)$/g, '').trim() : '';
+      const displayAdmNo = (isReadmission && cleanOldAdm && cleanOldAdm !== finalAdmNo)
+        ? `${finalAdmNo || '—'} (${cleanOldAdm})`
+        : (finalAdmNo || cleanOldAdm || '—');
       const finalBoardReg = boardReg || getBoardRegistration(histMatch, cls);
       const finalPrevSchool = prevSchool || getPreviousAcademicValue(histMatch, cls, 'Name of Previous School', ['prevSchool', 'Previous School', 'Name of Previous School', 'Name of the Institution last attended']);
       const finalPrevRoll = prevRoll || getPreviousAcademicValue(histMatch, cls, 'Exam Roll Number of Class', ['prevExamRollNo', 'Previous Exam Roll No', 'Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'classRollNo', 'Class Roll No', 'rollNo']);
@@ -3276,6 +3276,7 @@ export default function AdmissionRegisterSuite({
       const finalWithdrawal = withdrawal || formatRegisterDate(firstRawValue(histMatch, WITHDRAWAL_DATE_KEYS));
       const finalIssuedCC = issuedCC || firstCleanValue(histMatch, ISSUED_CC_KEYS);
       const finalReceipt = receipt || firstCleanValue(histMatch, CC_RECEIPT_KEYS);
+      const finalAdmDate = admDate || formatRegisterDate(firstRawValue(histMatch, ADMISSION_DATE_KEYS));
 
       list.push({
         raw: s,
@@ -5979,7 +5980,7 @@ export default function AdmissionRegisterSuite({
           s.isReadmission ? 'Re-admission' : 'Fresh',
           formatRegisterDate(s.onlineStatus) || s.onlineStatus || '',
           formatRegisterDate(s.admDate) || s.admDate || '',
-          s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' ? `${s.admNo || ''} (${s.oldAdmNo})` : (s.admNo || ''),
+          s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' ? `${s.admNo || ''} (${String(s.oldAdmNo).replace(/^\(|\)$/g, '').trim()})` : (s.admNo || ''),
           s.oldAdmNo || '',
           s.class || '',
           s.boardReg || '',
@@ -6030,7 +6031,7 @@ export default function AdmissionRegisterSuite({
       } else {
         const colDefs = [
           { key: 'st_sno', label: 'S.No.', get: s => s.sno },
-          { key: 'st_admNo', label: 'Adm. No.', get: s => (s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' ? `${s.admNo || ''} (${s.oldAdmNo})` : (s.admNo || '')) },
+          { key: 'st_admNo', label: 'Adm. No.', get: s => (s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' ? `${s.admNo || ''} (${String(s.oldAdmNo).replace(/^\(|\)$/g, '').trim()})` : (s.admNo || '')) },
           { key: 'st_rollNo', label: 'Class Roll No.', get: s => s.rollNo || '' },
           { key: 'st_boardReg', label: 'Board Reg. No.', get: s => s.boardReg || '' },
           { key: 'st_name', label: "Student's Name", get: s => s.name || '' },
@@ -6313,7 +6314,7 @@ export default function AdmissionRegisterSuite({
             max-height: ${registerTableHeightMm}mm !important;
             table-layout: fixed !important;
             border-collapse: collapse !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '6.5px' : '7.2px'} !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '7.5px' : '8.0px'} !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -6376,9 +6377,9 @@ export default function AdmissionRegisterSuite({
             min-height: 5.5mm !important;
             max-height: 5.5mm !important;
             padding: 0.1mm 0.3mm !important;
-            font-size: 6px !important;
+            font-size: 7px !important;
             font-weight: 800 !important;
-            line-height: 1.02 !important;
+            line-height: 1.05 !important;
             vertical-align: middle !important;
             text-align: center !important;
             box-sizing: border-box !important;
@@ -6423,16 +6424,30 @@ export default function AdmissionRegisterSuite({
             height: ${registerRowHeightMm}mm !important;
             min-height: ${registerRowHeightMm}mm !important;
             max-height: ${registerRowHeightMm}mm !important;
-            padding: 0 0.3mm !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '5.2px' : '5.8px'} !important;
-            line-height: 1.0 !important;
+            padding: 0 0.35mm !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '7.5px' : '8.0px'} !important;
+            line-height: 1.08 !important;
             vertical-align: middle !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
             white-space: nowrap !important;
             text-overflow: ellipsis !important;
-            word-break: normal !important;
-            overflow-wrap: normal !important;
+          }
+
+          /* Wrap words in text-heavy columns (Part 1: Name, Parentage, DOB Words, Address; Part 2: Subs, Prev School, Remarks) */
+          .admission-spread-table td[data-col="name"],
+          .admission-spread-table td[data-col="father"],
+          .admission-spread-table td[data-col="mother"],
+          .admission-spread-table td[data-col="dobWords"],
+          .admission-spread-table td[data-col="village"],
+          .admission-spread-table td[data-col="p2_subs"],
+          .admission-spread-table td[data-col="p2_prevSchool"],
+          .admission-spread-table td[data-col="p2_remarks"],
+          .admission-spread-table td.cell-wrap {
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            text-overflow: clip !important;
           }
 
           .admission-spread-table tbody tr > td * {
@@ -6444,7 +6459,6 @@ export default function AdmissionRegisterSuite({
           .admission-spread-table tbody tr > td > span {
             max-height: calc(${registerRowHeightMm}mm - 0.2mm) !important;
             overflow: hidden !important;
-            line-height: 1.0 !important;
             box-sizing: border-box !important;
           }
 
@@ -6454,10 +6468,10 @@ export default function AdmissionRegisterSuite({
             margin-bottom: 0 !important;
           }
 
-          /* Compact multi-line cells in Part 1 and Part 2 (DOB words, online status, receipt, subs, account, prevSchool, remarks) */
+          /* Multi-line cells in Part 1 and Part 2 (DOB words, online status, receipt, subs, account, prevSchool, remarks) */
           .admission-spread-table td .line-clamp-2,
           .admission-spread-table td div.truncate {
-            line-height: 1.0 !important;
+            line-height: 1.06 !important;
             max-height: calc(${registerRowHeightMm}mm - 0.3mm) !important;
             overflow: hidden !important;
           }
@@ -6467,7 +6481,24 @@ export default function AdmissionRegisterSuite({
             -webkit-line-clamp: 2 !important;
             -webkit-box-orient: vertical !important;
             white-space: normal !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '4.6px' : '5.2px'} !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '7.0px' : '7.5px'} !important;
+          }
+
+          /* Remarks specifically: allow up to 3 lines with word wrapping so column width is decreased */
+          .admission-spread-table td[data-col="p2_remarks"] .remarks-wrap,
+          .admission-spread-table td .line-clamp-3 {
+            display: -webkit-box !important;
+            -webkit-line-clamp: 3 !important;
+            -webkit-box-orient: vertical !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            line-height: 1.08 !important;
+            max-height: calc(${registerRowHeightMm}mm - 0.3mm) !important;
+            overflow: hidden !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '6.8px' : '7.2px'} !important;
           }
 
           /* Board Registration in Print (both split and single-line) */
@@ -6475,58 +6506,85 @@ export default function AdmissionRegisterSuite({
           .admission-spread-table .st-reg-split span,
           .admission-spread-table td span.font-mono,
           .admission-spread-table td span.font-black.font-mono {
-            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.4px'} !important;
-            line-height: 1.0 !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '7.5px' : '8.0px'} !important;
+            line-height: 1.05 !important;
             white-space: nowrap !important;
           }
 
           /* Form No & Online status sizing in Print */
           .admission-spread-table tbody tr > td div.font-bold,
-          .admission-spread-table tbody tr > td div.text-\[8\.5px\] {
-            font-size: ${currentStudentsPerPage >= 16 ? '5.0px' : '5.5px'} !important;
-            line-height: 1.0 !important;
+          .admission-spread-table tbody tr > td div.text-\[8\.5px\],
+          .admission-spread-table tbody tr > td div.text-\[8\.2px\] {
+            font-size: ${currentStudentsPerPage >= 16 ? '7.6px' : '8.2px'} !important;
+            line-height: 1.05 !important;
           }
 
           .admission-spread-table tbody tr > td div.text-\[6\.5px\],
+          .admission-spread-table tbody tr > td div.text-\[6\.8px\],
           .admission-spread-table tbody tr > td span.text-\[7px\],
           .admission-spread-table tbody tr > td span.text-\[6px\] {
-            font-size: ${currentStudentsPerPage >= 16 ? '4.4px' : '4.8px'} !important;
-            line-height: 1.0 !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '6.5px' : '6.8px'} !important;
+            line-height: 1.05 !important;
             margin-top: 0 !important;
           }
 
-          /* Admission No and Old Adm No in Print */
-          .admission-spread-table tbody tr > td div.ledger-mono-font,
+          /* Admission No, Old Adm No and Re-Adm Label in Print */
+          .admission-spread-table td[data-col="admNo"] {
+            text-align: center !important;
+            vertical-align: middle !important;
+          }
+          .admission-spread-table td[data-col="admNo"] div.ledger-mono-font,
           .admission-spread-table tbody tr > td div.text-\[9px\] {
-            font-size: ${currentStudentsPerPage >= 16 ? '5.4px' : '6.0px'} !important;
-            line-height: 1.0 !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '8.5px' : '9.0px'} !important;
+            line-height: 1.05 !important;
+            font-weight: 900 !important;
           }
 
+          .admission-spread-table td[data-col="admNo"] div.text-\[7\.5px\],
           .admission-spread-table tbody tr > td div.text-\[7\.5px\] {
-            font-size: ${currentStudentsPerPage >= 16 ? '4.4px' : '4.8px'} !important;
-            line-height: 1.0 !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '7.0px' : '7.5px'} !important;
+            line-height: 1.05 !important;
+            font-weight: 700 !important;
+            color: #7e22ce !important;
           }
 
-          /* Candidate Name, Father Name, Mother Name strictly contained in Print */
+          .admission-spread-table td[data-col="admNo"] .readm-badge,
+          .admission-spread-table td[data-col="admNo"] div.text-\[6\.8px\] {
+            font-size: ${currentStudentsPerPage >= 16 ? '6.4px' : '6.8px'} !important;
+            line-height: 1.05 !important;
+            font-weight: 900 !important;
+            color: #6b21a8 !important;
+            letter-spacing: -0.2px !important;
+          }
+
+          /* Candidate Name, Father Name, Mother Name in Print */
           .admission-spread-table td.group\/name-cell > div,
-          .admission-spread-table td div.font-black.uppercase,
+          .admission-spread-table td div.font-black.uppercase {
+            font-size: ${currentStudentsPerPage >= 16 ? '8.0px' : '8.5px'} !important;
+            line-height: 1.08 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            font-weight: 900 !important;
+          }
+
+          .admission-spread-table td[data-col="father"],
+          .admission-spread-table td[data-col="mother"],
           .admission-spread-table tbody tr > td:nth-child(10),
           .admission-spread-table tbody tr > td:nth-child(11) {
-            font-size: ${currentStudentsPerPage >= 16 ? '5.2px' : '5.8px'} !important;
-            line-height: 1.0 !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '7.4px' : '7.8px'} !important;
+            line-height: 1.08 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            font-weight: 700 !important;
           }
 
-          /* Address and Contact cells strictly single-line */
+          /* Address and Contact cells */
           .admission-spread-table tbody tr > td.bg-yellow-50,
           .admission-spread-table tbody tr > td.bg-yellow-50 * {
-            font-size: ${currentStudentsPerPage >= 16 ? '5.0px' : '5.6px'} !important;
-            line-height: 1.0 !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '7.2px' : '7.8px'} !important;
+            line-height: 1.08 !important;
           }
 
           /* Photo cell strict containment on Part 1 */
@@ -6613,7 +6671,7 @@ export default function AdmissionRegisterSuite({
             line-height: 1.0 !important;
           }
           .admission-spread-table td.register-handwrite-cell .handwrite-label {
-            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.4px'} !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '6.2px' : '6.8px'} !important;
             font-weight: 700 !important;
             color: #1e293b !important;
             white-space: nowrap !important;
@@ -7275,6 +7333,20 @@ export default function AdmissionRegisterSuite({
         .register-resizable-row > td > span {
           max-height: calc(var(--register-row-height) - 4px);
           overflow: hidden;
+        }
+
+        .admission-spread-table td[data-col="name"],
+        .admission-spread-table td[data-col="father"],
+        .admission-spread-table td[data-col="mother"],
+        .admission-spread-table td[data-col="dobWords"],
+        .admission-spread-table td[data-col="village"],
+        .admission-spread-table td[data-col="p2_subs"],
+        .admission-spread-table td[data-col="p2_prevSchool"],
+        .admission-spread-table td[data-col="p2_remarks"],
+        .admission-spread-table td.cell-wrap {
+          white-space: normal !important;
+          word-break: break-word !important;
+          overflow-wrap: break-word !important;
         }
 
         .register-resizable-row:hover > td {
@@ -9454,17 +9526,17 @@ export default function AdmissionRegisterSuite({
                               <col style={{ width: `${columnWidths.photo || 40}px` }} />
                               <col style={{ width: `${columnWidths.rollNo || 42}px` }} />
                               <col style={{ width: `${columnWidths.formNo || 62}px` }} />
-                              <col style={{ width: `${columnWidths.admDate || 50}px` }} />
+                              <col style={{ width: `${columnWidths.admDate || 56}px` }} />
                               <col style={{ width: `${columnWidths.admNo || 56}px` }} />
-                              <col style={{ width: `${columnWidths.class || 46}px` }} />
+                              <col style={{ width: `${columnWidths.class || 44}px` }} />
                               <col style={{ width: `${columnWidths.boardReg || 96}px` }} />
                               <col style={{ width: `${columnWidths.name || 112}px` }} />
                               <col style={{ width: `${columnWidths.father || 90}px` }} />
                               <col style={{ width: `${columnWidths.mother || 90}px` }} />
                               <col style={{ width: `${columnWidths.dobFigures || 56}px` }} />
                               <col style={{ width: `${columnWidths.dobWords || 96}px` }} />
-                              <col style={{ width: `${columnWidths.gender || 42}px` }} />
-                              <col style={{ width: `${columnWidths.village || 64}px` }} />
+                              <col style={{ width: `${columnWidths.gender || 40}px` }} />
+                              <col style={{ width: `${columnWidths.village || 62}px` }} />
                               <col style={{ width: `${columnWidths.block || 54}px` }} />
                               <col style={{ width: `${columnWidths.tehsil || 54}px` }} />
                               <col style={{ width: `${columnWidths.district || 54}px` }} />
@@ -9477,14 +9549,14 @@ export default function AdmissionRegisterSuite({
                                 <ResizableTh colKey="photo" width={columnWidths.photo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">PHOTO</span></ResizableTh>
                                 <ResizableTh colKey="rollNo" sortKey="rollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.rollNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">CLASS</span><span className="block whitespace-nowrap leading-tight mt-0.5">R. NO.</span></ResizableTh>
                                 <ResizableTh colKey="formNo" sortKey="formNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.formNo || 62} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">FORM NO. &amp;</span><span className="block whitespace-nowrap leading-tight text-[7px] mt-0.5">ONLINE SUBM.</span></ResizableTh>
-                                <ResizableTh colKey="admDate" sortKey="admDate" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.admDate} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">ADM.</span><span className="block whitespace-nowrap leading-tight mt-0.5">DATE</span></ResizableTh>
+                                <ResizableTh colKey="admDate" sortKey="admDate" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.admDate || 56} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">ADM.</span><span className="block whitespace-nowrap leading-tight mt-0.5">DATE</span></ResizableTh>
                                 <ResizableTh colKey="admNo" sortKey="admNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.admNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">ADM.</span><span className="block whitespace-nowrap leading-tight mt-0.5">NO.</span></ResizableTh>
-                                <ResizableTh colKey="class" sortKey="class" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.class} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">CLASS</span><span className="block whitespace-nowrap leading-tight mt-0.5">ADM. TO</span></ResizableTh>
+                                <ResizableTh colKey="class" sortKey="class" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.class || 44} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">CLASS</span><span className="block whitespace-nowrap leading-tight mt-0.5">ADM. TO</span></ResizableTh>
                                 <ResizableTh colKey="boardReg" sortKey="boardReg" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.boardReg} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap leading-tight">BOARD REG.</span><span className="block whitespace-nowrap leading-tight mt-0.5">NO.</span></ResizableTh>
                                 <ResizableTh colKey="name" sortKey="name" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.name} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-left pl-2 h-grey">STUDENT'S NAME</ResizableTh>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">PARENTAGE</th>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">DATE OF BIRTH</th>
-                                <ResizableTh colKey="gender" sortKey="gender" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.gender} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">GENDER</span></ResizableTh>
+                                <ResizableTh colKey="gender" sortKey="gender" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.gender || 40} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">GENDER</span></ResizableTh>
                                 <th colSpan="4" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">RESIDENCE</th>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">CONTACT</th>
                               </tr>
@@ -9493,7 +9565,7 @@ export default function AdmissionRegisterSuite({
                                 <ResizableTh colKey="mother" sortKey="mother" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.mother} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">MOTHER'S NAME</ResizableTh>
                                 <ResizableTh colKey="dobFigures" sortKey="dobFigures" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.dobFigures} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">FIGURES</ResizableTh>
                                 <ResizableTh colKey="dobWords" sortKey="dobWords" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.dobWords} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">WORDS</ResizableTh>
-                                <ResizableTh colKey="village" sortKey="village" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.village} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">VILLAGE/ TOWN</ResizableTh>
+                                <ResizableTh colKey="village" sortKey="village" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.village || 62} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">VILLAGE/ TOWN</ResizableTh>
                                 <ResizableTh colKey="block" sortKey="block" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.block} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">BLOCK</ResizableTh>
                                 <ResizableTh colKey="tehsil" sortKey="tehsil" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.tehsil} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">TEHSIL</ResizableTh>
                                 <ResizableTh colKey="district" sortKey="district" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.district} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">DISTRICT</ResizableTh>
@@ -9506,8 +9578,8 @@ export default function AdmissionRegisterSuite({
                                 const photoSrc = getResolvedStudentPhoto(s);
                                 return (
                                   <ResizableDataRow key={`chunk_row_p1_${s.id || ''}_${idx}`} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50 group">
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.sno}</td>
-                                    <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined }}>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font text-[8.5px]" data-col="sno">{s.sno}</td>
+                                    <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" data-col="photo" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined }}>
                                       <div className="register-photo-inner w-full h-full flex items-center justify-center p-0.5 overflow-hidden">
                                         {photoSrc ? (
                                           <img
@@ -9528,32 +9600,34 @@ export default function AdmissionRegisterSuite({
                                         </span>
                                       </div>
                                     </td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700 ledger-mono-font">{s.rollNo}</td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden">
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700 ledger-mono-font text-[9px]" data-col="rollNo">{s.rollNo}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden text-[8px]" data-col="formNo">
                                       <div className="font-bold text-[8.5px] text-slate-900 leading-tight">
                                         {s.formNo || '—'}
                                       </div>
-                                      <div className="text-[6.5px] text-slate-600 font-medium leading-tight mt-0.5">
+                                      <div className="text-[7.5px] text-slate-600 font-medium leading-tight mt-0.5">
                                         {renderOnlineSubmCell(s.onlineStatus)}
                                       </div>
                                     </td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden">{renderAdmDateCell(s.admDate)}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[9px] leading-tight">
-                                      <div className="ledger-mono-font font-black">{s.admNo || '—'}</div>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden text-[8px]" data-col="admDate">{renderAdmDateCell(s.admDate)}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 leading-tight" data-col="admNo">
+                                      <div className="ledger-mono-font font-black text-[9px] leading-tight">{s.admNo || '—'}</div>
                                       {s.oldAdmNo && s.oldAdmNo !== s.admNo && s.oldAdmNo !== '—' && (
-                                        <div className="text-[7.5px] font-mono text-purple-700 font-bold">({s.oldAdmNo})</div>
+                                        <div className="text-[7.5px] font-mono text-purple-700 dark:text-purple-400 font-bold leading-tight mt-0.5">
+                                          ({String(s.oldAdmNo).replace(/^\(|\)$/g, '').trim()})
+                                        </div>
+                                      )}
+                                      {s.isReadmission && (
+                                        <div className="text-[6.8px] font-black text-purple-800 dark:text-purple-300 uppercase tracking-tight leading-tight mt-0.5 select-none readm-badge">
+                                          (RE-ADM)
+                                        </div>
                                       )}
                                     </td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.class}</td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden leading-tight">{formatBoardRegSplit(s.boardReg)}</td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left relative group/name-cell overflow-hidden">
-                                      <div className="w-full font-black uppercase tracking-tight text-slate-900 leading-tight">
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]" data-col="class">{s.class}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden leading-tight text-[8px]" data-col="boardReg">{formatBoardRegSplit(s.boardReg)}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left relative group/name-cell overflow-hidden" data-col="name">
+                                      <div className="w-full font-black uppercase tracking-tight text-slate-900 leading-tight text-[8.5px] break-words line-clamp-2">
                                         <span>{s.name}</span>
-                                        {s.isReadmission && (
-                                          <span className="ml-1 inline-flex items-center px-1 py-0.2 rounded bg-purple-100 text-purple-800 text-[6.5px] font-black border border-purple-300 print:inline-block select-none" title={`Re-admission (Previous Adm: ${s.oldAdmNo || 'Historical'})`}>
-                                            (Re-Adm)
-                                          </span>
-                                        )}
                                       </div>
                                       {/* Prominent floating hover toggle button without squeezing name width */}
                                       <button
@@ -9569,19 +9643,25 @@ export default function AdmissionRegisterSuite({
                                         {s.isReadmission ? '⚙ Edit Re-Adm' : '+ Set Re-Adm'}
                                       </button>
                                     </td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.father}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.mother}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{formatRegisterDate(s.dobFigures) || s.dobFigures || '—'}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-serif overflow-hidden">
-                                      <div className="line-clamp-2 leading-tight">{s.dobWords}</div>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px] leading-tight" data-col="father">
+                                      <div className="line-clamp-2 leading-tight break-words">{s.father}</div>
                                     </td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.gender}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.village}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.block}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.tehsil}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.district}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono ledger-mono-font">{s.mobile}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono ledger-mono-font">{s.parentMobile}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px] leading-tight" data-col="mother">
+                                      <div className="line-clamp-2 leading-tight break-words">{s.mother}</div>
+                                    </td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font text-[8px]" data-col="dobFigures">{formatRegisterDate(s.dobFigures) || s.dobFigures || '—'}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-serif overflow-hidden" data-col="dobWords">
+                                      <div className="line-clamp-2 leading-tight break-words">{s.dobWords}</div>
+                                    </td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold text-[8px]" data-col="gender">{s.gender}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50 text-[8px] leading-tight" data-col="village">
+                                      <div className="line-clamp-2 leading-tight break-words">{s.village}</div>
+                                    </td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50 text-[8px] leading-tight" data-col="block">{s.block}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50 text-[8px] leading-tight" data-col="tehsil">{s.tehsil}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50 text-[8px] leading-tight" data-col="district">{s.district}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono ledger-mono-font text-[8px]" data-col="mobile">{s.mobile}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono ledger-mono-font text-[8px]" data-col="parentMobile">{s.parentMobile}</td>
                                   </ResizableDataRow>
                                 );
                               })}
@@ -9639,7 +9719,7 @@ export default function AdmissionRegisterSuite({
                               <col style={{ width: `${columnWidths.p2_withdrawal || 56}px` }} />
                               <col style={{ width: `${columnWidths.p2_issuedCC || 76}px` }} />
                               <col style={{ width: `${columnWidths.p2_receipt || 140}px` }} />
-                              <col style={{ width: `${columnWidths.p2_remarks || 80}px` }} />
+                              <col style={{ width: `${columnWidths.p2_remarks || 70}px` }} />
                             </colgroup>
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
@@ -9657,7 +9737,7 @@ export default function AdmissionRegisterSuite({
                                 <ResizableTh colKey="p2_withdrawal" sortKey="withdrawal" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_withdrawal} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-100 h-red">RESULT /<br />WITHDRAWAL DT.</ResizableTh>
                                 <ResizableTh colKey="p2_issuedCC" sortKey="issuedCC" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_issuedCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">ISSUED DC/CC</ResizableTh>
                                 <ResizableTh colKey="p2_receipt" sortKey="receipt" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_receipt} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">RECEIPT</ResizableTh>
-                                <ResizableTh colKey="p2_remarks" sortKey="remarks" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_remarks} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">REMARKS</ResizableTh>
+                                <ResizableTh colKey="p2_remarks" sortKey="remarks" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_remarks || 70} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">REMARKS</ResizableTh>
                               </tr>
                               <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[7.5px]">
                                 <ResizableTh colKey="p2_prevSchool" sortKey="prevSchool" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevSchool} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREVIOUS SCHOOL</ResizableTh>
@@ -9668,30 +9748,30 @@ export default function AdmissionRegisterSuite({
                             <tbody className="divide-y divide-slate-900 text-slate-900">
                               {chunk.map((s, idx) => (
                                 <ResizableDataRow key={`chunk_row_p2_${s.id || ''}_${idx}`} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50">
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font" data-col="p2_sno">{s.sno}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center"><StreamLabel value={s.stream} /></td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-[1.05] font-medium overflow-hidden">
-                                    <div className="line-clamp-2 leading-[1.05]">{s.subs}</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font text-[8.5px]" data-col="p2_sno">{s.sno}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-[8px]" data-col="p2_stream"><StreamLabel value={s.stream} /></td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-medium overflow-hidden" data-col="p2_subs">
+                                    <div className="line-clamp-2 leading-tight break-words">{s.subs}</div>
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50 ledger-mono-font text-[7.5px]">{s.aadhar}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-black">{s.category}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50">{s.socioEcon}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-bold">{s.blood}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left align-middle font-mono bg-yellow-50 ledger-mono-font overflow-hidden">
-                                     <div className="font-bold text-[7px] text-slate-900 leading-[1.05] truncate">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50 ledger-mono-font text-[8px]" data-col="p2_aadhar">{s.aadhar}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-black text-[8px]" data-col="p2_cat">{s.category}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 text-[8px]" data-col="p2_socio">{s.socioEcon}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-bold text-[8px]" data-col="p2_blood">{s.blood}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left align-middle font-mono bg-yellow-50 ledger-mono-font overflow-hidden text-[7.8px]" data-col="p2_account">
+                                     <div className="font-bold text-[8px] text-slate-900 leading-tight truncate">
                                        {s.account && s.account !== '—' ? s.account : '—'}
                                      </div>
                                      {s.ifsc && s.ifsc !== '—' && s.ifsc !== 'NA' && (
-                                       <div className="text-[6px] text-slate-600 font-medium leading-[1.05] truncate">
+                                       <div className="text-[7px] text-slate-600 font-medium leading-tight truncate">
                                          {s.ifsc}
                                        </div>
                                      )}
                                    </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-[1.05] overflow-hidden align-middle">
-                                    <div className="line-clamp-2 leading-[1.05]">{s.prevSchool}</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight overflow-hidden align-middle" data-col="p2_prevSchool">
+                                    <div className="line-clamp-2 leading-tight break-words">{s.prevSchool}</div>
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.prevRoll}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font text-[8px]" data-col="p2_prevRoll">{s.prevRoll}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8px]" data-col="p2_prevResult">
                                     {(() => {
                                       const pRes = String(s.prevResult || '').trim();
                                       const isPQual = /^(pass|passed|qual|qualified)\b/i.test(pRes) || /qualified/i.test(pRes) || /passed/i.test(pRes);
@@ -9701,22 +9781,22 @@ export default function AdmissionRegisterSuite({
                                       return <span className={pClass} style={pColor ? { color: pColor } : undefined}>{pRes || '—'}</span>;
                                     })()}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7px] ledger-mono-font overflow-hidden">{renderPenCell(s.pen)}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7px] bg-emerald-50">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.8px] ledger-mono-font overflow-hidden" data-col="p2_pen">{renderPenCell(s.pen)}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7.8px] bg-emerald-50" data-col="p2_prevCC">
                                     {renderAdmittedVideCell(s.prevCC)}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50" data-col="p2_withdrawal"></td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.8px] bg-rose-50" data-col="p2_withdrawal"></td>
                                   <td className="register-handwrite-cell border border-slate-900 px-1.5 py-0.5 text-left bg-rose-50/40 overflow-hidden align-middle" data-col="p2_issuedCC">
                                     {s.issuedCC ? (
-                                      <div className="text-[7px] leading-tight font-semibold text-slate-900 line-clamp-2">{s.issuedCC}</div>
+                                      <div className="text-[7.5px] leading-tight font-semibold text-slate-900 line-clamp-2">{s.issuedCC}</div>
                                     ) : (
-                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 space-y-1.5 select-none font-medium text-slate-800">
+                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 space-y-1 select-none font-medium text-slate-800">
                                         <div className="handwrite-line flex items-center gap-1 leading-none">
-                                          <span className="handwrite-label font-bold text-[6.5px] text-slate-700 tracking-tight shrink-0">C.No:</span>
+                                          <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">C.No:</span>
                                           <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[28px] h-2"></span>
                                         </div>
                                         <div className="handwrite-line flex items-center gap-1 leading-none">
-                                          <span className="handwrite-label font-bold text-[6.5px] text-slate-700 tracking-tight shrink-0">Date:</span>
+                                          <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">Date:</span>
                                           <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[28px] h-2"></span>
                                         </div>
                                       </div>
@@ -9724,22 +9804,22 @@ export default function AdmissionRegisterSuite({
                                   </td>
                                   <td className="register-handwrite-cell border border-slate-900 px-1.5 py-0.5 text-left bg-rose-50/40 overflow-hidden align-middle" data-col="p2_receipt">
                                     {s.receipt ? (
-                                      <div className="text-[7px] leading-tight font-semibold text-slate-900 line-clamp-2">{s.receipt}</div>
+                                      <div className="text-[7.5px] leading-tight font-semibold text-slate-900 line-clamp-2">{s.receipt}</div>
                                     ) : (
-                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 space-y-1.5 select-none font-medium text-slate-800">
+                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 space-y-1 select-none font-medium text-slate-800">
                                         <div className="handwrite-line flex items-center gap-1 leading-none">
-                                          <span className="handwrite-label font-bold text-[6.5px] text-slate-700 tracking-tight shrink-0">Rcvd on:</span>
+                                          <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">Rcvd on:</span>
                                           <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[40px] h-2"></span>
                                         </div>
                                         <div className="handwrite-line flex items-center gap-1 leading-none">
-                                          <span className="handwrite-label font-bold text-[6.5px] text-slate-700 tracking-tight shrink-0">Signature:</span>
+                                          <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">Signature:</span>
                                           <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[40px] h-2"></span>
                                         </div>
                                       </div>
                                     )}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-[1.05] overflow-hidden align-middle">
-                                    <div className="line-clamp-2 leading-[1.05]">{s.remarks}</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.2px] leading-tight overflow-hidden align-middle" data-col="p2_remarks">
+                                    <div className="line-clamp-3 leading-tight break-words remarks-wrap" title={s.remarks}>{s.remarks}</div>
                                   </td>
                                 </ResizableDataRow>
                               ))}

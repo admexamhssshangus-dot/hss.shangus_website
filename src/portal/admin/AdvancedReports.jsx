@@ -2068,7 +2068,8 @@ export const formatStudentAdmNo = (rec) => {
   const { newAdm, oldAdm, isReAdmission } = parseAdmNoParts(rec);
 
   if (isReAdmission && oldAdm && oldAdm !== newAdm) {
-    return newAdm ? `${newAdm} (${oldAdm})` : `(${oldAdm})`;
+    const cleanOld = String(oldAdm).replace(/^\(|\)$/g, '').trim();
+    return newAdm ? `${newAdm} (${cleanOld})` : `(${cleanOld})`;
   }
 
   return newAdm || oldAdm || '';
@@ -5216,10 +5217,11 @@ const COLUMN_DEFS = [
       }
 
       if (isReAdmission && oldAdm && oldAdm !== newAdm) {
+        const cleanOld = String(oldAdm).replace(/^\(|\)$/g, '').trim();
         return (
           <div
             className="inline-flex flex-col items-center justify-center leading-tight py-0.5"
-            title={`Re-admission student. New Adm No: ${newAdm || '—'}, Old Adm No: ${oldAdm}`}
+            title={`Re-admission student. New Adm No: ${newAdm || '—'}, Old Adm No: ${cleanOld}`}
           >
             {newAdm ? (
               <span className="text-amber-800 dark:text-amber-300 font-extrabold whitespace-nowrap">
@@ -5228,8 +5230,25 @@ const COLUMN_DEFS = [
             ) : (
               <span className="text-slate-400 dark:text-slate-500 font-mono text-[11px]">—</span>
             )}
-            <span className="text-[10.5px] text-indigo-700 dark:text-indigo-400 font-black whitespace-nowrap leading-none mt-0.5">
-              ({oldAdm})
+            <span className="text-[10px] text-purple-700 dark:text-purple-400 font-black whitespace-nowrap leading-none mt-0.5 font-mono">
+              ({cleanOld})
+            </span>
+            <span className="text-[8.5px] text-purple-800 dark:text-purple-300 font-black uppercase tracking-tight leading-none mt-0.5 select-none">
+              (RE-ADM)
+            </span>
+          </div>
+        );
+      }
+
+      if (isReAdmission) {
+        return (
+          <div
+            className="inline-flex flex-col items-center justify-center leading-tight py-0.5"
+            title={`Re-admission student. Adm No: ${newAdm || oldAdm || '—'}`}
+          >
+            <span className="font-mono font-black text-amber-800 dark:text-amber-300 whitespace-nowrap">{newAdm || oldAdm}</span>
+            <span className="text-[8.5px] text-purple-800 dark:text-purple-300 font-black uppercase tracking-tight leading-none mt-0.5 select-none">
+              (RE-ADM)
             </span>
           </div>
         );

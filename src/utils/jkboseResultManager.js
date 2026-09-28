@@ -439,7 +439,8 @@ export function extractStudentAdmissionNumber(st) {
   }
 
   if (oldAdmNo && oldAdmNo !== resolved && !resolved.includes('(')) {
-    return `${resolved} (${oldAdmNo})`;
+    const cleanOld = String(oldAdmNo).replace(/^\(|\)$/g, '').trim();
+    return `${resolved} (${cleanOld})`;
   }
 
   return resolved;
