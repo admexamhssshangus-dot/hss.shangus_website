@@ -759,8 +759,9 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   const effectiveAddress = address || extractFullAddress(rawStudent) || '';
   let effectiveAdmissionNo = admissionNo || extractStudentAdmissionNumber(rawStudent) || '';
   const rawOldAdm = String(rawStudent.oldAdmNo || rawStudent['Old Admission No.'] || rawStudent['Old Adm No'] || studentData?.oldAdmNo || '').trim();
-  if (rawOldAdm && rawOldAdm !== '—' && rawOldAdm !== 'N/A' && !effectiveAdmissionNo.includes('(') && effectiveAdmissionNo !== rawOldAdm) {
-    effectiveAdmissionNo = `${effectiveAdmissionNo} (${rawOldAdm})`;
+  const cleanOldAdm = rawOldAdm ? rawOldAdm.replace(/^\(|\)$/g, '').trim() : '';
+  if (cleanOldAdm && cleanOldAdm !== '—' && cleanOldAdm !== 'N/A' && !effectiveAdmissionNo.includes('(') && effectiveAdmissionNo !== cleanOldAdm) {
+    effectiveAdmissionNo = `${effectiveAdmissionNo} (${cleanOldAdm})`;
   }
   const effectiveAdmissionDate = admissionDate || extractStudentAdmissionDate(rawStudent) || '';
 
@@ -1214,8 +1215,9 @@ export function printStudentCertificate({
   const certId = metaDetails.certificateNo || refNo || 'SHG-2026';
   const regId = metaDetails.regNo || '';
   const metaOldAdm = String(metaDetails.oldAdmNo || '').trim();
-  if (metaOldAdm && metaOldAdm !== '—' && metaOldAdm !== 'N/A' && metaDetails.admissionNo && !metaDetails.admissionNo.includes('(') && metaDetails.admissionNo !== metaOldAdm) {
-    metaDetails.admissionNo = `${metaDetails.admissionNo} (${metaOldAdm})`;
+  const cleanMetaOld = metaOldAdm ? metaOldAdm.replace(/^\(|\)$/g, '').trim() : '';
+  if (cleanMetaOld && cleanMetaOld !== '—' && cleanMetaOld !== 'N/A' && metaDetails.admissionNo && !metaDetails.admissionNo.includes('(') && metaDetails.admissionNo !== cleanMetaOld) {
+    metaDetails.admissionNo = `${metaDetails.admissionNo} (${cleanMetaOld})`;
   }
   const admId = metaDetails.admissionNo || '';
   const rollId = metaDetails.rollNo || '';
@@ -2113,8 +2115,9 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     const certId = metaDetails.certificateNo || 'SHG-2026';
     const regId = metaDetails.regNo || '';
     const metaOldAdm = String(metaDetails.oldAdmNo || '').trim();
-    if (metaOldAdm && metaOldAdm !== '—' && metaOldAdm !== 'N/A' && metaDetails.admissionNo && !metaDetails.admissionNo.includes('(') && metaDetails.admissionNo !== metaOldAdm) {
-      metaDetails.admissionNo = `${metaDetails.admissionNo} (${metaOldAdm})`;
+    const cleanMetaOld = metaOldAdm ? metaOldAdm.replace(/^\(|\)$/g, '').trim() : '';
+    if (cleanMetaOld && cleanMetaOld !== '—' && cleanMetaOld !== 'N/A' && metaDetails.admissionNo && !metaDetails.admissionNo.includes('(') && metaDetails.admissionNo !== cleanMetaOld) {
+      metaDetails.admissionNo = `${metaDetails.admissionNo} (${cleanMetaOld})`;
     }
     const admId = metaDetails.admissionNo || '';
     const rollId = metaDetails.rollNo || getStudentRollVal(student) || '';
