@@ -361,10 +361,16 @@ export default function Home() {
         }
       };
 
-      // Always populate static CDN data first for instant 10ms paint
-      fetchStaticNoticesFallback();
-      fetchStaticSlidesFallback();
-      fetchStaticTrafficFallback();
+      // Populate static CDN data if not already cached in localStorage
+      if (!localStorage.getItem('site_notices')) {
+        fetchStaticNoticesFallback();
+      }
+      if (!localStorage.getItem('site_slides')) {
+        fetchStaticSlidesFallback();
+      }
+      if (!localStorage.getItem('site_traffic_stats')) {
+        fetchStaticTrafficFallback();
+      }
 
       // Synthetic speed tests (GTmetrix, Lighthouse) only evaluate initial page load; skip heavy Firestore WebChannel streams
       if (isBotOrSpeedTest) {
