@@ -2232,6 +2232,16 @@ export default function PracticalsPage() {
               if (!isStatusMatch) return;
             }
 
+            // Exclude student if they have changed subjects and are no longer enrolled in this subject (unless rosterScope === 'all_class')
+            if (!isSecondaryClass && rosterScope !== 'all_class') {
+              const hasEnrolledSubjects = (Array.isArray(richSt.subjects) && richSt.subjects.length > 0) ||
+                richSt['Subjects to be taken in Class 11th'] || richSt['Subjects to be taken in Class 12th'] ||
+                richSt['Subjects Studied in Class 11th'] || richSt['Subs'] || richSt.subs || richSt.rawSubjects;
+              if (hasEnrolledSubjects && !isSubjectOrStreamMatch(richSt, targetSubjCode, targetSubjName)) {
+                return; // Student was transferred or changed subjects away from this subject
+              }
+            }
+
             const resolvedName = getStudentName(richSt);
             const finalName = (resolvedName && resolvedName !== 'Student') ? resolvedName : (rec.name && rec.name !== 'Student' ? rec.name : (rec.studentName || `Student`));
 

@@ -73,11 +73,22 @@ async function lookupResult(db, body) {
   }
 
   // 2. Extract matched student scores for each subject
+  const expectedCodes = expectedSubjectCodes(data);
+  const expectsBio = expectedCodes.includes('BI') || (!expectedCodes.includes('BO') && !expectedCodes.includes('ZO'));
+
   const subjects = [];
   let botanyEntry = null;
   let zoologyEntry = null;
 
   for (const [subjCode, section] of sectionsBySubj.entries()) {
+    const sCodeNorm = (section.subjectCode || subjCode || '').toUpperCase().trim();
+    if (expectedCodes.length > 0) {
+      const isExpected = expectedCodes.includes(sCodeNorm) ||
+        ((sCodeNorm === 'EN' || sCodeNorm === 'GE') && (expectedCodes.includes('EN') || expectedCodes.includes('GE'))) ||
+        (['BO', 'ZO'].includes(sCodeNorm) && (expectedCodes.includes('BI') || expectedCodes.includes('BO') || expectedCodes.includes('ZO')));
+      if (!isExpected) continue;
+    }
+
     const matches = (section.records || []).filter(record => {
       const form = first(record, FIELDS.formNo);
       const reg = first(record, FIELDS.regNo);
@@ -146,9 +157,6 @@ async function lookupResult(db, body) {
   }
 
   // 3. Harmonize Botany and Zoology into Biology when applicable
-  const expectedCodes = expectedSubjectCodes(data);
-  const expectsBio = expectedCodes.includes('BI') || (!expectedCodes.includes('BO') && !expectedCodes.includes('ZO'));
-
   if (botanyEntry || zoologyEntry) {
     if (evaluation.biologyDisplayMode === 'separate' || (!expectsBio && expectedCodes.length > 0)) {
       if (botanyEntry) subjects.push(botanyEntry);

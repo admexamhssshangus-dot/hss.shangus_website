@@ -1130,10 +1130,13 @@ export function computeScorecardSubjects({
       if (!rec) return;
 
       const rawMark = rec.totalMarks ?? rec.practicalMarks;
+      const isAbsentMark = rawMark === null || rawMark === undefined || rawMark === '' || /^(a|ab|absent)$/i.test(String(rawMark).trim());
       const hasTeacherMark = rawMark !== null && rawMark !== undefined && rawMark !== '';
 
       if (Array.isArray(matchedStudent?.subjects) && matchedStudent.subjects.length > 0) {
-        if (!hasTeacherMark && !isSubjectEnrolledByStudent(secCode, secName, matchedStudent)) return;
+        if (!isSubjectEnrolledByStudent(secCode, secName, matchedStudent)) return;
+      } else if (isAbsentMark) {
+        return;
       }
         const docMax = Number(sec.maxMarks) || 50;
         const norm = normalizeMarksToScale(rawMark, docMax, 50);

@@ -513,7 +513,7 @@ export default function StaffPermissionsManager() {
             if (!isSec && norm?.code === 'ES') return true;
             return isSec ? SECONDARY_SUBJECTS_LIST.includes(sub) : HIGHER_SECONDARY_SUBJECTS_LIST.includes(sub);
           });
-      classSubjectMap[cls] = tierSubs.length > 0 ? tierSubs : cleanSubjects;
+      classSubjectMap[cls] = tierSubs;
     });
 
     try {
@@ -1474,48 +1474,111 @@ export default function StaffPermissionsManager() {
                       </button>
                     </div>
 
-                    {/* Assigned Classes Checkboxes */}
-                    <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 space-y-1.5">
+                    {/* Assigned Classes Grouped by Curriculum Tier */}
+                    <div className="pt-2.5 border-t border-emerald-200/60 dark:border-emerald-800/60 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <label className="block text-[11px] font-black text-emerald-950 dark:text-emerald-200">
+                        <label className="block text-[11px] font-black text-emerald-950 dark:text-emerald-200 uppercase tracking-wider">
                           Assigned Classes (Evaluation & Registers)
                         </label>
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                          Currently in {subjectTierTab === '9th-10th' ? 'Secondary' : 'Higher Secondary'} mode
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
+                          Active Tab: {subjectTierTab === '9th-10th' ? 'Secondary Tier' : 'Higher Secondary Tier'}
                         </span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {['9th', '10th', '11th', '12th'].map((cls) => {
-                          const isSelected = (adminForm.assignedClasses || []).includes(cls);
-                          const isCurrentTier = subjectTierTab === '9th-10th' ? (cls === '9th' || cls === '10th') : (cls === '11th' || cls === '12th');
-                          return (
-                            <label
-                              key={cls}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
-                                isSelected
-                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                                  : isCurrentTier
-                                  ? 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-emerald-300 dark:border-emerald-700/80 hover:border-emerald-500'
-                                  : 'bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(event) =>
-                                  setAdminForm((prev) => ({
-                                    ...prev,
-                                    assignedClasses: event.target.checked
-                                      ? normalizeTeacherClasses([...(prev.assignedClasses || []), cls])
-                                      : (prev.assignedClasses || []).filter((v) => v !== cls),
-                                  }))
-                                }
-                                className="hidden"
-                              />
-                              <span>Class {cls}</span>
-                            </label>
-                          );
-                        })}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {/* Secondary Tier */}
+                        <div className={`p-2.5 rounded-xl border transition-all ${
+                          subjectTierTab === '9th-10th'
+                            ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/80 shadow-2xs'
+                            : 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200/70 dark:border-slate-800 opacity-80 hover:opacity-100'
+                        }`}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10.5px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                              Secondary (9th & 10th)
+                            </span>
+                            <span className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400">
+                              {(adminForm.tierSubjects?.['9th-10th'] || []).length} subject(s)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {['9th', '10th'].map((cls) => {
+                              const isSelected = (adminForm.assignedClasses || []).includes(cls);
+                              return (
+                                <label
+                                  key={cls}
+                                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs font-bold cursor-pointer transition-all ${
+                                    isSelected
+                                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(event) =>
+                                      setAdminForm((prev) => ({
+                                        ...prev,
+                                        assignedClasses: event.target.checked
+                                          ? normalizeTeacherClasses([...(prev.assignedClasses || []), cls])
+                                          : (prev.assignedClasses || []).filter((v) => v !== cls),
+                                      }))
+                                    }
+                                    className="hidden"
+                                  />
+                                  <span>Class {cls}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Higher Secondary Tier */}
+                        <div className={`p-2.5 rounded-xl border transition-all ${
+                          subjectTierTab === '11th-12th'
+                            ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/80 shadow-2xs'
+                            : 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200/70 dark:border-slate-800 opacity-80 hover:opacity-100'
+                        }`}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10.5px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                              Higher Secondary (11th & 12th)
+                            </span>
+                            <span className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400">
+                              {(adminForm.tierSubjects?.['11th-12th'] || []).length} subject(s)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {['11th', '12th'].map((cls) => {
+                              const isSelected = (adminForm.assignedClasses || []).includes(cls);
+                              return (
+                                <label
+                                  key={cls}
+                                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs font-bold cursor-pointer transition-all ${
+                                    isSelected
+                                      ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(event) =>
+                                      setAdminForm((prev) => ({
+                                        ...prev,
+                                        assignedClasses: event.target.checked
+                                          ? normalizeTeacherClasses([...(prev.assignedClasses || []), cls])
+                                          : (prev.assignedClasses || []).filter((v) => v !== cls),
+                                      }))
+                                    }
+                                    className="hidden"
+                                  />
+                                  <span>Class {cls}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
