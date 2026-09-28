@@ -1075,7 +1075,6 @@ export default function SchoolAccountsManager({ user }) {
             <FileText size={13} className="hidden sm:inline shrink-0" />
             <span className="sm:hidden">Official Letters</span>
             <span className="hidden sm:inline">Official Letterhead &amp; Staff Rosters</span>
-            <span className="px-1 py-0.2 rounded text-[7.5px] sm:text-[8.5px] bg-amber-500/20 text-amber-900 dark:text-amber-300 font-extrabold border border-amber-500/30">Clerk</span>
           </button>
 
           <button

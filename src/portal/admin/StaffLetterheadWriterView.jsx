@@ -1,6 +1,7 @@
 // =================================================================
 // HSS SHANGUS — Clerk Official Staff Letterhead & Mail Merge Studio
-// Dedicated letterhead word processor with live employee variables & batch printing
+// High-Density 3-Column Layout:
+// Left: Template & Staff Picker | Centre: A4 Live Preview | Right: Tools, Actions & Placeholders
 // =================================================================
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
@@ -10,14 +11,16 @@ import {
   AlignRight, AlignJustify, List, ListOrdered, Table as TableIcon,
   Check, Copy, Users, Search, CheckSquare, Square,
   Sparkles, ArrowRight, ShieldCheck, ChevronDown, Download,
-  Eye, RefreshCw, AlertCircle, BookmarkPlus, Info
+  Eye, RefreshCw, AlertCircle, BookmarkPlus, Info, Plus,
+  FileCode, Layers, CheckCircle2
 } from 'lucide-react';
 import {
   STAFF_MERGE_VARIABLES,
   BUILTIN_STAFF_LETTER_TEMPLATES,
   getEmployeeVariablesMap,
   interpolateStaffVariables,
-  printMergedStaffLetters
+  printMergedStaffLetters,
+  generateStaffLetterDocx
 } from '../../utils/staffLetterMergeUtils';
 import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
@@ -33,9 +36,11 @@ export default function StaffLetterheadWriterView({
   const [selectedTemplateId, setSelectedTemplateId] = useState('salary_service_certificate');
   const [refNo, setRefNo] = useState('HSS/SHG/Sal-Cert/2026/01');
   const [dateStr, setDateStr] = useState(new Date().toLocaleDateString('en-GB'));
-  const [subject, setSubject] = useState('Salary and Service Certificate in respect of {{name}}, {{designation}}.');
   const [bodyHtml, setBodyHtml] = useState(BUILTIN_STAFF_LETTER_TEMPLATES[0].bodyHtml);
   
+  // View Mode for Centre Canvas: 'preview' (Live Interpolated Preview) or 'edit' (In-Place Editor)
+  const [centreMode, setCentreMode] = useState('preview');
+
   // Signatory State
   const [clerkSignatory, setClerkSignatory] = useState('Dealing Assistant / Accounts Clerk');
   const [principalSignatory, setPrincipalSignatory] = useState('Principal / DDO');
@@ -49,6 +54,7 @@ export default function StaffLetterheadWriterView({
   // Editor Ref
   const editorRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExportingDocx, setIsExportingDocx] = useState(false);
 
   // Initialize selected employee IDs when faculty loads
   useEffect(() => {
@@ -57,12 +63,12 @@ export default function StaffLetterheadWriterView({
     }
   }, [faculty]);
 
-  // Sync editor innerHTML when template changes
+  // Sync editor innerHTML when bodyHtml or mode changes
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== bodyHtml) {
+    if (centreMode === 'edit' && editorRef.current && editorRef.current.innerHTML !== bodyHtml) {
       editorRef.current.innerHTML = bodyHtml;
     }
-  }, [bodyHtml]);
+  }, [bodyHtml, centreMode]);
 
   // Helper Employee Getters
   const isNonTeaching = (emp) => {
@@ -77,11 +83,9 @@ export default function StaffLetterheadWriterView({
   const filteredFaculty = useMemo(() => {
     if (!Array.isArray(faculty)) return [];
     return faculty.filter((emp) => {
-      // Category filter
       if (activeCategoryFilter === 'teaching' && isNonTeaching(emp)) return false;
       if (activeCategoryFilter === 'non_teaching' && !isNonTeaching(emp)) return false;
 
-      // Search term
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         const name = (emp.name || '').toLowerCase();
@@ -115,7 +119,6 @@ export default function StaffLetterheadWriterView({
     if (!t) return;
     setSelectedTemplateId(templateId);
     setRefNo(t.refNo || 'HSS/SHG/Estt/2026/');
-    setSubject(t.subject || '');
     setBodyHtml(t.bodyHtml || '');
     if (editorRef.current) {
       editorRef.current.innerHTML = t.bodyHtml || '';
@@ -125,34 +128,45 @@ export default function StaffLetterheadWriterView({
 
   // Insert Variable Token into Editor
   const handleInsertVariable = (token) => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-
-    // Try document.execCommand for rich text insertion
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      range.deleteContents();
-      const node = document.createTextNode(token);
-      range.insertNode(node);
-      range.setStartAfter(node);
-      range.setEndAfter(node);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    } else {
-      editorRef.current.innerHTML += token;
+    // If currently in preview mode, switch to edit mode first so the user sees the insertion
+    if (centreMode !== 'edit') {
+      setCentreMode('edit');
     }
-    setBodyHtml(editorRef.current.innerHTML);
-    showToast(`Inserted variable ${token}`, 'info');
+
+    setTimeout(() => {
+      if (!editorRef.current) return;
+      editorRef.current.focus();
+
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const node = document.createTextNode(` ${token} `);
+        range.insertNode(node);
+        range.setStartAfter(node);
+        range.setEndAfter(node);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } else {
+        editorRef.current.innerHTML += ` ${token} `;
+      }
+      setBodyHtml(editorRef.current.innerHTML);
+      showToast(`Inserted variable ${token}`, 'info');
+    }, 50);
   };
 
   // Execute Rich Text Command
   const executeCmd = (command, value = null) => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-      document.execCommand(command, false, value);
-      setBodyHtml(editorRef.current.innerHTML);
+    if (centreMode !== 'edit') {
+      setCentreMode('edit');
     }
+    setTimeout(() => {
+      if (editorRef.current) {
+        editorRef.current.focus();
+        document.execCommand(command, false, value);
+        setBodyHtml(editorRef.current.innerHTML);
+      }
+    }, 50);
   };
 
   // Toggle Employee Selection
@@ -183,10 +197,10 @@ export default function StaffLetterheadWriterView({
       return;
     }
 
-    const currentEditorContent = editorRef.current ? editorRef.current.innerHTML : bodyHtml;
+    const currentContent = editorRef.current ? editorRef.current.innerHTML : bodyHtml;
 
     printMergedStaffLetters({
-      templateHtml: currentEditorContent,
+      templateHtml: currentContent,
       selectedEmployees,
       extraContext: {
         refNo,
@@ -198,15 +212,39 @@ export default function StaffLetterheadWriterView({
       signatoryDesignation: 'Govt. Higher Secondary School Shangus'
     });
 
-    // Auto archive to clerk history in the background
     handleSaveToCloudHistory(false);
+  };
+
+  // Export Word (.docx)
+  const handleExportDocx = async () => {
+    try {
+      setIsExportingDocx(true);
+      const currentContent = editorRef.current ? editorRef.current.innerHTML : bodyHtml;
+      await generateStaffLetterDocx({
+        bodyHtml: currentContent,
+        employee: currentPreviewEmployee,
+        extraContext: {
+          refNo,
+          dateStr,
+          session: '2025–26'
+        },
+        signatoryDesignation: principalSignatory,
+        clerkSignatory
+      });
+      showToast(`Exported DOCX for ${currentPreviewEmployee.name || 'Official'}!`, 'success');
+    } catch (err) {
+      console.error('Error generating docx:', err);
+      showToast(`Failed to export DOCX: ${err.message}`, 'error');
+    } finally {
+      setIsExportingDocx(false);
+    }
   };
 
   // Save Document to History Archive
   const handleSaveToCloudHistory = async (showFeedback = true) => {
     try {
       setIsSaving(true);
-      const currentEditorContent = editorRef.current ? editorRef.current.innerHTML : bodyHtml;
+      const currentContent = editorRef.current ? editorRef.current.innerHTML : bodyHtml;
       const tpl = BUILTIN_STAFF_LETTER_TEMPLATES.find(t => t.id === selectedTemplateId);
       const title = tpl ? `${tpl.name} (${selectedEmployees.length} Staff)` : `Official Staff Letter (${selectedEmployees.length} Staff)`;
 
@@ -218,7 +256,7 @@ export default function StaffLetterheadWriterView({
         recipientOrStudent: selectedEmployees.length === 1
           ? `${selectedEmployees[0].name} (${selectedEmployees[0].designation || 'Staff'})`
           : `Batch Dispatch: ${selectedEmployees.length} Selected Employees`,
-        bodyHtml: currentEditorContent,
+        bodyHtml: currentContent,
         actionType: 'Saved to Cloud',
         templateId: selectedTemplateId,
         templateName: tpl ? tpl.name : 'Custom Staff Letter',
@@ -242,7 +280,7 @@ export default function StaffLetterheadWriterView({
       });
 
       if (showFeedback) {
-        showToast('Official letter saved to Clerk Cloud History successfully!', 'success');
+        showToast('Official letter saved to Clerk History successfully!', 'success');
       }
     } catch (err) {
       console.error('Failed to save clerk document history:', err);
@@ -254,7 +292,7 @@ export default function StaffLetterheadWriterView({
     }
   };
 
-  // Interpolated Preview HTML for the right side canvas
+  // Interpolated Preview HTML for the centre canvas
   const previewInterpolatedHtml = useMemo(() => {
     return interpolateStaffVariables(bodyHtml, currentPreviewEmployee, {
       refNo,
@@ -272,185 +310,143 @@ export default function StaffLetterheadWriterView({
   }, [refNo, currentPreviewEmployee, dateStr]);
 
   return (
-    <div className="space-y-3 animate-fadeIn">
-      {/* ─── TOP ACTION & TEMPLATE SELECTOR BAR ─── */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 sm:p-3 shadow-2xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
-          {/* Left: Template Selector + Ref + Date */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <FileText className="text-amber-600 dark:text-amber-500 shrink-0" size={15} />
-              <span className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white">Template:</span>
-            </div>
-
-            <select
-              value={selectedTemplateId}
-              onChange={(e) => handleSelectTemplate(e.target.value)}
-              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
-            >
-              {BUILTIN_STAFF_LETTER_TEMPLATES.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.category})
-                </option>
-              ))}
-            </select>
-
-            {/* Ref No Input */}
-            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700">
-              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Ref:</span>
-              <input
-                type="text"
-                value={refNo}
-                onChange={(e) => setRefNo(e.target.value)}
-                placeholder="HSS/SHG/Estt/2026/___"
-                className="text-xs font-mono font-semibold bg-transparent text-slate-900 dark:text-slate-100 outline-none w-36 sm:w-44"
-              />
-            </div>
-
-            {/* Date Input */}
-            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700">
-              <Calendar size={12} className="text-slate-600 dark:text-slate-400" />
-              <input
-                type="text"
-                value={dateStr}
-                onChange={(e) => setDateStr(e.target.value)}
-                placeholder="DD/MM/YYYY"
-                className="text-xs font-mono font-semibold bg-transparent text-slate-900 dark:text-slate-100 outline-none w-24"
-              />
-            </div>
-          </div>
-
-          {/* Right: Actions (Print Merged, Save, View History) */}
-          <div className="flex items-center gap-1.5 flex-wrap self-end lg:self-auto">
-            {onOpenHistory && (
-              <button
-                type="button"
-                onClick={onOpenHistory}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <span>Dispatch History</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => handleSaveToCloudHistory(true)}
-              disabled={isSaving}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
-            >
-              <Save size={13} className="text-amber-600 dark:text-amber-400" />
-              <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleBatchPrint}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Printer size={13} />
-              <span>Print Merged Letters ({selectedEmployees.length})</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Variable Tokens Toolbar */}
-        <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-            <Sparkles size={12} className="text-amber-500" />
-            <span>Click to insert Employee Mail Merge Variables into letter:</span>
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {STAFF_MERGE_VARIABLES.map(v => (
-              <button
-                key={v.token}
-                type="button"
-                onClick={() => handleInsertVariable(v.token)}
-                title={`Inserts ${v.label} (e.g. ${v.sample})`}
-                className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all cursor-pointer shadow-2xs hover:scale-105"
-              >
-                {v.token}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ─── MAIN 2-COLUMN WORKSPACE: LEFT (STAFF PICKER + EDITOR) & RIGHT (LIVE A4 PREVIEW) ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        {/* ─── LEFT COLUMN: STAFF PICKER & RICH TEXT WORD PROCESSOR (7 COLS) ─── */}
-        <div className="lg:col-span-6 xl:col-span-6 space-y-3">
+    <div className="animate-fadeIn">
+      {/* ─── 3-COLUMN STUDIO LAYOUT ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+        
+        {/* ══════════════════════════════════════════════════════════════════════
+            1. LEFT COLUMN: TEMPLATE SELECTOR & TARGET STAFF PICKER (3 COLS)
+        ══════════════════════════════════════════════════════════════════════ */}
+        <div className="lg:col-span-3 space-y-2.5">
           
-          {/* Card A: Selective Employee Picker */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs">
-            <div className="flex items-center justify-between gap-2 mb-2">
+          {/* Card A: Template Selection & Dispatch Meta */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs space-y-2.5">
+            <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+              <FileText className="text-amber-600 dark:text-amber-500 shrink-0" size={14} />
+              <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                Official Template
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                Choose Document Template:
+              </label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => handleSelectTemplate(e.target.value)}
+                className="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+              >
+                {BUILTIN_STAFF_LETTER_TEMPLATES.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Dispatch Ref No:
+                </label>
+                <input
+                  type="text"
+                  value={refNo}
+                  onChange={(e) => setRefNo(e.target.value)}
+                  placeholder="HSS/SHG/Estt/..."
+                  className="w-full text-xs font-mono font-bold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Letter Date:
+                </label>
+                <input
+                  type="text"
+                  value={dateStr}
+                  onChange={(e) => setDateStr(e.target.value)}
+                  placeholder="DD/MM/YYYY"
+                  className="w-full text-xs font-mono font-bold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Card B: Target Staff Selector */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between gap-1 border-b border-slate-100 dark:border-slate-800 pb-1.5">
               <div className="flex items-center gap-1.5">
-                <Users size={14} className="text-amber-600 dark:text-amber-500 shrink-0" />
-                <span className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
-                  Target Staff Selection
-                </span>
-                <span className="px-1.5 py-0.2 rounded-full text-[9.5px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                  {selectedEmployees.length} of {faculty.length} Selected
+                <Users size={13} className="text-amber-600 dark:text-amber-500 shrink-0" />
+                <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                  Target Staff
                 </span>
               </div>
 
-              {/* Select All / Deselect All */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 text-[10px] font-bold">
                 <button
                   type="button"
                   onClick={handleSelectAllFiltered}
-                  className="text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:underline px-1.5 py-0.5 rounded hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer"
+                  className="text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
                 >
-                  Select All
+                  All
                 </button>
                 <span className="text-slate-300 dark:text-slate-700">|</span>
                 <button
                   type="button"
                   onClick={handleDeselectAllFiltered}
-                  className="text-[10px] font-bold text-slate-500 hover:underline px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  className="text-slate-500 hover:underline cursor-pointer"
                 >
                   Clear
                 </button>
               </div>
             </div>
 
-            {/* Category Filter & Search Bar */}
-            <div className="flex items-center gap-2 mb-2">
-              <div className="relative flex-1">
-                <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Filter by name, CPIS, PAN, role..."
-                  className="w-full pl-7 pr-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
-                />
-              </div>
-
-              {/* Category Pills */}
-              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800 shrink-0">
-                {[
-                  { key: 'all', label: 'All' },
-                  { key: 'teaching', label: 'Teaching' },
-                  { key: 'non_teaching', label: 'Non-Teaching' }
-                ].map(cat => (
-                  <button
-                    key={cat.key}
-                    type="button"
-                    onClick={() => setActiveCategoryFilter(cat.key)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                      activeCategoryFilter === cat.key
-                        ? 'bg-amber-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
+            {/* Selection Counter */}
+            <div className="flex items-center justify-between text-[10.5px]">
+              <span className="font-bold text-slate-600 dark:text-slate-400">Selected for Mail Merge:</span>
+              <span className="px-1.5 py-0.2 rounded-full font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[10px]">
+                {selectedEmployees.length} of {faculty.length} Staff
+              </span>
             </div>
 
-            {/* Scrollable Staff Checkbox Table */}
-            <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 no-scrollbar">
+            {/* Search Input */}
+            <div className="relative">
+              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search staff, CPIS, PAN..."
+                className="w-full pl-6 pr-2 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 outline-none"
+              />
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'teaching', label: 'Teaching' },
+                { key: 'non_teaching', label: 'Non-Teach' }
+              ].map(cat => (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setActiveCategoryFilter(cat.key)}
+                  className={`flex-1 py-0.5 text-center rounded text-[10px] font-bold transition-all cursor-pointer ${
+                    activeCategoryFilter === cat.key
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Staff Checkbox List */}
+            <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 no-scrollbar">
               {filteredFaculty.map((emp, idx) => {
                 const empId = emp.id || emp.cpis_no || emp.pan || `emp_${idx}`;
                 const isSelected = selectedEmployeeIds.includes(empId);
@@ -460,193 +456,79 @@ export default function StaffLetterheadWriterView({
                   <div
                     key={empId}
                     onClick={() => toggleEmployeeSelection(empId)}
-                    className={`flex items-center justify-between px-2.5 py-1.5 text-xs transition-colors cursor-pointer select-none ${
+                    className={`flex items-center justify-between px-2 py-1.5 text-xs transition-colors cursor-pointer select-none ${
                       isSelected
                         ? 'bg-amber-50/70 dark:bg-amber-950/20'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <span className="shrink-0 text-amber-600 dark:text-amber-400">
-                        {isSelected ? <CheckSquare size={14} /> : <Square size={14} className="text-slate-300 dark:text-slate-600" />}
+                        {isSelected ? <CheckSquare size={13} /> : <Square size={13} className="text-slate-300 dark:text-slate-600" />}
                       </span>
                       <div className="truncate">
-                        <span className="font-extrabold text-slate-900 dark:text-white">{vars.name}</span>
-                        <span className="text-[10.5px] text-slate-500 dark:text-slate-400 ml-1.5">({vars.designation})</span>
+                        <div className="font-extrabold text-[11px] text-slate-900 dark:text-white truncate">
+                          {vars.name}
+                        </div>
+                        <div className="text-[9.5px] text-slate-500 truncate">
+                          {vars.designation}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 text-[10.5px]">
-                      <span className="font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded border border-slate-200 dark:border-slate-700">
-                        {vars.cpis}
-                      </span>
-                      <span className="font-bold text-slate-700 dark:text-slate-300">
-                        {vars.gross_salary}
-                      </span>
-                    </div>
+                    <span className="text-[9.5px] font-mono text-slate-500 shrink-0">
+                      {vars.cpis}
+                    </span>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Card B: Rich Text Word Processor */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden flex flex-col">
-            {/* Editor Formatting Ribbon */}
-            <div className="flex items-center gap-1 p-2 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex-wrap">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mr-1">
-                Format:
-              </span>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('bold')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Bold (Ctrl+B)"
-              >
-                <Bold size={13} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('italic')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Italic (Ctrl+I)"
-              >
-                <Italic size={13} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('underline')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Underline (Ctrl+U)"
-              >
-                <Underline size={13} />
-              </button>
-
-              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-0.5" />
-
-              <button
-                type="button"
-                onClick={() => executeCmd('justifyLeft')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Align Left"
-              >
-                <AlignLeft size={13} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('justifyCenter')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Align Center"
-              >
-                <AlignCenter size={13} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('justifyRight')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Align Right"
-              >
-                <AlignRight size={13} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('justifyFull')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Justify"
-              >
-                <AlignJustify size={13} />
-              </button>
-
-              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-0.5" />
-
-              <button
-                type="button"
-                onClick={() => executeCmd('insertUnorderedList')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Bullet List"
-              >
-                <List size={13} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('insertOrderedList')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                title="Numbered List"
-              >
-                <ListOrdered size={13} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('removeFormat')}
-                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer text-[10px] font-bold"
-                title="Remove Formatting"
-              >
-                Clear
-              </button>
+          {/* Card C: Signatory Setup */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-1.5 text-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+              Signatories Footer:
+            </span>
+            <div>
+              <span className="text-[9.5px] font-semibold text-slate-500">Clerk Signatory:</span>
+              <input
+                type="text"
+                value={clerkSignatory}
+                onChange={(e) => setClerkSignatory(e.target.value)}
+                className="w-full px-2 py-0.5 text-[11px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
+              />
             </div>
-
-            {/* Editable Canvas */}
-            <div
-              ref={editorRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={(e) => setBodyHtml(e.currentTarget.innerHTML)}
-              className="p-4 min-h-[300px] max-h-[460px] overflow-y-auto text-xs sm:text-sm text-slate-900 dark:text-slate-100 outline-none leading-relaxed bg-white dark:bg-slate-900 font-sans focus:ring-1 focus:ring-amber-500/30"
-              style={{ minHeight: '300px' }}
-            />
-
-            {/* Signatory Configuration Footer */}
-            <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 shrink-0">Clerk Signatory:</span>
-                <input
-                  type="text"
-                  value={clerkSignatory}
-                  onChange={(e) => setClerkSignatory(e.target.value)}
-                  className="px-2 py-0.5 text-xs font-semibold rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 w-full sm:w-44"
-                />
-              </div>
-
-              <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 shrink-0">Principal Signatory:</span>
-                <input
-                  type="text"
-                  value={principalSignatory}
-                  onChange={(e) => setPrincipalSignatory(e.target.value)}
-                  className="px-2 py-0.5 text-xs font-semibold rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 w-full sm:w-44"
-                />
-              </div>
+            <div>
+              <span className="text-[9.5px] font-semibold text-slate-500">Principal Signatory:</span>
+              <input
+                type="text"
+                value={principalSignatory}
+                onChange={(e) => setPrincipalSignatory(e.target.value)}
+                className="w-full px-2 py-0.5 text-[11px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
+              />
             </div>
           </div>
         </div>
 
-        {/* ─── RIGHT COLUMN: LIVE A4 OFFICIAL LETTERHEAD CANVAS PREVIEW (5 COLS) ─── */}
-        <div className="lg:col-span-6 xl:col-span-6">
-          <div className="bg-slate-100 dark:bg-slate-950 rounded-xl p-3 border border-slate-200 dark:border-slate-800 shadow-inner flex flex-col">
-            
-            {/* Preview Employee Switcher Toolbar */}
-            <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-1.5">
-                <Eye size={13} className="text-amber-600 dark:text-amber-400" />
-                <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                  Live Merged Preview:
-                </span>
-              </div>
-
+        {/* ══════════════════════════════════════════════════════════════════════
+            2. CENTRE COLUMN: OFFICIAL A4 LETTERHEAD PREVIEW & IN-PLACE CANVAS (6 COLS)
+        ══════════════════════════════════════════════════════════════════════ */}
+        <div className="lg:col-span-6 space-y-2">
+          
+          {/* Top Canvas Bar: Live Preview Switcher & Mode Toggle */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 shadow-2xs flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Eye size={14} className="text-amber-600 dark:text-amber-400" />
+              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
+                Preview Official:
+              </span>
               {selectedEmployees.length > 0 && (
                 <div className="flex items-center gap-1">
                   <select
                     value={previewEmployeeIndex}
                     onChange={(e) => setPreviewEmployeeIndex(Number(e.target.value))}
-                    className="text-[11px] font-bold px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none cursor-pointer max-w-[200px] truncate"
+                    className="text-xs font-bold px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none cursor-pointer max-w-[210px] truncate"
                   >
                     {selectedEmployees.map((emp, idx) => (
                       <option key={idx} value={idx}>
@@ -654,17 +536,49 @@ export default function StaffLetterheadWriterView({
                       </option>
                     ))}
                   </select>
-                  <span className="text-[10px] text-slate-500 font-mono">
+                  <span className="text-[10.5px] font-mono text-slate-500">
                     {previewEmployeeIndex + 1}/{selectedEmployees.length}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* A4 Sheet Container */}
-            <div className="bg-white rounded-lg shadow-md border border-slate-300/80 p-5 sm:p-6 text-slate-900 font-sans min-h-[560px] flex flex-col justify-between overflow-x-auto">
+            {/* Mode Switcher: Live Preview vs In-Place Editor */}
+            <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
+              <button
+                type="button"
+                onClick={() => setCentreMode('preview')}
+                className={`px-2.5 py-1 rounded text-[11px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
+                  centreMode === 'preview'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Eye size={11} />
+                <span>Live Preview</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCentreMode('edit')}
+                className={`px-2.5 py-1 rounded text-[11px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
+                  centreMode === 'edit'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Edit3 size={11} />
+                <span>Edit Letter Text</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Official A4 Letterhead Sheet */}
+          <div className="bg-slate-100 dark:bg-slate-950 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-inner flex justify-center overflow-x-auto">
+            <div className="bg-white rounded-lg shadow-md border border-slate-300 w-full max-w-[620px] min-h-[640px] p-6 sm:p-8 text-slate-900 font-sans flex flex-col justify-between">
+              
               <div>
-                {/* Official Letterhead Header Banner */}
+                {/* Official Letterhead Header Banner (Soft Ice-Blue Background) */}
                 <div
                   style={{
                     backgroundColor: '#f0f8ff',
@@ -679,8 +593,8 @@ export default function StaffLetterheadWriterView({
                     src="/logo192.png"
                     alt="School Seal"
                     style={{
-                      width: '42px',
-                      height: '42px',
+                      width: '44px',
+                      height: '44px',
                       objectFit: 'contain',
                       display: 'block',
                       margin: '0 auto 4px auto'
@@ -701,43 +615,329 @@ export default function StaffLetterheadWriterView({
                 {/* Ref & Date Bar */}
                 <div className="flex items-center justify-between text-[11px] font-semibold border-b border-slate-100 pb-2 mb-3">
                   <div>
-                    <span className="text-[#800000] font-black">Ref. No.:</span> {previewInterpolatedRef}
+                    <span className="text-[#800000] font-black">Ref. No.:</span> {centreMode === 'preview' ? previewInterpolatedRef : refNo}
                   </div>
                   <div>
                     <span className="text-[#800000] font-black">Date:</span> {dateStr}
                   </div>
                 </div>
 
-                {/* Live Interpolated Body Content */}
-                <div
-                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewInterpolatedHtml) }}
-                  className="text-xs sm:text-[13px] leading-relaxed text-slate-800 text-justify space-y-2"
-                />
+                {/* Document Body: Switch between Interpolated Preview and In-Place Editor */}
+                {centreMode === 'preview' ? (
+                  <div
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewInterpolatedHtml) }}
+                    className="text-xs sm:text-[13px] leading-relaxed text-slate-800 text-justify space-y-2 min-h-[320px]"
+                  />
+                ) : (
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mb-1">
+                      ✏️ In-Place Edit Mode: Click inside to edit. Placeholders (e.g. {`{{name}}`}) will interpolate during preview/print.
+                    </div>
+                    <div
+                      ref={editorRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={(e) => setBodyHtml(e.currentTarget.innerHTML)}
+                      className="p-3 rounded border border-amber-300 bg-amber-50/20 text-xs sm:text-[13px] leading-relaxed text-slate-900 outline-none min-h-[320px] focus:ring-1 focus:ring-amber-500 font-sans"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Signatories Footer */}
               <div className="mt-8 pt-4 border-t border-slate-100 flex items-end justify-between text-xs">
-                <div className="text-center min-w-[140px]">
+                <div className="text-center min-w-[130px]">
                   <div className="h-[1px] w-24 bg-slate-400 mx-auto mb-1" />
                   <div className="font-extrabold text-[11px] text-slate-900">{clerkSignatory}</div>
                   <div className="text-[9.5px] text-slate-500 font-medium">Accounts Section, HSS Shangus</div>
                 </div>
 
-                <div className="text-center min-w-[140px]">
+                <div className="text-center min-w-[130px]">
                   <div className="h-[1px] w-24 bg-slate-400 mx-auto mb-1" />
                   <div className="font-extrabold text-[11px] text-slate-900">{principalSignatory}</div>
                   <div className="text-[9.5px] text-slate-500 font-medium">Govt. Hr. Sec. School Shangus</div>
                 </div>
               </div>
-            </div>
 
-            {/* Quick Helper Note */}
-            <div className="mt-2 text-[10.5px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 px-1">
-              <Info size={12} className="text-amber-500 shrink-0" />
-              <span>When you click <strong>"Print Merged Letters"</strong>, separate letterhead sheets will be generated with a page break for each of the {selectedEmployees.length} selected employees.</span>
+              {/* Institutional Watermark Footer */}
+              <div className="mt-4 pt-2 border-t border-dashed border-slate-200 flex items-center justify-between text-[8px] text-slate-400 font-mono">
+                <span>Official Dispatch Record • Govt HSS Shangus</span>
+                <span>Page 1 of {selectedEmployees.length}</span>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            3. RIGHT COLUMN: ACTIONS, FORMATTING TOOLS & PLACEHOLDERS (3 COLS)
+        ══════════════════════════════════════════════════════════════════════ */}
+        <div className="lg:col-span-3 space-y-2.5">
+          
+          {/* Card A: Primary Print & Save Actions */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs space-y-2">
+            <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+              Print &amp; Export Actions
+            </span>
+
+            {/* Primary Print Button */}
+            <button
+              type="button"
+              onClick={handleBatchPrint}
+              className="w-full py-2 px-3 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Printer size={14} />
+              <span>Print Merged Letters ({selectedEmployees.length})</span>
+            </button>
+
+            {/* Secondary Actions */}
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={handleExportDocx}
+                disabled={isExportingDocx}
+                className="py-1.5 px-2 rounded-lg text-[11px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                title="Download as Word (.docx)"
+              >
+                <Download size={12} className="text-blue-600 dark:text-blue-400" />
+                <span>Word (.docx)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveToCloudHistory(true)}
+                disabled={isSaving}
+                className="py-1.5 px-2 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                <Save size={12} className="text-amber-600 dark:text-amber-400" />
+                <span>Save Draft</span>
+              </button>
+            </div>
+
+            {onOpenHistory && (
+              <button
+                type="button"
+                onClick={onOpenHistory}
+                className="w-full py-1 text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:underline flex items-center justify-center gap-1 cursor-pointer pt-1"
+              >
+                <span>View Dispatch History &bull;</span>
+              </button>
+            )}
+          </div>
+
+          {/* Card B: Basic Formatting Tools */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
+            <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1">
+              Formatting Ribbon
+            </span>
+
+            <div className="flex items-center gap-1 flex-wrap">
+              <button
+                type="button"
+                onClick={() => executeCmd('bold')}
+                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                title="Bold (Ctrl+B)"
+              >
+                <Bold size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeCmd('italic')}
+                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                title="Italic (Ctrl+I)"
+              >
+                <Italic size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeCmd('underline')}
+                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                title="Underline (Ctrl+U)"
+              >
+                <Underline size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeCmd('justifyLeft')}
+                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                title="Align Left"
+              >
+                <AlignLeft size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeCmd('justifyCenter')}
+                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                title="Align Center"
+              >
+                <AlignCenter size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeCmd('justifyRight')}
+                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                title="Align Right"
+              >
+                <AlignRight size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeCmd('justifyFull')}
+                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                title="Justify"
+              >
+                <AlignJustify size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeCmd('insertUnorderedList')}
+                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                title="Bulleted List"
+              >
+                <List size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeCmd('insertOrderedList')}
+                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                title="Numbered List"
+              >
+                <ListOrdered size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => executeCmd('removeFormat')}
+                className="px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer text-[10px] font-bold"
+                title="Remove Formatting"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          {/* Card C: Add Particular Placeholders into Letter */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs space-y-2">
+            <div className="flex items-center gap-1 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+              <Sparkles size={13} className="text-amber-500 shrink-0" />
+              <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                Insert Placeholders
+              </span>
+            </div>
+
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+              Click any placeholder below to inject it into the letter at the cursor position:
+            </p>
+
+            {/* Categorized Placeholder Chips */}
+            <div className="space-y-2 pt-1">
+              <div>
+                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Employee Identity:
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { token: '{{name}}', label: 'Name' },
+                    { token: '{{designation}}', label: 'Desig' },
+                    { token: '{{cpis}}', label: 'CPIS' },
+                    { token: '{{pan}}', label: 'PAN' }
+                  ].map(item => (
+                    <button
+                      key={item.token}
+                      type="button"
+                      onClick={() => handleInsertVariable(item.token)}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 cursor-pointer transition-transform hover:scale-105"
+                      title={`Insert ${item.token}`}
+                    >
+                      {item.token}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Salary &amp; Bank:
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { token: '{{gross_salary}}', label: 'Gross' },
+                    { token: '{{monthly_salary}}', label: 'Monthly' },
+                    { token: '{{net_salary}}', label: 'Net' },
+                    { token: '{{bank_account}}', label: 'Bank Acc' },
+                    { token: '{{ifsc}}', label: 'IFSC' },
+                    { token: '{{bank_name}}', label: 'Bank' }
+                  ].map(item => (
+                    <button
+                      key={item.token}
+                      type="button"
+                      onClick={() => handleInsertVariable(item.token)}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 cursor-pointer transition-transform hover:scale-105"
+                      title={`Insert ${item.token}`}
+                    >
+                      {item.token}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Department &amp; Service:
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { token: '{{department}}', label: 'Wing/Dept' },
+                    { token: '{{cadre}}', label: 'Cadre' },
+                    { token: '{{mobile}}', label: 'Mobile' },
+                    { token: '{{doj}}', label: 'DOJ' }
+                  ].map(item => (
+                    <button
+                      key={item.token}
+                      type="button"
+                      onClick={() => handleInsertVariable(item.token)}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 cursor-pointer transition-transform hover:scale-105"
+                      title={`Insert ${item.token}`}
+                    >
+                      {item.token}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Dispatch Meta:
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { token: '{{ref_no}}', label: 'Ref No' },
+                    { token: '{{date}}', label: 'Date' },
+                    { token: '{{academic_session}}', label: 'Session' }
+                  ].map(item => (
+                    <button
+                      key={item.token}
+                      type="button"
+                      onClick={() => handleInsertVariable(item.token)}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 cursor-pointer transition-transform hover:scale-105"
+                      title={`Insert ${item.token}`}
+                    >
+                      {item.token}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
