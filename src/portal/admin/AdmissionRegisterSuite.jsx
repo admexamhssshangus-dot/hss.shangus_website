@@ -6482,7 +6482,7 @@ export default function AdmissionRegisterSuite({
             overflow: hidden !important;
           }
 
-          .admission-spread-table td .line-clamp-2 {
+          .admission-spread-table td:not([data-col="name"]):not([data-col="father"]):not([data-col="mother"]) .line-clamp-2 {
             display: -webkit-box !important;
             -webkit-line-clamp: 2 !important;
             -webkit-box-orient: vertical !important;
@@ -6564,10 +6564,13 @@ export default function AdmissionRegisterSuite({
           }
 
           /* Candidate Name, Father Name, Mother Name in Print */
+          .admission-spread-table td[data-col="name"],
+          .admission-spread-table td[data-col="name"] div,
+          .admission-spread-table td[data-col="name"] span,
           .admission-spread-table td.group\/name-cell > div,
           .admission-spread-table td div.font-black.uppercase {
             font-size: ${currentStudentsPerPage >= 16 ? '11.0px' : '11.5px'} !important;
-            line-height: 1.08 !important;
+            line-height: 1.12 !important;
             white-space: normal !important;
             word-break: break-word !important;
             overflow-wrap: break-word !important;
@@ -6575,11 +6578,13 @@ export default function AdmissionRegisterSuite({
           }
 
           .admission-spread-table td[data-col="father"],
+          .admission-spread-table td[data-col="father"] div,
           .admission-spread-table td[data-col="mother"],
+          .admission-spread-table td[data-col="mother"] div,
           .admission-spread-table tbody tr > td:nth-child(10),
           .admission-spread-table tbody tr > td:nth-child(11) {
-            font-size: ${currentStudentsPerPage >= 16 ? '10.4px' : '10.8px'} !important;
-            line-height: 1.08 !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '10.5px' : '11.0px'} !important;
+            line-height: 1.12 !important;
             white-space: normal !important;
             word-break: break-word !important;
             overflow-wrap: break-word !important;
@@ -7277,6 +7282,7 @@ export default function AdmissionRegisterSuite({
           color: #ffe4e6 !important;
           opacity: 1 !important;
         }
+      } /* ─── Close @media print ─── */
 
       @media screen {
         .admission-spread-table thead th {
@@ -7360,7 +7366,9 @@ export default function AdmissionRegisterSuite({
         .admission-spread-table td[data-col="boardReg"] .st-reg-split span {
           font-size: 11px !important;
         }
-        .admission-spread-table td[data-col="name"] > div {
+        .admission-spread-table td[data-col="name"],
+        .admission-spread-table td[data-col="name"] > div,
+        .admission-spread-table td[data-col="name"] span {
           font-size: 11.5px !important;
         }
         .admission-spread-table td[data-col="father"],
@@ -9645,10 +9653,10 @@ export default function AdmissionRegisterSuite({
                                       )}
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]" data-col="class">{s.class}</td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden leading-tight text-[11px]" data-col="boardReg">{formatBoardRegSplit(s.boardReg)}</td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left relative group/name-cell overflow-hidden" data-col="name">
-                                      <div className="w-full font-black uppercase tracking-tight text-slate-900 leading-tight text-[11.5px] break-words line-clamp-2">
-                                        <span>{s.name}</span>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden leading-tight text-[11px]" data-col="boardReg" style={{ fontSize: '11px' }}>{formatBoardRegSplit(s.boardReg)}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left relative group/name-cell overflow-hidden" data-col="name" style={{ fontSize: '11.5px' }}>
+                                      <div className="w-full font-black uppercase tracking-tight text-slate-900 leading-tight text-[11.5px] break-words line-clamp-2" style={{ fontSize: '11.5px' }}>
+                                        <span style={{ fontSize: '11.5px' }}>{s.name}</span>
                                       </div>
                                       {/* Prominent floating hover toggle button without squeezing name width */}
                                       <button
@@ -9664,11 +9672,11 @@ export default function AdmissionRegisterSuite({
                                         {s.isReadmission ? '⚙ Edit Re-Adm' : '+ Set Re-Adm'}
                                       </button>
                                     </td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[11px] leading-tight" data-col="father">
-                                      <div className="line-clamp-2 leading-tight break-words">{s.father}</div>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[11px] leading-tight" data-col="father" style={{ fontSize: '11px' }}>
+                                      <div className="line-clamp-2 leading-tight break-words text-[11px]" style={{ fontSize: '11px' }}>{s.father}</div>
                                     </td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[11px] leading-tight" data-col="mother">
-                                      <div className="line-clamp-2 leading-tight break-words">{s.mother}</div>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[11px] leading-tight" data-col="mother" style={{ fontSize: '11px' }}>
+                                      <div className="line-clamp-2 leading-tight break-words text-[11px]" style={{ fontSize: '11px' }}>{s.mother}</div>
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font text-[8px]" data-col="dobFigures">{formatRegisterDate(s.dobFigures) || s.dobFigures || '—'}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-serif overflow-hidden" data-col="dobWords">

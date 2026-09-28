@@ -2,16 +2,23 @@
 
 ## Current Working Changes
 
-### 1. Fix Vertical Row Stretching on Partial / Last Pages in Admission Register & Sentup
+### 1. Fix Student Name and Parentage Font Sizing (+3 Points Larger) Across Screen & Print
 - **Issue:**
-  - On the final page containing remaining students (e.g. 3 students instead of the standard 10 or 15), the table rows stretched vertically to huge heights ("very high to fill the page") because the table and `tbody` containers had rigid `height` and `min-height` set to the full-page budget (`${sentupTableHeightMm}mm`, `${sentupTbodyHeightMm}mm`, `${registerTableHeightMm}mm`, `${registerTbodyHeightMm}mm`), forcing the browser table layout engine to distribute the full-page height among the few remaining rows.
+  - In the Admission Register table, the Student's Name and Parentage (Father's Name, Mother's Name) appeared in their older, smaller font size (~8px / 8.5px) rather than being 3 points larger (~11px / 11.5px), even though Board Reg. No. was already rendered larger.
+- **Root Causes Discovered:**
+  1. **Unclosed `@media print` Block:** The `@media print` style rule declared at line 6133 was never closed before `@media screen` at line 7281. Browsers evaluated the nested `@media screen` as `@media print and screen` (never true on interactive screens), causing all screen font-size overrides to be silently skipped.
+  2. **Print Styles `.line-clamp-2` Font Override:** The print stylesheet applied `font-size: 7.0px / 7.5px !important` generically to all `.admission-spread-table td .line-clamp-2`, which overrode the enlarged font sizes of student and parent names.
+  3. **Cascading / Specificity Gaps:** Inner `div` and `span` elements inside the table cells lacked direct inline style guarantees.
 - **Resolution in [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):**
-  - Updated print stylesheets for `.admission-spread-table`, `.sentup-table`, and their `tbody` elements:
-    - Set `height: auto !important;` and `min-height: 0 !important;` while preserving the upper bounds (`max-height: ${...TableHeightMm}mm !important;`).
-  - Full pages (10 or 15 students) continue to fill the sheet exactly as before because each row has its own dedicated height (`${sentupRowHeightMm}mm` / `${registerRowHeightMm}mm`).
-  - Partial pages (such as the final page with remaining students) now maintain the exact same compact, uniform row height as preceding pages without vertical stretching.
+  - Properly closed `@media print` before `@media screen`.
+  - Excluded name and parentage columns from the generic `.line-clamp-2` font reduction:
+    `.admission-spread-table td:not([data-col="name"]):not([data-col="father"]):not([data-col="mother"]) .line-clamp-2`.
+  - Added high-specificity rules in both `@media print` and `@media screen` for:
+    - `td[data-col="name"]`, `td[data-col="name"] div`, `td[data-col="name"] span`: `font-size: 11.5px !important;` (and `11.0px` in print for 16+ students/page).
+    - `td[data-col="father"]`, `td[data-col="father"] div`, `td[data-col="mother"]`, `td[data-col="mother"] div`: `font-size: 11.0px !important;` (and `10.5px` in print for 16+ students/page).
+  - Added direct inline `style={{ fontSize: '11.5px' }}` to the Student Name cell, inner container, and span, and `style={{ fontSize: '11px' }}` to Father Name and Mother Name cells and inner text divs in the JSX render tree.
 - **Build Verification:**
-  - Verified with `npm run build` completing with `Exit Code 0` and zero breaking errors.
+  - Tested with `npm run build` — completed with `Exit Code 0` and zero breaking errors.
 
 ---
 
@@ -23,7 +30,7 @@
 
 ## Local Commit Message
 ```bash
-fix(admission-register): prevent vertical row stretching on last remaining students in register and sentup tables
+style(admission-register): enforce +3pt font size (11.5px/11px) on student name and parentage across screen and print
 ```
 
 ---
@@ -38,14 +45,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "fix(admission-register): prevent vertical row stretching on last remaining students in register and sentup tables"
+git commit -m "style(admission-register): enforce +3pt font size (11.5px/11px) on student name and parentage across screen and print"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "fix(admission-register): prevent vertical row stretching on last remaining students in register and sentup tables"
+git commit -m "style(admission-register): enforce +3pt font size (11.5px/11px) on student name and parentage across screen and print"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
