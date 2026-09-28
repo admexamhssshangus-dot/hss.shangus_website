@@ -655,8 +655,8 @@ export default function AdminDashboard() {
 
                 {/* Right Slot: On-Demand Cloud Sync + Setup Button + Admin Tools Dropdown Button */}
                 <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 ml-auto">
-                  {/* On-Demand Cloud Sync Button (For all modules that consume admissions data) */}
-                  {ADMISSIONS_DATA_TABS.has(activeTab) && (
+                  {/* On-Demand Cloud Sync Button (For modules that require live data refresh, hidden in Document/Roster Studio where redundant) */}
+                  {ADMISSIONS_DATA_TABS.has(activeTab) && !['customRoster', 'docStudio', 'roster'].includes(activeTab) && (
                     <button
                       type="button"
                       onClick={() => loadAdminData(true, { progressive: true })}
