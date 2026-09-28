@@ -834,10 +834,17 @@ async function fetchFreshFromFirestore(collectionName) {
     if (typeof window !== 'undefined') {
       window._hssGlobalFetchActive = false;
       setTimeout(() => {
+        let msg = 'Using offline cached records';
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          msg = 'Offline: Using cached records';
+        } else if (err?.message && !err.message.includes('code=')) {
+          msg = err.message;
+        }
+
         window.dispatchEvent(new CustomEvent('hss-sync-error', {
           detail: {
             collection: collectionName,
-            message: err?.message || 'Failed to fetch from live database'
+            message: msg
           }
         }));
       }, 0);
