@@ -2,46 +2,42 @@
 
 ## Current Working Changes
 
-### Smart Offline & Mobile Network Recognition & Zero Code Exposure Safeguard
+### Accounts Clerk Workspace: Single-Row Minimal Navigation & Cleanup of Upcomings
 
-- **User Request Addressed:**
-  - *"when internet is not availabe...the website shows some weired error/seem exposing some code info....it shall rather smartly recognise adn respond to no mobile network/internet"*
+- **User Requests Addressed:**
+  - *"remove these upcommings"*
+  - *"arrange in same row, remvoe duplicate....make compact design/minimal"*
 
-- **Root Causes Identified & Solved:**
-  1. **Raw Diagnostic Stack Traces in Error Boundary:**
-     - Previously, `ModuleErrorBoundary` rendered a "Diagnostic Info" box containing the raw error message (`TypeError: Failed to fetch...`, `ChunkLoadError...`) and an expandable `<details>` containing the complete JavaScript stack trace `<pre>{this.state.error.stack}</pre>`, exposing internal file paths, module structures, and line numbers to visitors and students when connectivity failed.
-     - **Solution:** Replaced raw code dumps with a clean, friendly, reassuring UI. Stack traces are now completely eliminated from user-facing screens and only logged safely to `console.warn` for developers.
-  2. **Destructive Hard-Reloads when Offline in Lazy Loader:**
-     - Previously, `lazyWithChunkRecovery` attempted `window.location.reload()` on chunk load failures. When a device is offline, reloading the browser page destroys the cached single-page app and throws the user onto Chrome's native offline crash page ("No internet / Dinosaur").
-     - **Solution:** `lazyWithChunkRecovery` now checks `!navigator.onLine` and throws a clean `OfflineError`, allowing `ModuleErrorBoundary` to catch it and display a graceful in-app offline view while preserving the application state and shell.
-  3. **Auto-Healing when Network Returns:**
-     - `ModuleErrorBoundary` now listens to `window.addEventListener('online', ...)`. The exact moment mobile data or Wi-Fi reconnects, it automatically re-mounts and heals the failed component without requiring manual reloads.
-  4. **Universal Floating Network Status Indicator ([NetworkStatusIndicator.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/components/NetworkStatusIndicator.jsx), [App.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/App.js)):**
-     - Added a universal, glassmorphic floating indicator mounted via React Portal onto `document.body` across the entire website.
-     - When offline: displays a warm, non-intrusive floating indicator (`No Internet Connection — Mobile data or Wi-Fi is disconnected`) with a quick "Retry" button.
-     - When reconnected: flashes a brief confirmation badge (`Back Online! Reconnected successfully.`) for 3.5 seconds and calls `ensureFirestoreConnected()` to immediately awaken cloud database connections.
-  5. **Toast Error Sanitization ([GlobalToast.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/components/common/GlobalToast.jsx)):**
-     - `showToast` now automatically intercepts network and offline error codes (e.g. `client is offline`, `Failed to fetch`, `NetworkError`, `code=unavailable`, `net::ERR_`), converting them into clear, friendly messages: *"No internet connection. Please check your mobile data or Wi-Fi."*
-     - Strips raw code headers (`FirebaseError:`, `TypeError:`, stack traces) from any toast notifications.
-  6. **Sync Error Sanitization ([dbCache.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/dbCache.js)):**
-     - Formatted `hss-sync-error` event messages to politely display *"Offline: Using cached records"* instead of dumping internal Firebase status codes.
+- **Detailed Changes Implemented:**
+  1. **Consolidated into a Single Minimal Row ([SchoolAccountsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAccountsManager.jsx)):**
+     - Replaced the multi-tier tab switcher with a streamlined, single-row compact pill navigation bar on the header row next to the "Accounts & Staff Tax" title.
+     - The 4 active tools are cleanly arranged side-by-side in one row:
+       - **Staff Tax Calculator** (`tax_calculator` with `Calculator` icon)
+       - **Official Letterhead & Mail Merge** (`staff_letterhead` with `FileText` icon)
+       - **Custom Staff Registers & Rosters** (`staff_rosters` with `FileSpreadsheet` icon)
+       - **Dispatch History** (`dispatch_history` with `History` icon and live count badge)
+  2. **Removed Duplicate Navigation Row ([ClerkStaffDocumentsWorkspace.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/ClerkStaffDocumentsWorkspace.jsx)):**
+     - Completely removed the redundant second sub-navigation bar (`Official Letterhead & Mail Merge`, `Custom Staff Registers & Rosters`, `Dispatch History`) that was repeating right underneath the main header.
+     - The top single row in `SchoolAccountsManager.jsx` now controls all sub-views cleanly through `initialSubTab`, eliminating visual clutter and duplicate tabs.
+  3. **Removed Upcoming Placeholder Sections ([SchoolAccountsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAccountsManager.jsx)):**
+     - Removed the upcoming tab buttons (`Salary & Pay Heads Upcoming` and `School Contingency Upcoming`).
+     - Removed ~100 lines of placeholder card content (`salary_statements` and `school_ledgers` blocks), keeping the workspace focused exclusively on production tools.
+  4. **Live Archive Counter & Clean Imports:**
+     - Connected the live clerk-generated document counter to the Dispatch History tab badge.
+     - Cleaned up unused Lucide icon imports (`Briefcase`, `Landmark`, `TrendingUp`, `Wallet`, `FileSpreadsheet`, etc.).
 
 ---
 
-## Files Modified & Added
-- `src/components/ModuleErrorBoundary.jsx` (Transformed into smart offline-recognizing boundary with zero code leakage and auto-reconnect)
-- `src/components/NetworkStatusIndicator.jsx` (New universal floating network & mobile data indicator mounted at root)
-- `src/App.js` (Mounted `NetworkStatusIndicator`)
-- `src/utils/lazyWithChunkRecovery.js` (Prevented destructive hard reloads when device is offline)
-- `src/components/common/GlobalToast.jsx` (Sanitized error toasts to intercept offline errors and strip code leaks)
-- `src/services/dbCache.js` (Sanitized sync error event payloads when offline)
+## Files Modified
+- `src/portal/admin/SchoolAccountsManager.jsx` (Consolidated single-row switcher, removed upcoming tabs & views, wired direct workspace sub-views)
+- `src/portal/admin/ClerkStaffDocumentsWorkspace.jsx` (Removed duplicate second navigation row, streamlined sub-view rendering)
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(network): smartly handle offline mobile network and eliminate raw code exposure in error boundary
+refactor(accounts): arrange clerk tools in single minimal row and remove upcomings
 ```
 
 ---
@@ -56,14 +52,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "fix(network): smartly handle offline mobile network and eliminate raw code exposure in error boundary"
+git commit -m "refactor(accounts): arrange clerk tools in single minimal row and remove upcomings"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "fix(network): smartly handle offline mobile network and eliminate raw code exposure in error boundary"
+git commit -m "refactor(accounts): arrange clerk tools in single minimal row and remove upcomings"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
