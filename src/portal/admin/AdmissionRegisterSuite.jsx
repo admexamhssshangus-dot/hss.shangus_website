@@ -6315,8 +6315,8 @@ export default function AdmissionRegisterSuite({
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
-            height: ${registerTableHeightMm}mm !important;
-            min-height: ${registerTableHeightMm}mm !important;
+            height: auto !important;
+            min-height: 0 !important;
             max-height: ${registerTableHeightMm}mm !important;
             table-layout: fixed !important;
             border-collapse: collapse !important;
@@ -6327,8 +6327,8 @@ export default function AdmissionRegisterSuite({
           }
 
           .register-ledger-page .admission-spread-table tbody {
-            height: ${registerTbodyHeightMm}mm !important;
-            min-height: ${registerTbodyHeightMm}mm !important;
+            height: auto !important;
+            min-height: 0 !important;
             max-height: ${registerTbodyHeightMm}mm !important;
             box-sizing: border-box !important;
           }
@@ -6898,8 +6898,8 @@ export default function AdmissionRegisterSuite({
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
-            height: ${sentupTableHeightMm}mm !important;
-            min-height: ${sentupTableHeightMm}mm !important;
+            height: auto !important;
+            min-height: 0 !important;
             max-height: ${sentupTableHeightMm}mm !important;
             border-collapse: collapse !important;
             font-size: 7.5px !important;
@@ -6934,8 +6934,8 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table tbody {
             display: table-row-group !important;
-            height: ${sentupTbodyHeightMm}mm !important;
-            min-height: ${sentupTbodyHeightMm}mm !important;
+            height: auto !important;
+            min-height: 0 !important;
             max-height: ${sentupTbodyHeightMm}mm !important;
             box-sizing: border-box !important;
           }
