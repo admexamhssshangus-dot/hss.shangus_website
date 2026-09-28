@@ -2,9 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Calculator, FileText, Printer, Download, Search, Edit3, 
   Check, X, ChevronDown, Sliders, RefreshCw, AlertCircle, 
-  HelpCircle, Shield, Briefcase, Landmark, CheckSquare, 
-  Square, ArrowUpRight, DollarSign, Wallet, FileSpreadsheet,
-  TrendingUp, Users, Info, Settings, Sparkles, History
+  Shield, CheckSquare, Square, FileSpreadsheet,
+  Users, Info, Settings, Sparkles, History
 } from 'lucide-react';
 import { db, auth } from '../../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -13,6 +12,7 @@ import { toPublicFacultyList } from '../../utils/facultyPrivacy';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import ClerkStaffDocumentsWorkspace from './ClerkStaffDocumentsWorkspace';
+import { fetchGeneratedDocHistory } from '../../services/docHistoryService';
 
 // --- TAX CALCULATION LOGIC (Admin & Accounts-configurable rules) ---
 export const sanitizeTaxConfig = (rawConfig) => {
@@ -225,6 +225,24 @@ export default function SchoolAccountsManager({ user }) {
   const [activeRegimeSettingsTab, setActiveRegimeSettingsTab] = useState('new');
   const [activeTaxPreviewRegime, setActiveTaxPreviewRegime] = useState('new');
   const [showTaxRules, setShowTaxRules] = useState(false);
+  const [clerkHistoryCount, setClerkHistoryCount] = useState(0);
+
+  // Load live clerk history count for badge
+  useEffect(() => {
+    let isMounted = true;
+    fetchGeneratedDocHistory({ docType: 'all', limitCount: 300 })
+      .then((allDocs) => {
+        if (!isMounted) return;
+        const clerkOnly = (allDocs || []).filter(d => {
+          const isClerkDocType = d.docType === 'clerk_staff_letter' || d.docType === 'clerk_staff_roster';
+          const isClerkScope = d.extraData?.authorScope === 'accounts_clerk' || d.extraData?.authorRole === 'clerk';
+          return isClerkDocType || isClerkScope;
+        });
+        setClerkHistoryCount(clerkOnly.length);
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, [activeTab]);
 
   // Load Settings & Faculty Data
   const loadAccountsData = async (forceRefresh = false) => {
@@ -1045,8 +1063,8 @@ export default function SchoolAccountsManager({ user }) {
           </div>
         </div>
 
-        {/* Global Tab Switcher */}
-        <div className="flex items-center gap-0.5 sm:gap-1 p-0.5 sm:p-1 rounded-lg sm:rounded-xl bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 self-stretch sm:self-auto overflow-x-auto no-scrollbar shrink-0">
+        {/* Global Single-Row Minimal Tab Switcher (No Duplicates, No Upcomings) */}
+        <div className="flex items-center gap-1 p-0.5 sm:p-1 rounded-lg sm:rounded-xl bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 self-stretch sm:self-auto overflow-x-auto no-scrollbar shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('tax_calculator')}
@@ -1056,25 +1074,34 @@ export default function SchoolAccountsManager({ user }) {
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
-            <Calculator size={11} className="sm:hidden shrink-0" />
-            <Calculator size={13} className="hidden sm:inline shrink-0" />
-            <span className="sm:hidden">Staff Tax</span>
-            <span className="hidden sm:inline">Staff Tax Calculator</span>
+            <Calculator size={13} className="shrink-0" />
+            <span>Staff Tax Calculator</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab('staff_documents')}
+            onClick={() => setActiveTab('staff_letterhead')}
             className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-black flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'staff_documents'
+              activeTab === 'staff_letterhead'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
-            <FileText size={11} className="sm:hidden shrink-0" />
-            <FileText size={13} className="hidden sm:inline shrink-0" />
-            <span className="sm:hidden">Official Letters</span>
-            <span className="hidden sm:inline">Official Letterhead &amp; Staff Rosters</span>
+            <FileText size={13} className="shrink-0" />
+            <span>Official Letterhead &amp; Mail Merge</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('staff_rosters')}
+            className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-black flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'staff_rosters'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
+            }`}
+          >
+            <FileSpreadsheet size={13} className="shrink-0" />
+            <span>Custom Staff Registers &amp; Rosters</span>
           </button>
 
           <button
@@ -1086,42 +1113,17 @@ export default function SchoolAccountsManager({ user }) {
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
-            <History size={11} className="sm:hidden shrink-0" />
-            <History size={13} className="hidden sm:inline shrink-0" />
-            <span className="sm:hidden">History</span>
-            <span className="hidden sm:inline">Dispatch History</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('salary_statements')}
-            className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'salary_statements'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Briefcase size={11} className="sm:hidden shrink-0" />
-            <Briefcase size={13} className="hidden sm:inline shrink-0" />
-            <span className="sm:hidden">Salary Bills</span>
-            <span className="hidden sm:inline">Salary & Pay Heads</span>
-            <span className="px-1 py-0.2 rounded text-[7.5px] sm:text-[8.5px] bg-slate-200 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-extrabold">Upcoming</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('school_ledgers')}
-            className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'school_ledgers'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Landmark size={11} className="sm:hidden shrink-0" />
-            <Landmark size={13} className="hidden sm:inline shrink-0" />
-            <span className="sm:hidden">Contingency</span>
-            <span className="hidden sm:inline">School Contingency</span>
-            <span className="px-1 py-0.2 rounded text-[7.5px] sm:text-[8.5px] bg-slate-200 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-extrabold">Upcoming</span>
+            <History size={13} className="shrink-0" />
+            <span>Dispatch History</span>
+            {clerkHistoryCount > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${
+                activeTab === 'dispatch_history'
+                  ? 'bg-amber-800 text-white'
+                  : 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+              }`}>
+                {clerkHistoryCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -1682,100 +1684,8 @@ export default function SchoolAccountsManager({ user }) {
         </div>
       )}
 
-      {/* ─── TAB 2: SALARY & PAY HEADS (ROADMAP & UPCOMING) ─── */}
-      {activeTab === 'salary_statements' && (
-        <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-              <Briefcase size={20} />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">Staff Salary Registers & Monthly Bill Generator</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Automated monthly salary bills, basic pay bands, DA/HRA allowances, and J&K Bank disbursement ledgers.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
-              <div className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                <TrendingUp size={13} />
-                <span>Pay Heads Configuration</span>
-              </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                Configure Level 1 to Level 13 Pay Bands, active Dearness Allowance rates (currently 50%+), HRA percentages (9%/18%), and Medical Allowance.
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
-              <div className="text-xs font-bold text-teal-700 dark:text-teal-400 flex items-center gap-1">
-                <Wallet size={13} />
-                <span>Deduction Schedules</span>
-              </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                Auto-calculate 10% Employee NPS + 14% Government Contribution, SLI policy tiers, GPF subscriptions, and festive advance deductions.
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
-              <div className="text-xs font-bold text-purple-700 dark:text-purple-400 flex items-center gap-1">
-                <FileSpreadsheet size={13} />
-                <span>Bank Credit Statements</span>
-              </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                Generate 1-click official monthly bank salary disbursement schedules in J&K Bank electronic format with account numbers and IFSC.
-              </p>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40 text-xs text-blue-900 dark:text-blue-200 flex items-center justify-between flex-wrap gap-2">
-            <span>✨ The Accounts Clerk workspace is being actively connected to CPIS and salary profiles.</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-bold">Planned Release: Phase 2</span>
-          </div>
-        </div>
-      )}
-
-      {/* ─── TAB 3: SCHOOL CONTINGENCY LEDGERS (UPCOMING) ─── */}
-      {activeTab === 'school_ledgers' && (
-        <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <Landmark size={20} />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">School Accounts, Contingency & Local Fund Ledgers</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Institutional budget tracking, examination grants, practicals contingency, and school developmental funds.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
-              <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Local School Fund</div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                Audit trail and ledger entries for school local fund collections, developmental projects, and official expenditures.
-              </p>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
-              <div className="text-xs font-bold text-amber-700 dark:text-amber-400">Examination Contingency</div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                JKBOSE centre superintendence allocations, question paper stationery grants, and invigilation remuneration logs.
-              </p>
-            </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
-              <div className="text-xs font-bold text-teal-700 dark:text-teal-400">Science Lab & IT Maintenance</div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                Reagent purchases, CAL / ICT lab electricity and broadband reimbursements, and asset register maintenance.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── TAB: OFFICIAL LETTERHEAD & STAFF ROSTERS (CLERK ONLY) ─── */}
-      {activeTab === 'staff_documents' && (
+      {/* ─── TAB 2: OFFICIAL LETTERHEAD & MAIL MERGE ─── */}
+      {activeTab === 'staff_letterhead' && (
         <ClerkStaffDocumentsWorkspace
           faculty={faculty}
           user={user}
@@ -1785,14 +1695,25 @@ export default function SchoolAccountsManager({ user }) {
         />
       )}
 
-      {/* ─── TAB: COMMON CLERK DISPATCH HISTORY & ARCHIVE ─── */}
+      {/* ─── TAB 3: CUSTOM STAFF REGISTERS & ROSTERS ─── */}
+      {activeTab === 'staff_rosters' && (
+        <ClerkStaffDocumentsWorkspace
+          faculty={faculty}
+          user={user}
+          settings={settings}
+          initialSubTab="roster"
+          onOpenHistory={() => setActiveTab('dispatch_history')}
+        />
+      )}
+
+      {/* ─── TAB 4: COMMON CLERK DISPATCH HISTORY & ARCHIVE ─── */}
       {activeTab === 'dispatch_history' && (
         <ClerkStaffDocumentsWorkspace
           faculty={faculty}
           user={user}
           settings={settings}
           initialSubTab="history"
-          onBackToWorkspace={() => setActiveTab('staff_documents')}
+          onBackToWorkspace={() => setActiveTab('staff_letterhead')}
         />
       )}
 

@@ -5,9 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  FileText, FileSpreadsheet, History, Printer, Trash2,
-  Eye, RefreshCw, Calendar, Users, CheckCircle2, AlertCircle,
-  X, Download, ArrowRight, Shield
+  FileText, History, Printer, Trash2,
+  Eye, RefreshCw, X
 } from 'lucide-react';
 import StaffLetterheadWriterView from './StaffLetterheadWriterView';
 import CustomStaffRosterBuilderView from './CustomStaffRosterBuilderView';
@@ -129,70 +128,15 @@ export default function ClerkStaffDocumentsWorkspace({
 
   return (
     <div className="space-y-2">
-      {/* ─── SUB-NAVIGATION BAR (LETTERHEAD WRITER | STAFF ROSTERS | CLERK HISTORY) ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-1 rounded-lg bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveSubTab('letterhead');
-              if (onBackToWorkspace) onBackToWorkspace();
-            }}
-            className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'letterhead'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
-            }`}
-          >
-            <FileText size={12} />
-            <span>Official Letterhead &amp; Mail Merge</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveSubTab('roster');
-              if (onBackToWorkspace) onBackToWorkspace();
-            }}
-            className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'roster'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
-            }`}
-          >
-            <FileSpreadsheet size={12} />
-            <span>Custom Staff Registers &amp; Rosters</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveSubTab('history');
-              if (onOpenHistory) onOpenHistory();
-            }}
-            className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'history'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
-            }`}
-          >
-            <History size={12} />
-            <span>Dispatch History</span>
-            {historyItems.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono">
-                {historyItems.length}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
       {/* ─── SUB-TAB 1: OFFICIAL LETTERHEAD & MAIL MERGE ─── */}
       {activeSubTab === 'letterhead' && (
         <StaffLetterheadWriterView
           faculty={faculty}
           user={user}
-          onOpenHistory={() => setActiveSubTab('history')}
+          onOpenHistory={() => {
+            if (onOpenHistory) onOpenHistory();
+            else setActiveSubTab('history');
+          }}
         />
       )}
 
@@ -201,7 +145,10 @@ export default function ClerkStaffDocumentsWorkspace({
         <CustomStaffRosterBuilderView
           faculty={faculty}
           user={user}
-          onOpenHistory={() => setActiveSubTab('history')}
+          onOpenHistory={() => {
+            if (onOpenHistory) onOpenHistory();
+            else setActiveSubTab('history');
+          }}
         />
       )}
 
