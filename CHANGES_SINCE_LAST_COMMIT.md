@@ -62,7 +62,14 @@
 
 ---
 
+### 3. Top Navigation & Studio Header Cleanup ([AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx))
+- **Detailed Changes Implemented:**
+  - Suppressed redundant admissions sync button in top header bar when inside Document Studio, Custom Roster, and Roster Builder views (`activeTab in ['customRoster', 'docStudio', 'roster']`), avoiding unnecessary background polling when working on static document templates.
+
+---
+
 ## Files Modified
+- `src/portal/admin/AdminDashboard.jsx`: Context-aware suppression of redundant admissions sync button in document studio tabs.
 - `src/portal/admin/OfficialLetterWriterView.jsx`: Classified template selector dropdown, 1-click Duplicate, 1-click Overwrite, compact left controls layout.
 - `src/portal/admin/StaffLetterheadWriterView.jsx`: 2/3 letterhead layout on left, 1/3 controls on right, dynamic pager index, upward-opening variable picker, categorized template select.
 - `src/portal/admin/SchoolAccountsManager.jsx`: Full establishment modal fields (Cadre, Qualification, PRAN/GPF, Bank, DOJ, Parentage), expandable details drawer, delete/retire handler, safe index matching.
@@ -74,7 +81,7 @@
 
 ## Local Commit Message
 ```bash
-feat(letters): add classified template dropdown, duplicate, and overwrite actions to official letter writer
+perf(admin): refine top sub-nav cloud sync visibility and finalize studio workflows
 ```
 
 ---
