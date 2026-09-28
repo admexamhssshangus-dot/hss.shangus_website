@@ -4,7 +4,7 @@ import {
   Check, X, ChevronDown, Sliders, RefreshCw, AlertCircle, 
   HelpCircle, Shield, Briefcase, Landmark, CheckSquare, 
   Square, ArrowUpRight, DollarSign, Wallet, FileSpreadsheet,
-  TrendingUp, Users, Info, Settings, Sparkles
+  TrendingUp, Users, Info, Settings, Sparkles, History
 } from 'lucide-react';
 import { db, auth } from '../../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -1079,6 +1079,21 @@ export default function SchoolAccountsManager({ user }) {
 
           <button
             type="button"
+            onClick={() => setActiveTab('dispatch_history')}
+            className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-black flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'dispatch_history'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
+            }`}
+          >
+            <History size={11} className="sm:hidden shrink-0" />
+            <History size={13} className="hidden sm:inline shrink-0" />
+            <span className="sm:hidden">History</span>
+            <span className="hidden sm:inline">Dispatch History</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('salary_statements')}
             className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'salary_statements'
@@ -1765,6 +1780,19 @@ export default function SchoolAccountsManager({ user }) {
           faculty={faculty}
           user={user}
           settings={settings}
+          initialSubTab="letterhead"
+          onOpenHistory={() => setActiveTab('dispatch_history')}
+        />
+      )}
+
+      {/* ─── TAB: COMMON CLERK DISPATCH HISTORY & ARCHIVE ─── */}
+      {activeTab === 'dispatch_history' && (
+        <ClerkStaffDocumentsWorkspace
+          faculty={faculty}
+          user={user}
+          settings={settings}
+          initialSubTab="history"
+          onBackToWorkspace={() => setActiveTab('staff_documents')}
         />
       )}
 

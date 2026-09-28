@@ -38,7 +38,7 @@ export default function StaffLetterheadWriterView({
   const [dateStr, setDateStr] = useState(new Date().toLocaleDateString('en-GB'));
   const [bodyHtml, setBodyHtml] = useState(BUILTIN_STAFF_LETTER_TEMPLATES[0].bodyHtml);
   
-  // View Mode for Centre Canvas: 'preview' (Live Interpolated Preview) or 'edit' (In-Place Editor)
+  // View Mode for Centre Canvas: 'preview' (Live Interpolated Preview) or 'tokens' (Template Tokens)
   const [centreMode, setCentreMode] = useState('preview');
 
   // Signatory State
@@ -51,8 +51,9 @@ export default function StaffLetterheadWriterView({
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [previewEmployeeIndex, setPreviewEmployeeIndex] = useState(0);
 
-  // Editor Ref
+  // Editor Ref & Range Selection
   const editorRef = useRef(null);
+  const savedRangeRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
 
@@ -62,13 +63,6 @@ export default function StaffLetterheadWriterView({
       setSelectedEmployeeIds(faculty.map((f, idx) => f.id || f.cpis_no || f.pan || `emp_${idx}`));
     }
   }, [faculty]);
-
-  // Sync editor innerHTML when bodyHtml or mode changes
-  useEffect(() => {
-    if (centreMode === 'edit' && editorRef.current && editorRef.current.innerHTML !== bodyHtml) {
-      editorRef.current.innerHTML = bodyHtml;
-    }
-  }, [bodyHtml, centreMode]);
 
   // Helper Employee Getters
   const isNonTeaching = (emp) => {
@@ -113,6 +107,51 @@ export default function StaffLetterheadWriterView({
     return selectedEmployees[clamped] || selectedEmployees[0] || {};
   }, [selectedEmployees, previewEmployeeIndex, faculty]);
 
+  // Interpolated Preview HTML for the active employee
+  const previewInterpolatedHtml = useMemo(() => {
+    return interpolateStaffVariables(bodyHtml, currentPreviewEmployee, {
+      refNo,
+      dateStr,
+      session: '2025–26'
+    });
+  }, [bodyHtml, currentPreviewEmployee, refNo, dateStr]);
+
+  const previewInterpolatedRef = useMemo(() => {
+    return interpolateStaffVariables(refNo, currentPreviewEmployee, {
+      refNo,
+      dateStr,
+      session: '2025–26'
+    });
+  }, [refNo, currentPreviewEmployee, dateStr]);
+
+  // Sync editor content with active mode
+  useEffect(() => {
+    if (editorRef.current) {
+      const targetContent = centreMode === 'preview' ? previewInterpolatedHtml : bodyHtml;
+      if (editorRef.current.innerHTML !== targetContent) {
+        editorRef.current.innerHTML = targetContent;
+      }
+    }
+  }, [bodyHtml, previewInterpolatedHtml, centreMode, currentPreviewEmployee]);
+
+  // Save selection range inside the editor
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
+        savedRangeRef.current = range.cloneRange();
+      }
+    }
+  };
+
+  // Handle direct text editing in either preview or template mode
+  const handleBodyEdit = () => {
+    if (!editorRef.current) return;
+    saveSelection();
+    setBodyHtml(editorRef.current.innerHTML);
+  };
+
   // Handle Template Switching
   const handleSelectTemplate = (templateId) => {
     const t = BUILTIN_STAFF_LETTER_TEMPLATES.find(tpl => tpl.id === templateId);
@@ -121,52 +160,58 @@ export default function StaffLetterheadWriterView({
     setRefNo(t.refNo || 'HSS/SHG/Estt/2026/');
     setBodyHtml(t.bodyHtml || '');
     if (editorRef.current) {
-      editorRef.current.innerHTML = t.bodyHtml || '';
+      editorRef.current.innerHTML = centreMode === 'preview'
+        ? interpolateStaffVariables(t.bodyHtml, currentPreviewEmployee, { refNo: t.refNo, dateStr, session: '2025–26' })
+        : (t.bodyHtml || '');
     }
     showToast(`Loaded template: ${t.name}`, 'info');
   };
 
-  // Insert Variable Token into Editor
+  // Insert Variable Token into Editor at cursor (works in both preview & tokens mode)
   const handleInsertVariable = (token) => {
-    // If currently in preview mode, switch to edit mode first so the user sees the insertion
-    if (centreMode !== 'edit') {
-      setCentreMode('edit');
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    const sel = window.getSelection();
+    let range = savedRangeRef.current;
+
+    if (range && editorRef.current.contains(range.commonAncestorContainer)) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } else if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      range = sel.getRangeAt(0);
     }
 
-    setTimeout(() => {
-      if (!editorRef.current) return;
-      editorRef.current.focus();
+    if (range) {
+      range.deleteContents();
+      const node = document.createTextNode(` ${token} `);
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.setEndAfter(node);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      savedRangeRef.current = range.cloneRange();
+    } else {
+      editorRef.current.innerHTML += ` ${token} `;
+    }
 
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        const node = document.createTextNode(` ${token} `);
-        range.insertNode(node);
-        range.setStartAfter(node);
-        range.setEndAfter(node);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      } else {
-        editorRef.current.innerHTML += ` ${token} `;
-      }
-      setBodyHtml(editorRef.current.innerHTML);
-      showToast(`Inserted variable ${token}`, 'info');
-    }, 50);
+    setBodyHtml(editorRef.current.innerHTML);
+    showToast(`Inserted variable ${token}`, 'info');
   };
 
-  // Execute Rich Text Command
+  // Execute Rich Text Command directly in editor
   const executeCmd = (command, value = null) => {
-    if (centreMode !== 'edit') {
-      setCentreMode('edit');
-    }
-    setTimeout(() => {
-      if (editorRef.current) {
-        editorRef.current.focus();
-        document.execCommand(command, false, value);
-        setBodyHtml(editorRef.current.innerHTML);
+    if (editorRef.current) {
+      editorRef.current.focus();
+      if (savedRangeRef.current) {
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(savedRangeRef.current);
       }
-    }, 50);
+      document.execCommand(command, false, value);
+      saveSelection();
+      setBodyHtml(editorRef.current.innerHTML);
+    }
   };
 
   // Toggle Employee Selection
@@ -292,50 +337,32 @@ export default function StaffLetterheadWriterView({
     }
   };
 
-  // Interpolated Preview HTML for the centre canvas
-  const previewInterpolatedHtml = useMemo(() => {
-    return interpolateStaffVariables(bodyHtml, currentPreviewEmployee, {
-      refNo,
-      dateStr,
-      session: '2025–26'
-    });
-  }, [bodyHtml, currentPreviewEmployee, refNo, dateStr]);
-
-  const previewInterpolatedRef = useMemo(() => {
-    return interpolateStaffVariables(refNo, currentPreviewEmployee, {
-      refNo,
-      dateStr,
-      session: '2025–26'
-    });
-  }, [refNo, currentPreviewEmployee, dateStr]);
-
   return (
     <div className="animate-fadeIn">
-      {/* ─── 3-COLUMN STUDIO LAYOUT ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+      {/* ─── 3-COLUMN STUDIO LAYOUT (ULTRA-COMPACT VIEWPORT-FITTING DESIGN) ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-start">
         
         {/* ══════════════════════════════════════════════════════════════════════
-            1. LEFT COLUMN: TEMPLATE SELECTOR & TARGET STAFF PICKER (3 COLS)
+            1. LEFT COLUMN: TEMPLATE SELECTOR, TARGET STAFF & SIGNATORIES (3 COLS)
         ══════════════════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-3 space-y-2.5">
+        <div className="lg:col-span-3 space-y-2">
           
-          {/* Card A: Template Selection & Dispatch Meta */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs space-y-2.5">
-            <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-1.5">
-              <FileText className="text-amber-600 dark:text-amber-500 shrink-0" size={14} />
-              <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+          {/* Unified Card: Template Setup & Target Staff */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
+            
+            {/* Header: Template */}
+            <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-1">
+              <FileText className="text-amber-600 dark:text-amber-500 shrink-0" size={13} />
+              <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
                 Official Template
               </span>
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                Choose Document Template:
-              </label>
               <select
                 value={selectedTemplateId}
                 onChange={(e) => handleSelectTemplate(e.target.value)}
-                className="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                className="w-full text-[11px] font-semibold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
               >
                 {BUILTIN_STAFF_LETTER_TEMPLATES.map(t => (
                   <option key={t.id} value={t.id}>
@@ -345,168 +372,171 @@ export default function StaffLetterheadWriterView({
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            {/* Ref No & Date Row */}
+            <div className="grid grid-cols-2 gap-1.5">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  Dispatch Ref No:
+                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                  Ref No:
                 </label>
                 <input
                   type="text"
                   value={refNo}
                   onChange={(e) => setRefNo(e.target.value)}
-                  placeholder="HSS/SHG/Estt/..."
-                  className="w-full text-xs font-mono font-bold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
+                  placeholder="HSS/SHG/..."
+                  className="w-full text-[10.5px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  Letter Date:
+                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                  Date:
                 </label>
                 <input
                   type="text"
                   value={dateStr}
                   onChange={(e) => setDateStr(e.target.value)}
                   placeholder="DD/MM/YYYY"
-                  className="w-full text-xs font-mono font-bold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full text-[10.5px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
             </div>
-          </div>
 
-          {/* Card B: Target Staff Selector */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between gap-1 border-b border-slate-100 dark:border-slate-800 pb-1.5">
-              <div className="flex items-center gap-1.5">
-                <Users size={13} className="text-amber-600 dark:text-amber-500 shrink-0" />
-                <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider">
-                  Target Staff
+            {/* Target Staff Section */}
+            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1">
+                  <Users size={12} className="text-amber-600 dark:text-amber-500 shrink-0" />
+                  <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
+                    Target Staff
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 text-[9.5px] font-bold">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllFiltered}
+                    className="text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                  >
+                    All
+                  </button>
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllFiltered}
+                    className="text-slate-500 hover:underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              {/* Selection Counter */}
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="font-semibold text-slate-500">Selected for Merge:</span>
+                <span className="px-1.5 py-0.2 rounded-full font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[9.5px]">
+                  {selectedEmployees.length} of {faculty.length} Staff
                 </span>
               </div>
 
-              <div className="flex items-center gap-1 text-[10px] font-bold">
-                <button
-                  type="button"
-                  onClick={handleSelectAllFiltered}
-                  className="text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
-                >
-                  All
-                </button>
-                <span className="text-slate-300 dark:text-slate-700">|</span>
-                <button
-                  type="button"
-                  onClick={handleDeselectAllFiltered}
-                  className="text-slate-500 hover:underline cursor-pointer"
-                >
-                  Clear
-                </button>
+              {/* Search Input */}
+              <div className="relative">
+                <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search staff, CPIS..."
+                  className="w-full pl-5 pr-2 py-0.5 text-[10.5px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 outline-none"
+                />
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
+                {[
+                  { key: 'all', label: 'All' },
+                  { key: 'teaching', label: 'Teaching' },
+                  { key: 'non_teaching', label: 'Non-Teach' }
+                ].map(cat => (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => setActiveCategoryFilter(cat.key)}
+                    className={`flex-1 py-0.5 text-center rounded text-[9.5px] font-bold transition-all cursor-pointer ${
+                      activeCategoryFilter === cat.key
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Staff Checkbox List (Ultra-Compact) */}
+              <div className="max-h-28 sm:max-h-32 overflow-y-auto rounded border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 no-scrollbar">
+                {filteredFaculty.map((emp, idx) => {
+                  const empId = emp.id || emp.cpis_no || emp.pan || `emp_${idx}`;
+                  const isSelected = selectedEmployeeIds.includes(empId);
+                  const vars = getEmployeeVariablesMap(emp);
+
+                  return (
+                    <div
+                      key={empId}
+                      onClick={() => toggleEmployeeSelection(empId)}
+                      className={`flex items-center justify-between px-1.5 py-1 text-[10.5px] transition-colors cursor-pointer select-none ${
+                        isSelected
+                          ? 'bg-amber-50/70 dark:bg-amber-950/20'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="shrink-0 text-amber-600 dark:text-amber-400">
+                          {isSelected ? <CheckSquare size={12} /> : <Square size={12} className="text-slate-300 dark:text-slate-600" />}
+                        </span>
+                        <div className="truncate">
+                          <div className="font-extrabold text-[10px] text-slate-900 dark:text-white truncate">
+                            {vars.name}
+                          </div>
+                          <div className="text-[8.5px] text-slate-500 truncate">
+                            {vars.designation}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className="text-[8.5px] font-mono text-slate-500 shrink-0">
+                        {vars.cpis}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Selection Counter */}
-            <div className="flex items-center justify-between text-[10.5px]">
-              <span className="font-bold text-slate-600 dark:text-slate-400">Selected for Mail Merge:</span>
-              <span className="px-1.5 py-0.2 rounded-full font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[10px]">
-                {selectedEmployees.length} of {faculty.length} Staff
+            {/* Signatory Setup (Compact 2-col) */}
+            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                Signatories:
               </span>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative">
-              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search staff, CPIS, PAN..."
-                className="w-full pl-6 pr-2 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 outline-none"
-              />
-            </div>
-
-            {/* Category Filter Pills */}
-            <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
-              {[
-                { key: 'all', label: 'All' },
-                { key: 'teaching', label: 'Teaching' },
-                { key: 'non_teaching', label: 'Non-Teach' }
-              ].map(cat => (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => setActiveCategoryFilter(cat.key)}
-                  className={`flex-1 py-0.5 text-center rounded text-[10px] font-bold transition-all cursor-pointer ${
-                    activeCategoryFilter === cat.key
-                      ? 'bg-amber-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Staff Checkbox List */}
-            <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 no-scrollbar">
-              {filteredFaculty.map((emp, idx) => {
-                const empId = emp.id || emp.cpis_no || emp.pan || `emp_${idx}`;
-                const isSelected = selectedEmployeeIds.includes(empId);
-                const vars = getEmployeeVariablesMap(emp);
-
-                return (
-                  <div
-                    key={empId}
-                    onClick={() => toggleEmployeeSelection(empId)}
-                    className={`flex items-center justify-between px-2 py-1.5 text-xs transition-colors cursor-pointer select-none ${
-                      isSelected
-                        ? 'bg-amber-50/70 dark:bg-amber-950/20'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="shrink-0 text-amber-600 dark:text-amber-400">
-                        {isSelected ? <CheckSquare size={13} /> : <Square size={13} className="text-slate-300 dark:text-slate-600" />}
-                      </span>
-                      <div className="truncate">
-                        <div className="font-extrabold text-[11px] text-slate-900 dark:text-white truncate">
-                          {vars.name}
-                        </div>
-                        <div className="text-[9.5px] text-slate-500 truncate">
-                          {vars.designation}
-                        </div>
-                      </div>
-                    </div>
-
-                    <span className="text-[9.5px] font-mono text-slate-500 shrink-0">
-                      {vars.cpis}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Card C: Signatory Setup */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-1.5 text-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-              Signatories Footer:
-            </span>
-            <div>
-              <span className="text-[9.5px] font-semibold text-slate-500">Clerk Signatory:</span>
-              <input
-                type="text"
-                value={clerkSignatory}
-                onChange={(e) => setClerkSignatory(e.target.value)}
-                className="w-full px-2 py-0.5 text-[11px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
-              />
-            </div>
-            <div>
-              <span className="text-[9.5px] font-semibold text-slate-500">Principal Signatory:</span>
-              <input
-                type="text"
-                value={principalSignatory}
-                onChange={(e) => setPrincipalSignatory(e.target.value)}
-                className="w-full px-2 py-0.5 text-[11px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
-              />
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
+                  <span className="text-[8.5px] text-slate-500 block truncate">Clerk / Dealing Asst:</span>
+                  <input
+                    type="text"
+                    value={clerkSignatory}
+                    onChange={(e) => setClerkSignatory(e.target.value)}
+                    className="w-full px-1.5 py-0.5 text-[9.5px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+                <div>
+                  <span className="text-[8.5px] text-slate-500 block truncate">Principal / DDO:</span>
+                  <input
+                    type="text"
+                    value={principalSignatory}
+                    onChange={(e) => setPrincipalSignatory(e.target.value)}
+                    className="w-full px-1.5 py-0.5 text-[9.5px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -514,21 +544,21 @@ export default function StaffLetterheadWriterView({
         {/* ══════════════════════════════════════════════════════════════════════
             2. CENTRE COLUMN: OFFICIAL A4 LETTERHEAD PREVIEW & IN-PLACE CANVAS (6 COLS)
         ══════════════════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-6 space-y-2">
+        <div className="lg:col-span-6 space-y-1.5">
           
           {/* Top Canvas Bar: Live Preview Switcher & Mode Toggle */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 shadow-2xs flex items-center justify-between gap-2 flex-wrap">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 px-2.5 py-1.5 shadow-2xs flex items-center justify-between gap-1.5 flex-wrap">
             <div className="flex items-center gap-1.5">
-              <Eye size={14} className="text-amber-600 dark:text-amber-400" />
-              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                Preview Official:
+              <Eye size={13} className="text-amber-600 dark:text-amber-400" />
+              <span className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">
+                Official:
               </span>
               {selectedEmployees.length > 0 && (
                 <div className="flex items-center gap-1">
                   <select
                     value={previewEmployeeIndex}
                     onChange={(e) => setPreviewEmployeeIndex(Number(e.target.value))}
-                    className="text-xs font-bold px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none cursor-pointer max-w-[210px] truncate"
+                    className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none cursor-pointer max-w-[190px] truncate"
                   >
                     {selectedEmployees.map((emp, idx) => (
                       <option key={idx} value={idx}>
@@ -536,84 +566,92 @@ export default function StaffLetterheadWriterView({
                       </option>
                     ))}
                   </select>
-                  <span className="text-[10.5px] font-mono text-slate-500">
+                  <span className="text-[9.5px] font-mono text-slate-500">
                     {previewEmployeeIndex + 1}/{selectedEmployees.length}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Mode Switcher: Live Preview vs In-Place Editor */}
-            <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
-              <button
-                type="button"
-                onClick={() => setCentreMode('preview')}
-                className={`px-2.5 py-1 rounded text-[11px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
-                  centreMode === 'preview'
-                    ? 'bg-amber-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Eye size={11} />
-                <span>Live Preview</span>
-              </button>
+            {/* View Mode Toggle: Live Values vs Template Tokens */}
+            <div className="flex items-center gap-1">
+              <div className="flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCentreMode('preview')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
+                    centreMode === 'preview'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                  title="Show preview with active employee values filled in (Directly Editable)"
+                >
+                  <Eye size={10} />
+                  <span>Live Preview</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setCentreMode('edit')}
-                className={`px-2.5 py-1 rounded text-[11px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
-                  centreMode === 'edit'
-                    ? 'bg-amber-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Edit3 size={11} />
-                <span>Edit Letter Text</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setCentreMode('tokens')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
+                    centreMode === 'tokens'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                  title="Show raw template placeholder tokens (Directly Editable)"
+                >
+                  <Edit3 size={10} />
+                  <span>Tokens ({'{{vars}}'})</span>
+                </button>
+              </div>
+
+              <span className="text-[9px] text-amber-700 dark:text-amber-400 font-semibold hidden sm:inline">
+                ✏️ Click text to edit
+              </span>
             </div>
           </div>
 
-          {/* Official A4 Letterhead Sheet */}
-          <div className="bg-slate-100 dark:bg-slate-950 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-inner flex justify-center overflow-x-auto">
-            <div className="bg-white rounded-lg shadow-md border border-slate-300 w-full max-w-[620px] min-h-[640px] p-6 sm:p-8 text-slate-900 font-sans flex flex-col justify-between">
+          {/* Official A4 Letterhead Sheet (Ultra-Compact Viewport Fitting) */}
+          <div className="bg-slate-100 dark:bg-slate-950 p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-inner flex justify-center overflow-x-auto">
+            <div className="bg-white rounded-lg shadow-md border border-slate-300 w-full max-w-[560px] p-3 sm:p-3.5 text-slate-900 font-sans flex flex-col justify-between">
               
               <div>
                 {/* Official Letterhead Header Banner (Soft Ice-Blue Background) */}
                 <div
                   style={{
                     backgroundColor: '#f0f8ff',
-                    borderBottom: '2.5px solid #800000',
-                    padding: '10px 12px 8px 12px',
+                    borderBottom: '2px solid #800000',
+                    padding: '6px 8px 5px 8px',
                     textAlign: 'center',
-                    marginBottom: '12px',
-                    borderRadius: '4px'
+                    marginBottom: '6px',
+                    borderRadius: '3px'
                   }}
                 >
                   <img
                     src="/logo192.png"
                     alt="School Seal"
                     style={{
-                      width: '44px',
-                      height: '44px',
+                      width: '26px',
+                      height: '26px',
                       objectFit: 'contain',
                       display: 'block',
-                      margin: '0 auto 4px auto'
+                      margin: '0 auto 2px auto'
                     }}
                     onError={(e) => { e.currentTarget.src = '/logo.png'; }}
                   />
-                  <div style={{ fontSize: '10px', fontWeight: '800', color: '#800000', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 2px 0' }}>
+                  <div style={{ fontSize: '8px', fontWeight: '800', color: '#800000', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 0 1px 0', lineHeight: 1 }}>
                     OFFICE OF THE PRINCIPAL
                   </div>
-                  <div style={{ fontSize: '15px', fontWeight: '900', color: '#0a192f', textTransform: 'uppercase', fontFamily: 'Georgia, serif', margin: '0 0 2px 0' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '900', color: '#0a192f', textTransform: 'uppercase', fontFamily: 'Georgia, serif', margin: '0 0 1px 0', lineHeight: 1.1 }}>
                     GOVT. HIGHER SECONDARY SCHOOL SHANGUS
                   </div>
-                  <div style={{ fontSize: '9.5px', color: '#334155', fontWeight: '600' }}>
+                  <div style={{ fontSize: '7.5px', color: '#334155', fontWeight: '600', lineHeight: 1 }}>
                     Anantnag, Kashmir — 192201 (J&K) • AISHE: S-12345 • U-DISE: 01070800101
                   </div>
                 </div>
 
                 {/* Ref & Date Bar */}
-                <div className="flex items-center justify-between text-[11px] font-semibold border-b border-slate-100 pb-2 mb-3">
+                <div className="flex items-center justify-between text-[9px] font-semibold border-b border-slate-100 pb-0.5 mb-1.5">
                   <div>
                     <span className="text-[#800000] font-black">Ref. No.:</span> {centreMode === 'preview' ? previewInterpolatedRef : refNo}
                   </div>
@@ -622,45 +660,40 @@ export default function StaffLetterheadWriterView({
                   </div>
                 </div>
 
-                {/* Document Body: Switch between Interpolated Preview and In-Place Editor */}
-                {centreMode === 'preview' ? (
-                  <div
-                    dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewInterpolatedHtml) }}
-                    className="text-xs sm:text-[13px] leading-relaxed text-slate-800 text-justify space-y-2 min-h-[320px]"
-                  />
-                ) : (
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mb-1">
-                      ✏️ In-Place Edit Mode: Click inside to edit. Placeholders (e.g. {`{{name}}`}) will interpolate during preview/print.
-                    </div>
-                    <div
-                      ref={editorRef}
-                      contentEditable
-                      suppressContentEditableWarning
-                      onInput={(e) => setBodyHtml(e.currentTarget.innerHTML)}
-                      className="p-3 rounded border border-amber-300 bg-amber-50/20 text-xs sm:text-[13px] leading-relaxed text-slate-900 outline-none min-h-[320px] focus:ring-1 focus:ring-amber-500 font-sans"
-                    />
-                  </div>
-                )}
+                {/* Document Body: Always Directly Editable in both modes with live insertion */}
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onSelect={saveSelection}
+                  onMouseUp={saveSelection}
+                  onFocus={saveSelection}
+                  onKeyUp={() => {
+                    saveSelection();
+                    handleBodyEdit();
+                  }}
+                  onInput={handleBodyEdit}
+                  className="text-[10px] sm:text-[10.5px] leading-snug sm:leading-relaxed text-slate-800 text-justify outline-none space-y-1 focus:ring-1 focus:ring-amber-500 rounded p-1 min-h-[160px] font-sans"
+                />
               </div>
 
               {/* Signatories Footer */}
-              <div className="mt-8 pt-4 border-t border-slate-100 flex items-end justify-between text-xs">
-                <div className="text-center min-w-[130px]">
-                  <div className="h-[1px] w-24 bg-slate-400 mx-auto mb-1" />
-                  <div className="font-extrabold text-[11px] text-slate-900">{clerkSignatory}</div>
-                  <div className="text-[9.5px] text-slate-500 font-medium">Accounts Section, HSS Shangus</div>
+              <div className="mt-2.5 pt-1.5 border-t border-slate-100 flex items-end justify-between text-[9.5px]">
+                <div className="text-center min-w-[110px]">
+                  <div className="h-[1px] w-20 bg-slate-400 mx-auto mb-0.5" />
+                  <div className="font-extrabold text-[9.5px] text-slate-900">{clerkSignatory}</div>
+                  <div className="text-[7.5px] text-slate-500 font-medium">Accounts Section, HSS Shangus</div>
                 </div>
 
-                <div className="text-center min-w-[130px]">
-                  <div className="h-[1px] w-24 bg-slate-400 mx-auto mb-1" />
-                  <div className="font-extrabold text-[11px] text-slate-900">{principalSignatory}</div>
-                  <div className="text-[9.5px] text-slate-500 font-medium">Govt. Hr. Sec. School Shangus</div>
+                <div className="text-center min-w-[110px]">
+                  <div className="h-[1px] w-20 bg-slate-400 mx-auto mb-0.5" />
+                  <div className="font-extrabold text-[9.5px] text-slate-900">{principalSignatory}</div>
+                  <div className="text-[7.5px] text-slate-500 font-medium">Govt. Hr. Sec. School Shangus</div>
                 </div>
               </div>
 
               {/* Institutional Watermark Footer */}
-              <div className="mt-4 pt-2 border-t border-dashed border-slate-200 flex items-center justify-between text-[8px] text-slate-400 font-mono">
+              <div className="mt-1 pt-0.5 border-t border-dashed border-slate-200 flex items-center justify-between text-[7px] text-slate-400 font-mono">
                 <span>Official Dispatch Record • Govt HSS Shangus</span>
                 <span>Page 1 of {selectedEmployees.length}</span>
               </div>
@@ -671,11 +704,11 @@ export default function StaffLetterheadWriterView({
         {/* ══════════════════════════════════════════════════════════════════════
             3. RIGHT COLUMN: ACTIONS, FORMATTING TOOLS & PLACEHOLDERS (3 COLS)
         ══════════════════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-3 space-y-2.5">
+        <div className="lg:col-span-3 space-y-2">
           
           {/* Card A: Primary Print & Save Actions */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs space-y-2">
-            <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-1.5">
+            <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1">
               Print &amp; Export Actions
             </span>
 
@@ -683,22 +716,22 @@ export default function StaffLetterheadWriterView({
             <button
               type="button"
               onClick={handleBatchPrint}
-              className="w-full py-2 px-3 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-1.5 px-2.5 rounded-lg text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <Printer size={14} />
+              <Printer size={13} />
               <span>Print Merged Letters ({selectedEmployees.length})</span>
             </button>
 
             {/* Secondary Actions */}
-            <div className="grid grid-cols-2 gap-1.5 pt-1">
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
               <button
                 type="button"
                 onClick={handleExportDocx}
                 disabled={isExportingDocx}
-                className="py-1.5 px-2 rounded-lg text-[11px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                className="py-1 px-1.5 rounded-md text-[10.5px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
                 title="Download as Word (.docx)"
               >
-                <Download size={12} className="text-blue-600 dark:text-blue-400" />
+                <Download size={11} className="text-blue-600 dark:text-blue-400" />
                 <span>Word (.docx)</span>
               </button>
 
@@ -706,9 +739,9 @@ export default function StaffLetterheadWriterView({
                 type="button"
                 onClick={() => handleSaveToCloudHistory(true)}
                 disabled={isSaving}
-                className="py-1.5 px-2 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                className="py-1 px-1.5 rounded-md text-[10.5px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
               >
-                <Save size={12} className="text-amber-600 dark:text-amber-400" />
+                <Save size={11} className="text-amber-600 dark:text-amber-400" />
                 <span>Save Draft</span>
               </button>
             </div>
@@ -717,7 +750,7 @@ export default function StaffLetterheadWriterView({
               <button
                 type="button"
                 onClick={onOpenHistory}
-                className="w-full py-1 text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:underline flex items-center justify-center gap-1 cursor-pointer pt-1"
+                className="w-full py-0.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:underline flex items-center justify-center gap-1 cursor-pointer"
               >
                 <span>View Dispatch History &bull;</span>
               </button>
@@ -725,8 +758,8 @@ export default function StaffLetterheadWriterView({
           </div>
 
           {/* Card B: Basic Formatting Tools */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
-            <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2 shadow-2xs space-y-1.5">
+            <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-0.5">
               Formatting Ribbon
             </span>
 
@@ -734,88 +767,88 @@ export default function StaffLetterheadWriterView({
               <button
                 type="button"
                 onClick={() => executeCmd('bold')}
-                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                 title="Bold (Ctrl+B)"
               >
-                <Bold size={13} />
+                <Bold size={12} />
               </button>
 
               <button
                 type="button"
                 onClick={() => executeCmd('italic')}
-                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                 title="Italic (Ctrl+I)"
               >
-                <Italic size={13} />
+                <Italic size={12} />
               </button>
 
               <button
                 type="button"
                 onClick={() => executeCmd('underline')}
-                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                 title="Underline (Ctrl+U)"
               >
-                <Underline size={13} />
+                <Underline size={12} />
               </button>
 
               <button
                 type="button"
                 onClick={() => executeCmd('justifyLeft')}
-                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                 title="Align Left"
               >
-                <AlignLeft size={13} />
+                <AlignLeft size={12} />
               </button>
 
               <button
                 type="button"
                 onClick={() => executeCmd('justifyCenter')}
-                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                 title="Align Center"
               >
-                <AlignCenter size={13} />
+                <AlignCenter size={12} />
               </button>
 
               <button
                 type="button"
                 onClick={() => executeCmd('justifyRight')}
-                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                 title="Align Right"
               >
-                <AlignRight size={13} />
+                <AlignRight size={12} />
               </button>
 
               <button
                 type="button"
                 onClick={() => executeCmd('justifyFull')}
-                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                 title="Justify"
               >
-                <AlignJustify size={13} />
+                <AlignJustify size={12} />
               </button>
 
               <button
                 type="button"
                 onClick={() => executeCmd('insertUnorderedList')}
-                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                 title="Bulleted List"
               >
-                <List size={13} />
+                <List size={12} />
               </button>
 
               <button
                 type="button"
                 onClick={() => executeCmd('insertOrderedList')}
-                className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                 title="Numbered List"
               >
-                <ListOrdered size={13} />
+                <ListOrdered size={12} />
               </button>
 
               <button
                 type="button"
                 onClick={() => executeCmd('removeFormat')}
-                className="px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer text-[10px] font-bold"
+                className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer text-[9.5px] font-bold"
                 title="Remove Formatting"
               >
                 Clear
@@ -824,36 +857,38 @@ export default function StaffLetterheadWriterView({
           </div>
 
           {/* Card C: Add Particular Placeholders into Letter */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xs space-y-2">
-            <div className="flex items-center gap-1 border-b border-slate-100 dark:border-slate-800 pb-1.5">
-              <Sparkles size={13} className="text-amber-500 shrink-0" />
-              <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-1.5">
+            <div className="flex items-center gap-1 border-b border-slate-100 dark:border-slate-800 pb-1">
+              <Sparkles size={12} className="text-amber-500 shrink-0" />
+              <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
                 Insert Placeholders
               </span>
             </div>
 
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-              Click any placeholder below to inject it into the letter at the cursor position:
+            <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
+              Click any variable to insert directly into letter at cursor:
             </p>
 
             {/* Categorized Placeholder Chips */}
-            <div className="space-y-2 pt-1">
+            <div className="space-y-1.5 pt-0.5">
               <div>
-                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Employee Identity:
+                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                  Identity:
                 </span>
                 <div className="flex flex-wrap gap-1">
                   {[
                     { token: '{{name}}', label: 'Name' },
                     { token: '{{designation}}', label: 'Desig' },
                     { token: '{{cpis}}', label: 'CPIS' },
-                    { token: '{{pan}}', label: 'PAN' }
+                    { token: '{{pan}}', label: 'PAN' },
+                    { token: '{{parentage}}', label: 'Parent' },
+                    { token: '{{dob}}', label: 'DOB' }
                   ].map(item => (
                     <button
                       key={item.token}
                       type="button"
                       onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 cursor-pointer transition-transform hover:scale-105"
+                      className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 cursor-pointer transition-transform hover:scale-105"
                       title={`Insert ${item.token}`}
                     >
                       {item.token}
@@ -863,7 +898,7 @@ export default function StaffLetterheadWriterView({
               </div>
 
               <div>
-                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
                   Salary &amp; Bank:
                 </span>
                 <div className="flex flex-wrap gap-1">
@@ -879,7 +914,7 @@ export default function StaffLetterheadWriterView({
                       key={item.token}
                       type="button"
                       onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 cursor-pointer transition-transform hover:scale-105"
+                      className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 cursor-pointer transition-transform hover:scale-105"
                       title={`Insert ${item.token}`}
                     >
                       {item.token}
@@ -889,7 +924,7 @@ export default function StaffLetterheadWriterView({
               </div>
 
               <div>
-                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
                   Department &amp; Service:
                 </span>
                 <div className="flex flex-wrap gap-1">
@@ -897,13 +932,14 @@ export default function StaffLetterheadWriterView({
                     { token: '{{department}}', label: 'Wing/Dept' },
                     { token: '{{cadre}}', label: 'Cadre' },
                     { token: '{{mobile}}', label: 'Mobile' },
+                    { token: '{{email}}', label: 'Email' },
                     { token: '{{doj}}', label: 'DOJ' }
                   ].map(item => (
                     <button
                       key={item.token}
                       type="button"
                       onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 cursor-pointer transition-transform hover:scale-105"
+                      className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 cursor-pointer transition-transform hover:scale-105"
                       title={`Insert ${item.token}`}
                     >
                       {item.token}
@@ -913,7 +949,7 @@ export default function StaffLetterheadWriterView({
               </div>
 
               <div>
-                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
                   Dispatch Meta:
                 </span>
                 <div className="flex flex-wrap gap-1">
@@ -926,7 +962,7 @@ export default function StaffLetterheadWriterView({
                       key={item.token}
                       type="button"
                       onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 cursor-pointer transition-transform hover:scale-105"
+                      className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 cursor-pointer transition-transform hover:scale-105"
                       title={`Insert ${item.token}`}
                     >
                       {item.token}
@@ -937,7 +973,6 @@ export default function StaffLetterheadWriterView({
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
