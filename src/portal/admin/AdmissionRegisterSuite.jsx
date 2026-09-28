@@ -6574,7 +6574,7 @@ export default function AdmissionRegisterSuite({
             line-height: 1.08 !important;
             max-height: calc(${registerRowHeightMm}mm - 0.3mm) !important;
             overflow: hidden !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '6.8px' : '7.2px'} !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '4.8px' : '5.2px'} !important;
           }
 
           /* Board Registration in Print (both split and single-line) */
@@ -7508,6 +7508,13 @@ export default function AdmissionRegisterSuite({
 
         .admission-spread-table td.register-handwrite-cell .handwrite-container > .handwrite-line:last-child {
           margin-top: auto !important;
+        }
+
+        .admission-spread-table td[data-col="p2_remarks"],
+        .admission-spread-table td[data-col="p2_remarks"] .remarks-wrap,
+        .admission-spread-table td[data-col="p2_remarks"] .line-clamp-3 {
+          font-size: 5.2px !important;
+          line-height: 1.1 !important;
         }
 
         .register-resizable-row:hover > td {
@@ -9979,8 +9986,8 @@ export default function AdmissionRegisterSuite({
                                       </div>
                                     )}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.2px] leading-tight overflow-hidden align-middle" data-col="p2_remarks">
-                                    <div className="line-clamp-3 leading-tight break-words remarks-wrap" title={s.remarks}>{s.remarks}</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[5.2px] leading-tight overflow-hidden align-middle" style={{ fontSize: '5.2px' }} data-col="p2_remarks">
+                                    <div className="line-clamp-3 leading-tight break-words remarks-wrap" style={{ fontSize: '5.2px', lineHeight: 1.1 }} title={s.remarks}>{s.remarks}</div>
                                   </td>
                                 </ResizableDataRow>
                               ))}
