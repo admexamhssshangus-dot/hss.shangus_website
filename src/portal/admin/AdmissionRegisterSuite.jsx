@@ -6506,7 +6506,7 @@ export default function AdmissionRegisterSuite({
           .admission-spread-table .st-reg-split span,
           .admission-spread-table td span.font-mono,
           .admission-spread-table td span.font-black.font-mono {
-            font-size: ${currentStudentsPerPage >= 16 ? '7.5px' : '8.0px'} !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '10.5px' : '11.0px'} !important;
             line-height: 1.05 !important;
             white-space: nowrap !important;
           }
@@ -6560,7 +6560,7 @@ export default function AdmissionRegisterSuite({
           /* Candidate Name, Father Name, Mother Name in Print */
           .admission-spread-table td.group\/name-cell > div,
           .admission-spread-table td div.font-black.uppercase {
-            font-size: ${currentStudentsPerPage >= 16 ? '8.0px' : '8.5px'} !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '11.0px' : '11.5px'} !important;
             line-height: 1.08 !important;
             white-space: normal !important;
             word-break: break-word !important;
@@ -6572,7 +6572,7 @@ export default function AdmissionRegisterSuite({
           .admission-spread-table td[data-col="mother"],
           .admission-spread-table tbody tr > td:nth-child(10),
           .admission-spread-table tbody tr > td:nth-child(11) {
-            font-size: ${currentStudentsPerPage >= 16 ? '7.4px' : '7.8px'} !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '10.4px' : '10.8px'} !important;
             line-height: 1.08 !important;
             white-space: normal !important;
             word-break: break-word !important;
@@ -7347,6 +7347,21 @@ export default function AdmissionRegisterSuite({
           white-space: normal !important;
           word-break: break-word !important;
           overflow-wrap: break-word !important;
+        }
+
+        .admission-spread-table td[data-col="boardReg"],
+        .admission-spread-table td[data-col="boardReg"] .st-reg-split,
+        .admission-spread-table td[data-col="boardReg"] .st-reg-split span {
+          font-size: 11px !important;
+        }
+        .admission-spread-table td[data-col="name"] > div {
+          font-size: 11.5px !important;
+        }
+        .admission-spread-table td[data-col="father"],
+        .admission-spread-table td[data-col="father"] > div,
+        .admission-spread-table td[data-col="mother"],
+        .admission-spread-table td[data-col="mother"] > div {
+          font-size: 11px !important;
         }
 
         .register-resizable-row:hover > td {
@@ -9624,9 +9639,9 @@ export default function AdmissionRegisterSuite({
                                       )}
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]" data-col="class">{s.class}</td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden leading-tight text-[8px]" data-col="boardReg">{formatBoardRegSplit(s.boardReg)}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden leading-tight text-[11px]" data-col="boardReg">{formatBoardRegSplit(s.boardReg)}</td>
                                     <td className="border border-slate-900 px-1.5 py-0.5 text-left relative group/name-cell overflow-hidden" data-col="name">
-                                      <div className="w-full font-black uppercase tracking-tight text-slate-900 leading-tight text-[8.5px] break-words line-clamp-2">
+                                      <div className="w-full font-black uppercase tracking-tight text-slate-900 leading-tight text-[11.5px] break-words line-clamp-2">
                                         <span>{s.name}</span>
                                       </div>
                                       {/* Prominent floating hover toggle button without squeezing name width */}
@@ -9643,10 +9658,10 @@ export default function AdmissionRegisterSuite({
                                         {s.isReadmission ? '⚙ Edit Re-Adm' : '+ Set Re-Adm'}
                                       </button>
                                     </td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px] leading-tight" data-col="father">
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[11px] leading-tight" data-col="father">
                                       <div className="line-clamp-2 leading-tight break-words">{s.father}</div>
                                     </td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px] leading-tight" data-col="mother">
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[11px] leading-tight" data-col="mother">
                                       <div className="line-clamp-2 leading-tight break-words">{s.mother}</div>
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font text-[8px]" data-col="dobFigures">{formatRegisterDate(s.dobFigures) || s.dobFigures || '—'}</td>
