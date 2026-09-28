@@ -2828,6 +2828,63 @@ export default function PracticalsPage() {
     });
   };
 
+  // Seamless Keyboard Navigation between student marks inputs (Next / Enter / Tab / Arrows)
+  const handleInputKeyDown = (e, currentIndex, mode = 'mobile') => {
+    const isNext = e.key === 'Enter' || e.keyCode === 13 || e.which === 13 || (e.key === 'Tab' && !e.shiftKey) || e.key === 'ArrowDown';
+    const isPrev = (e.key === 'Tab' && e.shiftKey) || e.key === 'ArrowUp';
+
+    if (isNext) {
+      e.preventDefault();
+      const nextIndex = currentIndex + 1;
+      if (nextIndex < displayedStudents.length) {
+        const nextId = `practical-mark-input-${mode}-${nextIndex}`;
+        const nextEl = document.getElementById(nextId);
+        if (nextEl) {
+          nextEl.focus();
+          try {
+            nextEl.select();
+          } catch (_) {}
+          try {
+            nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } catch (_) {
+            nextEl.scrollIntoView();
+          }
+          setTimeout(() => {
+            try {
+              nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } catch (_) {}
+          }, 60);
+        }
+      } else {
+        // Last student in roster: dismiss virtual keyboard smoothly
+        e.target?.blur();
+      }
+    } else if (isPrev) {
+      e.preventDefault();
+      const prevIndex = currentIndex - 1;
+      if (prevIndex >= 0) {
+        const prevId = `practical-mark-input-${mode}-${prevIndex}`;
+        const prevEl = document.getElementById(prevId);
+        if (prevEl) {
+          prevEl.focus();
+          try {
+            prevEl.select();
+          } catch (_) {}
+          try {
+            prevEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } catch (_) {
+            prevEl.scrollIntoView();
+          }
+          setTimeout(() => {
+            try {
+              prevEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } catch (_) {}
+          }, 60);
+        }
+      }
+    }
+  };
+
   // 1. Save Evaluation Draft (Cloud Database + LocalStorage fallback)
   const handleSaveDraft = async () => {
     if (existingAwardInfo?.lockedOtherTeacherAward) {
@@ -4690,15 +4747,24 @@ export default function PracticalsPage() {
                         {/* Marks Input + Quick Absent Toggle (Strictly Matching Dimensions: 44px x 24px) */}
                         <div className="flex items-center gap-1 shrink-0">
                           <input
+                            id={`practical-mark-input-mobile-${idx}`}
+                            data-student-idx={idx}
                             type="text"
                             inputMode="text"
+                            enterKeyHint={idx === displayedStudents.length - 1 ? 'done' : 'next'}
                             autoCapitalize="characters"
                             autoCorrect="off"
                             spellCheck="false"
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
                             disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                            onFocus={(e) => {
+                              try {
+                                e.target.select();
+                              } catch (_) {}
+                            }}
                             onChange={(e) => handleMarkChange(st, 'practicalMarks', e.target.value)}
+                            onKeyDown={(e) => handleInputKeyDown(e, idx, 'mobile')}
                             className={`practicals-marks-input rounded-md border text-[11px] font-bold text-center leading-none focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[9.5px] placeholder:font-normal shrink-0 ${
                               isAbsent
                                 ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
@@ -4816,11 +4882,20 @@ export default function PracticalsPage() {
                           <td className="py-1 px-2">
                             <div className="flex items-center gap-1.5 justify-center">
                               <input
+                                id={`practical-mark-input-desktop-${idx}`}
+                                data-student-idx={idx}
                                 type="text"
+                                enterKeyHint={idx === displayedStudents.length - 1 ? 'done' : 'next'}
                                 placeholder={`0-${subjectMaxMarks} / A`}
                                 value={st.practicalMarks}
                                 disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                                onFocus={(e) => {
+                                  try {
+                                    e.target.select();
+                                  } catch (_) {}
+                                }}
                                 onChange={(e) => handleMarkChange(st, 'practicalMarks', e.target.value)}
+                                onKeyDown={(e) => handleInputKeyDown(e, idx, 'desktop')}
                                 className={`w-20 px-2 py-0 rounded-md border text-[11px] font-black h-6 focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase text-center leading-none disabled:opacity-50 disabled:cursor-not-allowed ${
                                   isAbsent
                                     ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
@@ -5092,14 +5167,44 @@ export default function PracticalsPage() {
                         {/* Inline Marks Input & AB Toggle Button */}
                         <div className="flex items-center gap-1.5 shrink-0">
                           <input
+                            id={`validation-modal-mark-input-${idx}`}
                             type="text"
                             inputMode="text"
+                            enterKeyHint={idx === validationData.incompleteStudents.length - 1 ? 'done' : 'next'}
                             autoCapitalize="characters"
                             autoCorrect="off"
                             spellCheck="false"
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks || ''}
+                            onFocus={(e) => {
+                              try {
+                                e.target.select();
+                              } catch (_) {}
+                            }}
                             onChange={(e) => handleModalResolveMark(st, e.target.value)}
+                            onKeyDown={(e) => {
+                              const isNext = e.key === 'Enter' || e.keyCode === 13 || e.which === 13 || (e.key === 'Tab' && !e.shiftKey) || e.key === 'ArrowDown';
+                              const isPrev = (e.key === 'Tab' && e.shiftKey) || e.key === 'ArrowUp';
+                              if (isNext) {
+                                e.preventDefault();
+                                const nextEl = document.getElementById(`validation-modal-mark-input-${idx + 1}`);
+                                if (nextEl) {
+                                  nextEl.focus();
+                                  try { nextEl.select(); } catch (_) {}
+                                  nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                } else {
+                                  e.target?.blur();
+                                }
+                              } else if (isPrev) {
+                                e.preventDefault();
+                                const prevEl = document.getElementById(`validation-modal-mark-input-${idx - 1}`);
+                                if (prevEl) {
+                                  prevEl.focus();
+                                  try { prevEl.select(); } catch (_) {}
+                                  prevEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                              }
+                            }}
                             className="w-16 h-8 text-center text-xs font-bold font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white uppercase focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                           />
                           <button
