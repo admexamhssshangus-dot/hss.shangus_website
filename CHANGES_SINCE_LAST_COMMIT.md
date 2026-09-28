@@ -2,86 +2,80 @@
 
 ## Current Working Changes
 
-### 1. Clerk Portal: Dedicated Staff Establishment Directory & Cloud Sync with Permissions
-- **User Request Addressed:**
-  - *"i think faculty directory is relevant in clerk portal,....here in cms we can keep/show only those required on website academics etc.....note that edits submitted by cleark portal are saved to fierbase and integrated immediately....but ensure to ask proper permissions to cleark while he edits/save info....ensure old and new tax are updating correctly"*
-  - *"make this check box style dropdown so that Target Staff 31/31 is not required....combine its functionalites here in check box drop down like search, ALL/clear; All, teaching/non teaching, NPS, GPF etc (allow to label NPS/GPFif not there already in staff info table)"*
-  - *"why place holdes shown by brackets rathe show plus icon which wil show all avaible to chose from"*
-  - *"make compact with multple column format or other techniques so that all is visible once on page"*
-
+### 1. Official Letterhead Studio: 2/3 Horizontal Letterhead & Right Controls Layout
+- **User Requests Addressed:**
+  - *"make letter 2/3 horizontallly and controls to right"*
+  - *"moreover 31/31 remains static than 1/31, then 2/31 so on"*
+  - *"popup shall not be hidden"*
+  - *"where are other templates here"*
 - **Detailed Changes Implemented:**
-  1. **New First-Class "Staff Directory" Tab ([SchoolAccountsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAccountsManager.jsx)):**
-     - Added `staff_directory` as the primary tab in the Clerk Portal navigation bar alongside Staff Tax Calculator, Official Letterhead & Mail Merge, Custom Staff Registers & Rosters, and Dispatch History.
-     - Overview counter pills displaying real-time metrics: Total Staff, Teaching Faculty, Non-Teaching / MTS, NPS Scheme, GPF Scheme, Inactive / Deployed.
-     - Real-time search across Name, CPIS ID, PAN Number, Phone, Designation, and Department with quick clear.
-     - Filter tabs: `All`, `Teaching`, `Non-Teaching / MTS`, `NPS Scheme`, `GPF Scheme`, `Inactive / Deployed`.
-     - High-density establishment table displaying S.No, Official Name & Designation, CPIS ID, PAN, Pension Scheme (interactive badge), Annual Gross Salary with monthly equivalent, Active Tax Regime, and Live Side-by-Side Tax (New vs Old).
-     - Single-click CSV export of complete establishment registry.
-  2. **Comprehensive Staff Establishment & Tax Modal ([SchoolAccountsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAccountsManager.jsx)):**
-     - Allows accounts clerk to edit full employee particulars: Name, Designation, Department/Subject, Cadre (Teaching vs Non-Teaching), CPIS ID, PAN Number, Phone/Mobile, Pension Scheme (NPS / GPF toggle buttons), and Deployment Status.
-     - Payroll & Gross Salary inputs with automatic monthly equivalent display and TDS tracking.
-     - Deductions & Exemptions section covering 80C (up to ₹1.5L), 80D (Health Insurance), HRA Exemption, and 80CCD(2) Employer NPS contribution.
-     - **Live Side-by-Side Tax Comparison (New vs Old)**: Recomputes both New Tax Regime (Sec 115BAC) and Old Tax Regime tax in real time as the user types or adjusts salary/deductions, showing taxable incomes, total annual tax, net tax due after TDS, and an automatic recommendation banner highlighting which regime saves more money with a 1-click "Apply Cheaper Regime" action.
-  3. **Clerk Security & Authorization Confirmation Modal ([SchoolAccountsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAccountsManager.jsx)):**
-     - Prevents accidental edits or overwrites by requiring explicit clerk verification before writing to Firebase Cloud.
-     - Displays an authorization summary with the staff member's name, designation, CPIS, and a table of exact field modifications (Previous Value vs New Value).
-     - Upon confirmation, atomically commits private faculty to Firestore (`systemSettings/facultyPrivate`), updates public cache (`hss_public_faculty`), broadcasts cross-tab sync (`hss_data_sync`), and records audit trails in admin activity logging.
-  4. **Multi-Select Checkbox Dropdown in Letterhead Studio ([StaffLetterheadWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffLetterheadWriterView.jsx)):**
-     - Replaced native single-select dropdown and removed redundant 31/31 Target Staff card from left panel.
-     - Floating multi-select checkbox dropdown combines search by name/CPIS/PAN, `All` / `Clear` selection buttons, category filter pills (`All`, `Teach`, `MTS`, `NPS`, `GPF`), checkboxes for merge inclusion, and row selection for active preview.
-     - Interactive **NPS / GPF Badge**: Allows labeling or toggling pension scheme directly from the dropdown row with instant cloud synchronization.
-  5. **`[+] Insert Variable` Floating Popover ([StaffLetterheadWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffLetterheadWriterView.jsx)):**
-     - Removed raw bracket placeholder rows from the left panel.
-     - Added an intuitive `[+] Insert Variable` toolbar button triggering a categorized popover (`Identity & Particulars`, `Salary & Banking`, `Service & Establishment`, `Dispatch & Session`) with instant variable search.
-  6. **Compact Multi-Column Roster Studio ([CustomStaffRosterBuilderView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/CustomStaffRosterBuilderView.jsx)):**
-     - Converted column pickers into compact 3-to-4 column responsive grids so all columns and options fit on screen without excessive scrolling.
-  7. **Academic Faculty Notice Banner in CMS ([AdminPortal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/AdminPortal.jsx)):**
-     - Added a clean top banner in CMS Faculty tab clarifying that public website academic profiles are managed there, while master establishment records (CPIS, PAN, NPS/GPF, and tax) are managed in the Clerk Portal, with a 1-click button to open the Clerk Staff Directory.
-  8. **Unified Pension Helper ([staffPensionHelper.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/staffPensionHelper.js)):**
-     - Created unified helper module for pension scheme resolution and immutable employee updates across all components.
+  1. **2/3 Horizontal Layout ([StaffLetterheadWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffLetterheadWriterView.jsx)):**
+     - Reordered studio workspace: The Official A4 Letterhead Preview is positioned on the **Left** occupying 2/3 of the horizontal screen width (`lg:col-span-8`).
+     - All studio controls (Template selection, Ref No, Dispatch Date, Signatories, Printing, Word Export, Rich-Text formatting toolbar, and Insert Variable action) are consolidated on the **Right** occupying 1/3 width (`lg:col-span-4`).
+  2. **Dynamic Staff Pager Index:**
+     - Updated the preview counter badge from static `31/31` to dynamic relative index `${previewEmployeeIndex + 1}/${selectedEmployees.length}` (e.g., `1/31`, `2/31`, etc.), correctly reflecting the currently previewed official as the clerk steps through the staff.
+  3. **Upward-Opening Insert Variable Popover:**
+     - Modified the `[+] Insert Variable` popup to open **upward** (`bottom-full mb-1.5 z-[100]`) with responsive max-height and scrolling, ensuring it never clips beneath the viewport or gets hidden by letterhead containers.
+  4. **Categorized Template Dropdown & Template Count:**
+     - Added a clean badge showing the total count of loaded templates (`{templates.length} Templates`).
+     - Organized the `<select>` options by official categories (Certificates, Service, Conduct, No Objection, Custom) and added an italic description preview beneath the selector.
 
 ---
 
-## Files Modified & Added
-- `src/portal/admin/SchoolAccountsManager.jsx` (New Staff Directory tab, full establishment modal, clerk permission modal, live side-by-side tax comparison, cloud persistence)
-- `src/portal/admin/StaffLetterheadWriterView.jsx` (Checkbox-style staff dropdown with NPS/GPF labeling, `[+] Insert Variable` popover, left panel optimization)
-- `src/portal/admin/CustomStaffRosterBuilderView.jsx` (Compact 3-4 column grid layout for column selectors and roster builder)
-- `src/pages/AdminPortal.jsx` (Informational notice banner in CMS Faculty tab pointing to Clerk Portal)
-- `src/utils/staffPensionHelper.js` (Unified NPS/GPF pension scheme determination and mutation utility)
-- `CHANGES_SINCE_LAST_COMMIT.md`
+### 2. End-to-End Staff Establishment Directory ([SchoolAccountsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAccountsManager.jsx))
+- **User Request Addressed:**
+  - *"staff directory needs attension again end to end"*
+- **Detailed Changes Implemented:**
+  1. **Extended Establishment Fields in Edit & Enrollment Modal:**
+     - Added support for all core establishment fields:
+       - **Service Particulars:** Service Cadre (Teaching / Ministerial / MTS), Highest Qualification (e.g. M.Sc, B.Ed, M.A), Date of 1st Joining / Appointment (DOJ), and Deployment Status (Regular / Deployed In / Deployed Out).
+       - **Accounts & Banking:** Bank Account Number, Bank IFSC Code, PRAN / GPF Account Number, and Pension Scheme (NPS / GPF toggle).
+       - **Bio & Contact:** Parentage (Father / Mother / Guardian), Date of Birth (DOB), Phone/Mobile, and Email Address.
+       - **Tax & Payroll:** Gross Salary, TDS Deducted, Active Tax Regime, 80C, 80D, HRA Exemption, and 80CCD(2) Other Deductions with real-time reactive side-by-side tax recomputation and 1-click "Apply Cheaper Regime".
+  2. **Expandable Establishment Particulars Row Drawer:**
+     - Clicking on an official's name or the chevron expands an inline establishment dossier drawer directly under the table row without leaving the directory view.
+     - Neatly categorizes data into 4 cards: *Service Particulars*, *Accounts & Banking*, *Contact & Bio*, and *Tax & Deductions Summary*.
+  3. **Staff Removal / Retirement Lifecycle Action:**
+     - Added a delete/retire action button in the directory table that routes through the Clerk Authorization modal before updating Firebase `systemSettings/facultyPrivate`.
+  4. **Robust Identification & Index Resolution:**
+     - Replaced fragile array index references with multi-attribute lookup matching `id`, `cpis_no`, `pan`, and `name` to guarantee zero state corruption during active search or category filtering.
+  5. **Shared Mail Merge Utilities ([staffLetterMergeUtils.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/staffLetterMergeUtils.js)):**
+     - Unified token extraction, merge variable resolution, currency formatting, and pension scheme helpers across Letterhead, Roster Builder, and School Accounts Manager.
+
+---
+
+## Files Modified
+- `src/portal/admin/StaffLetterheadWriterView.jsx`: 2/3 letterhead layout on left, 1/3 controls on right, dynamic pager index, upward-opening variable picker, categorized template select.
+- `src/portal/admin/SchoolAccountsManager.jsx`: Full establishment modal fields (Cadre, Qualification, PRAN/GPF, Bank, DOJ, Parentage), expandable details drawer, delete/retire handler, safe index matching.
+- `src/portal/admin/CustomStaffRosterBuilderView.jsx`: Compact multi-column roster design.
+- `src/utils/staffLetterMergeUtils.js`: Dedicated merge variables and data resolution utilities.
+- `CHANGES_SINCE_LAST_COMMIT.md`: Documentation of changes, commit message, and manual push guidance.
 
 ---
 
 ## Local Commit Message
 ```bash
-feat(accounts): integrate staff establishment directory into clerk portal with firebase sync and compact multi-select dropdown
+feat(studio): layout 2/3 letter preview on left, right controls, dynamic staff pager, and end-to-end staff establishment directory
 ```
 
 ---
 
-## How to Review or Manually Manage Commits
+## Instructions for User: Review & Push
+All changes have been built and verified locally (`npm run build` completed with Exit Code 0).
 
-### To review staged changes before commit:
-```bash
-git diff --staged
-```
-
-### If you want to commit manually:
-```bash
-git add .
-git commit -m "feat(accounts): integrate staff establishment directory into clerk portal with firebase sync and compact multi-select dropdown"
-```
-
-### To amend or edit this commit:
-```bash
-git reset --soft HEAD~1
-# Make desired adjustments, then re-commit:
-git commit -m "feat(accounts): integrate staff establishment directory into clerk portal with firebase sync and compact multi-select dropdown"
-```
-
-### Remote Push (STRICT MANUAL STEP):
-- Per repository rules, the AI assistant is strictly prohibited from running `git push`.
-- To push to GitHub / remote origin, run:
+To push these changes to remote GitHub:
 ```bash
 git push origin main
+```
+
+If you wish to inspect or modify the commit before pushing:
+```bash
+# View last commit details
+git log -1 -p
+
+# To undo commit while keeping all changes staged:
+git reset --soft HEAD~1
+
+# To re-commit with a customized message:
+git commit -m "your custom message"
 ```

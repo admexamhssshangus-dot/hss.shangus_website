@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
+  Trash2, ChevronRight,
   Calculator, FileText, Printer, Download, Search, Edit3, 
   Check, X, ChevronDown, Sliders, RefreshCw, AlertCircle, 
   Shield, CheckSquare, Square, FileSpreadsheet,
@@ -220,6 +221,7 @@ export default function SchoolAccountsManager({ user }) {
   const [directorySearch, setDirectorySearch] = useState('');
   const [directoryCategoryFilter, setDirectoryCategoryFilter] = useState('all'); // 'all' | 'teaching' | 'non_teaching' | 'nps' | 'gpf' | 'deployed'
   const [editingStaffMember, setEditingStaffMember] = useState(null);
+  const [expandedStaffId, setExpandedStaffId] = useState(null);
   const [editingStaffIndex, setEditingStaffIndex] = useState(null);
   const [isNewStaffRecord, setIsNewStaffRecord] = useState(false);
   const [staffModalFormData, setStaffModalFormData] = useState({
@@ -693,21 +695,35 @@ export default function SchoolAccountsManager({ user }) {
     setShowPermissionModal(true);
   };
 
-  // Staff Modal Management
+  // Staff Modal Management with Full Establishment Fields
   const handleOpenEditStaffModal = (emp, index) => {
+    const robustIdx = faculty.findIndex(f => 
+      (f.id && emp.id && f.id === emp.id) ||
+      ((f.cpis_no || f.cpis) && (emp.cpis_no || emp.cpis) && (f.cpis_no || f.cpis) === (emp.cpis_no || emp.cpis)) ||
+      f.name === emp.name
+    );
+    const targetIdx = robustIdx !== -1 ? robustIdx : index;
+
     setIsNewStaffRecord(false);
-    setEditingStaffIndex(index);
+    setEditingStaffIndex(targetIdx);
     setEditingStaffMember(emp);
     setStaffModalFormData({
       name: emp.name || '',
       designation: emp.designation || '',
       department: emp.department || '',
-      cadre: isNonTeaching(emp) ? 'Non-Teaching' : 'Teaching',
+      cadre: emp.cadre || (isNonTeaching(emp) ? 'Non-Teaching' : 'Teaching'),
+      qualification: emp.qualification || emp.customFields?.Qualification || '',
       cpis_no: emp.cpis_no || emp.cpis || '',
       pan: getEmployeePan(emp),
       phone: emp.phone || emp.mobile || '',
       email: emp.email || '',
       pension_scheme: getStaffPensionScheme(emp),
+      pran_gpf: emp.pran_gpf || emp.pran || emp.gpf_no || emp.customFields?.['PRAN / GPF No'] || '',
+      doj: emp.doj || emp.joining_date || emp.appointment_date || emp.customFields?.['Date of Joining'] || '',
+      dob: emp.dob || emp.birth_date || emp.customFields?.DOB || '',
+      parentage: emp.parentage || emp.father_name || emp.customFields?.Parentage || '',
+      bank_account: emp.bank_account || emp.account_no || emp.customFields?.['Bank Account No'] || '',
+      ifsc: emp.ifsc || emp.customFields?.['IFSC Code'] || '',
       grossSalary: getEmployeeGross(emp).toString(),
       tds: getEmployeeTds(emp).toString(),
       regime: getEmployeeRegime(emp),
@@ -729,11 +745,18 @@ export default function SchoolAccountsManager({ user }) {
       designation: 'Teacher',
       department: 'General',
       cadre: 'Teaching',
+      qualification: '',
       cpis_no: '',
       pan: '',
       phone: '',
       email: '',
       pension_scheme: 'NPS',
+      pran_gpf: '',
+      doj: '',
+      dob: '',
+      parentage: '',
+      bank_account: '',
+      ifsc: 'JAKA0...',
       grossSalary: '',
       tds: '0',
       regime: 'new',
@@ -746,8 +769,38 @@ export default function SchoolAccountsManager({ user }) {
     });
   };
 
+  // Delete / Retire Staff Member with Security Authorization
+  const handleDeleteStaffMember = (emp) => {
+    const targetIdx = faculty.findIndex(f => 
+      (f.id && emp.id && f.id === emp.id) ||
+      ((f.cpis_no || f.cpis) && (emp.cpis_no || emp.cpis) && (f.cpis_no || f.cpis) === (emp.cpis_no || emp.cpis)) ||
+      f.name === emp.name
+    );
+    if (targetIdx === -1) return;
+
+    setPendingCommitDetails({
+      title: 'Confirm Staff Removal / Retirement',
+      staffName: emp.name,
+      designation: emp.designation || 'Staff Member',
+      cpis: emp.cpis_no || emp.cpis || '—',
+      changes: [
+        { label: 'Establishment Status', oldVal: 'Active Member', newVal: 'Removed from Establishment Records' }
+      ],
+      onConfirm: async () => {
+        const updatedFaculty = faculty.filter((_, idx) => idx !== targetIdx);
+        await commitFacultyToFirebase(
+          updatedFaculty,
+          'Staff Removed from Establishment',
+          `Clerk removed ${emp.name} (${emp.designation}) from official staff records`,
+          emp.name
+        );
+      }
+    });
+    setShowPermissionModal(true);
+  };
+
   // Quick toggle pension scheme with security confirmation
-  const handleTogglePensionWithConfirm = (emp, index) => {
+  const handleTogglePensionWithConfirm = (emp) => {
     const currentScheme = getStaffPensionScheme(emp);
     const newScheme = currentScheme === 'NPS' ? 'GPF' : 'NPS';
     setPendingCommitDetails({
@@ -759,9 +812,15 @@ export default function SchoolAccountsManager({ user }) {
         { label: 'Pension Scheme', oldVal: currentScheme, newVal: newScheme }
       ],
       onConfirm: async () => {
+        const targetIdx = faculty.findIndex(f => 
+          (f.id && emp.id && f.id === emp.id) ||
+          ((f.cpis_no || f.cpis) && (emp.cpis_no || emp.cpis) && (f.cpis_no || f.cpis) === (emp.cpis_no || emp.cpis)) ||
+          f.name === emp.name
+        );
+        if (targetIdx === -1) return;
         const updatedFaculty = [...faculty];
-        const updatedEmp = applyPensionSchemeToEmployee(emp, newScheme);
-        updatedFaculty[index] = updatedEmp;
+        const updatedEmp = applyPensionSchemeToEmployee(faculty[targetIdx], newScheme);
+        updatedFaculty[targetIdx] = updatedEmp;
         await commitFacultyToFirebase(
           updatedFaculty,
           `Pension Scheme Updated: ${newScheme}`,
@@ -798,6 +857,8 @@ export default function SchoolAccountsManager({ user }) {
         name: staffModalFormData.name.trim(),
         designation: staffModalFormData.designation.trim(),
         department: staffModalFormData.department.trim(),
+        cadre: staffModalFormData.cadre || 'Teaching',
+        qualification: staffModalFormData.qualification?.trim() || '',
         cpis_no: cleanCpis,
         cpis: cleanCpis,
         pan: cleanPan,
@@ -805,6 +866,12 @@ export default function SchoolAccountsManager({ user }) {
         email: staffModalFormData.email.trim(),
         pension_scheme: staffModalFormData.pension_scheme,
         pensionScheme: staffModalFormData.pension_scheme,
+        pran_gpf: staffModalFormData.pran_gpf?.trim() || '',
+        doj: staffModalFormData.doj?.trim() || '',
+        dob: staffModalFormData.dob?.trim() || '',
+        parentage: staffModalFormData.parentage?.trim() || '',
+        bank_account: staffModalFormData.bank_account?.trim() || '',
+        ifsc: staffModalFormData.ifsc?.trim() || '',
         grossSalary: cleanGross,
         tds: cleanTds,
         taxRegime: staffModalFormData.regime,
@@ -816,6 +883,13 @@ export default function SchoolAccountsManager({ user }) {
         inactiveReason: staffModalFormData.inactiveReason,
         customFields: {
           PAN: cleanPan,
+          Qualification: staffModalFormData.qualification?.trim() || '',
+          'Date of Joining': staffModalFormData.doj?.trim() || '',
+          DOB: staffModalFormData.dob?.trim() || '',
+          Parentage: staffModalFormData.parentage?.trim() || '',
+          'Bank Account No': staffModalFormData.bank_account?.trim() || '',
+          'IFSC Code': staffModalFormData.ifsc?.trim() || '',
+          'PRAN / GPF No': staffModalFormData.pran_gpf?.trim() || '',
           'Gross Salary': cleanGross.toString(),
           TDS: cleanTds.toString(),
           'Tax Regime': staffModalFormData.regime,
@@ -829,12 +903,24 @@ export default function SchoolAccountsManager({ user }) {
       updatedFaculty.push(newStaff);
       changes.push({ label: 'New Official', oldVal: 'None', newVal: `${newStaff.name} (${newStaff.designation})` });
     } else {
-      const original = faculty[editingStaffIndex] || {};
+      let targetIndex = editingStaffIndex;
+      if (editingStaffMember) {
+        const foundIdx = faculty.findIndex(f => 
+          (f.id && editingStaffMember.id && f.id === editingStaffMember.id) ||
+          ((f.cpis_no || f.cpis) && (editingStaffMember.cpis_no || editingStaffMember.cpis) && (f.cpis_no || f.cpis) === (editingStaffMember.cpis_no || editingStaffMember.cpis)) ||
+          f.name === editingStaffMember.name
+        );
+        if (foundIdx !== -1) targetIndex = foundIdx;
+      }
+
+      const original = faculty[targetIndex] || {};
       const updatedEmp = {
         ...original,
         name: staffModalFormData.name.trim(),
         designation: staffModalFormData.designation.trim(),
         department: staffModalFormData.department.trim(),
+        cadre: staffModalFormData.cadre || (isNonTeaching(original) ? 'Non-Teaching' : 'Teaching'),
+        qualification: staffModalFormData.qualification?.trim() || '',
         cpis_no: cleanCpis,
         cpis: cleanCpis,
         pan: cleanPan,
@@ -842,6 +928,12 @@ export default function SchoolAccountsManager({ user }) {
         email: staffModalFormData.email.trim(),
         pension_scheme: staffModalFormData.pension_scheme,
         pensionScheme: staffModalFormData.pension_scheme,
+        pran_gpf: staffModalFormData.pran_gpf?.trim() || '',
+        doj: staffModalFormData.doj?.trim() || '',
+        dob: staffModalFormData.dob?.trim() || '',
+        parentage: staffModalFormData.parentage?.trim() || '',
+        bank_account: staffModalFormData.bank_account?.trim() || '',
+        ifsc: staffModalFormData.ifsc?.trim() || '',
         grossSalary: cleanGross,
         tds: cleanTds,
         taxRegime: staffModalFormData.regime,
@@ -854,6 +946,13 @@ export default function SchoolAccountsManager({ user }) {
         customFields: {
           ...(original.customFields || {}),
           PAN: cleanPan,
+          Qualification: staffModalFormData.qualification?.trim() || '',
+          'Date of Joining': staffModalFormData.doj?.trim() || '',
+          DOB: staffModalFormData.dob?.trim() || '',
+          Parentage: staffModalFormData.parentage?.trim() || '',
+          'Bank Account No': staffModalFormData.bank_account?.trim() || '',
+          'IFSC Code': staffModalFormData.ifsc?.trim() || '',
+          'PRAN / GPF No': staffModalFormData.pran_gpf?.trim() || '',
           'Gross Salary': cleanGross.toString(),
           TDS: cleanTds.toString(),
           'Tax Regime': staffModalFormData.regime,
@@ -864,7 +963,7 @@ export default function SchoolAccountsManager({ user }) {
           'Other Deductions': cleanOther.toString()
         }
       };
-      updatedFaculty[editingStaffIndex] = updatedEmp;
+      updatedFaculty[targetIndex] = updatedEmp;
 
       if (updatedEmp.name !== original.name) changes.push({ label: 'Name', oldVal: original.name || '—', newVal: updatedEmp.name });
       if (updatedEmp.designation !== original.designation) changes.push({ label: 'Designation', oldVal: original.designation || '—', newVal: updatedEmp.designation });
@@ -1697,114 +1796,180 @@ export default function SchoolAccountsManager({ user }) {
                       const isNewCheaper = newCalc.totalTax < oldCalc.totalTax;
                       const isOldCheaper = oldCalc.totalTax < newCalc.totalTax;
 
+                      const empKey = emp.id || emp.cpis_no || emp.pan || `emp_${idx}`;
+                      const isExpanded = expandedStaffId === empKey;
+                      const qualification = emp.qualification || emp.customFields?.Qualification || '';
+                      const doj = emp.doj || emp.joining_date || emp.appointment_date || emp.customFields?.['Date of Joining'] || '';
+                      const bankAccount = emp.bank_account || emp.account_no || emp.customFields?.['Bank Account No'] || '';
+                      const ifsc = emp.ifsc || emp.customFields?.['IFSC Code'] || '';
+                      const pranGpf = emp.pran_gpf || emp.pran || emp.gpf_no || emp.customFields?.['PRAN / GPF No'] || '';
+                      const cadre = emp.cadre || (isNonTeaching(emp) ? 'Non-Teaching' : 'Teaching');
+
                       return (
-                        <tr
-                          key={emp.id || emp.cpis_no || `emp_${idx}`}
-                          className="hover:bg-amber-50/30 dark:hover:bg-slate-800/40 transition-colors"
-                        >
-                          <td className="p-2 text-center font-mono text-slate-400 text-[10px]">
-                            {idx + 1}
-                          </td>
-                          <td className="p-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-black text-[9px] shrink-0">
-                                {(emp.name || 'S').charAt(0)}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="font-extrabold text-slate-900 dark:text-white truncate">
-                                  {emp.name}
+                        <React.Fragment key={empKey}>
+                          <tr
+                            className={`transition-colors ${isExpanded ? 'bg-amber-50/50 dark:bg-amber-950/20' : 'hover:bg-amber-50/30 dark:hover:bg-slate-800/40'}`}
+                          >
+                            <td className="p-2 text-center font-mono text-slate-400 text-[10px]">
+                              {idx + 1}
+                            </td>
+                            <td className="p-2">
+                              <div
+                                onClick={() => setExpandedStaffId(isExpanded ? null : empKey)}
+                                className="flex items-center gap-2 cursor-pointer select-none group"
+                                title="Click to view full establishment details"
+                              >
+                                <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-black text-[9px] shrink-0 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                                  {(emp.name || 'S').charAt(0)}
                                 </div>
-                                <div className="text-[10px] text-slate-500 truncate flex items-center gap-1">
-                                  <span>{emp.designation || 'Staff'}</span>
-                                  {emp.department && (
-                                    <>
-                                      <span>•</span>
-                                      <span className="text-slate-400">{emp.department}</span>
-                                    </>
-                                  )}
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-slate-900 dark:text-white truncate flex items-center gap-1">
+                                    <span className="group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">{emp.name}</span>
+                                    <ChevronRight size={10} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-90 text-amber-600' : ''}`} />
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                                    <span>{emp.designation || 'Staff'}</span>
+                                    {emp.department && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="text-slate-400">{emp.department}</span>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="p-2 font-mono text-[10.5px] font-bold text-slate-700 dark:text-slate-300">
-                            {emp.cpis_no || emp.cpis || '—'}
-                          </td>
-                          <td className="p-2 font-mono text-[10.5px] font-bold text-slate-700 dark:text-slate-300">
-                            {pan || '—'}
-                          </td>
-                          <td className="p-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleTogglePensionWithConfirm(emp, origIdx)}
-                              className={`px-2 py-0.5 rounded text-[9px] font-mono font-black border transition-transform hover:scale-105 cursor-pointer ${
-                                scheme === 'NPS'
-                                  ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700'
-                                  : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
-                              }`}
-                              title={`Pension Scheme: ${scheme}. Click to toggle NPS/GPF (asks clerk authorization).`}
-                            >
-                              {scheme} ⟳
-                            </button>
-                          </td>
-                          <td className="p-2 text-right">
-                            <div className="font-mono font-bold text-slate-900 dark:text-white">
-                              ₹{gross.toLocaleString('en-IN')}
-                            </div>
-                            <div className="text-[9px] font-mono text-slate-400">
-                              ≈ ₹{Math.round(gross / 12).toLocaleString('en-IN')}/mo
-                            </div>
-                          </td>
-                          <td className="p-2 text-center">
-                            <span className={`px-1.5 py-0.2 rounded text-[8.5px] font-black uppercase tracking-wider ${
-                              regime === 'old'
-                                ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-                                : 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-800'
-                            }`}>
-                              {regime === 'old' ? 'OLD' : 'NEW'}
-                            </span>
-                          </td>
-                          <td className="p-2 text-center">
-                            <div className="inline-flex items-center gap-1.5 text-[9.5px] font-mono">
-                              <span className={isNewCheaper ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-500'}>
-                                New: ₹{newCalc.totalTax.toLocaleString('en-IN')}
-                              </span>
-                              <span className="text-slate-300 dark:text-slate-700">|</span>
-                              <span className={isOldCheaper ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-500'}>
-                                Old: ₹{oldCalc.totalTax.toLocaleString('en-IN')}
-                              </span>
-                            </div>
-                            {isNewCheaper && (
-                              <div className="text-[8px] text-emerald-600 dark:text-emerald-400 font-bold">
-                                Saves ₹{(oldCalc.totalTax - newCalc.totalTax).toLocaleString('en-IN')} in New
-                              </div>
-                            )}
-                            {isOldCheaper && (
-                              <div className="text-[8px] text-emerald-600 dark:text-emerald-400 font-bold">
-                                Saves ₹{(newCalc.totalTax - oldCalc.totalTax).toLocaleString('en-IN')} in Old
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-2 text-center">
-                            <div className="flex items-center justify-center gap-1">
+                            </td>
+                            <td className="p-2 font-mono text-[10.5px] font-bold text-slate-700 dark:text-slate-300">
+                              {emp.cpis_no || emp.cpis || '—'}
+                            </td>
+                            <td className="p-2 font-mono text-[10.5px] font-bold text-slate-700 dark:text-slate-300">
+                              {pan || '—'}
+                            </td>
+                            <td className="p-2 text-center">
                               <button
                                 type="button"
-                                onClick={() => handleOpenEditStaffModal(emp, origIdx)}
-                                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
-                                title="Edit establishment & tax record"
+                                onClick={() => handleTogglePensionWithConfirm(emp)}
+                                className={`px-2 py-0.5 rounded text-[9px] font-mono font-black border transition-transform hover:scale-105 cursor-pointer ${
+                                  scheme === 'NPS'
+                                    ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                                    : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                                }`}
+                                title={`Pension Scheme: ${scheme}. Click to toggle NPS/GPF (asks clerk authorization).`}
                               >
-                                <Edit3 size={12} />
+                                {scheme} ⟳
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => printTaxSheets([emp])}
-                                className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-white cursor-pointer shadow-2xs"
-                                title="Print tax calculation sheet"
-                              >
-                                <Printer size={12} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="p-2 text-right">
+                              <div className="font-mono font-bold text-slate-900 dark:text-white">
+                                ₹{gross.toLocaleString('en-IN')}
+                              </div>
+                              <div className="text-[9px] font-mono text-slate-400">
+                                ≈ ₹{Math.round(gross / 12).toLocaleString('en-IN')}/mo
+                              </div>
+                            </td>
+                            <td className="p-2 text-center">
+                              <span className={`px-1.5 py-0.2 rounded text-[8.5px] font-black uppercase tracking-wider ${
+                                regime === 'old'
+                                  ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                                  : 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-800'
+                              }`}>
+                                {regime === 'old' ? 'OLD' : 'NEW'}
+                              </span>
+                            </td>
+                            <td className="p-2 text-center">
+                              <div className="inline-flex items-center gap-1.5 text-[9.5px] font-mono">
+                                <span className={isNewCheaper ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-500'}>
+                                  New: ₹{newCalc.totalTax.toLocaleString('en-IN')}
+                                </span>
+                                <span className="text-slate-300 dark:text-slate-700">|</span>
+                                <span className={isOldCheaper ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-500'}>
+                                  Old: ₹{oldCalc.totalTax.toLocaleString('en-IN')}
+                                </span>
+                              </div>
+                              {isNewCheaper && (
+                                <div className="text-[8px] text-emerald-600 dark:text-emerald-400 font-bold">
+                                  Saves ₹{(oldCalc.totalTax - newCalc.totalTax).toLocaleString('en-IN')} in New
+                                </div>
+                              )}
+                              {isOldCheaper && (
+                                <div className="text-[8px] text-emerald-600 dark:text-emerald-400 font-bold">
+                                  Saves ₹{(newCalc.totalTax - oldCalc.totalTax).toLocaleString('en-IN')} in Old
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-2 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditStaffModal(emp, origIdx)}
+                                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
+                                  title="Edit full establishment & tax particulars"
+                                >
+                                  <Edit3 size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => printTaxSheets([emp])}
+                                  className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-white cursor-pointer shadow-2xs"
+                                  title="Print individual tax calculation sheet"
+                                >
+                                  <Printer size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteStaffMember(emp)}
+                                  className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 border border-rose-200 dark:border-rose-900 cursor-pointer shadow-2xs"
+                                  title="Remove / retire staff member (requires authorization)"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Quick Establishment Particulars Drawer */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/80 dark:bg-slate-950/70 border-b border-amber-200 dark:border-amber-900/60 animate-fadeIn">
+                              <td colSpan={9} className="p-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[10.5px]">
+                                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider">Service Particulars</div>
+                                    <div><strong>Cadre:</strong> {cadre}</div>
+                                    <div><strong>Qualification:</strong> {qualification || '—'}</div>
+                                    <div><strong>1st Appt. Date:</strong> {doj || '—'}</div>
+                                    <div><strong>Status:</strong> {emp.if_deployed === 'in' ? 'Deployed In' : emp.if_deployed === 'out' ? 'Deployed Out' : 'Regular'}</div>
+                                  </div>
+
+                                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider">Accounts & Banking</div>
+                                    <div><strong>Bank Account:</strong> <span className="font-mono">{bankAccount || '—'}</span></div>
+                                    <div><strong>IFSC Code:</strong> <span className="font-mono">{ifsc || '—'}</span></div>
+                                    <div><strong>PRAN / GPF:</strong> <span className="font-mono">{pranGpf || '—'}</span></div>
+                                    <div><strong>Pension Scheme:</strong> <span className="font-bold text-amber-600">{scheme}</span></div>
+                                  </div>
+
+                                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider">Contact & Bio</div>
+                                    <div><strong>Mobile:</strong> {emp.phone || emp.mobile || '—'}</div>
+                                    <div><strong>Email:</strong> {emp.email || '—'}</div>
+                                    <div><strong>Parentage:</strong> {emp.parentage || emp.father_name || '—'}</div>
+                                    <div><strong>DOB:</strong> {emp.dob || '—'}</div>
+                                  </div>
+
+                                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider">Tax & Deductions Summary</div>
+                                    <div><strong>TDS Deducted:</strong> ₹{tds.toLocaleString('en-IN')}</div>
+                                    <div><strong>80C Deductions:</strong> ₹{getEmployee80C(emp).toLocaleString('en-IN')}</div>
+                                    <div><strong>80D / HRA:</strong> ₹{(getEmployee80D(emp) + getEmployeeHra(emp)).toLocaleString('en-IN')}</div>
+                                    <div className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                      Best Regime: {isNewCheaper ? 'New Regime' : isOldCheaper ? 'Old Regime' : 'Equal'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })
                   )}
@@ -2660,6 +2825,78 @@ export default function SchoolAccountsManager({ user }) {
                       <option value="in">Deployed In (From other school)</option>
                       <option value="out">Deployed Out (To other station)</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Service Cadre</label>
+                    <select
+                      value={staffModalFormData.cadre || 'Teaching'}
+                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, cadre: e.target.value })}
+                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      <option value="Teaching">Teaching (Lecturer/Master/Teacher)</option>
+                      <option value="Ministerial">Ministerial / Office Staff</option>
+                      <option value="Non-Teaching">MTS / Laboratory / Library</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Highest Qualification</label>
+                    <input
+                      type="text"
+                      value={staffModalFormData.qualification || ''}
+                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, qualification: e.target.value })}
+                      placeholder="e.g. M.Sc, B.Ed, M.A, M.Phil"
+                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">PRAN / GPF Account No.</label>
+                    <input
+                      type="text"
+                      value={staffModalFormData.pran_gpf || ''}
+                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, pran_gpf: e.target.value })}
+                      placeholder="e.g. 110023456789"
+                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Date of 1st Joining (Govt Service)</label>
+                    <input
+                      type="text"
+                      value={staffModalFormData.doj || ''}
+                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, doj: e.target.value })}
+                      placeholder="e.g. 15-05-2012"
+                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Bank Account No. (Salary)</label>
+                    <input
+                      type="text"
+                      value={staffModalFormData.bank_account || ''}
+                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, bank_account: e.target.value })}
+                      placeholder="e.g. 0123040100001234"
+                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Bank IFSC Code</label>
+                    <input
+                      type="text"
+                      value={staffModalFormData.ifsc || ''}
+                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, ifsc: e.target.value.toUpperCase() })}
+                      placeholder="e.g. JAKA0SHANGU"
+                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono uppercase font-bold outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Email Address</label>
+                    <input
+                      type="email"
+                      value={staffModalFormData.email || ''}
+                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, email: e.target.value })}
+                      placeholder="e.g. official@jk.gov.in"
+                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-amber-500"
+                    />
                   </div>
                 </div>
               </div>

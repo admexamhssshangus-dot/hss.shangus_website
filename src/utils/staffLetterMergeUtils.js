@@ -197,6 +197,154 @@ export const BUILTIN_STAFF_LETTER_TEMPLATES = [
     `
   },
   {
+    id: 'leave_sanction_order',
+    name: 'Sanction of Casual / Duty Leave',
+    category: 'Leaves & Joining',
+    desc: 'Official order sanctioning casual, duty, or commuted leave',
+    refNo: 'HSS/SHG/Leave/2026/',
+    subject: 'Sanction of Leave in favor of {{name}}, {{designation}}.',
+    bodyHtml: `
+<p style="text-align: center; font-size: 15px; font-weight: 800; letter-spacing: 0.5px; text-decoration: underline; margin-bottom: 14px;">SANCTION OF LEAVE ORDER</p>
+
+<p>Sanction is hereby accorded to the grant of <strong>Casual / Duty Leave</strong> in favor of <strong>{{name}}</strong>, <strong>{{designation}}</strong> (CPIS: <strong>{{cpis}}</strong>), serving in the Department of <strong>{{department}}</strong> at Govt. Higher Secondary School Shangus.</p>
+
+<p>The particulars of the leave are recorded as under:</p>
+<table style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+  <tbody>
+    <tr style="background-color: #f8fafc;">
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700; width: 40%;">Official Name & Cadre</td>
+      <td style="border: 1px solid #64748b; padding: 6px 10px;">{{name}} ({{cadre}})</td>
+    </tr>
+    <tr>
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700;">Designation & Subject</td>
+      <td style="border: 1px solid #64748b; padding: 6px 10px;">{{designation}} — {{department}}</td>
+    </tr>
+    <tr style="background-color: #f8fafc;">
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700;">CPIS ID / Code</td>
+      <td style="border: 1px solid #64748b; padding: 6px 10px;">{{cpis}}</td>
+    </tr>
+    <tr>
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700;">Leave Sanction Authority</td>
+      <td style="border: 1px solid #64748b; padding: 6px 10px;">Principal / Head of Institution</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The official has handed over the charge of classes / institutional assignment to the designated substitute. Relevant entry has been made in the school attendance and leave account register.</p>
+    `
+  },
+  {
+    id: 'joining_charge_report',
+    name: 'Joining & Charge Assumption Report',
+    category: 'Leaves & Joining',
+    desc: 'Official acknowledgment of reporting and assumption of charge',
+    refNo: 'HSS/SHG/Joining/2026/',
+    subject: 'Assumption of charge and reporting for duty by {{name}}, {{designation}}.',
+    bodyHtml: `
+<p style="text-align: center; font-size: 15px; font-weight: 800; letter-spacing: 0.5px; text-decoration: underline; margin-bottom: 14px;">DUTY JOINING & CHARGE ASSUMPTION REPORT</p>
+
+<p>It is hereby placed on record that <strong>{{name}}</strong>, <strong>{{designation}}</strong>, bearing CPIS ID <strong>{{cpis}}</strong>, has officially reported for duty and assumed charge in this institution today in the forenoon.</p>
+
+<p>The service particulars of the official are verified as follows:</p>
+<ul style="margin-left: 20px; line-height: 1.8;">
+  <li><strong>Employee Name:</strong> {{name}}</li>
+  <li><strong>Designation:</strong> {{designation}} ({{cadre}})</li>
+  <li><strong>Department / Wing:</strong> {{department}}</li>
+  <li><strong>CPIS Number:</strong> {{cpis}}</li>
+  <li><strong>PAN Number:</strong> {{pan}}</li>
+  <li><strong>Pension Scheme:</strong> {{pension_scheme}}</li>
+</ul>
+
+<p>The arrival of the official has been marked in the establishment register. Salary drawal shall be regulated against the sanctioned vacant post in accordance with government rules.</p>
+    `
+  },
+  {
+    id: 'vigilance_clearance',
+    name: 'Vigilance & Non-Involvement Clearance',
+    category: 'Clearances & Records',
+    desc: 'Certification of clean vigilance and departmental inquiry status',
+    refNo: 'HSS/SHG/Vig-Cl/2026/',
+    subject: 'Vigilance and Non-Involvement Certificate in respect of {{name}}, {{designation}}.',
+    bodyHtml: `
+<p style="text-align: center; font-size: 15px; font-weight: 800; letter-spacing: 0.5px; text-decoration: underline; margin-bottom: 14px;">VIGILANCE & INTEGRITY CERTIFICATE</p>
+
+<p>This is to certify that <strong>{{name}}</strong>, <strong>{{designation}}</strong>, bearing CPIS ID <strong>{{cpis}}</strong> and PAN <strong>{{pan}}</strong>, is a permanent employee of the School Education Department posted at Govt. Higher Secondary School Shangus.</p>
+
+<p>As per the records and files maintained in this institution:</p>
+<ol style="margin-left: 20px; line-height: 1.8;">
+  <li>No vigilance enquiry, ACB / Crime Branch case, or FIR is pending or registered against the official.</li>
+  <li>No departmental enquiry, suspension, or penalty has been initiated or contemplated against him/her.</li>
+  <li>The official possesses high moral character, upright integrity, and devotion to public duty.</li>
+</ol>
+
+<p>This certificate is issued for official submission to competent departmental authorities.</p>
+    `
+  },
+  {
+    id: 'lpc_salary_extract',
+    name: 'Last Pay Certificate (LPC) Extract',
+    category: 'Accounts & Verification',
+    desc: 'Remuneration and LPC statement for transfer, GPF/NPS, or pension records',
+    refNo: 'HSS/SHG/LPC/2026/',
+    subject: 'Last Pay Certificate (LPC) Particulars Extract of {{name}}, {{designation}}.',
+    bodyHtml: `
+<p style="text-align: center; font-size: 15px; font-weight: 800; letter-spacing: 0.5px; text-decoration: underline; margin-bottom: 14px;">LAST PAY CERTIFICATE (LPC) EXTRACT</p>
+
+<p>This is to certify that <strong>{{name}}</strong>, holding designation <strong>{{designation}}</strong> (CPIS: <strong>{{cpis}}</strong>), has drawn salary from this establishment up to the preceding month through treasury bills.</p>
+
+<table style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+  <tbody>
+    <tr style="background-color: #f8fafc;">
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700; width: 45%;">Name & Designation</td>
+      <td style="border: 1px solid #64748b; padding: 6px 10px;">{{name}} ({{designation}})</td>
+    </tr>
+    <tr>
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700;">CPIS / Computer Code & PAN</td>
+      <td style="border: 1px solid #64748b; padding: 6px 10px;">{{cpis}} &bull; PAN: {{pan}}</td>
+    </tr>
+    <tr style="background-color: #f8fafc;">
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700;">Pension Classification</td>
+      <td style="border: 1px solid #64748b; padding: 6px 10px;">{{pension_scheme}}</td>
+    </tr>
+    <tr>
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700;">Approx. Monthly Gross Remuneration</td>
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700;">{{monthly_salary}}</td>
+    </tr>
+    <tr style="background-color: #f8fafc;">
+      <td style="border: 1px solid #64748b; padding: 6px 10px; font-weight: 700;">Bank Account Number & IFSC</td>
+      <td style="border: 1px solid #64748b; padding: 6px 10px;">{{bank_account}} ({{ifsc}})</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>There are no outstanding government dues or disallowances pending against the official on this date.</p>
+    `
+  },
+  {
+    id: 'office_memo_notice',
+    name: 'Official Memorandum / Directive Notice',
+    category: 'General Correspondence',
+    desc: 'Institutional directive, meeting intimation, or administrative notice',
+    refNo: 'HSS/SHG/Memo/2026/',
+    subject: 'Institutional Memorandum regarding administrative and academic compliance.',
+    bodyHtml: `
+<p style="text-align: center; font-size: 15px; font-weight: 800; letter-spacing: 0.5px; text-decoration: underline; margin-bottom: 14px;">OFFICE MEMORANDUM</p>
+
+<p><strong>To:</strong> {{name}}, {{designation}} (CPIS: {{cpis}}), Department of {{department}}.</p>
+
+<p>It is hereby communicated for compliance of all staff that academic session directives and administrative tasks must be adhered to in accordance with government instructions.</p>
+
+<p>All concerned officials are directed to ensure that:</p>
+<ul style="margin-left: 20px; line-height: 1.8;">
+  <li>Syllabus completion track and student assessment records are updated on schedule.</li>
+  <li>Biometric attendance and institutional registers reflect daily punctuality.</li>
+  <li>Any required documentation is submitted to the accounts/clerical office promptly.</li>
+</ul>
+
+<p>Treated as official and immediate.</p>
+    `
+  },
+  {
     id: 'blank_staff_letterhead',
     name: 'Blank Institutional Letterhead',
     category: 'General Correspondence',
