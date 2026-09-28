@@ -231,7 +231,10 @@ export default function Footer() {
               <li><Link to="/" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Home</Link></li>
               <li><Link to="/about" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">About Us</Link></li>
               <li><Link to="/admissions" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Admissions</Link></li>
-              <li><Link to="/login" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Login / Portal</Link></li>
+              <li><Link to="/portal/login" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Student &amp; Staff ERP</Link></li>
+              <li><Link to="/results" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Results &amp; Marksheets</Link></li>
+              <li><Link to="/verify-student" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Verify Student</Link></li>
+              <li><Link to="/notices" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Notice Board</Link></li>
               <li><Link to="/academics" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Academics</Link></li>
             </ul>
           </div>
