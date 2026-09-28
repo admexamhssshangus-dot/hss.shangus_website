@@ -6524,7 +6524,11 @@ export default function AdmissionRegisterSuite({
             text-align: center !important;
           }
 
-          .admission-spread-table td[data-col="p2_prevRoll"],
+          .admission-spread-table td[data-col="p2_prevRoll"] {
+            font-size: ${currentStudentsPerPage >= 16 ? '5.0px' : '5.5px'} !important;
+            line-height: 1.1 !important;
+            white-space: nowrap !important;
+          }
           .admission-spread-table td[data-col="p2_prevResult"],
           .admission-spread-table td[data-col="p2_prevResult"] span {
             font-size: ${currentStudentsPerPage >= 16 ? '6.0px' : '6.5px'} !important;
@@ -7490,7 +7494,11 @@ export default function AdmissionRegisterSuite({
           font-size: 9.5px !important;
         }
 
-        .admission-spread-table td[data-col="p2_prevRoll"],
+        .admission-spread-table td[data-col="p2_prevRoll"] {
+          font-size: 5.5px !important;
+          line-height: 1.1 !important;
+          white-space: nowrap !important;
+        }
         .admission-spread-table td[data-col="p2_prevResult"],
         .admission-spread-table td[data-col="p2_prevResult"] span {
           font-size: 6.5px !important;
@@ -9974,7 +9982,7 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[8.5px] leading-tight overflow-hidden align-middle" style={{ fontSize: '8.5px' }} data-col="p2_prevSchool">
                                     <div className="line-clamp-2 leading-tight break-words text-[8.5px]" style={{ fontSize: '8.5px' }}>{s.prevSchool}</div>
                                   </td>
-                                  <td className="border border-slate-900 px-0.5 py-0.5 text-center font-mono ledger-mono-font text-[6.5px]" style={{ fontSize: '6.5px' }} data-col="p2_prevRoll">{s.prevRoll}</td>
+                                  <td className="border border-slate-900 px-0.5 py-0.5 text-center font-mono ledger-mono-font text-[5.5px] whitespace-nowrap" style={{ fontSize: '5.5px' }} data-col="p2_prevRoll">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-0.5 py-0.5 text-center font-bold text-[6.5px]" style={{ fontSize: '6.5px' }} data-col="p2_prevResult">
                                     {(() => {
                                       const pRes = String(s.prevResult || '').trim();
