@@ -6,6 +6,7 @@ import PublicPageSkeleton from './components/PublicPageSkeleton';
 import SEOHead from './components/SEOHead';
 import GlobalToast from './components/common/GlobalToast';
 import GlobalTooltip from './components/common/GlobalTooltip';
+import NetworkStatusIndicator from './components/NetworkStatusIndicator';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 import { isBootstrapSuperAdminEmail } from './utils/authRoles';
 import './styles/ui-system.css';
@@ -207,6 +208,9 @@ function App() {
 
         {/* Universal Application Tooltip Container */}
         <GlobalTooltip />
+
+        {/* Universal Network & Mobile Data Status Indicator */}
+        <NetworkStatusIndicator />
       </div>
     </>
   );

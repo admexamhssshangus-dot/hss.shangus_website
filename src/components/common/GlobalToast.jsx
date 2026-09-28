@@ -12,10 +12,31 @@ import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react'
  */
 export function showToast(message, type = 'info', duration = 3500) {
   if (typeof window === 'undefined') return;
+
+  let cleanMsg = String(message?.message || message || '').trim();
+
+  // Smartly detect network or offline status
+  const isOffline = (typeof navigator !== 'undefined' && !navigator.onLine) ||
+    /client is offline|Failed to get document because the client is offline|Failed to fetch|NetworkError|net::ERR_|Network request failed|The network connection was lost|unavailable/i.test(cleanMsg);
+
+  if (type === 'error' && isOffline) {
+    cleanMsg = 'No internet connection. Please check your mobile data or Wi-Fi.';
+  } else if (type === 'error' && cleanMsg) {
+    // Sanitize raw code stack traces or internal Firebase error objects
+    if (cleanMsg.includes('FirebaseError:') || cleanMsg.includes('TypeError:') || cleanMsg.includes('at http') || cleanMsg.includes('at webpack')) {
+      const firstLine = cleanMsg.split('\n')[0]
+        .replace(/^FirebaseError:\s*(\[[^\]]+\]:\s*)?/i, '')
+        .replace(/^TypeError:\s*/i, '')
+        .replace(/^Error:\s*/i, '')
+        .trim();
+      cleanMsg = firstLine || 'An unexpected error occurred. Please try again.';
+    }
+  }
+
   const event = new CustomEvent('app-toast', {
     detail: {
       id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      message: String(message || '').trim(),
+      message: cleanMsg,
       type,
       duration
     }

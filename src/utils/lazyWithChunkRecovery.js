@@ -30,6 +30,14 @@ export const lazyWithChunkRecovery = (importer, chunkKey = 'module') => lazy(asy
       const message = String(error?.message || error || '');
       const isChunkFailure = /ChunkLoadError|Loading chunk|Failed to fetch|error loading dynamically imported module|Importing a module script failed|error loading chunk|dynamically imported module|Load failed|Script error|NetworkError|unexpected require|disposed module/i.test(message);
 
+      // If the device is currently offline, avoid destroying the SPA with window.location.reload()
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const offlineErr = new Error('No internet connection. Please check your mobile data or Wi-Fi.');
+        offlineErr.name = 'OfflineError';
+        offlineErr.isOffline = true;
+        throw offlineErr;
+      }
+
       if (!isChunkFailure || attempt >= 1) {
         let alreadyRetried = false;
         try {
@@ -39,6 +47,14 @@ export const lazyWithChunkRecovery = (importer, chunkKey = 'module') => lazy(asy
         } catch (_) {}
 
         if (isChunkFailure && !alreadyRetried && typeof window !== 'undefined') {
+          // Double-check network connection before forcing hard reload
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            const offlineErr = new Error('No internet connection. Please check your mobile data or Wi-Fi.');
+            offlineErr.name = 'OfflineError';
+            offlineErr.isOffline = true;
+            throw offlineErr;
+          }
+
           try {
             sessionStorage.setItem(retryKey, '1');
           } catch (_) {}
