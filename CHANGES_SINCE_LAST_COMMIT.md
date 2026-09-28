@@ -2,47 +2,37 @@
 
 ## Current Working Changes
 
-### 1. Scroll-Triggered Replaying Stats Counter & Entrance Animations ([Home.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Home.jsx))
+### Full Light Theme for Institutional ERP Ecosystem Showcase ([Home.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Home.jsx), [index.css](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/index.css))
 - **User Request Addressed:**
-  - *"STUDENTS 700+ Enrolled Scholars TEACHERS 25+ Faculty Mentors SUBJECTS 22+ Academic Streams RESULT 90%+ Board Pass Rate....they shall play animation whenver we see them in new scroll too"*
+  - *"i think we call keep white full theme here in light theme rather than dark in light theme"*
 
 - **Implementation Details:**
-  1. **Controlled AnimatedCounter (`active` Mode):**
-     - Enhanced `AnimatedCounter` to support a direct `active` boolean prop with `delay` staggering.
-     - When a card scrolls into view (`active: true`), it starts a 1200ms cubic ease-out count-up animation from `0` to the target metric (`700+`, `25+`, `22+`, `90%+`).
-     - When the card scrolls out of view (`active: false`), any running frame/timeout is canceled and the displayed value resets to `0`, ready to animate afresh on the next scroll.
-  2. **Interactive `HomeStatCard` Component:**
-     - Created a specialized `HomeStatCard` component wrapping each metric card with an `IntersectionObserver` (`threshold: 0.15`).
-     - Staggered cascade: Card 0 starts at 0ms, Card 1 at 100ms, Card 2 at 200ms, and Card 3 at 300ms.
-     - Micro-animations: Top gradient accent bar smoothly expands from `w-0` to `w-full` (`duration-700 ease-out`), and icon badge pops with a subtle scale and rotation (`scale-90 -rotate-3` -> `scale-100 rotate-0`).
-
----
-
-### 2. Seamless Borderless Footer Campus Location & Direct Navigation ([Footer.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/components/Footer.jsx))
-- **User Requests Addressed:**
-  1. *"what is this vertical line doing between map and Main Road, Shangus, Anantnag, J&K - 192201...can redesgn it better and professional"*
-  2. *"i donot think outines suits best....chek design again"*
-
-- **Root Cause & Fix:**
-  - An orphaned `div className="w-[2px] h-[10px] bg-[#10b981]"` was positioned between the Google Map iframe and the plain text address, appearing as an awkward stray vertical line.
-  - Eliminated the stray line and rejected rigid boxed outlines in favor of a sleek, borderless, typography-first integration:
-    - Anchored by a clean `MapPin` (size 17, `text-teal-400`) directly beside the address without boxed frames or borders.
-    - Crisp, readable typography: `Main Road, Shangus, Anantnag, J&K — 192201` (`text-slate-300 text-[13.5px] leading-relaxed`).
-    - Integrated direct navigation action: `Get Directions` with `ExternalLink` icon pointing directly to Google Maps navigation for HSS Shangus (`hover:text-teal-300`).
-    - Matches the borderless, clean minimalist aesthetic of the sibling "Quick Links" and "Legal & Compliance" footer columns.
+  1. **Theme-Adaptive Container Styling:**
+     - Transitioned the entire Institutional ERP section container from a hardcoded dark background (`bg-gradient-to-br from-slate-900 via-slate-950 to-teal-950`) to an adaptive theme container:
+       - **Light Mode:** Crisp, clean white background (`bg-white`), subtle slate border (`border-slate-200/90`), gentle ambient glow, and dark typography (`text-slate-900`, `text-slate-600`).
+       - **Dark Mode:** Retains the deep gradient (`dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-950 dark:to-teal-950`) and neon teal border accents (`dark:border-teal-500/25`).
+  2. **4 Functional ERP Pillar Cards:**
+     - **Student Academic Desk:** Light slate-50/80 background in light mode, emerald/teal rounded icon badge, rich readable text (`text-slate-900`, `text-slate-600`), and teal link (`text-teal-700 hover:text-teal-800`).
+     - **Faculty Workspace:** Light slate-50/80 background in light mode, emerald icon badge, dark slate text, and emerald link (`text-emerald-700 hover:text-emerald-800`).
+     - **Admin Control Center:** Light slate-50/80 background in light mode, purple icon badge, dark slate text, and purple link (`text-purple-700 hover:text-purple-800`).
+     - **Public Campus Services:** Light slate-50/80 background in light mode, cyan icon badge, dark slate text, and cyan links (`text-cyan-700 hover:text-cyan-800`).
+  3. **CSS Global Cleanup ([index.css](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/index.css)):**
+     - Removed obsolete `.theme-light .erp-ecosystem-section` forced text color overrides (`color: #cbd5e1 !important`) so that high-contrast light theme text styles render crisply without color collisions.
+  4. **Build & Quality Verification:**
+     - Verified with `npm run build` (Exit Code 0). All 11 public HTML pages, SEO checks, and bundle assets passed without regression.
 
 ---
 
 ## Files Modified
 - `src/pages/Home.jsx`
-- `src/components/Footer.jsx`
+- `src/index.css`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ## Local Commit Message
 ```bash
-feat(home,footer): add replaying scroll animations for stats cards and refine borderless footer address
+feat(home): adapt institutional erp section to full light theme in light mode
 ```
 
 ---
@@ -57,14 +47,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "feat(home,footer): add replaying scroll animations for stats cards and redesign footer campus location card"
+git commit -m "feat(home): adapt institutional erp section to full light theme in light mode"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "feat(home,footer): add replaying scroll animations for stats cards and redesign footer campus location card"
+git commit -m "feat(home): adapt institutional erp section to full light theme in light mode"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
@@ -73,6 +63,3 @@ git commit -m "feat(home,footer): add replaying scroll animations for stats card
 ```bash
 git push origin main
 ```
-
-
-
