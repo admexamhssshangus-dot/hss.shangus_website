@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS, loadSiteSettings } from '../../utils/settingsLoader';
 import { toPublicFacultyList } from '../../utils/facultyPrivacy';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
+import ClerkStaffDocumentsWorkspace from './ClerkStaffDocumentsWorkspace';
 
 // --- TAX CALCULATION LOGIC (Admin & Accounts-configurable rules) ---
 export const sanitizeTaxConfig = (rawConfig) => {
@@ -1063,6 +1064,22 @@ export default function SchoolAccountsManager({ user }) {
 
           <button
             type="button"
+            onClick={() => setActiveTab('staff_documents')}
+            className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-black flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'staff_documents'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
+            }`}
+          >
+            <FileText size={11} className="sm:hidden shrink-0" />
+            <FileText size={13} className="hidden sm:inline shrink-0" />
+            <span className="sm:hidden">Official Letters</span>
+            <span className="hidden sm:inline">Official Letterhead &amp; Staff Rosters</span>
+            <span className="px-1 py-0.2 rounded text-[7.5px] sm:text-[8.5px] bg-amber-500/20 text-amber-900 dark:text-amber-300 font-extrabold border border-amber-500/30">Clerk</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('salary_statements')}
             className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'salary_statements'
@@ -1741,6 +1758,15 @@ export default function SchoolAccountsManager({ user }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── TAB: OFFICIAL LETTERHEAD & STAFF ROSTERS (CLERK ONLY) ─── */}
+      {activeTab === 'staff_documents' && (
+        <ClerkStaffDocumentsWorkspace
+          faculty={faculty}
+          user={user}
+          settings={settings}
+        />
       )}
 
       {/* ─── MODAL: EDIT TAX RULES (ADMIN / ACCOUNTS CONFIG) ─── */}
