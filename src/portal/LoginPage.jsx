@@ -1040,12 +1040,12 @@ export default function LoginPage() {
       themeClass: 'bg-teal-500/10 text-teal-600 border border-teal-500/20',
       icon: GraduationCap,
       modules: [
-        { name: 'Online Admissions', desc: 'Provisional & regular 11th/12th forms with photo compression' },
-        { name: 'Roll Slips & Admit Cards', desc: 'Instant downloadable exam slips with security credentials' },
-        { name: 'Digital Fee Receipts', desc: 'Session fee receipts, payment ledger & transparent records' },
-        { name: 'Marks & Evaluations', desc: 'Subject-wise Pre-Board & term evaluation scorecard lookup' },
-        { name: 'Attendance & Allocation', desc: 'Real-time attendance rolls & elective subject confirmation' },
-        { name: 'Profile & Application Hub', desc: 'Multi-application tracker, withdrawal & profile updates' }
+        { name: 'Online Admissions', desc: 'Provisional & regular forms, photo compression' },
+        { name: 'Roll Slips & Admit Cards', desc: 'Instant downloadable exam slips with QR' },
+        { name: 'Digital Fee Receipts', desc: 'Session receipts & transparent ledger' },
+        { name: 'Marks & Evaluations', desc: 'Pre-Board & term evaluation lookup' },
+        { name: 'Attendance & Allocation', desc: 'Daily attendance rolls & elective subjects' },
+        { name: 'Application Tracker', desc: 'Multi-application tracker & profile updates' }
       ],
       quickLinks: [
         { label: 'Check Results', to: '/results', icon: Search },
@@ -1057,16 +1057,16 @@ export default function LoginPage() {
       tabLabel: 'Faculty',
       badge: 'Faculty Academic Workspace',
       title: 'Staff & Practical Evaluation Portal',
-      desc: 'Daily attendance, subject practicals, theory evaluation, and 1-click award rolls.',
+      desc: 'Daily attendance, subject practicals, theory marks, and award rolls.',
       themeClass: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
       icon: UserCheck,
       modules: [
-        { name: 'Attendance Registers', desc: 'Daily multi-class roll calls with automated monthly aggregations' },
-        { name: 'Practicals & Theory Marks', desc: 'Key-navigation keyboard entry, auto-save drafts & validation' },
-        { name: '1-Click PDF Award Rolls', desc: 'Official print-ready and exportable J&K format marks sheets' },
-        { name: 'Tier-Isolated Class Rosters', desc: 'Segregated Secondary (9th-10th) & Higher Secondary (11th-12th)' },
-        { name: 'Cross-Subject Allocation', desc: 'Permission-governed subject and stream assignment desk' },
-        { name: 'Revision & Approval Flow', desc: 'Real-time approval state sync between teachers & admin' }
+        { name: 'Attendance Registers', desc: 'Daily roll calls & monthly aggregations' },
+        { name: 'Practicals & Theory Marks', desc: 'Keyboard entry, auto-save & validation' },
+        { name: '1-Click PDF Award Rolls', desc: 'Official print-ready J&K award sheets' },
+        { name: 'Tier-Isolated Rosters', desc: 'Secondary (9-10) & Higher Sec (11-12)' },
+        { name: 'Subject Allocation', desc: 'Stream & subject assignment desk' },
+        { name: 'Approval Workflow', desc: 'Real-time teacher-admin mark sync' }
       ],
       quickLinks: [
         { label: 'Browse Notices', to: '/notices', icon: FileText },
@@ -1078,16 +1078,16 @@ export default function LoginPage() {
       tabLabel: 'Admin',
       badge: 'Institutional Control Center',
       title: 'Master School Management Suite',
-      desc: 'Institutional registers, automated roll numbers, certificate studio, ID cards, and finance.',
+      desc: 'Institutional registers, automated roll numbers, certificate studio, ID cards & finance.',
       themeClass: 'bg-purple-500/10 text-purple-600 border border-purple-500/20',
       icon: Lock,
       modules: [
-        { name: 'Master Admission Registers', desc: 'Tabular class registers, photo rolls & historical archives' },
-        { name: 'Roll No Auto-Assigner', desc: 'Intelligent sequential roll numbering by stream, class & merit' },
-        { name: 'Student Certificate Studio', desc: 'Bonafide, Character, Provisional & Transfer cert generator' },
-        { name: 'Student ID Cards with QR', desc: 'Bulk scannable ID card generation with live verification QR' },
-        { name: 'School Accounts & Fees', desc: 'Complete cashbook, fee distribution ledger & financial audits' },
-        { name: 'Multi-Tier Staff Permissions', desc: 'Granular RBAC, 2-Step verification & activity audit trail' }
+        { name: 'Admission Registers', desc: 'Tabular class registers & photo rolls' },
+        { name: 'Roll No Auto-Assigner', desc: 'Sequential numbering by stream & merit' },
+        { name: 'Certificate Studio', desc: 'Bonafide, Character & Transfer certs' },
+        { name: 'Student ID Cards', desc: 'Bulk scannable ID cards with live QR' },
+        { name: 'School Accounts', desc: 'Cashbook, fee ledger & financial audits' },
+        { name: 'Staff Permissions', desc: 'Granular RBAC & 2-Step verification' }
       ],
       quickLinks: [
         { label: 'Verify Student', to: '/verify-student', icon: ShieldCheck },
@@ -1103,12 +1103,12 @@ export default function LoginPage() {
       themeClass: 'bg-cyan-500/10 text-cyan-600 border border-cyan-500/20',
       icon: Globe,
       modules: [
-        { name: 'Public Result Lookup', desc: 'Class 9th, 10th, 11th & 12th tabulated marks card portal' },
-        { name: 'Live QR Student Verification', desc: 'Real-time document & admission authenticity checking' },
-        { name: 'Digital Notice Board & Orders', desc: 'Official institutional orders, exam schedules & notifications' },
-        { name: 'Entrance & GK Test Desk', desc: 'Public talent test registration, syllabus & merit rankings' },
-        { name: 'Curriculum & Streams', desc: 'Medical, Non-Med, Arts, Commerce & Vocational combos' },
-        { name: 'Official Helpdesk & Desks', desc: 'Direct contact with Principal, VP, and Admission counseling' }
+        { name: 'Public Result Lookup', desc: '9th to 12th tabulated marksheets' },
+        { name: 'Live QR Verification', desc: 'Instant student & document checks' },
+        { name: 'Notice Board & Orders', desc: 'Official orders & date sheet notices' },
+        { name: 'Entrance Test Desk', desc: 'Entrance registration & merit lists' },
+        { name: 'Curriculum & Streams', desc: 'Science, Arts, Commerce & Vocational' },
+        { name: 'Official Helpdesk', desc: 'Direct Principal & VP contact desks' }
       ],
       quickLinks: [
         { label: 'Check Results', to: '/results', icon: Search },
@@ -1223,19 +1223,19 @@ export default function LoginPage() {
               </span>
             </div>
 
-            <p className="text-[11.5px] font-medium text-slate-600 dark:text-slate-400 leading-snug">
+            <p className="text-[11.5px] font-semibold text-slate-600 dark:text-slate-400 leading-snug">
               {currentPillar.desc}
             </p>
 
             {/* Compact 2-Column Grid of 6 Key Features */}
             <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
               {currentPillar.modules.map((mod, idx) => (
-                <div key={idx} className="p-1.5 rounded-lg bg-slate-50/70 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/80 flex flex-col justify-start">
+                <div key={idx} className="p-1.5 rounded-lg bg-slate-50/80 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800/80 flex flex-col justify-start">
                   <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-800 dark:text-slate-200">
                     <div className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0" />
                     <span className="truncate">{mod.name}</span>
                   </div>
-                  <span className="text-[9.5px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5 pl-3">
+                  <span className="text-[9.5px] font-medium text-slate-600 dark:text-slate-400 line-clamp-1 mt-0.5 pl-3 leading-tight">
                     {mod.desc}
                   </span>
                 </div>
@@ -1244,7 +1244,7 @@ export default function LoginPage() {
 
             {/* Direct Visitor Action Bar */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-1.5 text-[10.5px]">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Direct Access:</span>
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Direct Access:</span>
               <div className="flex items-center gap-1.5 flex-wrap">
                 {currentPillar.quickLinks.map((ql, idx) => {
                   const QlIcon = ql.icon || ArrowRight;
@@ -1252,7 +1252,7 @@ export default function LoginPage() {
                     <Link
                       key={idx}
                       to={ql.to}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 dark:hover:bg-teal-900/60 border border-teal-200/70 dark:border-teal-800/70 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/60 border border-teal-200/80 dark:border-teal-800/80 transition-colors cursor-pointer"
                     >
                       <QlIcon size={10.5} />
                       <span>{ql.label}</span>
@@ -1264,7 +1264,7 @@ export default function LoginPage() {
           </div>
 
           {/* Quick System Stats Footer Bar */}
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-0.5 px-1">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400 pt-0.5 px-1">
             <span className="flex items-center gap-1.5">
               <ShieldCheck size={13} className="text-teal-600 dark:text-teal-400" />
               256-Bit Encrypted Session
@@ -1868,18 +1868,18 @@ export default function LoginPage() {
                     </span>
                   </div>
 
-                  <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 leading-snug">
+                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-snug">
                     {currentPillar.desc}
                   </p>
 
                   <div className="grid grid-cols-1 gap-1.5 pt-1">
                     {currentPillar.modules.map((mod, idx) => (
-                      <div key={idx} className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
+                      <div key={idx} className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800">
                         <div className="text-[10.5px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                           <div className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0" />
                           <span>{mod.name}</span>
                         </div>
-                        <span className="text-[9px] text-slate-500 dark:text-slate-400 block pl-3 leading-tight mt-0.5">
+                        <span className="text-[9.5px] text-slate-600 dark:text-slate-400 block pl-3 leading-tight mt-0.5 font-medium">
                           {mod.desc}
                         </span>
                       </div>
@@ -1888,7 +1888,7 @@ export default function LoginPage() {
 
                   {/* Mobile Quick Links */}
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5 flex-wrap">
-                    <span className="text-[9.5px] font-bold text-slate-400 uppercase">Direct Access:</span>
+                    <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400 uppercase">Direct Access:</span>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {currentPillar.quickLinks.map((ql, idx) => {
                         const QlIcon = ql.icon || ArrowRight;
@@ -1896,7 +1896,7 @@ export default function LoginPage() {
                           <Link
                             key={idx}
                             to={ql.to}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[10px] text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 border border-teal-200/70 dark:border-teal-800/70"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[10px] text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200/80 dark:border-teal-800/80"
                           >
                             <QlIcon size={10} />
                             <span>{ql.label}</span>

@@ -2,51 +2,65 @@
 
 ## Current Working Changes
 
-### 1. Unified Digital Campus & Institutional ERP Showcase Across Website
-- **Context & Requirement:**
-  - The user requested:
-    > *"on login page.....check all functionalities and modules and update in in compact manner whatever student/teacher/admins are offered and in general what website offers.....update relevant locations of website so that an visiter understadns overall about the erp...."*
-  - The login page previously only rendered a minimal 3-bullet card for whichever role was selected, leaving visitors unaware of the true scope of the ERP (registers, results, certificates, ID cards, accounts, public verification, etc.), and on mobile devices the hero section was completely hidden.
+### 1. Light Theme Contrast & Text Wrapping Optimization Across ERP Showcases
+- **User Requests Addressed:**
+  1. *"proper contrast in light theme"*
+  2. *"and ensure text is made compact/wrapped correclty where required"*
 
-- **Key Implementation Locations:**
+- **Root Cause Analysis:**
+  - In `src/index.css` (lines 1555–1563), a blanket override rule (`.theme-light .text-slate-100, .theme-light .text-slate-200, .theme-light .text-slate-300 { color: var(--text-main) !important; }`) was forcing all `text-slate-300` and `text-slate-200` elements to `--text-main` (`#0f172a`, near pure black) whenever `.theme-light` was active.
+  - While this was originally intended for light cards, it inadvertently caused paragraphs inside dark containers (e.g. the **Institutional ERP & Digital Campus** section in `src/pages/Home.jsx` and the header hero on `src/pages/LoginPortal.jsx`) to turn completely black against deep slate/teal backgrounds (contrast ratio ~1.05:1).
 
-  1. **Login Page ([LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx)):**
-     - **Interactive 4-Pillar Tabs**: Added a compact segmented control at the top of the Left Showcase (`Students`, `Faculty`, `Admin`, `Public Services`), allowing visitors to freely explore all wings of the ERP without affecting the login form.
-     - **Automatic Synchronization**: Tab seamlessly synchronizes when switching roles (`Student`, `Teacher`, `Admin`) on the right-side authentication form.
-     - **High-Density 6-Feature Matrix**: Each pillar showcases 6 key modules with concise micro-descriptions:
-       - *Student Suite*: Online Admissions, Exam Roll Slips & Admit Cards, Digital Fee Receipts, Pre-Board & Term Scorecards, Real-time Attendance & Stream Allocation, Profile & Multi-App Hub.
-       - *Faculty Workspace*: Attendance Registers, Keyboard-Nav Practical & Theory Entry, 1-Click Printable PDF Award Rolls, Tier-Isolated Class Rosters, Cross-Subject Allocations, Revision Workflows.
-       - *Admin Control Center*: Master Admission Registers & Tabular Rolls, Auto Roll Assigner Engine, Certificate Studio (Bonafide/Character/Transfer), ID Card Manager with Live QR, School Accounts & Fees, Multi-Tier Staff Permissions & 2SV.
-       - *Public Services*: Instant Public Result Lookup, Live QR Student Verification Desk, Digital Notice Board, GK Entrance Test Portal, Academic Streams & Curriculum, Helpdesk & Leadership Desks.
-     - **Direct Visitor Access Chips**: Clickable deep links at the bottom (`Check Results`, `Verify Student`, `Admissions 2026`, `Notices`) for instant visitor routing.
-     - **Mobile Phone Expander**: Added a collapsible, touch-friendly 4-pillar ERP drawer right below the login card for mobile visitors.
+- **Key Implementations & Contrast Hardening:**
 
-  2. **Public Portal Directory ([LoginPortal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/LoginPortal.jsx)):**
-     - Upgraded the public `/login` portal landing page into an institutional directory.
-     - Features 4 distinct modern cards (Students, Faculty, Admin, Public) with direct access buttons (`Open Student Portal`, `Faculty Login`, `Admin Control Center`, `Public Results & Verification`).
-     - Added quick links and system trust highlights (256-Bit SSL/TLS, Real-time Cloud Sync, Session 2025–26).
+  1. **Theme Inversion Protection in Stylesheet ([index.css](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/index.css)):**
+     - Added targeted overrides protecting all dark/inverted containers in Light Theme:
+       ```css
+       .theme-light .erp-ecosystem-section .text-slate-100,
+       .theme-light .erp-ecosystem-section .text-slate-200,
+       .theme-light .erp-ecosystem-section .text-slate-300,
+       .theme-light .erp-ecosystem-section .erp-card-desc,
+       .theme-light [class*="bg-slate-900"] .text-slate-100,
+       .theme-light [class*="bg-slate-900"] .text-slate-200,
+       .theme-light [class*="bg-slate-900"] .text-slate-300,
+       .theme-light [class*="bg-slate-950"] ...,
+       .theme-light [class*="bg-teal-950"] ...,
+       .theme-light [class*="from-slate-900"] ...,
+       .theme-light [class*="from-teal-950"] ... {
+         color: #cbd5e1 !important;
+       }
+       ```
+     - Guarantees bright, crisp light slate text (`#cbd5e1` / `#ffffff`) with contrast ratio > **10.2:1** (exceeding WCAG AAA standard).
 
-  3. **Homepage ([Home.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Home.jsx)):**
-     - Added a dedicated, high-impact **Institutional ERP & Digital Campus** section.
-     - Highlights the 4 core pillars with direct launch buttons, bridging the gap between general visitors and institutional web services.
+  2. **Homepage ERP Ecosystem Section ([Home.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Home.jsx)):**
+     - Attached the `erp-ecosystem-section` and `erp-card-desc` classes.
+     - Hardened all micro-descriptions and bullet point texts with guaranteed high-contrast inline color fallbacks (`style={{ color: '#cbd5e1' }}`, `#99f6e4`, `#a7f3d0`, `#e9d5ff`, `#a5f3fc`).
+     - Added `truncate` and `leading-snug` to prevent awkward word wrapping on 4-column desktop grids and mobile devices.
 
-  4. **Site Footer ([Footer.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/components/Footer.jsx)):**
-     - Expanded Quick Links with direct routes to `Results & Marksheets`, `Verify Student`, `Notice Board`, and `Student & Staff ERP`.
+  3. **Public Portal Directory ([LoginPortal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/LoginPortal.jsx)):**
+     - Protected hero description text with `style={{ color: '#cbd5e1' }}` and `.erp-card-desc`.
+     - Switched card subheadings from static classes to dynamic theme-aware `style={textMuted}` (`#2e3a4e` in light mode, `#94a3b8` in dark mode).
+     - Added `leading-snug` to all feature checklist items for compact, clean multi-line wrapping.
+
+  4. **Portal Login Page ([LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx)):**
+     - Refined all 24 module micro-descriptions in `ERP_PILLARS` to be punchy, high-information-density, and compact.
+     - Optimized both the desktop Left Showcase and the Mobile Phone Expander with `text-slate-600 dark:text-slate-400 font-semibold leading-snug`.
+     - Upgraded Direct Access chips and Quick System Stats for high readability in both Light and Dark themes.
 
 ---
 
 ## Files Modified
-- `src/portal/LoginPage.jsx`
-- `src/pages/LoginPortal.jsx`
+- `src/index.css`
 - `src/pages/Home.jsx`
-- `src/components/Footer.jsx`
+- `src/pages/LoginPortal.jsx`
+- `src/portal/LoginPage.jsx`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ## Local Commit Message
 ```bash
-feat(portal): add comprehensive 4-pillar compact ERP showcase on login page and across website
+fix(theme): resolve light mode contrast and optimize compact text wrapping across ERP sections
 ```
 
 ---
@@ -61,14 +75,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "feat(portal): add comprehensive 4-pillar compact ERP showcase on login page and across website"
+git commit -m "fix(theme): resolve light mode contrast and optimize compact text wrapping across ERP sections"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "feat(portal): add comprehensive 4-pillar compact ERP showcase on login page and across website"
+git commit -m "fix(theme): resolve light mode contrast and optimize compact text wrapping across ERP sections"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):

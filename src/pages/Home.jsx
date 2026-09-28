@@ -956,21 +956,21 @@ export default function Home() {
       </section>
 
       {/* Unified Digital Campus & Institutional ERP Ecosystem Section */}
-      <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-10 sm:pb-14" aria-label="Digital Campus ERP Portals">
-        <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-teal-950 rounded-3xl p-5 sm:p-8 md:p-10 border border-teal-500/20 shadow-xl relative overflow-hidden text-white">
+      <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-10 sm:pb-14 erp-ecosystem-section" aria-label="Digital Campus ERP Portals">
+        <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-teal-950 rounded-3xl p-5 sm:p-8 md:p-10 border border-teal-500/25 shadow-xl relative overflow-hidden text-white">
           <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
           {/* Section Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 relative z-10">
-            <div>
+            <div className="max-w-3xl">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-teal-500/20 border border-teal-400/30 text-teal-300 mb-2">
                 <ShieldCheck size={13} className="text-teal-400" />
-                <span>INSTITUTIONAL ERP &amp; DIGITAL CAMPUS</span>
+                <span className="tracking-wide">INSTITUTIONAL ERP &amp; DIGITAL CAMPUS</span>
               </div>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold font-heading text-white tracking-tight">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold font-heading text-white tracking-tight leading-tight">
                 One Unified Platform for Students, Staff &amp; Administration
               </h2>
-              <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
+              <p className="text-xs sm:text-[13px] text-slate-200 mt-1.5 leading-relaxed font-normal erp-card-desc" style={{ color: '#cbd5e1' }}>
                 Govt HSS Shangus operates an enterprise digital education suite enabling online admissions, examination tabulation, verifiable digital records, attendance registers, and transparent public governance.
               </p>
             </div>
@@ -988,92 +988,100 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 relative z-10">
             
             {/* Student Services Desk */}
-            <div className="bg-slate-900/80 rounded-2xl p-4 border border-teal-500/30 flex flex-col justify-between hover:border-teal-400/60 transition-all duration-200">
+            <div className="bg-slate-900/90 rounded-2xl p-4 border border-teal-500/30 flex flex-col justify-between hover:border-teal-400/60 transition-all duration-200 shadow-xs hover:shadow-md">
               <div className="space-y-2.5">
                 <div className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center border border-teal-500/30">
                   <GraduationCap size={20} />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm text-white">Student Academic Desk</h3>
-                  <p className="text-[11px] text-slate-300 leading-snug mt-0.5">Online admissions, exam roll slips, digital fee receipts, and marks lookup.</p>
+                  <p className="text-[11px] leading-snug mt-1 text-slate-200 erp-card-desc" style={{ color: '#cbd5e1' }}>
+                    Online admissions, exam roll slips, digital fee receipts, and marks lookup.
+                  </p>
                 </div>
-                <div className="space-y-1 text-[11px] text-teal-200/90 font-medium">
-                  <div className="flex items-center gap-1.5">• <span>Admissions &amp; Stream Choice</span></div>
-                  <div className="flex items-center gap-1.5">• <span>Roll Slips &amp; Fee Receipts</span></div>
-                  <div className="flex items-center gap-1.5">• <span>Evaluations &amp; Scorecards</span></div>
+                <div className="space-y-1.5 pt-1 text-[11px] font-medium" style={{ color: '#99f6e4' }}>
+                  <div className="flex items-center gap-1.5"><span className="text-teal-400 shrink-0 font-bold">•</span><span className="truncate">Admissions &amp; Stream Choice</span></div>
+                  <div className="flex items-center gap-1.5"><span className="text-teal-400 shrink-0 font-bold">•</span><span className="truncate">Roll Slips &amp; Fee Receipts</span></div>
+                  <div className="flex items-center gap-1.5"><span className="text-teal-400 shrink-0 font-bold">•</span><span className="truncate">Evaluations &amp; Scorecards</span></div>
                 </div>
               </div>
-              <Link to="/portal/login" className="mt-3.5 pt-2.5 border-t border-slate-800 text-[11px] font-bold text-teal-300 hover:text-teal-200 flex items-center justify-between">
+              <Link to="/portal/login" className="mt-3.5 pt-2.5 border-t border-slate-800 text-[11px] font-bold hover:underline flex items-center justify-between transition-colors cursor-pointer" style={{ color: '#5eead4' }}>
                 <span>Access Student Desk</span>
                 <ChevronRight size={13} />
               </Link>
             </div>
 
             {/* Faculty Academic Workspace */}
-            <div className="bg-slate-900/80 rounded-2xl p-4 border border-emerald-500/30 flex flex-col justify-between hover:border-emerald-400/60 transition-all duration-200">
+            <div className="bg-slate-900/90 rounded-2xl p-4 border border-emerald-500/30 flex flex-col justify-between hover:border-emerald-400/60 transition-all duration-200 shadow-xs hover:shadow-md">
               <div className="space-y-2.5">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
                   <UserCheck size={20} />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm text-white">Faculty Workspace</h3>
-                  <p className="text-[11px] text-slate-300 leading-snug mt-0.5">Evaluation sheets, class attendance registers, and 1-click award rolls.</p>
+                  <p className="text-[11px] leading-snug mt-1 text-slate-200 erp-card-desc" style={{ color: '#cbd5e1' }}>
+                    Evaluation sheets, class attendance registers, and 1-click award rolls.
+                  </p>
                 </div>
-                <div className="space-y-1 text-[11px] text-emerald-200/90 font-medium">
-                  <div className="flex items-center gap-1.5">• <span>Practical &amp; Theory Marks</span></div>
-                  <div className="flex items-center gap-1.5">• <span>Printable PDF Award Rolls</span></div>
-                  <div className="flex items-center gap-1.5">• <span>Secondary &amp; Higher Sec Tiers</span></div>
+                <div className="space-y-1.5 pt-1 text-[11px] font-medium" style={{ color: '#a7f3d0' }}>
+                  <div className="flex items-center gap-1.5"><span className="text-emerald-400 shrink-0 font-bold">•</span><span className="truncate">Practical &amp; Theory Marks</span></div>
+                  <div className="flex items-center gap-1.5"><span className="text-emerald-400 shrink-0 font-bold">•</span><span className="truncate">Printable PDF Award Rolls</span></div>
+                  <div className="flex items-center gap-1.5"><span className="text-emerald-400 shrink-0 font-bold">•</span><span className="truncate">Secondary &amp; Higher Sec Tiers</span></div>
                 </div>
               </div>
-              <Link to="/portal/login" className="mt-3.5 pt-2.5 border-t border-slate-800 text-[11px] font-bold text-emerald-300 hover:text-emerald-200 flex items-center justify-between">
+              <Link to="/portal/login" className="mt-3.5 pt-2.5 border-t border-slate-800 text-[11px] font-bold hover:underline flex items-center justify-between transition-colors cursor-pointer" style={{ color: '#6ee7b7' }}>
                 <span>Faculty Login</span>
                 <ChevronRight size={13} />
               </Link>
             </div>
 
             {/* Admin Control Center */}
-            <div className="bg-slate-900/80 rounded-2xl p-4 border border-purple-500/30 flex flex-col justify-between hover:border-purple-400/60 transition-all duration-200">
+            <div className="bg-slate-900/90 rounded-2xl p-4 border border-purple-500/30 flex flex-col justify-between hover:border-purple-400/60 transition-all duration-200 shadow-xs hover:shadow-md">
               <div className="space-y-2.5">
                 <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
                   <Lock size={20} />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm text-white">Admin Control Center</h3>
-                  <p className="text-[11px] text-slate-300 leading-snug mt-0.5">Master registers, auto roll numbers, certificates, ID cards &amp; finance.</p>
+                  <p className="text-[11px] leading-snug mt-1 text-slate-200 erp-card-desc" style={{ color: '#cbd5e1' }}>
+                    Master registers, auto roll numbers, certificates, ID cards &amp; finance.
+                  </p>
                 </div>
-                <div className="space-y-1 text-[11px] text-purple-200/90 font-medium">
-                  <div className="flex items-center gap-1.5">• <span>Master School Registers</span></div>
-                  <div className="flex items-center gap-1.5">• <span>Certificate &amp; ID Card Studio</span></div>
-                  <div className="flex items-center gap-1.5">• <span>School Accounts &amp; Audits</span></div>
+                <div className="space-y-1.5 pt-1 text-[11px] font-medium" style={{ color: '#e9d5ff' }}>
+                  <div className="flex items-center gap-1.5"><span className="text-purple-400 shrink-0 font-bold">•</span><span className="truncate">Master School Registers</span></div>
+                  <div className="flex items-center gap-1.5"><span className="text-purple-400 shrink-0 font-bold">•</span><span className="truncate">Certificate &amp; ID Card Studio</span></div>
+                  <div className="flex items-center gap-1.5"><span className="text-purple-400 shrink-0 font-bold">•</span><span className="truncate">School Accounts &amp; Audits</span></div>
                 </div>
               </div>
-              <Link to="/portal/login" className="mt-3.5 pt-2.5 border-t border-slate-800 text-[11px] font-bold text-purple-300 hover:text-purple-200 flex items-center justify-between">
+              <Link to="/portal/login" className="mt-3.5 pt-2.5 border-t border-slate-800 text-[11px] font-bold hover:underline flex items-center justify-between transition-colors cursor-pointer" style={{ color: '#d8b4fe' }}>
                 <span>Administrative Login</span>
                 <ChevronRight size={13} />
               </Link>
             </div>
 
             {/* Public Digital Campus */}
-            <div className="bg-slate-900/80 rounded-2xl p-4 border border-cyan-500/30 flex flex-col justify-between hover:border-cyan-400/60 transition-all duration-200">
+            <div className="bg-slate-900/90 rounded-2xl p-4 border border-cyan-500/30 flex flex-col justify-between hover:border-cyan-400/60 transition-all duration-200 shadow-xs hover:shadow-md">
               <div className="space-y-2.5">
                 <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30">
                   <Globe size={20} />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm text-white">Public Campus Services</h3>
-                  <p className="text-[11px] text-slate-300 leading-snug mt-0.5">Instant result lookup, live student verification, orders &amp; admissions.</p>
+                  <p className="text-[11px] leading-snug mt-1 text-slate-200 erp-card-desc" style={{ color: '#cbd5e1' }}>
+                    Instant result lookup, live student verification, orders &amp; admissions.
+                  </p>
                 </div>
-                <div className="space-y-1 text-[11px] text-cyan-200/90 font-medium">
-                  <div className="flex items-center gap-1.5">• <span>Public Result Marksheets</span></div>
-                  <div className="flex items-center gap-1.5">• <span>Live QR Student Verification</span></div>
-                  <div className="flex items-center gap-1.5">• <span>Notice Board &amp; Entrance Desk</span></div>
+                <div className="space-y-1.5 pt-1 text-[11px] font-medium" style={{ color: '#a5f3fc' }}>
+                  <div className="flex items-center gap-1.5"><span className="text-cyan-400 shrink-0 font-bold">•</span><span className="truncate">Public Result Marksheets</span></div>
+                  <div className="flex items-center gap-1.5"><span className="text-cyan-400 shrink-0 font-bold">•</span><span className="truncate">Live QR Student Verification</span></div>
+                  <div className="flex items-center gap-1.5"><span className="text-cyan-400 shrink-0 font-bold">•</span><span className="truncate">Notice Board &amp; Entrance Desk</span></div>
                 </div>
               </div>
               <div className="mt-3.5 pt-2.5 border-t border-slate-800 flex items-center justify-between text-[11px] font-bold">
-                <Link to="/results" className="text-cyan-300 hover:text-cyan-200 flex items-center gap-1">
+                <Link to="/results" className="hover:underline flex items-center gap-1 transition-colors cursor-pointer" style={{ color: '#67e8f9' }}>
                   <span>Results</span> <ChevronRight size={12} />
                 </Link>
-                <Link to="/verify-student" className="text-cyan-300 hover:text-cyan-200 flex items-center gap-1">
+                <Link to="/verify-student" className="hover:underline flex items-center gap-1 transition-colors cursor-pointer" style={{ color: '#67e8f9' }}>
                   <span>Verify</span> <ChevronRight size={12} />
                 </Link>
               </div>

@@ -1581,6 +1581,37 @@ html, body, #root {
   color: #f8fafc !important;
 }
 
+/* ERP Ecosystem Showcase & Dark Inverted Containers Text Protection in Light Theme */
+.theme-light .erp-ecosystem-section .text-slate-100,
+.theme-light .erp-ecosystem-section .text-slate-200,
+.theme-light .erp-ecosystem-section .text-slate-300,
+.theme-light .erp-ecosystem-section .erp-card-desc,
+.theme-light .erp-card-desc,
+.theme-light [class*="bg-slate-900"] .text-slate-100,
+.theme-light [class*="bg-slate-900"] .text-slate-200,
+.theme-light [class*="bg-slate-900"] .text-slate-300,
+.theme-light [class*="bg-slate-950"] .text-slate-100,
+.theme-light [class*="bg-slate-950"] .text-slate-200,
+.theme-light [class*="bg-slate-950"] .text-slate-300,
+.theme-light [class*="bg-teal-950"] .text-slate-100,
+.theme-light [class*="bg-teal-950"] .text-slate-200,
+.theme-light [class*="bg-teal-950"] .text-slate-300,
+.theme-light [class*="from-slate-900"] .text-slate-100,
+.theme-light [class*="from-slate-900"] .text-slate-200,
+.theme-light [class*="from-slate-900"] .text-slate-300,
+.theme-light [class*="from-teal-950"] .text-slate-100,
+.theme-light [class*="from-teal-950"] .text-slate-200,
+.theme-light [class*="from-teal-950"] .text-slate-300 {
+  color: #cbd5e1 !important;
+}
+
+.theme-light .erp-ecosystem-section .text-white,
+.theme-light [class*="bg-slate-900"] .text-white,
+.theme-light [class*="bg-slate-950"] .text-white,
+.theme-light [class*="bg-teal-950"] .text-white {
+  color: #ffffff !important;
+}
+
 /* 3D Hero Scientific Telemetry Tooltip High-Contrast Protection */
 .hero-3d-tooltip,
 .theme-light .hero-3d-tooltip,
