@@ -6732,18 +6732,21 @@ export default function AdmissionRegisterSuite({
 
           /* Distinct vertical handwriting cells in Part 2 (ISSUED DC/CC & RECEIPT) */
           .admission-spread-table td.register-handwrite-cell {
-            padding: 0 0.5mm !important;
-            vertical-align: middle !important;
+            padding: 0.3mm 0.5mm !important;
+            vertical-align: top !important;
             white-space: normal !important;
           }
           .admission-spread-table td.register-handwrite-cell .handwrite-container {
             display: flex !important;
             flex-direction: column !important;
-            justify-content: space-evenly !important;
+            justify-content: space-between !important;
             height: 100% !important;
-            min-height: calc(${registerRowHeightMm}mm - 0.4mm) !important;
+            min-height: calc(${registerRowHeightMm}mm - 0.6mm) !important;
             max-height: calc(${registerRowHeightMm}mm - 0.2mm) !important;
             box-sizing: border-box !important;
+          }
+          .admission-spread-table td.register-handwrite-cell .handwrite-container > .handwrite-line:last-child {
+            margin-top: auto !important;
           }
           .admission-spread-table td.register-handwrite-cell .handwrite-line {
             display: flex !important;
@@ -7486,6 +7489,25 @@ export default function AdmissionRegisterSuite({
         }
         .admission-spread-table td[data-col="p2_prevCC"] .cc-date {
           font-size: 7.8px !important;
+        }
+
+        .admission-spread-table td.register-handwrite-cell {
+          vertical-align: top !important;
+          padding-top: 2px !important;
+          padding-bottom: 2px !important;
+        }
+
+        .admission-spread-table td.register-handwrite-cell .handwrite-container {
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: space-between !important;
+          height: 100% !important;
+          min-height: calc(var(--register-row-height) - 8px) !important;
+          box-sizing: border-box !important;
+        }
+
+        .admission-spread-table td.register-handwrite-cell .handwrite-container > .handwrite-line:last-child {
+          margin-top: auto !important;
         }
 
         .register-resizable-row:hover > td {
@@ -9925,32 +9947,32 @@ export default function AdmissionRegisterSuite({
                                     {renderAdmittedVideCell(s.prevCC)}
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.8px] bg-rose-50" data-col="p2_withdrawal"></td>
-                                  <td className="register-handwrite-cell border border-slate-900 px-1.5 py-0.5 text-left bg-rose-50/40 overflow-hidden align-middle" data-col="p2_issuedCC">
+                                  <td className="register-handwrite-cell border border-slate-900 px-1.5 py-0.5 text-left bg-rose-50/40 overflow-hidden align-top" data-col="p2_issuedCC">
                                     {s.issuedCC ? (
                                       <div className="text-[7.5px] leading-tight font-semibold text-slate-900 line-clamp-2">{s.issuedCC}</div>
                                     ) : (
-                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 space-y-1 select-none font-medium text-slate-800">
+                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 select-none font-medium text-slate-800">
                                         <div className="handwrite-line flex items-center gap-1 leading-none">
                                           <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">C.No:</span>
                                           <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[28px] h-2"></span>
                                         </div>
-                                        <div className="handwrite-line flex items-center gap-1 leading-none">
+                                        <div className="handwrite-line flex items-center gap-1 leading-none mt-auto pt-1 pb-0.5">
                                           <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">Date:</span>
                                           <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[28px] h-2"></span>
                                         </div>
                                       </div>
                                     )}
                                   </td>
-                                  <td className="register-handwrite-cell border border-slate-900 px-1.5 py-0.5 text-left bg-rose-50/40 overflow-hidden align-middle" data-col="p2_receipt">
+                                  <td className="register-handwrite-cell border border-slate-900 px-1.5 py-0.5 text-left bg-rose-50/40 overflow-hidden align-top" data-col="p2_receipt">
                                     {s.receipt ? (
                                       <div className="text-[7.5px] leading-tight font-semibold text-slate-900 line-clamp-2">{s.receipt}</div>
                                     ) : (
-                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 space-y-1 select-none font-medium text-slate-800">
+                                      <div className="handwrite-container flex flex-col justify-between h-full py-0.5 select-none font-medium text-slate-800">
                                         <div className="handwrite-line flex items-center gap-1 leading-none">
                                           <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">Rcvd on:</span>
                                           <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[24px] h-2"></span>
                                         </div>
-                                        <div className="handwrite-line flex items-center gap-1 leading-none">
+                                        <div className="handwrite-line flex items-center gap-1 leading-none mt-auto pt-1 pb-0.5">
                                           <span className="handwrite-label font-bold text-[7px] text-slate-700 tracking-tight shrink-0">Signature:</span>
                                           <span className="handwrite-guide flex-1 border-b border-dotted border-slate-500 min-w-[24px] h-2"></span>
                                         </div>
