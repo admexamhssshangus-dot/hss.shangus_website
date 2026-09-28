@@ -595,396 +595,10 @@ export default function StaffLetterheadWriterView({
   return (
     <div className="animate-fadeIn">
       {/* ─── 2-COLUMN MINIMAL STUDIO LAYOUT (ALL CONTROLS ON LEFT, PREVIEW ON RIGHT) ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-start">
-        
-        {/* ══════════════════════════════════════════════════════════════════════
-            1. LEFT PANEL: ALL COMPACT CONTROLS & STUDIO TOOLS (5 COLS - NO SCROLL)
-        ══════════════════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-5 space-y-2">
-          
-          {/* ── CARD A: TEMPLATE SELECTOR, OVERWRITE & DUPLICATION ── */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
-            
-            {/* Header: Title + Action Buttons */}
-            <div className="flex items-center justify-between gap-1 border-b border-slate-100 dark:border-slate-800 pb-1.5">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <FileText className="text-amber-600 dark:text-amber-500 shrink-0" size={13} />
-                <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider truncate">
-                  Official Template
-                </span>
-                {currentTemplate?.isCustom && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
-                    Custom
-                  </span>
-                )}
-                {currentTemplate?.isModified && !currentTemplate?.isCustom && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
-                    Edited
-                  </span>
-                )}
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
 
-              {/* Template Action Buttons: Overwrite, Duplicate, Delete, Reset */}
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleOverwriteTemplate}
-                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Overwrite/save current template changes"
-                >
-                  <Save size={10} />
-                  <span>Overwrite</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleOpenDuplicate}
-                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Duplicate as a new custom template"
-                >
-                  <Copy size={10} />
-                  <span>Duplicate</span>
-                </button>
-
-                {currentTemplate?.isCustom && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteCustomTemplate(currentTemplate.id)}
-                    className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-700 transition-colors cursor-pointer"
-                    title="Delete this custom template"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                )}
-
-                {currentTemplate?.isModified && !currentTemplate?.isCustom && (
-                  <button
-                    type="button"
-                    onClick={() => handleResetToDefault(currentTemplate.id)}
-                    className="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 transition-colors cursor-pointer"
-                    title="Reset to official default"
-                  >
-                    <RotateCcw size={12} />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Template Selector Dropdown */}
-            <div>
-              <select
-                value={selectedTemplateId}
-                onChange={(e) => handleSelectTemplate(e.target.value)}
-                className="w-full text-[11px] font-semibold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
-              >
-                <optgroup label="Official Templates">
-                  {templates.filter(t => !t.isCustom).map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} {t.isModified ? '• (Edited)' : ''}
-                    </option>
-                  ))}
-                </optgroup>
-                {templates.some(t => t.isCustom) && (
-                  <optgroup label="Custom Saved Templates">
-                    {templates.filter(t => t.isCustom).map(t => (
-                      <option key={t.id} value={t.id}>
-                        ★ {t.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-
-            {/* Ref No & Date Row */}
-            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-              <div>
-                <label className="block text-[8.5px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
-                  Ref No:
-                </label>
-                <input
-                  type="text"
-                  value={refNo}
-                  onChange={(e) => setRefNo(e.target.value)}
-                  placeholder="HSS/SHG/..."
-                  className="w-full text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[8.5px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
-                  Dispatch Date:
-                </label>
-                <input
-                  type="text"
-                  value={dateStr}
-                  onChange={(e) => setDateStr(e.target.value)}
-                  placeholder="DD/MM/YYYY"
-                  className="w-full text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
-                />
-              </div>
-            </div>
-
-            {/* Signatories Setup */}
-            <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setShowSignatories(!showSignatories)}
-                className="w-full flex items-center justify-between text-[9px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
-              >
-                <span>Signatories: {clerkSignatory} • {principalSignatory}</span>
-                <span className="text-[8px]">{showSignatories ? '▲ Hide' : '▼ Edit'}</span>
-              </button>
-
-              {showSignatories && (
-                <div className="grid grid-cols-2 gap-1.5 pt-1 mt-1 border-t border-slate-100 dark:border-slate-800 animate-fadeIn">
-                  <div>
-                    <span className="text-[8px] text-slate-400 block truncate">Dealing Assistant:</span>
-                    <input
-                      type="text"
-                      value={clerkSignatory}
-                      onChange={(e) => setClerkSignatory(e.target.value)}
-                      className="w-full px-1.5 py-0.5 text-[9px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[8px] text-slate-400 block truncate">Principal / DDO:</span>
-                    <input
-                      type="text"
-                      value={principalSignatory}
-                      onChange={(e) => setPrincipalSignatory(e.target.value)}
-                      className="w-full px-1.5 py-0.5 text-[9px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── CARD B: PRIMARY ACTIONS, FORMATTING RIBBON & [+] INSERT VARIABLE POPUP ── */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
-            
-            {/* Primary Print Button */}
-            <button
-              type="button"
-              onClick={handleBatchPrint}
-              className="w-full py-1.5 px-2.5 rounded-lg text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Printer size={13} />
-              <span>Print Merged Letters ({selectedEmployees.length} Staff)</span>
-            </button>
-
-            {/* Secondary Export & Save Row */}
-            <div className="grid grid-cols-3 gap-1">
-              <button
-                type="button"
-                onClick={handleExportDocx}
-                disabled={isExportingDocx}
-                className="py-1 px-1 rounded-md text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 truncate"
-                title="Download current letter as Word (.docx)"
-              >
-                <Download size={11} className="text-blue-600 dark:text-blue-400 shrink-0" />
-                <span className="truncate">Word (.docx)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSaveToCloudHistory(true)}
-                disabled={isSaving}
-                className="py-1 px-1 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 truncate"
-                title="Save snapshot to clerk dispatch archive"
-              >
-                <Save size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                <span className="truncate">Save Draft</span>
-              </button>
-
-              {onOpenHistory ? (
-                <button
-                  type="button"
-                  onClick={onOpenHistory}
-                  className="py-1 px-1 rounded-md text-[10px] font-bold bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center gap-1 cursor-pointer truncate"
-                  title="Open clerk dispatch archive"
-                >
-                  <span className="truncate">History •</span>
-                </button>
-              ) : (
-                <div />
-              )}
-            </div>
-
-            {/* Compact Formatting Ribbon with [+] Insert Variable Popover Trigger */}
-            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1 flex-wrap">
-              {/* Text Styles */}
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => executeCmd('bold')}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  title="Bold (Ctrl+B)"
-                >
-                  <Bold size={11} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => executeCmd('italic')}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  title="Italic (Ctrl+I)"
-                >
-                  <Italic size={11} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => executeCmd('underline')}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  title="Underline (Ctrl+U)"
-                >
-                  <Underline size={11} />
-                </button>
-              </div>
-
-              {/* Alignments */}
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => executeCmd('justifyLeft')}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  title="Align Left"
-                >
-                  <AlignLeft size={11} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => executeCmd('justifyCenter')}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  title="Align Center"
-                >
-                  <AlignCenter size={11} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => executeCmd('justifyRight')}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  title="Align Right"
-                >
-                  <AlignRight size={11} />
-                </button>
-              </div>
-
-              {/* Lists & Clear */}
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => executeCmd('insertUnorderedList')}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                  title="Bulleted List"
-                >
-                  <List size={11} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => executeCmd('removeFormat')}
-                  className="px-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 cursor-pointer text-[8.5px] font-bold"
-                  title="Clear formatting"
-                >
-                  Clear
-                </button>
-              </div>
-
-              {/* ─── [+] INSERT VARIABLE / PLACEHOLDER BUTTON WITH POPOVER ─── */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowVariablePicker(!showVariablePicker)}
-                  className="px-2 py-0.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition-transform active:scale-95"
-                  title="Insert dynamic staff variables at cursor"
-                >
-                  <Plus size={12} className="stroke-[3]" />
-                  <span>Insert Variable</span>
-                </button>
-
-                {/* Floating Variable Picker Popover */}
-                {showVariablePicker && (
-                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 sm:w-80 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl p-2.5 space-y-2 animate-fadeIn">
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles size={13} className="text-amber-500" />
-                        <span className="font-black text-xs text-slate-900 dark:text-white">
-                          Select Variable to Insert
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowVariablePicker(false)}
-                        className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-
-                    {/* Search inside variable picker */}
-                    <div className="relative">
-                      <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        value={variableSearch}
-                        onChange={(e) => setVariableSearch(e.target.value)}
-                        placeholder="Search variable (e.g. name, salary, cpi, pan)..."
-                        className="w-full pl-5 pr-2 py-1 text-[10px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
-                        autoFocus
-                      />
-                    </div>
-
-                    {/* Categorized Variables List */}
-                    <div className="max-h-60 overflow-y-auto space-y-2 no-scrollbar pr-0.5">
-                      {VARIABLE_GROUPS.map((group) => {
-                        const filteredItems = group.items.filter(item => {
-                          if (!variableSearch.trim()) return true;
-                          const q = variableSearch.toLowerCase();
-                          return item.label.toLowerCase().includes(q) || item.token.toLowerCase().includes(q);
-                        });
-
-                        if (filteredItems.length === 0) return null;
-
-                        return (
-                          <div key={group.category} className="space-y-1">
-                            <span className={`text-[9px] font-black uppercase tracking-wider block ${group.color}`}>
-                              {group.category}
-                            </span>
-                            <div className="grid grid-cols-2 gap-1">
-                              {filteredItems.map(item => (
-                                <button
-                                  key={item.token}
-                                  type="button"
-                                  onClick={() => handleInsertVariable(item.token, item.label)}
-                                  className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/80 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-left border border-slate-200 dark:border-slate-700/80 hover:border-amber-400 transition-colors cursor-pointer group"
-                                >
-                                  <div className="truncate mr-1">
-                                    <div className="text-[9.5px] font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-800 dark:group-hover:text-amber-300 truncate">
-                                      {item.label}
-                                    </div>
-                                    <div className="text-[8px] font-mono text-slate-400 truncate">
-                                      {item.token}
-                                    </div>
-                                  </div>
-                                  <Plus size={10} className="text-slate-400 group-hover:text-amber-600 shrink-0" />
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ══════════════════════════════════════════════════════════════════════
-            2. RIGHT PANEL: OFFICIAL A4 LETTERHEAD PREVIEW & DIRECT CANVAS (7 COLS)
-        ══════════════════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-7 space-y-1.5">
+        {/* 1. LEFT PANEL (2/3 WIDTH): OFFICIAL A4 LETTERHEAD PREVIEW & DIRECT CANVAS */}
+        <div className="lg:col-span-8 space-y-1.5">
           
           {/* Top Canvas Bar: Unified Checkbox-Style Staff Dropdown, Employee Pager, Live/Token Toggle */}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 px-2.5 py-1.5 shadow-2xs flex items-center justify-between gap-1.5 flex-wrap">
@@ -1007,7 +621,7 @@ export default function StaffLetterheadWriterView({
                   {currentPreviewEmployee?.name || 'Select Staff'}
                 </span>
                 <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-mono font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 shrink-0">
-                  {selectedEmployeeIds.length}/{localFaculty.length}
+                  {selectedEmployees.length > 0 ? `${previewEmployeeIndex + 1}/${selectedEmployees.length}` : '0/0'}
                 </span>
                 <ChevronDown size={11} className={`shrink-0 transition-transform ${showStaffDropdown ? 'rotate-180' : ''}`} />
               </button>
@@ -1313,6 +927,401 @@ export default function StaffLetterheadWriterView({
             </div>
           </div>
         </div>
+
+
+        {/* 2. RIGHT PANEL (1/3 WIDTH): COMPACT CONTROLS & STUDIO TOOLS */}
+        <div className="lg:col-span-4 space-y-2">
+          
+          {/* ── CARD A: TEMPLATE SELECTOR, OVERWRITE & DUPLICATION ── */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
+            
+            {/* Header: Title + Action Buttons */}
+            <div className="flex items-center justify-between gap-1 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <FileText className="text-amber-600 dark:text-amber-500 shrink-0" size={13} />
+                <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                  Official Template
+                </span>
+                <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+                  {templates.length} Templates
+                </span>
+                {currentTemplate?.isCustom && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
+                    Custom
+                  </span>
+                )}
+                {currentTemplate?.isModified && !currentTemplate?.isCustom && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+                    Edited
+                  </span>
+                )}
+              </div>
+
+              {/* Template Action Buttons: Overwrite, Duplicate, Delete, Reset */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleOverwriteTemplate}
+                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Overwrite/save current template changes"
+                >
+                  <Save size={10} />
+                  <span>Overwrite</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenDuplicate}
+                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Duplicate as a new custom template"
+                >
+                  <Copy size={10} />
+                  <span>Duplicate</span>
+                </button>
+
+                {currentTemplate?.isCustom && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCustomTemplate(currentTemplate.id)}
+                    className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-700 transition-colors cursor-pointer"
+                    title="Delete this custom template"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
+
+                {currentTemplate?.isModified && !currentTemplate?.isCustom && (
+                  <button
+                    type="button"
+                    onClick={() => handleResetToDefault(currentTemplate.id)}
+                    className="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 transition-colors cursor-pointer"
+                    title="Reset to official default"
+                  >
+                    <RotateCcw size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Template Selector Dropdown */}
+            <div>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => handleSelectTemplate(e.target.value)}
+                className="w-full text-[11px] font-semibold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+              >
+                {Array.from(new Set(templates.filter(t => !t.isCustom).map(t => t.category || 'General Correspondence'))).map(cat => (
+                  <optgroup key={cat} label={cat}>
+                    {templates.filter(t => !t.isCustom && (t.category || 'General Correspondence') === cat).map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} {t.isModified ? '• (Edited)' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+                {templates.some(t => t.isCustom) && (
+                  <optgroup label="Custom Saved Templates">
+                    {templates.filter(t => t.isCustom).map(t => (
+                      <option key={t.id} value={t.id}>
+                        ★ {t.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              {currentTemplate?.desc && (
+                <p className="text-[9.5px] text-slate-500 dark:text-slate-400 italic px-0.5 mt-1 truncate" title={currentTemplate.desc}>
+                  {currentTemplate.desc}
+                </p>
+              )}
+            </div>
+
+            {/* Ref No & Date Row */}
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+              <div>
+                <label className="block text-[8.5px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                  Ref No:
+                </label>
+                <input
+                  type="text"
+                  value={refNo}
+                  onChange={(e) => setRefNo(e.target.value)}
+                  placeholder="HSS/SHG/..."
+                  className="w-full text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[8.5px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                  Dispatch Date:
+                </label>
+                <input
+                  type="text"
+                  value={dateStr}
+                  onChange={(e) => setDateStr(e.target.value)}
+                  placeholder="DD/MM/YYYY"
+                  className="w-full text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
+            {/* Signatories Setup */}
+            <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowSignatories(!showSignatories)}
+                className="w-full flex items-center justify-between text-[9px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <span>Signatories: {clerkSignatory} • {principalSignatory}</span>
+                <span className="text-[8px]">{showSignatories ? '▲ Hide' : '▼ Edit'}</span>
+              </button>
+
+              {showSignatories && (
+                <div className="grid grid-cols-2 gap-1.5 pt-1 mt-1 border-t border-slate-100 dark:border-slate-800 animate-fadeIn">
+                  <div>
+                    <span className="text-[8px] text-slate-400 block truncate">Dealing Assistant:</span>
+                    <input
+                      type="text"
+                      value={clerkSignatory}
+                      onChange={(e) => setClerkSignatory(e.target.value)}
+                      className="w-full px-1.5 py-0.5 text-[9px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[8px] text-slate-400 block truncate">Principal / DDO:</span>
+                    <input
+                      type="text"
+                      value={principalSignatory}
+                      onChange={(e) => setPrincipalSignatory(e.target.value)}
+                      className="w-full px-1.5 py-0.5 text-[9px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── CARD B: PRIMARY ACTIONS, FORMATTING RIBBON & [+] INSERT VARIABLE POPUP ── */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
+            
+            {/* Primary Print Button */}
+            <button
+              type="button"
+              onClick={handleBatchPrint}
+              className="w-full py-1.5 px-2.5 rounded-lg text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Printer size={13} />
+              <span>Print Merged Letters ({selectedEmployees.length} Staff)</span>
+            </button>
+
+            {/* Secondary Export & Save Row */}
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                type="button"
+                onClick={handleExportDocx}
+                disabled={isExportingDocx}
+                className="py-1 px-1 rounded-md text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 truncate"
+                title="Download current letter as Word (.docx)"
+              >
+                <Download size={11} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                <span className="truncate">Word (.docx)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveToCloudHistory(true)}
+                disabled={isSaving}
+                className="py-1 px-1 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 truncate"
+                title="Save snapshot to clerk dispatch archive"
+              >
+                <Save size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="truncate">Save Draft</span>
+              </button>
+
+              {onOpenHistory ? (
+                <button
+                  type="button"
+                  onClick={onOpenHistory}
+                  className="py-1 px-1 rounded-md text-[10px] font-bold bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center gap-1 cursor-pointer truncate"
+                  title="Open clerk dispatch archive"
+                >
+                  <span className="truncate">History •</span>
+                </button>
+              ) : (
+                <div />
+              )}
+            </div>
+
+            {/* Compact Formatting Ribbon with [+] Insert Variable Popover Trigger */}
+            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1 flex-wrap">
+              {/* Text Styles */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => executeCmd('bold')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Bold (Ctrl+B)"
+                >
+                  <Bold size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('italic')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Italic (Ctrl+I)"
+                >
+                  <Italic size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('underline')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Underline (Ctrl+U)"
+                >
+                  <Underline size={11} />
+                </button>
+              </div>
+
+              {/* Alignments */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => executeCmd('justifyLeft')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Align Left"
+                >
+                  <AlignLeft size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('justifyCenter')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Align Center"
+                >
+                  <AlignCenter size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('justifyRight')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Align Right"
+                >
+                  <AlignRight size={11} />
+                </button>
+              </div>
+
+              {/* Lists & Clear */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => executeCmd('insertUnorderedList')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Bulleted List"
+                >
+                  <List size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('removeFormat')}
+                  className="px-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 cursor-pointer text-[8.5px] font-bold"
+                  title="Clear formatting"
+                >
+                  Clear
+                </button>
+              </div>
+
+              {/* ─── [+] INSERT VARIABLE / PLACEHOLDER BUTTON WITH POPOVER ─── */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowVariablePicker(!showVariablePicker)}
+                  className="px-2 py-0.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition-transform active:scale-95"
+                  title="Insert dynamic staff variables at cursor"
+                >
+                  <Plus size={12} className="stroke-[3]" />
+                  <span>Insert Variable</span>
+                </button>
+
+                {/* Floating Variable Picker Popover */}
+                {showVariablePicker && (
+                  <div className="absolute right-0 bottom-full mb-1.5 z-[100] w-72 sm:w-80 max-h-[min(380px,80vh)] flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl p-2.5 space-y-2 animate-fadeIn">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles size={13} className="text-amber-500" />
+                        <span className="font-black text-xs text-slate-900 dark:text-white">
+                          Select Variable to Insert
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowVariablePicker(false)}
+                        className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+
+                    {/* Search inside variable picker */}
+                    <div className="relative">
+                      <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={variableSearch}
+                        onChange={(e) => setVariableSearch(e.target.value)}
+                        placeholder="Search variable (e.g. name, salary, cpi, pan)..."
+                        className="w-full pl-5 pr-2 py-1 text-[10px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Categorized Variables List */}
+                    <div className="flex-1 max-h-56 overflow-y-auto space-y-2 no-scrollbar pr-0.5">
+                      {VARIABLE_GROUPS.map((group) => {
+                        const filteredItems = group.items.filter(item => {
+                          if (!variableSearch.trim()) return true;
+                          const q = variableSearch.toLowerCase();
+                          return item.label.toLowerCase().includes(q) || item.token.toLowerCase().includes(q);
+                        });
+
+                        if (filteredItems.length === 0) return null;
+
+                        return (
+                          <div key={group.category} className="space-y-1">
+                            <span className={`text-[9px] font-black uppercase tracking-wider block ${group.color}`}>
+                              {group.category}
+                            </span>
+                            <div className="grid grid-cols-2 gap-1">
+                              {filteredItems.map(item => (
+                                <button
+                                  key={item.token}
+                                  type="button"
+                                  onClick={() => handleInsertVariable(item.token, item.label)}
+                                  className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 dark:bg-slate-800/80 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-left border border-slate-200 dark:border-slate-700/80 hover:border-amber-400 transition-colors cursor-pointer group"
+                                >
+                                  <div className="truncate mr-1">
+                                    <div className="text-[9.5px] font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-800 dark:group-hover:text-amber-300 truncate">
+                                      {item.label}
+                                    </div>
+                                    <div className="text-[8px] font-mono text-slate-400 truncate">
+                                      {item.token}
+                                    </div>
+                                  </div>
+                                  <Plus size={10} className="text-slate-400 group-hover:text-amber-600 shrink-0" />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+
       </div>
 
       {/* ─── MODAL: DUPLICATE AS NEW TEMPLATE ─── */}
