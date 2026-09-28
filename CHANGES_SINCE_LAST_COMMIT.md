@@ -2,7 +2,24 @@
 
 ## Current Working Changes
 
-### 1. Official Letterhead Studio: 2/3 Horizontal Letterhead & Right Controls Layout
+### 1. Official Letter Writer: Classified Template Selector, Duplicate & Overwrite Support
+- **User Requests Addressed:**
+  - *"make comapct overall....arrange all controls of left and right to left in a compact manner avoiding repetition and making desing minimal..... and preview to right...allow to overwrite template and generated new after duplicating earlier adn modifying it"*
+  - *"resume all"*
+- **Detailed Changes Implemented ([OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx)):**
+  1. **Classified Template Dropdown with Category Groups:**
+     - Replaced the repetitive list of template cards with a compact, structured `<select>` dropdown organized by `<optgroup>` categories (General, Orders & Circulars, Certificates, Financial, Custom Presets).
+     - Displayed live badge count of all available templates and an italic description preview for the selected template.
+  2. **1-Click Duplicate Template Action:**
+     - Added a `Duplicate` button next to the template selector. When clicked, it copies the current template's subject, body, salutation, reference prefix, and department into a new draft preset, opens the save modal, and allows instant customization.
+  3. **1-Click Overwrite Custom Template Action:**
+     - When an active template is a user-created custom template, an `Overwrite` button is prominently displayed in the header. Clicking it updates the existing custom template in-place without creating redundant duplicates.
+  4. **Compact Minimal Controls Alignment:**
+     - Harmonized the template selector card, quick document inserts, and actions bar to fit neatly within the left controls panel without vertical overflow or visual clutter.
+
+---
+
+### 2. Official Letterhead Studio: 2/3 Horizontal Letterhead & Right Controls Layout
 - **User Requests Addressed:**
   - *"make letter 2/3 horizontallly and controls to right"*
   - *"moreover 31/31 remains static than 1/31, then 2/31 so on"*
@@ -46,6 +63,7 @@
 ---
 
 ## Files Modified
+- `src/portal/admin/OfficialLetterWriterView.jsx`: Classified template selector dropdown, 1-click Duplicate, 1-click Overwrite, compact left controls layout.
 - `src/portal/admin/StaffLetterheadWriterView.jsx`: 2/3 letterhead layout on left, 1/3 controls on right, dynamic pager index, upward-opening variable picker, categorized template select.
 - `src/portal/admin/SchoolAccountsManager.jsx`: Full establishment modal fields (Cadre, Qualification, PRAN/GPF, Bank, DOJ, Parentage), expandable details drawer, delete/retire handler, safe index matching.
 - `src/portal/admin/CustomStaffRosterBuilderView.jsx`: Compact multi-column roster design.
@@ -56,7 +74,7 @@
 
 ## Local Commit Message
 ```bash
-feat(studio): layout 2/3 letter preview on left, right controls, dynamic staff pager, and end-to-end staff establishment directory
+feat(letters): add classified template dropdown, duplicate, and overwrite actions to official letter writer
 ```
 
 ---
