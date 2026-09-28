@@ -1,18 +1,19 @@
 // =================================================================
 // HSS SHANGUS — Clerk Official Staff Letterhead & Mail Merge Studio
-// High-Density 3-Column Layout:
-// Left: Template & Staff Picker | Centre: A4 Live Preview | Right: Tools, Actions & Placeholders
+// High-Density 2-Column Minimal Layout:
+// Left: Consolidated Controls (Templates, Actions, Formatting, Placeholders, Staff)
+// Right: Official A4 Live Letterhead Preview & Canvas
+// Supports Overwriting Templates, Duplicating & Modifying New Templates
 // =================================================================
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Printer, FileText, Calendar, Edit3, Save, RotateCcw,
   Bold, Italic, Underline, AlignLeft, AlignCenter,
-  AlignRight, AlignJustify, List, ListOrdered, Table as TableIcon,
+  AlignRight, AlignJustify, List, ListOrdered,
   Check, Copy, Users, Search, CheckSquare, Square,
-  Sparkles, ArrowRight, ShieldCheck, ChevronDown, Download,
-  Eye, RefreshCw, AlertCircle, BookmarkPlus, Info, Plus,
-  FileCode, Layers, CheckCircle2
+  Sparkles, ChevronDown, ChevronLeft, ChevronRight, Download,
+  Eye, RefreshCw, AlertCircle, Info, Plus, Trash2, X
 } from 'lucide-react';
 import {
   STAFF_MERGE_VARIABLES,
@@ -27,18 +28,54 @@ import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 
+const HSS_CLERK_TEMPLATES_STORAGE_KEY = 'hss_clerk_staff_letter_templates';
+
+// Load stored templates from localStorage or fallback to built-ins
+const getInitialTemplates = () => {
+  try {
+    const raw = localStorage.getItem(HSS_CLERK_TEMPLATES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const storedMap = new Map(parsed.map(t => [t.id, t]));
+        // Built-ins with overrides applied
+        const list = BUILTIN_STAFF_LETTER_TEMPLATES.map(b => storedMap.get(b.id) || b);
+        // Custom templates added by user
+        const builtinIds = new Set(BUILTIN_STAFF_LETTER_TEMPLATES.map(b => b.id));
+        parsed.forEach(t => {
+          if (!builtinIds.has(t.id)) {
+            list.push(t);
+          }
+        });
+        return list;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to parse stored clerk letter templates:', e);
+  }
+  return BUILTIN_STAFF_LETTER_TEMPLATES;
+};
+
 export default function StaffLetterheadWriterView({
   faculty = [],
   user = null,
   onOpenHistory = null
 }) {
+  // Templates Management State
+  const [templates, setTemplates] = useState(getInitialTemplates);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id || 'salary_service_certificate');
+
+  // Active template object
+  const currentTemplate = useMemo(() => {
+    return templates.find(t => t.id === selectedTemplateId) || templates[0] || BUILTIN_STAFF_LETTER_TEMPLATES[0];
+  }, [templates, selectedTemplateId]);
+
   // Document Core State
-  const [selectedTemplateId, setSelectedTemplateId] = useState('salary_service_certificate');
-  const [refNo, setRefNo] = useState('HSS/SHG/Sal-Cert/2026/01');
+  const [refNo, setRefNo] = useState(currentTemplate?.refNo || 'HSS/SHG/Sal-Cert/2026/01');
   const [dateStr, setDateStr] = useState(new Date().toLocaleDateString('en-GB'));
-  const [bodyHtml, setBodyHtml] = useState(BUILTIN_STAFF_LETTER_TEMPLATES[0].bodyHtml);
+  const [bodyHtml, setBodyHtml] = useState(currentTemplate?.bodyHtml || BUILTIN_STAFF_LETTER_TEMPLATES[0].bodyHtml);
   
-  // View Mode for Centre Canvas: 'preview' (Live Interpolated Preview) or 'tokens' (Template Tokens)
+  // View Mode for Canvas: 'preview' (Live Interpolated Preview) or 'tokens' (Template Tokens)
   const [centreMode, setCentreMode] = useState('preview');
 
   // Signatory State
@@ -56,6 +93,24 @@ export default function StaffLetterheadWriterView({
   const savedRangeRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
+
+  // UI Toggles for Compactness
+  const [showSignatories, setShowSignatories] = useState(false);
+  const [showPlaceholders, setShowPlaceholders] = useState(true);
+
+  // Duplication Modal State
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateName, setDuplicateName] = useState('');
+
+  // Persist templates to localStorage
+  const saveTemplatesList = (newTemplates) => {
+    setTemplates(newTemplates);
+    try {
+      localStorage.setItem(HSS_CLERK_TEMPLATES_STORAGE_KEY, JSON.stringify(newTemplates));
+    } catch (e) {
+      console.warn('Failed to save clerk templates to localStorage:', e);
+    }
+  };
 
   // Initialize selected employee IDs when faculty loads
   useEffect(() => {
@@ -154,7 +209,7 @@ export default function StaffLetterheadWriterView({
 
   // Handle Template Switching
   const handleSelectTemplate = (templateId) => {
-    const t = BUILTIN_STAFF_LETTER_TEMPLATES.find(tpl => tpl.id === templateId);
+    const t = templates.find(tpl => tpl.id === templateId);
     if (!t) return;
     setSelectedTemplateId(templateId);
     setRefNo(t.refNo || 'HSS/SHG/Estt/2026/');
@@ -167,7 +222,90 @@ export default function StaffLetterheadWriterView({
     showToast(`Loaded template: ${t.name}`, 'info');
   };
 
-  // Insert Variable Token into Editor at cursor (works in both preview & tokens mode)
+  // Overwrite Current Template Action
+  const handleOverwriteTemplate = () => {
+    const currentContent = editorRef.current ? editorRef.current.innerHTML : bodyHtml;
+    const updated = templates.map(t => {
+      if (t.id === selectedTemplateId) {
+        return {
+          ...t,
+          bodyHtml: currentContent,
+          refNo: refNo,
+          isModified: true,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return t;
+    });
+    saveTemplatesList(updated);
+    showToast(`Template "${currentTemplate.name}" overwritten & saved!`, 'success');
+  };
+
+  // Open Duplicate Modal
+  const handleOpenDuplicate = () => {
+    setDuplicateName(`${currentTemplate.name} (Custom)`);
+    setShowDuplicateModal(true);
+  };
+
+  // Confirm Duplicating Current Template into a New One
+  const handleConfirmDuplicate = () => {
+    const trimmedName = duplicateName.trim() || `${currentTemplate.name} (Copy)`;
+    const newId = `custom_tpl_${Date.now()}`;
+    const currentContent = editorRef.current ? editorRef.current.innerHTML : bodyHtml;
+
+    const newTemplate = {
+      id: newId,
+      name: trimmedName,
+      category: 'Custom Templates',
+      desc: `Customized duplicate of ${currentTemplate.name}`,
+      refNo: refNo || 'HSS/SHG/Custom/2026/',
+      subject: currentTemplate.subject || '',
+      bodyHtml: currentContent,
+      isCustom: true,
+      createdAt: new Date().toISOString()
+    };
+
+    const updated = [...templates, newTemplate];
+    saveTemplatesList(updated);
+    setSelectedTemplateId(newId);
+    setShowDuplicateModal(false);
+    showToast(`New template "${trimmedName}" created and active!`, 'success');
+  };
+
+  // Delete Custom Template
+  const handleDeleteCustomTemplate = (templateId) => {
+    const target = templates.find(t => t.id === templateId);
+    if (!target) return;
+    if (!window.confirm(`Delete custom template "${target.name}"? This cannot be undone.`)) return;
+
+    const updated = templates.filter(t => t.id !== templateId);
+    saveTemplatesList(updated);
+    const fallback = updated[0] || BUILTIN_STAFF_LETTER_TEMPLATES[0];
+    setSelectedTemplateId(fallback.id);
+    setRefNo(fallback.refNo || 'HSS/SHG/Estt/2026/');
+    setBodyHtml(fallback.bodyHtml || '');
+    showToast(`Deleted custom template "${target.name}".`, 'info');
+  };
+
+  // Reset Built-in Template to Default
+  const handleResetToDefault = (templateId) => {
+    const original = BUILTIN_STAFF_LETTER_TEMPLATES.find(t => t.id === templateId);
+    if (!original) return;
+    if (!window.confirm(`Reset template "${original.name}" to official school default? Your custom modifications to this template will be cleared.`)) return;
+
+    const updated = templates.map(t => t.id === templateId ? { ...original } : t);
+    saveTemplatesList(updated);
+    setBodyHtml(original.bodyHtml);
+    setRefNo(original.refNo);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = centreMode === 'preview'
+        ? interpolateStaffVariables(original.bodyHtml, currentPreviewEmployee, { refNo: original.refNo, dateStr, session: '2025–26' })
+        : original.bodyHtml;
+    }
+    showToast(`Reset "${original.name}" to default.`, 'info');
+  };
+
+  // Insert Variable Token into Editor at cursor
   const handleInsertVariable = (token) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
@@ -290,7 +428,7 @@ export default function StaffLetterheadWriterView({
     try {
       setIsSaving(true);
       const currentContent = editorRef.current ? editorRef.current.innerHTML : bodyHtml;
-      const tpl = BUILTIN_STAFF_LETTER_TEMPLATES.find(t => t.id === selectedTemplateId);
+      const tpl = templates.find(t => t.id === selectedTemplateId);
       const title = tpl ? `${tpl.name} (${selectedEmployees.length} Staff)` : `Official Staff Letter (${selectedEmployees.length} Staff)`;
 
       await saveGeneratedDocToHistory({
@@ -337,45 +475,125 @@ export default function StaffLetterheadWriterView({
     }
   };
 
+  // Navigate preview employee
+  const handlePrevEmployee = () => {
+    if (selectedEmployees.length <= 1) return;
+    setPreviewEmployeeIndex(prev => (prev > 0 ? prev - 1 : selectedEmployees.length - 1));
+  };
+
+  const handleNextEmployee = () => {
+    if (selectedEmployees.length <= 1) return;
+    setPreviewEmployeeIndex(prev => (prev < selectedEmployees.length - 1 ? prev + 1 : 0));
+  };
+
   return (
     <div className="animate-fadeIn">
-      {/* ─── 3-COLUMN STUDIO LAYOUT (ULTRA-COMPACT VIEWPORT-FITTING DESIGN) ─── */}
+      {/* ─── 2-COLUMN MINIMAL STUDIO LAYOUT (CONTROLS ON LEFT, PREVIEW ON RIGHT) ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-start">
         
         {/* ══════════════════════════════════════════════════════════════════════
-            1. LEFT COLUMN: TEMPLATE SELECTOR, TARGET STAFF & SIGNATORIES (3 COLS)
+            1. LEFT PANEL: ALL COMPACT CONTROLS & STUDIO TOOLS (5 COLS)
         ══════════════════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-3 space-y-2">
+        <div className="lg:col-span-5 space-y-2">
           
-          {/* Unified Card: Template Setup & Target Staff */}
+          {/* ── CARD A: TEMPLATE SELECTOR, OVERWRITE & DUPLICATION ── */}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
             
-            {/* Header: Template */}
-            <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-1">
-              <FileText className="text-amber-600 dark:text-amber-500 shrink-0" size={13} />
-              <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
-                Official Template
-              </span>
+            {/* Header: Title + Action Buttons */}
+            <div className="flex items-center justify-between gap-1 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <FileText className="text-amber-600 dark:text-amber-500 shrink-0" size={13} />
+                <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                  Official Template
+                </span>
+                {currentTemplate?.isCustom && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
+                    Custom
+                  </span>
+                )}
+                {currentTemplate?.isModified && !currentTemplate?.isCustom && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+                    Edited
+                  </span>
+                )}
+              </div>
+
+              {/* Template Action Buttons: Overwrite, Duplicate, Delete, Reset */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleOverwriteTemplate}
+                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Overwrite/save current template changes"
+                >
+                  <Save size={10} />
+                  <span>Overwrite</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenDuplicate}
+                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Duplicate as a new custom template"
+                >
+                  <Copy size={10} />
+                  <span>Duplicate</span>
+                </button>
+
+                {currentTemplate?.isCustom && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCustomTemplate(currentTemplate.id)}
+                    className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-700 transition-colors cursor-pointer"
+                    title="Delete this custom template"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
+
+                {currentTemplate?.isModified && !currentTemplate?.isCustom && (
+                  <button
+                    type="button"
+                    onClick={() => handleResetToDefault(currentTemplate.id)}
+                    className="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 transition-colors cursor-pointer"
+                    title="Reset to official default"
+                  >
+                    <RotateCcw size={12} />
+                  </button>
+                )}
+              </div>
             </div>
 
+            {/* Template Selector Dropdown */}
             <div>
               <select
                 value={selectedTemplateId}
                 onChange={(e) => handleSelectTemplate(e.target.value)}
                 className="w-full text-[11px] font-semibold px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
               >
-                {BUILTIN_STAFF_LETTER_TEMPLATES.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
+                <optgroup label="Official Templates">
+                  {templates.filter(t => !t.isCustom).map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.isModified ? '• (Edited)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
+                {templates.some(t => t.isCustom) && (
+                  <optgroup label="Custom Saved Templates">
+                    {templates.filter(t => t.isCustom).map(t => (
+                      <option key={t.id} value={t.id}>
+                        ★ {t.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
 
             {/* Ref No & Date Row */}
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
               <div>
-                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                <label className="block text-[8.5px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
                   Ref No:
                 </label>
                 <input
@@ -383,182 +601,424 @@ export default function StaffLetterheadWriterView({
                   value={refNo}
                   onChange={(e) => setRefNo(e.target.value)}
                   placeholder="HSS/SHG/..."
-                  className="w-full text-[10.5px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
-                  Date:
+                <label className="block text-[8.5px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                  Dispatch Date:
                 </label>
                 <input
                   type="text"
                   value={dateStr}
                   onChange={(e) => setDateStr(e.target.value)}
                   placeholder="DD/MM/YYYY"
-                  className="w-full text-[10.5px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
             </div>
 
-            {/* Target Staff Section */}
-            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-              <div className="flex items-center justify-between gap-1">
-                <div className="flex items-center gap-1">
-                  <Users size={12} className="text-amber-600 dark:text-amber-500 shrink-0" />
-                  <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
-                    Target Staff
-                  </span>
-                </div>
+            {/* Signatories Toggle & Fields */}
+            <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowSignatories(!showSignatories)}
+                className="w-full flex items-center justify-between text-[9px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <span>Signatories Setup ({clerkSignatory} • {principalSignatory})</span>
+                <span className="text-[8px]">{showSignatories ? '▲ Hide' : '▼ Edit'}</span>
+              </button>
 
-                <div className="flex items-center gap-1 text-[9.5px] font-bold">
-                  <button
-                    type="button"
-                    onClick={handleSelectAllFiltered}
-                    className="text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
-                  >
-                    All
-                  </button>
-                  <span className="text-slate-300 dark:text-slate-700">|</span>
-                  <button
-                    type="button"
-                    onClick={handleDeselectAllFiltered}
-                    className="text-slate-500 hover:underline cursor-pointer"
-                  >
-                    Clear
-                  </button>
+              {showSignatories && (
+                <div className="grid grid-cols-2 gap-1.5 pt-1 mt-1 border-t border-slate-100 dark:border-slate-800 animate-fadeIn">
+                  <div>
+                    <span className="text-[8px] text-slate-400 block truncate">Dealing Assistant:</span>
+                    <input
+                      type="text"
+                      value={clerkSignatory}
+                      onChange={(e) => setClerkSignatory(e.target.value)}
+                      className="w-full px-1.5 py-0.5 text-[9px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[8px] text-slate-400 block truncate">Principal / DDO:</span>
+                    <input
+                      type="text"
+                      value={principalSignatory}
+                      onChange={(e) => setPrincipalSignatory(e.target.value)}
+                      className="w-full px-1.5 py-0.5 text-[9px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
+                    />
+                  </div>
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── CARD B: PRIMARY ACTIONS & COMPACT FORMATTING RIBBON ── */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-2">
+            
+            {/* Primary Print Button */}
+            <button
+              type="button"
+              onClick={handleBatchPrint}
+              className="w-full py-1.5 px-2.5 rounded-lg text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Printer size={13} />
+              <span>Print Merged Letters ({selectedEmployees.length} Staff)</span>
+            </button>
+
+            {/* Secondary Export & Save Row */}
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                type="button"
+                onClick={handleExportDocx}
+                disabled={isExportingDocx}
+                className="py-1 px-1 rounded-md text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 truncate"
+                title="Download current letter as Word (.docx)"
+              >
+                <Download size={11} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                <span className="truncate">Word (.docx)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveToCloudHistory(true)}
+                disabled={isSaving}
+                className="py-1 px-1 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 truncate"
+                title="Save snapshot to clerk dispatch archive"
+              >
+                <Save size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="truncate">Save Draft</span>
+              </button>
+
+              {onOpenHistory ? (
+                <button
+                  type="button"
+                  onClick={onOpenHistory}
+                  className="py-1 px-1 rounded-md text-[10px] font-bold bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center gap-1 cursor-pointer truncate"
+                  title="Open clerk dispatch archive"
+                >
+                  <span className="truncate">History •</span>
+                </button>
+              ) : (
+                <div />
+              )}
+            </div>
+
+            {/* Compact Formatting Ribbon */}
+            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1 flex-wrap">
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => executeCmd('bold')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Bold (Ctrl+B)"
+                >
+                  <Bold size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('italic')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Italic (Ctrl+I)"
+                >
+                  <Italic size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('underline')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Underline (Ctrl+U)"
+                >
+                  <Underline size={11} />
+                </button>
               </div>
 
-              {/* Selection Counter */}
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="font-semibold text-slate-500">Selected for Merge:</span>
-                <span className="px-1.5 py-0.2 rounded-full font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[9.5px]">
-                  {selectedEmployees.length} of {faculty.length} Staff
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => executeCmd('justifyLeft')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Align Left"
+                >
+                  <AlignLeft size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('justifyCenter')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Align Center"
+                >
+                  <AlignCenter size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('justifyRight')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Align Right"
+                >
+                  <AlignRight size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('justifyFull')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Justify"
+                >
+                  <AlignJustify size={11} />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => executeCmd('insertUnorderedList')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Bulleted List"
+                >
+                  <List size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('insertOrderedList')}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  title="Numbered List"
+                >
+                  <ListOrdered size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCmd('removeFormat')}
+                  className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer text-[9px] font-bold"
+                  title="Clear formatting"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── CARD C: INSERT PLACEHOLDERS (COMPACT COLLAPSIBLE) ── */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2 shadow-2xs space-y-1">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
+              <div className="flex items-center gap-1">
+                <Sparkles size={11} className="text-amber-500 shrink-0" />
+                <span className="font-black text-[10px] text-slate-900 dark:text-white uppercase tracking-wider">
+                  Insert Variables at Cursor
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPlaceholders(!showPlaceholders)}
+                className="text-[9px] font-bold text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                {showPlaceholders ? '▲ Hide' : '▼ Show'}
+              </button>
+            </div>
+
+            {showPlaceholders && (
+              <div className="pt-0.5 space-y-1 text-[9px]">
+                {/* Identity */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[8px] font-black uppercase text-slate-400 w-11 shrink-0">Identity:</span>
+                  {[
+                    { token: '{{name}}', label: 'Name' },
+                    { token: '{{designation}}', label: 'Desig' },
+                    { token: '{{cpis}}', label: 'CPIS' },
+                    { token: '{{pan}}', label: 'PAN' },
+                    { token: '{{dob}}', label: 'DOB' },
+                    { token: '{{parentage}}', label: 'Parent' }
+                  ].map(item => (
+                    <button
+                      key={item.token}
+                      type="button"
+                      onClick={() => handleInsertVariable(item.token)}
+                      className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 cursor-pointer"
+                      title={`Insert ${item.token}`}
+                    >
+                      {item.token}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Salary */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[8px] font-black uppercase text-slate-400 w-11 shrink-0">Salary:</span>
+                  {[
+                    { token: '{{gross_salary}}', label: 'Gross' },
+                    { token: '{{monthly_salary}}', label: 'Monthly' },
+                    { token: '{{net_salary}}', label: 'Net' },
+                    { token: '{{bank_account}}', label: 'Account' },
+                    { token: '{{ifsc}}', label: 'IFSC' }
+                  ].map(item => (
+                    <button
+                      key={item.token}
+                      type="button"
+                      onClick={() => handleInsertVariable(item.token)}
+                      className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 cursor-pointer"
+                      title={`Insert ${item.token}`}
+                    >
+                      {item.token}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Service & Meta */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[8px] font-black uppercase text-slate-400 w-11 shrink-0">Service:</span>
+                  {[
+                    { token: '{{department}}', label: 'Dept' },
+                    { token: '{{cadre}}', label: 'Cadre' },
+                    { token: '{{mobile}}', label: 'Mobile' },
+                    { token: '{{doj}}', label: 'DOJ' },
+                    { token: '{{ref_no}}', label: 'Ref No' },
+                    { token: '{{date}}', label: 'Date' }
+                  ].map(item => (
+                    <button
+                      key={item.token}
+                      type="button"
+                      onClick={() => handleInsertVariable(item.token)}
+                      className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 cursor-pointer"
+                      title={`Insert ${item.token}`}
+                    >
+                      {item.token}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── CARD D: TARGET STAFF PICKER (COMPACT & RESPONSIVE) ── */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 min-w-0">
+                <Users size={12} className="text-amber-600 dark:text-amber-500 shrink-0" />
+                <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                  Target Staff
+                </span>
+                <span className="px-1.5 py-0.2 rounded-full font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[8.5px] shrink-0">
+                  {selectedEmployees.length}/{faculty.length}
                 </span>
               </div>
 
-              {/* Search Input */}
-              <div className="relative">
+              <div className="flex items-center gap-1 text-[9px] font-bold shrink-0">
+                <button
+                  type="button"
+                  onClick={handleSelectAllFiltered}
+                  className="text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                >
+                  All
+                </button>
+                <span className="text-slate-300 dark:text-slate-700">|</span>
+                <button
+                  type="button"
+                  onClick={handleDeselectAllFiltered}
+                  className="text-slate-500 hover:underline cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            {/* Search Input & Category Pills in Single Row */}
+            <div className="flex items-center gap-1.5">
+              <div className="relative flex-1">
                 <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search staff, CPIS..."
-                  className="w-full pl-5 pr-2 py-0.5 text-[10.5px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 outline-none"
+                  className="w-full pl-5 pr-2 py-0.5 text-[10px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 outline-none"
                 />
               </div>
 
-              {/* Category Filter Pills */}
-              <div className="flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
+              <div className="flex rounded overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800 shrink-0">
                 {[
                   { key: 'all', label: 'All' },
-                  { key: 'teaching', label: 'Teaching' },
-                  { key: 'non_teaching', label: 'Non-Teach' }
+                  { key: 'teaching', label: 'Teach' },
+                  { key: 'non_teaching', label: 'MTS' }
                 ].map(cat => (
                   <button
                     key={cat.key}
                     type="button"
                     onClick={() => setActiveCategoryFilter(cat.key)}
-                    className={`flex-1 py-0.5 text-center rounded text-[9.5px] font-bold transition-all cursor-pointer ${
+                    className={`px-1.5 py-0.2 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
                       activeCategoryFilter === cat.key
                         ? 'bg-amber-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
                     {cat.label}
                   </button>
                 ))}
               </div>
-
-              {/* Staff Checkbox List (Ultra-Compact) */}
-              <div className="max-h-28 sm:max-h-32 overflow-y-auto rounded border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 no-scrollbar">
-                {filteredFaculty.map((emp, idx) => {
-                  const empId = emp.id || emp.cpis_no || emp.pan || `emp_${idx}`;
-                  const isSelected = selectedEmployeeIds.includes(empId);
-                  const vars = getEmployeeVariablesMap(emp);
-
-                  return (
-                    <div
-                      key={empId}
-                      onClick={() => toggleEmployeeSelection(empId)}
-                      className={`flex items-center justify-between px-1.5 py-1 text-[10.5px] transition-colors cursor-pointer select-none ${
-                        isSelected
-                          ? 'bg-amber-50/70 dark:bg-amber-950/20'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="shrink-0 text-amber-600 dark:text-amber-400">
-                          {isSelected ? <CheckSquare size={12} /> : <Square size={12} className="text-slate-300 dark:text-slate-600" />}
-                        </span>
-                        <div className="truncate">
-                          <div className="font-extrabold text-[10px] text-slate-900 dark:text-white truncate">
-                            {vars.name}
-                          </div>
-                          <div className="text-[8.5px] text-slate-500 truncate">
-                            {vars.designation}
-                          </div>
-                        </div>
-                      </div>
-
-                      <span className="text-[8.5px] font-mono text-slate-500 shrink-0">
-                        {vars.cpis}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
             </div>
 
-            {/* Signatory Setup (Compact 2-col) */}
-            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                Signatories:
-              </span>
-              <div className="grid grid-cols-2 gap-1.5">
-                <div>
-                  <span className="text-[8.5px] text-slate-500 block truncate">Clerk / Dealing Asst:</span>
-                  <input
-                    type="text"
-                    value={clerkSignatory}
-                    onChange={(e) => setClerkSignatory(e.target.value)}
-                    className="w-full px-1.5 py-0.5 text-[9.5px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
-                  />
-                </div>
-                <div>
-                  <span className="text-[8.5px] text-slate-500 block truncate">Principal / DDO:</span>
-                  <input
-                    type="text"
-                    value={principalSignatory}
-                    onChange={(e) => setPrincipalSignatory(e.target.value)}
-                    className="w-full px-1.5 py-0.5 text-[9.5px] font-semibold rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none"
-                  />
-                </div>
-              </div>
+            {/* Staff Checkbox List */}
+            <div className="max-h-28 sm:max-h-32 overflow-y-auto rounded border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 no-scrollbar">
+              {filteredFaculty.map((emp, idx) => {
+                const empId = emp.id || emp.cpis_no || emp.pan || `emp_${idx}`;
+                const isSelected = selectedEmployeeIds.includes(empId);
+                const vars = getEmployeeVariablesMap(emp);
+
+                return (
+                  <div
+                    key={empId}
+                    onClick={() => toggleEmployeeSelection(empId)}
+                    className={`flex items-center justify-between px-1.5 py-0.5 text-[10px] transition-colors cursor-pointer select-none ${
+                      isSelected
+                        ? 'bg-amber-50/70 dark:bg-amber-950/20'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="shrink-0 text-amber-600 dark:text-amber-400">
+                        {isSelected ? <CheckSquare size={11} /> : <Square size={11} className="text-slate-300 dark:text-slate-600" />}
+                      </span>
+                      <div className="truncate">
+                        <span className="font-extrabold text-[9.5px] text-slate-900 dark:text-white truncate mr-1">
+                          {vars.name}
+                        </span>
+                        <span className="text-[8px] text-slate-500 truncate">
+                          ({vars.designation})
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="text-[8px] font-mono text-slate-500 shrink-0">
+                      {vars.cpis}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════════
-            2. CENTRE COLUMN: OFFICIAL A4 LETTERHEAD PREVIEW & IN-PLACE CANVAS (6 COLS)
+            2. RIGHT PANEL: OFFICIAL A4 LETTERHEAD PREVIEW & DIRECT CANVAS (7 COLS)
         ══════════════════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-6 space-y-1.5">
+        <div className="lg:col-span-7 space-y-1.5">
           
-          {/* Top Canvas Bar: Live Preview Switcher & Mode Toggle */}
+          {/* Top Canvas Bar: Official Selector, Employee Pager, Live/Token Toggle */}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 px-2.5 py-1.5 shadow-2xs flex items-center justify-between gap-1.5 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <Eye size={13} className="text-amber-600 dark:text-amber-400" />
-              <span className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">
+            
+            {/* Left: Active Official Picker + Previous/Next Pager */}
+            <div className="flex items-center gap-1 min-w-0">
+              <Eye size={12} className="text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="text-[10.5px] font-extrabold text-slate-800 dark:text-slate-200 shrink-0">
                 Official:
               </span>
+              
               {selectedEmployees.length > 0 && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 min-w-0">
                   <select
                     value={previewEmployeeIndex}
                     onChange={(e) => setPreviewEmployeeIndex(Number(e.target.value))}
-                    className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none cursor-pointer max-w-[190px] truncate"
+                    className="text-[10.5px] font-bold px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none cursor-pointer max-w-[210px] truncate"
                   >
                     {selectedEmployees.map((emp, idx) => (
                       <option key={idx} value={idx}>
@@ -566,25 +1026,46 @@ export default function StaffLetterheadWriterView({
                       </option>
                     ))}
                   </select>
-                  <span className="text-[9.5px] font-mono text-slate-500">
-                    {previewEmployeeIndex + 1}/{selectedEmployees.length}
-                  </span>
+
+                  <div className="flex items-center gap-0.5 shrink-0 ml-0.5">
+                    <button
+                      type="button"
+                      onClick={handlePrevEmployee}
+                      disabled={selectedEmployees.length <= 1}
+                      className="p-0.5 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 cursor-pointer"
+                      title="Previous Staff Member"
+                    >
+                      <ChevronLeft size={11} />
+                    </button>
+                    <span className="text-[9px] font-mono text-slate-500 px-0.5">
+                      {previewEmployeeIndex + 1}/{selectedEmployees.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleNextEmployee}
+                      disabled={selectedEmployees.length <= 1}
+                      className="p-0.5 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 cursor-pointer"
+                      title="Next Staff Member"
+                    >
+                      <ChevronRight size={11} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* View Mode Toggle: Live Values vs Template Tokens */}
-            <div className="flex items-center gap-1">
-              <div className="flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
+            {/* Right: Live Preview vs Tokens Toggle & Inline Edit Hint */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex rounded overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800">
                 <button
                   type="button"
                   onClick={() => setCentreMode('preview')}
-                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
+                  className={`px-2 py-0.5 rounded text-[9.5px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
                     centreMode === 'preview'
                       ? 'bg-amber-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
-                  title="Show preview with active employee values filled in (Directly Editable)"
+                  title="Show live letter preview with active employee values filled in (Directly Editable)"
                 >
                   <Eye size={10} />
                   <span>Live Preview</span>
@@ -593,27 +1074,27 @@ export default function StaffLetterheadWriterView({
                 <button
                   type="button"
                   onClick={() => setCentreMode('tokens')}
-                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
+                  className={`px-2 py-0.5 rounded text-[9.5px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
                     centreMode === 'tokens'
                       ? 'bg-amber-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
-                  title="Show raw template placeholder tokens (Directly Editable)"
+                  title="Show raw template tokens like {{name}} (Directly Editable)"
                 >
                   <Edit3 size={10} />
                   <span>Tokens ({'{{vars}}'})</span>
                 </button>
               </div>
 
-              <span className="text-[9px] text-amber-700 dark:text-amber-400 font-semibold hidden sm:inline">
+              <span className="text-[8.5px] text-amber-700 dark:text-amber-400 font-semibold hidden xl:inline">
                 ✏️ Click text to edit
               </span>
             </div>
           </div>
 
-          {/* Official A4 Letterhead Sheet (Ultra-Compact Viewport Fitting) */}
-          <div className="bg-slate-100 dark:bg-slate-950 p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-inner flex justify-center overflow-x-auto">
-            <div className="bg-white rounded-lg shadow-md border border-slate-300 w-full max-w-[560px] p-3 sm:p-3.5 text-slate-900 font-sans flex flex-col justify-between">
+          {/* Official A4 Letterhead Sheet (Centered Canvas with Generous Margin) */}
+          <div className="bg-slate-100 dark:bg-slate-950 p-2.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-inner flex justify-center overflow-x-auto">
+            <div className="bg-white rounded-lg shadow-md border border-slate-300 w-full max-w-[620px] p-4 sm:p-6 text-slate-900 font-sans flex flex-col justify-between min-h-[580px]">
               
               <div>
                 {/* Official Letterhead Header Banner (Soft Ice-Blue Background) */}
@@ -621,9 +1102,9 @@ export default function StaffLetterheadWriterView({
                   style={{
                     backgroundColor: '#f0f8ff',
                     borderBottom: '2px solid #800000',
-                    padding: '6px 8px 5px 8px',
+                    padding: '8px 10px 6px 10px',
                     textAlign: 'center',
-                    marginBottom: '6px',
+                    marginBottom: '8px',
                     borderRadius: '3px'
                   }}
                 >
@@ -631,27 +1112,27 @@ export default function StaffLetterheadWriterView({
                     src="/logo192.png"
                     alt="School Seal"
                     style={{
-                      width: '26px',
-                      height: '26px',
+                      width: '28px',
+                      height: '28px',
                       objectFit: 'contain',
                       display: 'block',
                       margin: '0 auto 2px auto'
                     }}
                     onError={(e) => { e.currentTarget.src = '/logo.png'; }}
                   />
-                  <div style={{ fontSize: '8px', fontWeight: '800', color: '#800000', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 0 1px 0', lineHeight: 1 }}>
+                  <div style={{ fontSize: '8.5px', fontWeight: '800', color: '#800000', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 0 1px 0', lineHeight: 1 }}>
                     OFFICE OF THE PRINCIPAL
                   </div>
-                  <div style={{ fontSize: '12px', fontWeight: '900', color: '#0a192f', textTransform: 'uppercase', fontFamily: 'Georgia, serif', margin: '0 0 1px 0', lineHeight: 1.1 }}>
+                  <div style={{ fontSize: '13px', fontWeight: '900', color: '#0a192f', textTransform: 'uppercase', fontFamily: 'Georgia, serif', margin: '0 0 1px 0', lineHeight: 1.1 }}>
                     GOVT. HIGHER SECONDARY SCHOOL SHANGUS
                   </div>
-                  <div style={{ fontSize: '7.5px', color: '#334155', fontWeight: '600', lineHeight: 1 }}>
+                  <div style={{ fontSize: '8px', color: '#334155', fontWeight: '600', lineHeight: 1 }}>
                     Anantnag, Kashmir — 192201 (J&K) • AISHE: S-12345 • U-DISE: 01070800101
                   </div>
                 </div>
 
                 {/* Ref & Date Bar */}
-                <div className="flex items-center justify-between text-[9px] font-semibold border-b border-slate-100 pb-0.5 mb-1.5">
+                <div className="flex items-center justify-between text-[9.5px] font-semibold border-b border-slate-100 pb-1 mb-2">
                   <div>
                     <span className="text-[#800000] font-black">Ref. No.:</span> {centreMode === 'preview' ? previewInterpolatedRef : refNo}
                   </div>
@@ -673,307 +1154,92 @@ export default function StaffLetterheadWriterView({
                     handleBodyEdit();
                   }}
                   onInput={handleBodyEdit}
-                  className="text-[10px] sm:text-[10.5px] leading-snug sm:leading-relaxed text-slate-800 text-justify outline-none space-y-1 focus:ring-1 focus:ring-amber-500 rounded p-1 min-h-[160px] font-sans"
+                  className="text-[10.5px] sm:text-[11px] leading-relaxed text-slate-800 text-justify outline-none space-y-1.5 focus:ring-1 focus:ring-amber-500 rounded p-1.5 min-h-[220px] font-sans"
                 />
               </div>
 
               {/* Signatories Footer */}
-              <div className="mt-2.5 pt-1.5 border-t border-slate-100 flex items-end justify-between text-[9.5px]">
-                <div className="text-center min-w-[110px]">
-                  <div className="h-[1px] w-20 bg-slate-400 mx-auto mb-0.5" />
-                  <div className="font-extrabold text-[9.5px] text-slate-900">{clerkSignatory}</div>
-                  <div className="text-[7.5px] text-slate-500 font-medium">Accounts Section, HSS Shangus</div>
+              <div className="mt-4 pt-2 border-t border-slate-100 flex items-end justify-between text-[10px]">
+                <div className="text-center min-w-[120px]">
+                  <div className="h-[1px] w-24 bg-slate-400 mx-auto mb-1" />
+                  <div className="font-extrabold text-[10px] text-slate-900">{clerkSignatory}</div>
+                  <div className="text-[8px] text-slate-500 font-medium">Accounts Section, HSS Shangus</div>
                 </div>
 
-                <div className="text-center min-w-[110px]">
-                  <div className="h-[1px] w-20 bg-slate-400 mx-auto mb-0.5" />
-                  <div className="font-extrabold text-[9.5px] text-slate-900">{principalSignatory}</div>
-                  <div className="text-[7.5px] text-slate-500 font-medium">Govt. Hr. Sec. School Shangus</div>
+                <div className="text-center min-w-[120px]">
+                  <div className="h-[1px] w-24 bg-slate-400 mx-auto mb-1" />
+                  <div className="font-extrabold text-[10px] text-slate-900">{principalSignatory}</div>
+                  <div className="text-[8px] text-slate-500 font-medium">Govt. Hr. Sec. School Shangus</div>
                 </div>
               </div>
 
               {/* Institutional Watermark Footer */}
-              <div className="mt-1 pt-0.5 border-t border-dashed border-slate-200 flex items-center justify-between text-[7px] text-slate-400 font-mono">
+              <div className="mt-2 pt-1 border-t border-dashed border-slate-200 flex items-center justify-between text-[7.5px] text-slate-400 font-mono">
                 <span>Official Dispatch Record • Govt HSS Shangus</span>
                 <span>Page 1 of {selectedEmployees.length}</span>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* ══════════════════════════════════════════════════════════════════════
-            3. RIGHT COLUMN: ACTIONS, FORMATTING TOOLS & PLACEHOLDERS (3 COLS)
-        ══════════════════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-3 space-y-2">
-          
-          {/* Card A: Primary Print & Save Actions */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-1.5">
-            <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1">
-              Print &amp; Export Actions
-            </span>
-
-            {/* Primary Print Button */}
-            <button
-              type="button"
-              onClick={handleBatchPrint}
-              className="w-full py-1.5 px-2.5 rounded-lg text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Printer size={13} />
-              <span>Print Merged Letters ({selectedEmployees.length})</span>
-            </button>
-
-            {/* Secondary Actions */}
-            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+      {/* ─── MODAL: DUPLICATE AS NEW TEMPLATE ─── */}
+      {showDuplicateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-sm w-full p-4 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5">
+                <Copy size={14} className="text-amber-600 dark:text-amber-400" />
+                <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                  Duplicate as New Template
+                </h3>
+              </div>
               <button
                 type="button"
-                onClick={handleExportDocx}
-                disabled={isExportingDocx}
-                className="py-1 px-1.5 rounded-md text-[10.5px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
-                title="Download as Word (.docx)"
+                onClick={() => setShowDuplicateModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
               >
-                <Download size={11} className="text-blue-600 dark:text-blue-400" />
-                <span>Word (.docx)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSaveToCloudHistory(true)}
-                disabled={isSaving}
-                className="py-1 px-1.5 rounded-md text-[10.5px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
-              >
-                <Save size={11} className="text-amber-600 dark:text-amber-400" />
-                <span>Save Draft</span>
+                <X size={14} />
               </button>
             </div>
 
-            {onOpenHistory && (
-              <button
-                type="button"
-                onClick={onOpenHistory}
-                className="w-full py-0.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:underline flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <span>View Dispatch History &bull;</span>
-              </button>
-            )}
-          </div>
-
-          {/* Card B: Basic Formatting Tools */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2 shadow-2xs space-y-1.5">
-            <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-0.5">
-              Formatting Ribbon
-            </span>
-
-            <div className="flex items-center gap-1 flex-wrap">
-              <button
-                type="button"
-                onClick={() => executeCmd('bold')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                title="Bold (Ctrl+B)"
-              >
-                <Bold size={12} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('italic')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                title="Italic (Ctrl+I)"
-              >
-                <Italic size={12} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('underline')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                title="Underline (Ctrl+U)"
-              >
-                <Underline size={12} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('justifyLeft')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                title="Align Left"
-              >
-                <AlignLeft size={12} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('justifyCenter')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                title="Align Center"
-              >
-                <AlignCenter size={12} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('justifyRight')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                title="Align Right"
-              >
-                <AlignRight size={12} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('justifyFull')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                title="Justify"
-              >
-                <AlignJustify size={12} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('insertUnorderedList')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                title="Bulleted List"
-              >
-                <List size={12} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('insertOrderedList')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
-                title="Numbered List"
-              >
-                <ListOrdered size={12} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => executeCmd('removeFormat')}
-                className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer text-[9.5px] font-bold"
-                title="Remove Formatting"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-
-          {/* Card C: Add Particular Placeholders into Letter */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs space-y-1.5">
-            <div className="flex items-center gap-1 border-b border-slate-100 dark:border-slate-800 pb-1">
-              <Sparkles size={12} className="text-amber-500 shrink-0" />
-              <span className="font-black text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
-                Insert Placeholders
-              </span>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                New Template Title:
+              </label>
+              <input
+                type="text"
+                value={duplicateName}
+                onChange={(e) => setDuplicateName(e.target.value)}
+                placeholder="e.g. Salary Certificate (State Bank Format)"
+                className="w-full text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-amber-500"
+                autoFocus
+              />
+              <p className="text-[9.5px] text-slate-400 mt-1 leading-normal">
+                This will clone the current letter's content, formatting, and variables into a new custom template that you can modify and overwrite anytime.
+              </p>
             </div>
 
-            <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
-              Click any variable to insert directly into letter at cursor:
-            </p>
-
-            {/* Categorized Placeholder Chips */}
-            <div className="space-y-1.5 pt-0.5">
-              <div>
-                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                  Identity:
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {[
-                    { token: '{{name}}', label: 'Name' },
-                    { token: '{{designation}}', label: 'Desig' },
-                    { token: '{{cpis}}', label: 'CPIS' },
-                    { token: '{{pan}}', label: 'PAN' },
-                    { token: '{{parentage}}', label: 'Parent' },
-                    { token: '{{dob}}', label: 'DOB' }
-                  ].map(item => (
-                    <button
-                      key={item.token}
-                      type="button"
-                      onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 cursor-pointer transition-transform hover:scale-105"
-                      title={`Insert ${item.token}`}
-                    >
-                      {item.token}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                  Salary &amp; Bank:
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {[
-                    { token: '{{gross_salary}}', label: 'Gross' },
-                    { token: '{{monthly_salary}}', label: 'Monthly' },
-                    { token: '{{net_salary}}', label: 'Net' },
-                    { token: '{{bank_account}}', label: 'Bank Acc' },
-                    { token: '{{ifsc}}', label: 'IFSC' },
-                    { token: '{{bank_name}}', label: 'Bank' }
-                  ].map(item => (
-                    <button
-                      key={item.token}
-                      type="button"
-                      onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 cursor-pointer transition-transform hover:scale-105"
-                      title={`Insert ${item.token}`}
-                    >
-                      {item.token}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                  Department &amp; Service:
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {[
-                    { token: '{{department}}', label: 'Wing/Dept' },
-                    { token: '{{cadre}}', label: 'Cadre' },
-                    { token: '{{mobile}}', label: 'Mobile' },
-                    { token: '{{email}}', label: 'Email' },
-                    { token: '{{doj}}', label: 'DOJ' }
-                  ].map(item => (
-                    <button
-                      key={item.token}
-                      type="button"
-                      onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 cursor-pointer transition-transform hover:scale-105"
-                      title={`Insert ${item.token}`}
-                    >
-                      {item.token}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                  Dispatch Meta:
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {[
-                    { token: '{{ref_no}}', label: 'Ref No' },
-                    { token: '{{date}}', label: 'Date' },
-                    { token: '{{academic_session}}', label: 'Session' }
-                  ].map(item => (
-                    <button
-                      key={item.token}
-                      type="button"
-                      onClick={() => handleInsertVariable(item.token)}
-                      className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 cursor-pointer transition-transform hover:scale-105"
-                      title={`Insert ${item.token}`}
-                    >
-                      {item.token}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowDuplicateModal(false)}
+                className="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDuplicate}
+                className="px-3 py-1 text-xs font-black rounded-lg bg-amber-600 hover:bg-amber-500 text-white shadow-xs cursor-pointer flex items-center gap-1"
+              >
+                <Plus size={12} />
+                <span>Create Template</span>
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
