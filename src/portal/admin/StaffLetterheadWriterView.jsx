@@ -838,9 +838,9 @@ export default function StaffLetterheadWriterView({
             </div>
           </div>
 
-          {/* Official A4 Letterhead Sheet (Centered Canvas with Generous Margin) */}
-          <div className="bg-slate-100 dark:bg-slate-950 p-2.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-inner flex justify-center overflow-x-auto">
-            <div className="bg-white rounded-lg shadow-md border border-slate-300 w-full max-w-[620px] p-4 sm:p-6 text-slate-900 font-sans flex flex-col justify-between min-h-[580px]">
+          {/* Official Letterhead Sheet (Full-Width 2/3 Studio Canvas) */}
+          <div className="bg-slate-100 dark:bg-slate-950 p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-inner overflow-x-auto">
+            <div className="bg-white rounded-lg shadow-md border border-slate-300 w-full p-4 sm:p-7 text-slate-900 font-sans flex flex-col justify-between min-h-[640px]">
               
               <div>
                 {/* Official Letterhead Header Banner (Soft Ice-Blue Background) */}
