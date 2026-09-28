@@ -4,7 +4,8 @@ import {
   ShieldCheck, Eye, EyeOff, Lock, User, GraduationCap, UserCheck, 
   AlertCircle, CheckCircle, ArrowRight, RefreshCw, Crown, Sparkles, 
   KeyRound, Mail, School, Award, CheckCircle2, ChevronRight, Compass,
-  Send, ExternalLink, ArrowLeft, ShieldAlert, X
+  Send, ExternalLink, ArrowLeft, ShieldAlert, X, Globe, FileText,
+  Layers, Search, Building2, QrCode, BookOpen, ChevronDown, ChevronUp, Check
 } from 'lucide-react';
 import SEO from '../components/SEO';
 import ModernLoader from '../components/ModernLoader';
@@ -1028,44 +1029,110 @@ export default function LoginPage() {
     }
   };
 
-  // Role preview metadata for left hero card
-  const ROLE_DETAILS = {
+  // Comprehensive Institutional ERP Pillars Specification
+  const ERP_PILLARS = {
     student: {
-      badge: 'Student Portal Desk',
+      id: 'student',
+      tabLabel: 'Students',
+      badge: 'Student Services Desk',
       title: 'Online Admissions & Academic Dashboard',
-      desc: 'Access your application status, download examination roll slips, verify fee receipts, and track attendance.',
-      features: ['Admission Status & Roll Slips', 'Digital Fee Receipts & History', 'Practicals & Marks Evaluation'],
-      color: 'teal',
+      desc: 'Self-service digital desk for admission applications, exam cards, fees, and results.',
+      themeClass: 'bg-teal-500/10 text-teal-600 border border-teal-500/20',
       icon: GraduationCap,
+      modules: [
+        { name: 'Online Admissions', desc: 'Provisional & regular 11th/12th forms with photo compression' },
+        { name: 'Roll Slips & Admit Cards', desc: 'Instant downloadable exam slips with security credentials' },
+        { name: 'Digital Fee Receipts', desc: 'Session fee receipts, payment ledger & transparent records' },
+        { name: 'Marks & Evaluations', desc: 'Subject-wise Pre-Board & term evaluation scorecard lookup' },
+        { name: 'Attendance & Allocation', desc: 'Real-time attendance rolls & elective subject confirmation' },
+        { name: 'Profile & Application Hub', desc: 'Multi-application tracker, withdrawal & profile updates' }
+      ],
+      quickLinks: [
+        { label: 'Check Results', to: '/results', icon: Search },
+        { label: 'Admissions 2026', to: '/admissions', icon: ArrowRight }
+      ]
     },
     teacher: {
-      badge: 'Faculty Workspace Desk',
+      id: 'teacher',
+      tabLabel: 'Faculty',
+      badge: 'Faculty Academic Workspace',
       title: 'Staff & Practical Evaluation Portal',
-      desc: 'Record daily class attendance, upload awards and practical marks, and manage subject circulars.',
-      features: ['Class Attendance Management', 'Practicals & Awards Evaluation', 'Student Academic Registers'],
-      color: 'emerald',
+      desc: 'Daily attendance, subject practicals, theory evaluation, and 1-click award rolls.',
+      themeClass: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
       icon: UserCheck,
+      modules: [
+        { name: 'Attendance Registers', desc: 'Daily multi-class roll calls with automated monthly aggregations' },
+        { name: 'Practicals & Theory Marks', desc: 'Key-navigation keyboard entry, auto-save drafts & validation' },
+        { name: '1-Click PDF Award Rolls', desc: 'Official print-ready and exportable J&K format marks sheets' },
+        { name: 'Tier-Isolated Class Rosters', desc: 'Segregated Secondary (9th-10th) & Higher Secondary (11th-12th)' },
+        { name: 'Cross-Subject Allocation', desc: 'Permission-governed subject and stream assignment desk' },
+        { name: 'Revision & Approval Flow', desc: 'Real-time approval state sync between teachers & admin' }
+      ],
+      quickLinks: [
+        { label: 'Browse Notices', to: '/notices', icon: FileText },
+        { label: 'Academics', to: '/academics', icon: BookOpen }
+      ]
     },
     admin: {
-      badge: 'Admin Control Center',
+      id: 'admin',
+      tabLabel: 'Admin',
+      badge: 'Institutional Control Center',
       title: 'Master School Management Suite',
-      desc: 'Manage student registers, roll number allocations, subject definitions, and automated email dispatches.',
-      features: ['Master Register & Admissions', 'Roll No Auto-Assigner Suite', 'Fund Accounts & Automations'],
-      color: 'purple',
+      desc: 'Institutional registers, automated roll numbers, certificate studio, ID cards, and finance.',
+      themeClass: 'bg-purple-500/10 text-purple-600 border border-purple-500/20',
       icon: Lock,
+      modules: [
+        { name: 'Master Admission Registers', desc: 'Tabular class registers, photo rolls & historical archives' },
+        { name: 'Roll No Auto-Assigner', desc: 'Intelligent sequential roll numbering by stream, class & merit' },
+        { name: 'Student Certificate Studio', desc: 'Bonafide, Character, Provisional & Transfer cert generator' },
+        { name: 'Student ID Cards with QR', desc: 'Bulk scannable ID card generation with live verification QR' },
+        { name: 'School Accounts & Fees', desc: 'Complete cashbook, fee distribution ledger & financial audits' },
+        { name: 'Multi-Tier Staff Permissions', desc: 'Granular RBAC, 2-Step verification & activity audit trail' }
+      ],
+      quickLinks: [
+        { label: 'Verify Student', to: '/verify-student', icon: ShieldCheck },
+        { label: 'Public Results', to: '/results', icon: Search }
+      ]
     },
-    superadmin: {
-      badge: 'SuperAdmin Access Mode',
-      title: 'Executive System Control',
-      desc: 'Full administrative access across all student, faculty, financial, and monitoring modules.',
-      features: ['System-wide Override Access', 'Administrative Module Management', 'Security & System Controls'],
-      color: 'amber',
-      icon: Crown,
-    },
+    public: {
+      id: 'public',
+      tabLabel: 'Public',
+      badge: 'Public Services & Transparency',
+      title: 'Digital Campus & Verification Hub',
+      desc: 'Instant public services: exam scorecards, record verification, and notice boards.',
+      themeClass: 'bg-cyan-500/10 text-cyan-600 border border-cyan-500/20',
+      icon: Globe,
+      modules: [
+        { name: 'Public Result Lookup', desc: 'Class 9th, 10th, 11th & 12th tabulated marks card portal' },
+        { name: 'Live QR Student Verification', desc: 'Real-time document & admission authenticity checking' },
+        { name: 'Digital Notice Board & Orders', desc: 'Official institutional orders, exam schedules & notifications' },
+        { name: 'Entrance & GK Test Desk', desc: 'Public talent test registration, syllabus & merit rankings' },
+        { name: 'Curriculum & Streams', desc: 'Medical, Non-Med, Arts, Commerce & Vocational combos' },
+        { name: 'Official Helpdesk & Desks', desc: 'Direct contact with Principal, VP, and Admission counseling' }
+      ],
+      quickLinks: [
+        { label: 'Check Results', to: '/results', icon: Search },
+        { label: 'Verify Student', to: '/verify-student', icon: ShieldCheck },
+        { label: 'Notices', to: '/notices', icon: FileText }
+      ]
+    }
   };
 
-  const activeRoleInfo = ROLE_DETAILS[selectedRole] || ROLE_DETAILS.student;
-  const RoleIcon = activeRoleInfo.icon;
+  // State for active ERP pillar tab displayed in the showcase
+  const [showcaseTab, setShowcaseTab] = useState(
+    selectedRole === 'teacher' ? 'teacher' : (selectedRole === 'admin' || isSuperAdmin ? 'admin' : 'student')
+  );
+  const [mobileModulesExpanded, setMobileModulesExpanded] = useState(false);
+
+  // Sync showcaseTab when user changes role on the login form
+  useEffect(() => {
+    if (selectedRole === 'teacher') setShowcaseTab('teacher');
+    else if (selectedRole === 'admin' || selectedRole === 'superadmin' || isSuperAdmin) setShowcaseTab('admin');
+    else setShowcaseTab('student');
+  }, [selectedRole, isSuperAdmin]);
+
+  const currentPillar = ERP_PILLARS[showcaseTab] || ERP_PILLARS.student;
+  const PillarIcon = currentPillar.icon;
 
   return (
     <div className="portal-auth-page w-full min-h-[calc(100vh-var(--site-header-height,64px))] flex items-center justify-center py-6 px-3 sm:px-6 lg:px-8 relative overflow-hidden transition-colors duration-300">
@@ -1087,7 +1154,7 @@ export default function LoginPage() {
       <div className="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 items-center relative z-10">
 
         {/* LEFT COLUMN: HERO SHOWCASE (Visible on lg+ screens, stacked cleanly on tablet/mobile) */}
-        <div className="lg:col-span-6 space-y-3.5 text-left hidden md:block px-2 sm:px-3">
+        <div className="lg:col-span-6 space-y-3 text-left hidden md:block px-2 sm:px-3">
           
           {/* Institution Header Badge */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-slate-900/5 dark:bg-white/10 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-md">
@@ -1098,56 +1165,106 @@ export default function LoginPage() {
           {/* Main Hero Title */}
           <div>
             <div className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight leading-tight uppercase">
-              <span className="moving-gradient-subtle">Digital Student & Staff</span>{' '}
-              <span className="moving-gradient-text">Portal</span>
+              <span className="moving-gradient-subtle">Digital Campus</span>{' '}
+              <span className="moving-gradient-text">&amp; ERP Suite</span>
             </div>
-            <p className="text-xs sm:text-[13px] font-bold text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed max-w-lg">
-              Official unified portal for students, faculty, and school administration. Access admissions, roll slips, attendance, and exam management.
+            <p className="text-xs sm:text-[12.5px] font-bold text-slate-600 dark:text-slate-400 mt-1 leading-relaxed max-w-lg">
+              Unified institutional platform powering admissions, examination evaluation, verifiable registers, and transparent public services.
             </p>
           </div>
 
-          {/* Dynamic Active Role Feature Card */}
-          <div className="rounded-2xl p-4 border shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-slate-200/80 dark:border-slate-800/80 space-y-3 transition-all duration-300">
+          {/* Interactive 4-Pillar Tabs */}
+          <div className="grid grid-cols-4 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200/90 dark:border-slate-800/90 text-[11px] font-black shadow-2xs">
+            {[
+              { id: 'student', label: 'Students', icon: GraduationCap },
+              { id: 'teacher', label: 'Faculty', icon: UserCheck },
+              { id: 'admin', label: 'Admin', icon: Lock },
+              { id: 'public', label: 'Public', icon: Globe }
+            ].map(tab => {
+              const TabIcon = tab.icon;
+              const isActive = showcaseTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setShowcaseTab(tab.id)}
+                  className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    isActive 
+                      ? 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 shadow-xs font-black border border-slate-200/70 dark:border-slate-700/70' 
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white font-extrabold'
+                  }`}
+                >
+                  <TabIcon size={12} className={isActive ? 'text-teal-600 dark:text-teal-400' : 'opacity-70'} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Dynamic Active Role / Pillar Feature Card */}
+          <div className="rounded-2xl p-4 border shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-slate-200/80 dark:border-slate-800/80 space-y-2.5 transition-all duration-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className={`p-2 rounded-xl ${
-                  isSuperAdmin ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' 
-                  : selectedRole === 'teacher' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' 
-                  : 'bg-teal-500/10 text-teal-600 border border-teal-500/20'
-                }`}>
-                  <RoleIcon size={18} />
+                <div className={`p-2 rounded-xl ${currentPillar.themeClass}`}>
+                  <PillarIcon size={18} />
                 </div>
                 <div>
-                  <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 block">
-                    {activeRoleInfo.badge}
+                  <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 block leading-tight">
+                    {currentPillar.badge}
                   </span>
-                  <h3 className="text-[13px] font-black text-slate-900 dark:text-white">
-                    {activeRoleInfo.title}
+                  <h3 className="text-[13px] font-black text-slate-900 dark:text-white leading-tight">
+                    {currentPillar.title}
                   </h3>
                 </div>
               </div>
 
-              <span className="flex items-center gap-1 text-[10.5px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                <CheckCircle2 size={11} /> Active
+              <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0">
+                <CheckCircle2 size={11} /> Active Desk
               </span>
             </div>
 
-            <p className="text-[11.5px] font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
-              {activeRoleInfo.desc}
+            <p className="text-[11.5px] font-medium text-slate-600 dark:text-slate-400 leading-snug">
+              {currentPillar.desc}
             </p>
 
-            <div className="pt-1 space-y-1.5 border-t border-slate-100 dark:border-slate-800">
-              {activeRoleInfo.features.map((feat, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-[11.5px] font-bold text-slate-700 dark:text-slate-300">
-                  <div className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0" />
-                  <span>{feat}</span>
+            {/* Compact 2-Column Grid of 6 Key Features */}
+            <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+              {currentPillar.modules.map((mod, idx) => (
+                <div key={idx} className="p-1.5 rounded-lg bg-slate-50/70 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/80 flex flex-col justify-start">
+                  <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-800 dark:text-slate-200">
+                    <div className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0" />
+                    <span className="truncate">{mod.name}</span>
+                  </div>
+                  <span className="text-[9.5px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5 pl-3">
+                    {mod.desc}
+                  </span>
                 </div>
               ))}
+            </div>
+
+            {/* Direct Visitor Action Bar */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-1.5 text-[10.5px]">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Direct Access:</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {currentPillar.quickLinks.map((ql, idx) => {
+                  const QlIcon = ql.icon || ArrowRight;
+                  return (
+                    <Link
+                      key={idx}
+                      to={ql.to}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 dark:hover:bg-teal-900/60 border border-teal-200/70 dark:border-teal-800/70 transition-colors cursor-pointer"
+                    >
+                      <QlIcon size={10.5} />
+                      <span>{ql.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {/* Quick System Stats Footer Bar */}
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-1 px-1">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-0.5 px-1">
             <span className="flex items-center gap-1.5">
               <ShieldCheck size={13} className="text-teal-600 dark:text-teal-400" />
               256-Bit Encrypted Session
@@ -1684,6 +1801,113 @@ export default function LoginPage() {
             </>
           )}
 
+          </div>
+
+          {/* MOBILE-ONLY COMPACT ERP ECOSYSTEM EXPANDER */}
+          <div className="md:hidden mt-3 w-full animate-fadeIn">
+            <button
+              type="button"
+              onClick={() => setMobileModulesExpanded(!mobileModulesExpanded)}
+              className="w-full py-2 px-3 rounded-xl border bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-slate-200/90 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 shadow-2xs hover:border-teal-500/50 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles size={13} className="text-teal-600 dark:text-teal-400 shrink-0" />
+                <span className="font-black text-slate-900 dark:text-slate-100 text-[11.5px]">
+                  {mobileModulesExpanded ? 'Hide ERP Capabilities' : 'Explore All ERP Modules & Services'}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20 flex items-center gap-1">
+                <span>{mobileModulesExpanded ? 'Hide' : '4 Pillars'}</span>
+                {mobileModulesExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              </span>
+            </button>
+
+            {mobileModulesExpanded && (
+              <div className="mt-2 p-3 rounded-2xl border bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-slate-200/90 dark:border-slate-800 shadow-md space-y-2.5 animate-fadeIn">
+                {/* 4 Tabs on Mobile */}
+                <div className="grid grid-cols-4 p-0.5 rounded-xl bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200/90 dark:border-slate-800/90 text-[10px] font-black">
+                  {[
+                    { id: 'student', label: 'Students', icon: GraduationCap },
+                    { id: 'teacher', label: 'Faculty', icon: UserCheck },
+                    { id: 'admin', label: 'Admin', icon: Lock },
+                    { id: 'public', label: 'Public', icon: Globe }
+                  ].map(tab => {
+                    const TabIcon = tab.icon;
+                    const isActive = showcaseTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setShowcaseTab(tab.id)}
+                        className={`py-1.5 px-0.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                          isActive 
+                            ? 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 shadow-xs font-black border border-slate-200/70 dark:border-slate-700/70' 
+                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white font-extrabold'
+                        }`}
+                      >
+                        <TabIcon size={11} className={isActive ? 'text-teal-600 dark:text-teal-400' : 'opacity-70'} />
+                        <span className="truncate">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Mobile Active Pillar Info */}
+                <div className="space-y-2 text-left">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
+                        {currentPillar.badge}
+                      </span>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white">
+                        {currentPillar.title}
+                      </h4>
+                    </div>
+                    <span className="text-[9.5px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      Active
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 leading-snug">
+                    {currentPillar.desc}
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-1.5 pt-1">
+                    {currentPillar.modules.map((mod, idx) => (
+                      <div key={idx} className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
+                        <div className="text-[10.5px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0" />
+                          <span>{mod.name}</span>
+                        </div>
+                        <span className="text-[9px] text-slate-500 dark:text-slate-400 block pl-3 leading-tight mt-0.5">
+                          {mod.desc}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Mobile Quick Links */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5 flex-wrap">
+                    <span className="text-[9.5px] font-bold text-slate-400 uppercase">Direct Access:</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {currentPillar.quickLinks.map((ql, idx) => {
+                        const QlIcon = ql.icon || ArrowRight;
+                        return (
+                          <Link
+                            key={idx}
+                            to={ql.to}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[10px] text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 border border-teal-200/70 dark:border-teal-800/70"
+                          >
+                            <QlIcon size={10} />
+                            <span>{ql.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

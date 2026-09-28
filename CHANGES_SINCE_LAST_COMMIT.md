@@ -2,57 +2,51 @@
 
 ## Current Working Changes
 
-### 1. Fix Student Scorecard Ghost Elective (Economics vs Urdu) End-to-End
-- **Issue Reported:**
-  - Student *Mohammad Asif Sheikh Moochi* (Class 11th Humanities, Roll 177, Form 250496, Reg 2401003000900020) was showing `Economics [EC]` as a 6th subject marked `AB (ABSENT)` dragging down their total to `39 / 300 (15.6%)`, even though his elective was supposed to be changed from Economics to Urdu.
-- **Root Cause:**
-  - Before the student changed his elective to Urdu, an earlier teacher submission for `11th_Economics_Pre-Board Test_2025-26` had recorded him with `totalMarks: "AB"`.
-  - In `PublicResultLookup.jsx` (`computeScorecardSubjects`), any teacher mark (including absent "AB") caused un-enrolled subjects to bypass the student's enrolled subject filter and render as an extra 6th subject.
-- **End-to-End Resolutions:**
-  - **Firestore Database Clean-up:**
-    - Pruned Mohammad Asif Sheikh Moochi from `practicalsData/11th_Economics_Pre-Board Test_2025-26`. The document now has exactly 16 valid records.
-    - Verified that his Urdu marks (Record #55 in `11th_Urdu_Pre-Board Test_2025-26`) remain intact with marks: `0`.
-    - Verified that in `admissions/adm_250496` and `verifiedStudentsCatalog.json`, his 5 subjects are strictly: `General English, Urdu, Education, History, Healthcare`.
-  - **Client Scorecard Safeguard ([PublicResultLookup.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/PublicResultLookup.jsx)):**
-    - Updated `computeScorecardSubjects` to strictly enforce enrolled subjects when `matchedStudent.subjects` is populated.
-    - Absent marks (`isAbsentMark`) in un-enrolled subjects are excluded so dropped/transferred subjects are never appended as phantom electives.
-  - **API Serverless Safeguard ([netlify/functions/public-result.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/netlify/functions/public-result.js)):**
-    - Pre-extracted `expectedCodes = expectedSubjectCodes(data)` before evaluating sections.
-    - If `expectedCodes.length > 0`, skipped sections that do not match the student's expected subject codes.
-  - **Teacher Evaluation Roster Filter ([PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)):**
-    - When generating class rosters (`rosterScope !== 'all_class'`), students whose enrolled subjects do not match `targetSubjCode` / `targetSubjName` are excluded from the award roll, preventing students who changed subjects from lingering in old teacher mark entry sheets.
+### 1. Unified Digital Campus & Institutional ERP Showcase Across Website
+- **Context & Requirement:**
+  - The user requested:
+    > *"on login page.....check all functionalities and modules and update in in compact manner whatever student/teacher/admins are offered and in general what website offers.....update relevant locations of website so that an visiter understadns overall about the erp...."*
+  - The login page previously only rendered a minimal 3-bullet card for whichever role was selected, leaving visitors unaware of the true scope of the ERP (registers, results, certificates, ID cards, accounts, public verification, etc.), and on mobile devices the hero section was completely hidden.
 
-### 2. Staff Permissions Tier Isolation & Assigned Classes Display
-- **Changes in [StaffPermissionsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffPermissionsManager.jsx):**
-  - Grouped Assigned Classes into two dedicated visual cards: *Secondary (9th & 10th)* and *Higher Secondary (11th & 12th)*.
-  - Added active tier indicator badges and per-tier subject count badges.
-  - Fixed `classSubjectMap` so empty tiers evaluate to `[]` instead of leaking `cleanSubjects`.
-- **Subject Matching Isolation ([practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js)):**
-  - Isolated Higher Secondary Botany (`BO`) and Zoology (`ZO`) from cross-matching Secondary General Science (`SC`).
+- **Key Implementation Locations:**
 
-### 3. Admission Duplicate Validation Improvements
-- **Changes in [netlify/functions/admission-workflow.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/netlify/functions/admission-workflow.js) & [AdmissionForm.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/student/AdmissionForm.jsx):**
-  - Allowed same registration number in any class-session for mobile and Aadhaar checks.
-  - Allowed parent mobile sharing across different classes for siblings.
-  - Handled `duplicate_aadhaar` errors in `AdmissionForm.jsx`.
+  1. **Login Page ([LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx)):**
+     - **Interactive 4-Pillar Tabs**: Added a compact segmented control at the top of the Left Showcase (`Students`, `Faculty`, `Admin`, `Public Services`), allowing visitors to freely explore all wings of the ERP without affecting the login form.
+     - **Automatic Synchronization**: Tab seamlessly synchronizes when switching roles (`Student`, `Teacher`, `Admin`) on the right-side authentication form.
+     - **High-Density 6-Feature Matrix**: Each pillar showcases 6 key modules with concise micro-descriptions:
+       - *Student Suite*: Online Admissions, Exam Roll Slips & Admit Cards, Digital Fee Receipts, Pre-Board & Term Scorecards, Real-time Attendance & Stream Allocation, Profile & Multi-App Hub.
+       - *Faculty Workspace*: Attendance Registers, Keyboard-Nav Practical & Theory Entry, 1-Click Printable PDF Award Rolls, Tier-Isolated Class Rosters, Cross-Subject Allocations, Revision Workflows.
+       - *Admin Control Center*: Master Admission Registers & Tabular Rolls, Auto Roll Assigner Engine, Certificate Studio (Bonafide/Character/Transfer), ID Card Manager with Live QR, School Accounts & Fees, Multi-Tier Staff Permissions & 2SV.
+       - *Public Services*: Instant Public Result Lookup, Live QR Student Verification Desk, Digital Notice Board, GK Entrance Test Portal, Academic Streams & Curriculum, Helpdesk & Leadership Desks.
+     - **Direct Visitor Access Chips**: Clickable deep links at the bottom (`Check Results`, `Verify Student`, `Admissions 2026`, `Notices`) for instant visitor routing.
+     - **Mobile Phone Expander**: Added a collapsible, touch-friendly 4-pillar ERP drawer right below the login card for mobile visitors.
+
+  2. **Public Portal Directory ([LoginPortal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/LoginPortal.jsx)):**
+     - Upgraded the public `/login` portal landing page into an institutional directory.
+     - Features 4 distinct modern cards (Students, Faculty, Admin, Public) with direct access buttons (`Open Student Portal`, `Faculty Login`, `Admin Control Center`, `Public Results & Verification`).
+     - Added quick links and system trust highlights (256-Bit SSL/TLS, Real-time Cloud Sync, Session 2025–26).
+
+  3. **Homepage ([Home.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Home.jsx)):**
+     - Added a dedicated, high-impact **Institutional ERP & Digital Campus** section.
+     - Highlights the 4 core pillars with direct launch buttons, bridging the gap between general visitors and institutional web services.
+
+  4. **Site Footer ([Footer.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/components/Footer.jsx)):**
+     - Expanded Quick Links with direct routes to `Results & Marksheets`, `Verify Student`, `Notice Board`, and `Student & Staff ERP`.
 
 ---
 
 ## Files Modified
-- `src/pages/PublicResultLookup.jsx`
-- `netlify/functions/public-result.js`
-- `src/portal/teacher/PracticalsPage.jsx`
-- `src/portal/admin/StaffPermissionsManager.jsx`
-- `src/utils/practicalsSettingsManager.js`
-- `netlify/functions/admission-workflow.js`
-- `src/portal/student/AdmissionForm.jsx`
+- `src/portal/LoginPage.jsx`
+- `src/pages/LoginPortal.jsx`
+- `src/pages/Home.jsx`
+- `src/components/Footer.jsx`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(results): eliminate ghost economics elective for student asif, enforce enrolled subject filtering, and isolate staff tier assignments
+feat(portal): add comprehensive 4-pillar compact ERP showcase on login page and across website
 ```
 
 ---
@@ -67,14 +61,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "fix(results): eliminate ghost economics elective for student asif, enforce enrolled subject filtering, and isolate staff tier assignments"
+git commit -m "feat(portal): add comprehensive 4-pillar compact ERP showcase on login page and across website"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "fix(results): eliminate ghost economics elective for student asif, enforce enrolled subject filtering, and isolate staff tier assignments"
+git commit -m "feat(portal): add comprehensive 4-pillar compact ERP showcase on login page and across website"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
