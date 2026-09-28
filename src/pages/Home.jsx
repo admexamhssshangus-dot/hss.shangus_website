@@ -21,7 +21,7 @@ const formatCounterVal = (val, endVal, compact) => {
 };
 
 // Modern Counter Animation Component - Direct DOM animation without React re-rendering thrash
-const AnimatedCounter = ({ end, prefix = '', suffix = '', compact = false }) => {
+const AnimatedCounter = ({ end, prefix = '', suffix = '', compact = false, active = null, delay = 0 }) => {
   const valueSpanRef = useRef(null);
   const animatedRef = useRef(false);
 
@@ -30,10 +30,11 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '', compact = false }) => 
     if (!span) return;
 
     let animationFrameId = null;
+    let timeoutId = null;
 
     const startAnimation = () => {
       let startTime = null;
-      const duration = 1500;
+      const duration = 1200;
 
       const animate = (timestamp) => {
         if (!startTime) startTime = timestamp;
@@ -45,12 +46,36 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '', compact = false }) => 
         }
         if (progress < 1) {
           animationFrameId = window.requestAnimationFrame(animate);
+        } else if (span) {
+          span.textContent = formatCounterVal(end, end, compact);
         }
       };
 
-      animationFrameId = window.requestAnimationFrame(animate);
+      if (delay > 0) {
+        timeoutId = setTimeout(() => {
+          animationFrameId = window.requestAnimationFrame(animate);
+        }, delay);
+      } else {
+        animationFrameId = window.requestAnimationFrame(animate);
+      }
     };
 
+    // Controlled mode: responds directly to active prop on every scroll
+    if (active !== null) {
+      if (active) {
+        startAnimation();
+      } else {
+        if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
+        if (timeoutId) clearTimeout(timeoutId);
+        span.textContent = formatCounterVal(0, end, compact);
+      }
+      return () => {
+        if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+    }
+
+    // Uncontrolled mode: initial viewport detection
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && !animatedRef.current) {
@@ -67,17 +92,94 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '', compact = false }) => 
     return () => {
       observer.disconnect();
       if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [end, compact]);
+  }, [end, compact, active, delay]);
 
   return (
     <span>
       {prefix}
-      <span ref={valueSpanRef}>{formatCounterVal(end, end, compact)}</span>
+      <span ref={valueSpanRef}>{formatCounterVal(active !== null ? 0 : end, end, compact)}</span>
       {suffix}
     </span>
   );
 };
+
+// Interactive Stat Card - Replays count-up and entrance animation whenever scrolled into view
+function HomeStatCard({ stat, index }) {
+  const [inView, setInView] = useState(false);
+  const cardRef = useRef(null);
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setInView(entry.isIntersecting);
+      },
+      { threshold: 0.15 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const IconComponent = stat.icon;
+
+  return (
+    <div
+      ref={cardRef}
+      className={`relative overflow-hidden bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-xl border transition-all duration-500 hover:-translate-y-1 group ${stat.glow} ${
+        inView
+          ? 'border-slate-300 dark:border-slate-700 shadow-md translate-y-0 opacity-100'
+          : 'border-slate-200/90 dark:border-slate-800 translate-y-1.5 opacity-90'
+      }`}
+    >
+      {/* Top Accent Gradient Bar - Animates width when scrolled into view */}
+      <div
+        className={`absolute top-0 left-0 h-1 bg-gradient-to-r ${stat.accentBar} transition-all duration-700 ease-out ${
+          inView ? 'w-full opacity-100' : 'w-0 opacity-0'
+        }`}
+      />
+
+      {/* Adaptive layout: Executive spacious layout on mobile taking more vertical space, Centered vertical on sm/lg */}
+      <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-center py-6 px-4 xs:px-5 sm:p-5 text-left sm:text-center gap-3 sm:gap-0 min-h-[92px] sm:min-h-0">
+        <div className="flex items-center gap-3.5 sm:flex-col sm:gap-0">
+          <div
+            className={`w-13 h-13 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center border sm:mb-2.5 transition-all duration-500 group-hover:scale-110 ${stat.colorClass} shadow-xs flex-shrink-0 ${
+              inView ? 'scale-100 rotate-0' : 'scale-90 -rotate-3'
+            }`}
+          >
+            <IconComponent size={26} className="stroke-[2.5]" />
+          </div>
+          <div className="sm:text-center">
+            <p className="text-xs xs:text-[13px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider sm:tracking-widest sm:mt-1">
+              {stat.label}
+            </p>
+            <span className="sm:hidden text-[11.5px] xs:text-xs text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
+              {stat.subtext}
+            </span>
+          </div>
+        </div>
+        <div className="text-right sm:text-center">
+          <h4 className="text-2xl xs:text-3xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none font-slogan">
+            <AnimatedCounter
+              end={stat.end}
+              prefix={stat.prefix}
+              suffix={stat.suffix}
+              active={inView}
+              delay={index * 100}
+            />
+          </h4>
+          <span className="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
+            {stat.subtext}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const parseNoticeDate = (dateStr) => {
   if (!dateStr) return null;
@@ -874,32 +976,9 @@ export default function Home() {
               { icon: Award, end: 25, suffix: "+", label: "TEACHERS", subtext: "Faculty Mentors", colorClass: 'text-amber-700 bg-amber-50 border-amber-200 hover:shadow-amber-100/50', accentBar: 'from-amber-500 to-orange-500', glow: 'group-hover:border-amber-500/40' },
               { icon: BookOpen, end: 22, suffix: "+", label: "SUBJECTS", subtext: "Academic Streams", colorClass: 'text-indigo-700 bg-indigo-50 border-indigo-200 hover:shadow-indigo-100/50', accentBar: 'from-indigo-500 to-blue-500', glow: 'group-hover:border-indigo-500/40' },
               { icon: GraduationCap, end: 90, suffix: "%+", label: "RESULT", subtext: "Board Pass Rate", colorClass: 'text-rose-700 bg-rose-50 border-rose-200 hover:shadow-rose-100/50', accentBar: 'from-rose-500 to-pink-500', glow: 'group-hover:border-rose-500/40' }
-            ].map((stat, i) => {
-              const IconComponent = stat.icon;
-              return (
-                <div key={i} className={`relative overflow-hidden bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-xl border border-slate-200/90 dark:border-slate-800 transition-all duration-300 hover:-translate-y-1 group ${stat.glow}`}>
-                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stat.accentBar}`} />
-                  {/* Adaptive layout: Executive spacious layout on mobile taking more vertical space, Centered vertical on sm/lg */}
-                  <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-center py-6 px-4 xs:px-5 sm:p-5 text-left sm:text-center gap-3 sm:gap-0 min-h-[92px] sm:min-h-0">
-                    <div className="flex items-center gap-3.5 sm:flex-col sm:gap-0">
-                      <div className={`w-13 h-13 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center border sm:mb-2.5 transition-transform duration-300 group-hover:scale-110 ${stat.colorClass} shadow-xs flex-shrink-0`}>
-                        <IconComponent size={26} className="stroke-[2.5]" />
-                      </div>
-                      <div className="sm:text-center">
-                        <p className="text-xs xs:text-[13px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider sm:tracking-widest sm:mt-1">{stat.label}</p>
-                        <span className="sm:hidden text-[11.5px] xs:text-xs text-slate-500 dark:text-slate-400 font-medium block mt-0.5">{stat.subtext}</span>
-                      </div>
-                    </div>
-                    <div className="text-right sm:text-center">
-                      <h4 className="text-2xl xs:text-3xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none font-slogan">
-                        <AnimatedCounter end={stat.end} prefix={stat.prefix} suffix={stat.suffix} />
-                      </h4>
-                      <span className="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">{stat.subtext}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            ].map((stat, i) => (
+              <HomeStatCard key={i} stat={stat} index={i} />
+            ))}
           </div>
 
           {/* Real-time Google Search & Live Traffic (Positioned after the stats cards on Mobile & Tablets) */}

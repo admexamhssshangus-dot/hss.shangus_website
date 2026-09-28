@@ -257,13 +257,23 @@ export default function Footer() {
             {/* 2. Map (Lazy Loaded) */}
             <LazyFooterMap />
 
-            {/* Line 1 */}
-            <div className="w-[2px] h-[10px] bg-[#10b981] m-0 mt-3 md:self-start"></div>
-
-            {/* 3. Address Box */}
-            <div className="text-center md:text-left w-full m-0 p-0 mt-2">
-              <div className="text-slate-400 text-[14px] leading-[1.4] m-0 p-0 font-sans">
-                Main Road, Shangus,<br />Anantnag, J&K - 192201
+            {/* 3. Address & Direct Navigation - Clean, Borderless & Integrated */}
+            <div className="mt-3.5 flex items-start gap-2.5 text-left w-full">
+              <MapPin size={17} className="text-teal-400 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <div className="text-slate-300 text-[13.5px] leading-relaxed font-sans">
+                  Main Road, Shangus,<br />
+                  Anantnag, J&amp;K &mdash; 192201
+                </div>
+                <a
+                  href="https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus+Anantnag"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-400 hover:text-teal-300 mt-2 transition-colors group/dir cursor-pointer"
+                >
+                  <span>Get Directions</span>
+                  <ExternalLink size={12} className="transition-transform group-hover/dir:translate-x-0.5 group-hover/dir:-translate-y-0.5" />
+                </a>
               </div>
             </div>
           </div>
