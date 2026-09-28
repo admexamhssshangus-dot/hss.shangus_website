@@ -2,28 +2,29 @@
 
 ## Current Working Changes
 
-### 1. Notice Board Height Calibration & Principal Message Gap Elimination ([Home.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Home.jsx))
+### 1. Notice Board White Bar Elimination & Absolute Grid Inset Alignment ([Home.jsx](file:///d:/Shk_Gulfam\Projects\hss_shangus\src\pages\Home.jsx))
 - **User Request Addressed:**
-  - *"where there is gap below principal message box....seems notice board card taking more vertical space"*
+  - *"some white bar above browse notice archive"*
 
 - **Root Cause Analysis:**
   - In `src/pages/Home.jsx` (`#home-briefing` section):
-    - The section grid (`grid grid-cols-1 md:grid-cols-12 items-stretch`) forced both the left column (Notice Board) and the right column (Principal Message + Stats Cards) to match each other in total height.
-    - The notice list container was configured with `max-h-[400px] sm:max-h-[430px] md:max-h-[460px]`. With 8 active notices populated, the notice board expanded vertically to ~560px.
-    - The right column container had `flex flex-col justify-between gap-5 sm:gap-6`. Because the parent stretched to ~560px to accommodate the tall notice board, `justify-between` anchored the Principal's Message at the top and the Stats Cards at the very bottom, creating an awkward ~180px–190px dead vertical void in the middle.
+    - The Right Column (Principal Message + Stats Cards) naturally measures ~442px in total height.
+    - Because the parent grid applies `items-stretch`, the Left Column (Notice Board card) was stretched to match that 442px height.
+    - Inside the Notice card, the header is 49px, the footer is 58px, and available content height was ~335px.
+    - However, the list had a hardcoded `max-h-[265px]`, and the footer had `mt-auto`.
+    - This caused the list to freeze at 265px while `mt-auto` pushed the footer to the very bottom, creating a **~68.5px empty void** of card background (`bg-white`) directly above the "Browse Notice Archive" button, appearing as a thick, awkward white bar.
 
-- **Key Implementations & Layout Calibration:**
-  1. **Notice List Max-Height Optimization:**
-     - Reduced the notice list scroll container from `max-h-[400px] sm:max-h-[430px] md:max-h-[460px]` to `max-h-[240px] sm:max-h-[255px] md:max-h-[265px]`.
-     - Displays 4–5 notices cleanly at a glance while allowing smooth vertical scrolling for older updates, with direct access to the full notice archive.
-     - Capped total Notice Board card height at ~355px.
-  2. **Right Column Alignment & Natural Spacing:**
-     - Switched right column alignment from `justify-between gap-5 sm:gap-6` to `justify-start md:justify-between gap-3.5 sm:gap-4`.
-     - Calibrated Principal Card inner padding from `p-3.5 sm:p-6` to `p-3.5 sm:p-5`.
-     - Tightened header margin from `mb-3` to `mb-2.5 sm:mb-3`.
-  3. **Visual & Geometric Balance:**
-     - Both columns now calibrate naturally to ~350px–360px.
-     - The dead vertical void below the Principal's Message is eliminated, replaced with a clean, cohesive, and balanced 14px–16px (`gap-3.5 sm:gap-4`) spacing directly above the Stats cards.
+- **Key Implementations & Layout Architecture:**
+  1. **Grid Inset Positioning (`md:relative` + `md:absolute md:inset-0`):**
+     - Left column wrapper is set to `md:relative`, allowing the Right Column to dictate the true natural row height (~442px) without circular expansion.
+     - The inner Notice card is set to `md:absolute md:inset-0`, cleanly filling 100% of the grid cell height.
+  2. **Seamless List Fill (`flex-1 min-h-0 md:max-h-none`):**
+     - Replaced hardcoded `max-h-[265px]` on desktop with `flex-1 min-h-0 md:max-h-none max-h-[300px]`.
+     - On desktop, the list now expands to fill the entire remaining 334px of card height directly from header to footer with **0px margin/gap**.
+     - On mobile screens (`< md`), `max-h-[300px]` keeps the list compact and scrollable so phone visitors don't have to scroll excessively.
+  3. **Zero-Gap Footer Integration:**
+     - Removed `mt-auto` and added `shrink-0` to the header and footer containers.
+     - The notice list touches the top border of the footer directly, and the custom scrollbar extends smoothly all the way to the footer border.
 
 ---
 
@@ -35,7 +36,7 @@
 
 ## Local Commit Message
 ```bash
-fix(home): eliminate vertical gap below principal message by calibrating notice board height
+fix(home): eliminate white bar above notice archive button via absolute grid cell positioning
 ```
 
 ---
@@ -50,14 +51,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "fix(home): eliminate vertical gap below principal message by calibrating notice board height"
+git commit -m "fix(home): eliminate white bar above notice archive button via absolute grid cell positioning"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "fix(home): eliminate vertical gap below principal message by calibrating notice board height"
+git commit -m "fix(home): eliminate white bar above notice archive button via absolute grid cell positioning"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
@@ -66,4 +67,5 @@ git commit -m "fix(home): eliminate vertical gap below principal message by cali
 ```bash
 git push origin main
 ```
+
 
