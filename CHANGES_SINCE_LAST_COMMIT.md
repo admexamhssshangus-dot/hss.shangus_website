@@ -2,20 +2,26 @@
 
 ## Current Working Changes
 
-### 1. Decrease Font Size by 2 Points for Remarks Column
+### 1. Compact Admission Remarks, Increase Font Size, and Enable Full-Text Wrapping Without Truncation
 - **Context & Requirement:**
-  - In Part 2 of the Admission Register, the `REMARKS` column (`data-col="p2_remarks"`) had a previous font size of `7.2px` (screen/print) and `line-clamp-3`.
-  - Detailed remarks (such as *"Gap case, hence, readmitted for class 12th, 2026 (oct-nov..."*) were overflowing the 3-line clamp and being truncated with ellipsis.
-  - The user requested: *"decrease font size by 2 points"*.
+  - In Part 2 of the Admission Register (`REMARKS` column, `data-col="p2_remarks"`), long boilerplate remarks (e.g. *"Gap case, hence, readmitted for class 12th, 2026 (oct-nov session) • Prev Adm: (4769) • Marks card submitted & verified"*) were overflowing the 3-line clamp and being truncated with ellipsis (`...`).
+  - The previous reduction to `5.2px` made the font difficult to read while still truncating text at line 3.
+  - The user requested:
+    > *"wrap text correctly to show full text make font size larger.....moreover make the reamarks compact......"*
 - **Resolutions in [AdmissionRegisterSuite.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdmissionRegisterSuite.jsx):**
-  - **Screen & Print Stylesheets:**
-    - Reduced font size in print CSS from `7.2px` to `5.2px` (`4.8px` for 16+ students per page) with `line-height: 1.08`.
-    - Added dedicated screen CSS rules for `.admission-spread-table td[data-col="p2_remarks"]`, `.remarks-wrap`, and `.line-clamp-3` setting `font-size: 5.2px !important; line-height: 1.1 !important;`.
-  - **Table Body JSX:**
-    - Updated `td` class and inline style from `text-[7.2px]` to `text-[5.2px]` and `style={{ fontSize: '5.2px' }}`.
-    - Updated the inner `.remarks-wrap` container to `style={{ fontSize: '5.2px', lineHeight: 1.1 }}`.
-- **Result:**
-  - Long multi-sentence remarks now fit fully within the 3 visible lines without truncation or awkward cell boundary spillover.
+  - **Compact Remarks Generator & Formatter (`formatCompactRemark` & `buildClass12ReadmissionRemark`):**
+    - Created `formatCompactRemark(remark)` to automatically abbreviate verbose re-admission boilerplate across existing Firestore records and newly entered records:
+      - Transforms `"Gap case, hence, readmitted for class 12th, 2026 (oct-nov session) • Prev Adm: (4769) • Marks card submitted & verified"` into crisp, compact format:
+        `"Gap case: Re-adm 12th, 2026 (Oct-Nov) • Prev Adm: 4769 • Marks card verified"` (reduces character count from 118 to 74 — a 37% reduction).
+      - Simplifies `"Marks card submitted & verified"` to `"Marks card verified"`.
+      - Cleans `"Prev Adm: (4769)"` to `"Prev Adm: 4769"`.
+    - Updated `buildClass12ReadmissionRemark` to directly produce the compact format.
+    - Updated the Re-admission Modal default remark generator and textarea placeholder to match.
+  - **Increased Font Size & Expanded Line Clamping:**
+    - Increased font size from `5.2px` back up to `7.2px` (and `6.8px` for dense 16+ print pages) with tight line height (`leading-[1.12]`).
+    - Expanded `-webkit-line-clamp` from 3 lines to 5 lines (`line-clamp-4` / `line-clamp-5`) so that the compact text wraps naturally over 3 to 4 lines and displays in its entirety with zero trailing ellipsis (`...`) and zero cutoff.
+  - **Register Table Rendering:**
+    - Rendered `{formatCompactRemark(s.remarks)}` in the Part 2 table cell while retaining the un-compacted full text in the `title={s.remarks}` tooltip on hover for complete audit trail.
 - **Build Verification:**
   - Tested with `npm run build` — completed with `Exit Code 0` and zero breaking errors.
 
@@ -29,7 +35,7 @@
 
 ## Local Commit Message
 ```bash
-style(admission-register): decrease remarks column font size by 2pt to prevent truncation
+style(admission-register): compact remarks text, increase font size to 7.2px, and enable full wrap without truncation
 ```
 
 ---
@@ -44,14 +50,14 @@ git diff --staged
 ### If you want to commit manually:
 ```bash
 git add .
-git commit -m "style(admission-register): decrease remarks column font size by 2pt to prevent truncation"
+git commit -m "style(admission-register): compact remarks text, increase font size to 7.2px, and enable full wrap without truncation"
 ```
 
 ### To amend or edit this commit:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "style(admission-register): decrease remarks column font size by 2pt to prevent truncation"
+git commit -m "style(admission-register): compact remarks text, increase font size to 7.2px, and enable full wrap without truncation"
 ```
 
 ### Remote Push (STRICT MANUAL STEP):
