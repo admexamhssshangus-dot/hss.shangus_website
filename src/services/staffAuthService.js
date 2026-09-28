@@ -481,8 +481,9 @@ export async function sendAdminSignInVerificationLink(email, handshakeId = '') {
  */
 export async function sendStaffPasswordReset(email) {
   const cleanEmail = String(email || '').trim().toLowerCase();
+  const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://hssshangus.in';
   await sendPasswordResetEmail(auth, cleanEmail, {
-    url: `${window.location.origin}/portal/login`,
+    url: `${origin}/portal/auth/action`,
     handleCodeInApp: false,
   });
   return { success: true, message: `✨ Password reset email successfully sent to ${cleanEmail}.` };
@@ -640,8 +641,9 @@ export async function createStaffAccount({
   // 5. Send setup/reset link if requested (or if no password was provided)
   if (sendSetupEmail || !password) {
     try {
+      const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://hssshangus.in';
       await sendPasswordResetEmail(auth, cleanEmail, {
-        url: `${window.location.origin}/portal/login`,
+        url: `${origin}/portal/auth/action`,
         handleCodeInApp: false,
       });
     } catch (e) {
@@ -763,8 +765,9 @@ export async function updateStaffAccount({
 
   if (sendResetEmail) {
     try {
+      const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://hssshangus.in';
       await sendPasswordResetEmail(auth, cleanNew, {
-        url: `${window.location.origin}/portal/login`,
+        url: `${origin}/portal/auth/action`,
         handleCodeInApp: false,
       });
     } catch (e) {

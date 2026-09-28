@@ -151,17 +151,43 @@ export default function LoginPage() {
   });
   const [resendCooldown, setResendCooldown] = useState(0);
 
+  // If the user arrives with a password reset or auth action link (e.g. from Firebase email or continueUrl),
+  // forward immediately to the dedicated AuthActionPage so it is handled correctly rather than as a 2SV login!
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '');
+    const mode = searchParams.get('mode') || hashParams.get('mode');
+    const oobCode = searchParams.get('oobCode') || hashParams.get('oobCode');
+    if (oobCode && (mode === 'resetPassword' || mode === 'verifyEmail' || mode === 'recoverEmail')) {
+      navigate(`/portal/auth/action${window.location.search}${window.location.hash}`, { replace: true });
+    }
+  }, [navigate]);
+
   // Window 2: Successful verification confirmation state (when link was clicked in this tab)
   const [window2VerifiedState, setWindow2VerifiedState] = useState(null);
   const [closeTabNote, setCloseTabNote] = useState(false);
 
+  // Check if current URL parameters indicate a dedicated Auth Action (e.g. password reset or email verification)
+  const isAuthActionUrl = (() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '');
+      const mode = searchParams.get('mode') || hashParams.get('mode');
+      return mode === 'resetPassword' || mode === 'verifyEmail' || mode === 'recoverEmail';
+    } catch (_) {
+      return false;
+    }
+  })();
+
   // Permanent flag for this tab: if opened via verification link, NEVER redirect to dashboard
   const isEmailVerificationTabRef = useRef(
-    window.location.hash.includes('staff_challenge=') ||
-    isSignInWithEmailLink(auth, window.location.href) || 
-    window.location.search.includes('email_link_verify') || 
-    window.location.search.includes('oobCode') ||
-    window.location.search.includes('apiKey')
+    !isAuthActionUrl && (
+      window.location.hash.includes('staff_challenge=') ||
+      isSignInWithEmailLink(auth, window.location.href) || 
+      window.location.search.includes('email_link_verify') || 
+      window.location.search.includes('oobCode') ||
+      window.location.search.includes('apiKey')
+    )
   );
   // Ref guard to prevent double-execution in React StrictMode
   const emailLinkProcessingRef = useRef(false);
@@ -510,6 +536,7 @@ export default function LoginPage() {
   // WINDOW 2 VERIFIER: Check on mount if current URL is an Email Sign-In verification link
   const proofStartedRef = useRef(false);
   useEffect(() => {
+    if (isAuthActionUrl) return;
     // 1. Standard Firebase Auth Email Sign-In Link (Free on Spark Plan)
     if (isSignInWithEmailLink(auth, window.location.href)) {
       if (emailLinkProcessingRef.current) return;

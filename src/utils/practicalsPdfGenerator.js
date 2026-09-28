@@ -440,28 +440,99 @@ const PRINT_ENGINE_CSS = `
 `;
 
 function triggerPrintWindow(htmlContent, pageTitle = 'Official Practical Award Roll — Govt HSS Shangus') {
-  const pwin = window.open('', '_blank');
-  pwin.document.write(`
+  // Clean up any existing print iframe
+  const existingFrame = document.getElementById('practicals-print-frame');
+  if (existingFrame && existingFrame.parentNode) {
+    try {
+      existingFrame.parentNode.removeChild(existingFrame);
+    } catch (_) {}
+  }
+
+  // Create isolated, hidden printing iframe directly on the current document
+  const iframe = document.createElement('iframe');
+  iframe.id = 'practicals-print-frame';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+  iframe.style.zIndex = '-9999';
+  document.body.appendChild(iframe);
+
+  const prevTitle = document.title;
+  let isCleanedUp = false;
+  const cleanupIframe = () => {
+    if (isCleanedUp) return;
+    isCleanedUp = true;
+    try {
+      document.title = prevTitle;
+      if (iframe && iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    } catch (_) {}
+  };
+
+  try {
+    iframe.contentWindow.onafterprint = cleanupIframe;
+  } catch (_) {}
+  setTimeout(cleanupIframe, 120000);
+
+  // Write content directly into the iframe document
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`
     <!DOCTYPE html>
     <html>
       <head>
+        <meta charset="utf-8" />
         <title>${pageTitle}</title>
         <style>${PRINT_ENGINE_CSS}</style>
       </head>
       <body>
         ${htmlContent}
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-              window.close();
-            }, 300);
-          };
-        </script>
       </body>
     </html>
   `);
-  pwin.document.close();
+  doc.close();
+
+  // Temporarily adjust main page title so browser's "Save as PDF" dialog suggests the exact award roll filename
+  try {
+    document.title = pageTitle;
+  } catch (_) {}
+
+  // Trigger print dialog directly with 0 extra clicks and no lingering blank tabs
+  const executePrint = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (err) {
+      console.warn('Iframe print error, falling back to window print:', err);
+      try {
+        window.print();
+      } catch (_) {}
+    }
+  };
+
+  // Wait for all resources (images and custom typography) to be ready before spooling
+  const images = Array.from(doc.images || []);
+  const waitForResources = (attempts = 40) => {
+    const allImagesLoaded = images.length === 0 || images.every(img => img.complete && (img.naturalWidth > 0 || img.style.display === 'none'));
+    if (allImagesLoaded || attempts <= 0) {
+      if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+        iframe.contentWindow.document.fonts.ready
+          .then(() => setTimeout(executePrint, 50))
+          .catch(() => setTimeout(executePrint, 50));
+      } else {
+        setTimeout(executePrint, 50);
+      }
+    } else {
+      setTimeout(() => waitForResources(attempts - 1), 50);
+    }
+  };
+
+  waitForResources();
 }
 
 /**
