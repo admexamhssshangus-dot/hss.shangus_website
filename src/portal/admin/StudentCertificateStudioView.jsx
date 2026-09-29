@@ -5464,11 +5464,11 @@ export default function StudentCertificateStudioView({
         )}
 
       {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
-      <div className="cert-split-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
+      <div className="cert-split-container flex flex-col lg:flex-row lg:flex-nowrap gap-0 items-start w-full relative">
         
         {/* == == == == == == == == LEFT HALF: LIVE A4 CERTIFICATE PREVIEW (2/3 OF PAGE) == == == == == == == == */}
         <div
-          style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
+          style={{ width: isDesktop ? `calc(${leftSplitPct}% - 9px)` : '100%' }}
           className="w-full flex flex-col items-center justify-start shrink-0 min-w-0"
         >
           {/* ─── MOBILE UNIFIED SINGLE-ROW TOOLBAR (Compact & Grouped) ─── */}
@@ -5971,7 +5971,7 @@ export default function StudentCertificateStudioView({
             </div>
 
           {/* == == == == == == == == A4 PAPER LIVE VIEWPORT & EDITOR == == == == == == == == */}
-          <div className="w-full max-w-[860px] min-w-0 mx-auto">
+          <div className="w-full min-w-0">
             <div
                 className="text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] -outline-offset-4 rounded-xl p-4 sm:p-6 shadow-md max-h-[75dvh] lg:max-h-[calc(100dvh-95px)] overflow-y-auto relative flex flex-col justify-start min-h-[520px] lg:min-h-[620px]"
                 style={{
@@ -6342,6 +6342,7 @@ export default function StudentCertificateStudioView({
             </div>
           </div>
         </div>
+        </div>
 
         {/* ── DRAGGABLE VERTICAL SPLITTER HANDLE ── */}
         {isDesktop && (
@@ -6361,7 +6362,7 @@ export default function StudentCertificateStudioView({
         {/* == == == == == == == == RIGHT HALF: UNIFIED TOOLS & FILTERS CARD (DESKTOP) == == == == == == == == */}
         {isDesktop && (
           <div
-            style={{ width: `${100 - leftSplitPct}%` }}
+            style={{ width: isDesktop ? `calc(${100 - leftSplitPct}% - 9px)` : '100%' }}
             className="w-full lg:w-auto shrink-0 pl-0 lg:pl-1 min-w-0"
           >
             <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-xs p-2.5 space-y-2 flex flex-col max-h-[calc(100dvh-95px)] min-h-[580px] overflow-hidden text-xs">
@@ -7274,8 +7275,6 @@ export default function StudentCertificateStudioView({
             </div>
           </div>
         )}
-
-      </div>
 
       </div>
 

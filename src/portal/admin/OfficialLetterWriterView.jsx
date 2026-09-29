@@ -1847,12 +1847,12 @@ export default function OfficialLetterWriterView({
       )}
 
       {/* ─── DUAL-PANE SPLIT CONTAINER: SIDEBAR + SPLITTER + WORKSPACE ─── */}
-      <div className="letter-split-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
+      <div className="letter-split-container flex flex-col lg:flex-row lg:flex-nowrap gap-0 items-start w-full relative">
 
         {/* ─── LEFT WORKSPACE: FORMATTING TOOLBAR & A4 LIVE PAPER SHEET ─── */}
         <div
-          style={{ width: isDesktop ? `${leftSplitPct}%` : "100%" }}
-          className="w-full lg:flex-1 space-y-1.5 pr-0 lg:pr-1 min-w-0"
+          style={{ width: isDesktop ? `calc(${leftSplitPct}% - 9px)` : "100%" }}
+          className="w-full shrink-0 space-y-1.5 pr-0 lg:pr-1 min-w-0"
         >
           {/* ════════ WORKSPACE CANVAS CONTAINER ════════ */}
           <div className="flex flex-col items-center justify-center w-full">
@@ -2341,7 +2341,7 @@ export default function OfficialLetterWriterView({
             </div>
 
 {/* â•�â•�â•�â•�â•�â•�â•�â•� A4 PAPER LIVE VIEWPORT & EDITOR â•�â•�â•�â•�â•�â•�â•�â•� */}
-            <div className="flex-1 w-full max-w-[860px] min-w-0 mx-auto">
+            <div className="flex-1 w-full min-w-0">
               <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-4 sm:p-6 shadow-sm min-h-[420px] flex flex-col justify-start">
                 
                 {/* Top Official Letterhead Header Banner (Soft Ice-Blue Background) - Hidden in web view on mobile to focus on main content, preserved in desktop & print */}
@@ -2506,7 +2506,7 @@ export default function OfficialLetterWriterView({
         {/* ─── RIGHT CONTROLS: UNIFIED TOOLS & TEMPLATES CARD (DESKTOP INLINE) ─── */}
         {isDesktop && (
           <div
-            style={{ width: isDesktop ? `${100 - leftSplitPct}%` : "100%" }}
+            style={{ width: isDesktop ? `calc(${100 - leftSplitPct}% - 9px)` : "100%" }}
             className="w-full lg:w-auto shrink-0 pl-0 lg:pl-1 min-w-0"
           >
             <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-xs p-2.5 space-y-2 flex flex-col max-h-[calc(100dvh-95px)] min-h-[580px] overflow-hidden text-xs">
