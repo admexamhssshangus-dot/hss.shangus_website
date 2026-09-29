@@ -2,48 +2,65 @@
 
 ## Current Working Changes
 
-### Comprehensive Employee Profile & Photo Management in Accounts & Staff Clerk Portal
+### Accurate Letter Subject & Recipient Recognition in Document History & Cloud Archive
 - **User Request Addressed:**
-  - *"allow all fields info including photo accessible/editable to clerk portal"*
+  - *"subject not being recognised/shown correctly"*
 
 - **Context & Problem:**
-  - In the Accounts & Staff Tax Clerk portal (`SchoolAccountsManager.jsx`), staff management was previously constrained to a narrow subset of tax, salary, and basic designation fields.
-  - Clerks could not view, edit, or upload employee passport photos, manage personal identity details (Father's name/parentage, DOB, gender, permanent and present addresses, Aadhar number, category, B.Ed completion status, subject in PG, visibility/active status, inactive reason), service particulars (designation at first appointment, zone name, UDISE code, DDO code HRMS), or manage historical posting profiles and custom fields.
-  - Avatars were generic placeholder icons with no employee photos shown in the directory table or expanded drawers.
+  - In `Document History & Cloud Archive` (`Letters` tab), archived official letters were displaying truncated or corrupted subject lines such as:
+    - `SUBJECT: Office Anantnag`
+    - `SUBJECT: office,`
+  - In the letter print preview, the document actually contained:
+    - **Addressee**:
+      ```text
+      Assistant secretary,
+      JKBOSE Sub-office,
+      Anantnag
+      ```
+    - **Subject**:
+      ```text
+      Sub: Authorization letter in favour of Mr. Shabir Ahmad Khan for collection of 11th & 12th Class mark sheets — [Private/Biannual 2026] Examination.
+      ```
+  - **Root Cause**:
+    1. The previous regex in `extractLetterSubject` matched `(?:Subject|Sub)\s*[:：\-–—]+\s*([^<\n\r]+)`. When parsing the addressee block containing `JKBOSE Sub-office,`:
+       - `(?:Subject|Sub)` matched the prefix `Sub`.
+       - `[:：\-–—]+` matched the hyphen `-` in `Sub-office`.
+       - `([^<\n\r]+)` captured `office,` (or `Office Anantnag`), mistaking the addressee compound noun for the letter's subject line!
+    2. Once generated, this corrupted string was burned into Firestore as `record.subject`.
+    3. In `DocumentHistoryModal.jsx`, cards and search filtering used `rec.subject || (isLetter ? extractLetterSubject(...) : ...)`. Because `rec.subject` was non-empty (storing `"office,"`), it never re-evaluated from the letter snapshot `bodyHtml`.
 
-- **Architectural & UX Solutions Implemented:**
-  1. **5-Tab Comprehensive Establishment & Employee Editor Modal** ([SchoolAccountsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAccountsManager.jsx)):
-     - Replaced the previous single-column basic form with a modern 5-tab segmented editor:
-       - **Personal Details** (`User` icon): Full Name, Parentage (Father's Name), Date of Birth, Gender (Male/Female/Other), Mobile Number, Email Address, Permanent Address, Present Address, Aadhar Number, Category (OM/RBA/OBC/SC/ST/EWS), B.Ed Status (Yes/No/In Progress), Subject in PG, Visibility Status (Visible/Hidden), Deployment Status (Regular/Deployed In/Deployed Out), Inactive Reason (Transferred/Retired/Deployed Out/Other), and Profile/Bio.
-       - **Staff Photo & Bio** (`Camera` icon):
-         - Live portrait preview card with status badges.
-         - Local photo file picker with client-side canvas compression (`compressStaffPhoto`) reducing photos to <50KB passport format.
-         - Firebase Storage cloud upload integration (`uploadStaffPhotoToCloud`) with fallback to Base64 data URL.
-         - Manual Photo URL/path input (supporting `/slides/photos/...` and web links).
-         - Instant "Remove Photo" action.
-       - **Service Particulars** (`Building2` icon): Designation, Department/Wing, Teaching Subject, Service Cadre (Teaching/Ministerial/Non-Teaching), Highest Qualification, Date of 1st Joining (Govt Service), Designation at 1st Appointment, Zone Name, UDISE Code (`ddo_code`), and DDO Code HRMS (`ddo_code_hrms`).
-       - **Accounts & Tax** (`CreditCard` icon): CPIS ID, PAN, Pension Scheme (NPS / GPF toggle buttons), PRAN/GPF Account Number, Bank Account No., IFSC Code, Gross Annual Salary (with monthly breakdown), TDS Deducted Up-to-Date, Active Tax Regime, Deductions (80C, 80D, HRA, 80CCD(2)), and Live Side-by-Side Tax Comparison (New vs Old) with recommendation banner & 1-click apply cheaper regime.
-       - **Postings & Custom** (`History` icon):
-         - Historical Postings Profile table with Office/Institution, Designation, From Date, To Date, and Delete/Add actions.
-         - Custom & Additional Fields manager with dynamic key-value inputs and deletion.
-  2. **Table & Drawer Profile Enhancements** ([SchoolAccountsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAccountsManager.jsx)):
-     - Added photo avatars directly into the Staff Directory table rows with graceful fallback initials and active cadre indicators.
-     - Redesigned the expanded employee drawer into 5 structured cards (Photo & Identity, Service Particulars, Accounts & Banking, Tax & Deductions, Address & Records) with a direct "Edit All Fields & Photo" button.
-  3. **Data Integrity & Clerk Security Verification**:
-     - Synchronizes seamlessly with the master Firestore document `systemSettings/facultyPrivate` and broadcasts changes to `hss_public_faculty` and the local broadcast channel.
-     - Preserves full audit logging via `logAdminActivity` and clerk security verification modals displaying exact field diffs before cloud synchronization.
+- **Architectural & Logic Solutions Implemented:**
+  1. **Strict Subject Validation & Cleaning** ([docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js)):
+     - Added `isValidSubjectString(s)`: Validates that candidate subjects are >= 3 characters, excludes placeholder strings like `'[Enter Subject Line Here]'`, and explicitly rejects address/office fragments (e.g. `/^(?:office|sub-office|sub office|branch|sub-division|district)\b/i`).
+     - Added `cleanSubjectString(raw)`: Strips leading/trailing punctuation (`:`, `-`, `–`, `—`, `.`, `*`, `_`, `#`, whitespace) and HTML remnants.
+  2. **Rewritten Multi-Pass `extractLetterSubject`** ([docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js)):
+     - **Pass 1 (Line-by-Line Block Inspection)**: Respects block tags (`<p>`, `<div>`, `<tr>`, etc.). Requires `Subject` or `Sub` followed strictly by colon (`:`), `:-`, or dot+space, or whitespace-padded dashes. Hyphens directly attached to `Sub` without colons or spaces (e.g., `Sub-office`, `Sub-division`, `Sub-district`) are recognized as compound nouns and **never** matched.
+     - **Pass 2 (DOM Parsing)**: Analyzes DOM nodes individually for element-contained subject tags.
+     - **Pass 3 (Inline HTML Tag Formats)**: Matches bold/underlined subjects like `<b>Sub:</b> <u>...</u>`.
+     - **Pass 4 (Document Type Fallbacks)**: Detects prominent headings (`OFFICE ORDER`, `NOTIFICATION`, `CIRCULAR`, `ACCOMMODATION CERTIFICATE`, etc.).
+     - **Pass 5 (Semantic Standalone Lines)**: Detects standalone subject titles preceding the salutation (`Sir`/`Madam`).
+  3. **Multi-Line Recipient Extraction** ([docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js)):
+     - Enhanced `extractLetterRecipient`: Recognizes both explicit `To,` lines and multi-line addressee blocks that precede `Sub:` (e.g. `Assistant secretary, JKBOSE Sub-office, Anantnag`), while excluding school sender headers.
+  4. **Auto-Healing of Existing Archived Records** ([docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js)):
+     - `sanitizeRecords()` automatically heals existing corrupt records (`office,`, `Office Anantnag`) during fetch from Firestore or local cache, persisting the repaired records to local cache.
+     - `saveGeneratedDocToHistory()` guards against saving invalid or corrupt subjects on letter creation.
+  5. **Dynamic UI Resolvers in Archive Modal** ([DocumentHistoryModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/DocumentHistoryModal.jsx)):
+     - Exported `resolveRecordSubject(rec)`: Prioritizes fresh extraction from `rec.bodyHtml` for letters and discards corrupt saved strings.
+     - Exported `resolveRecordRecipient(rec)`: Cleans self-addressed sender names and extracts true addressees.
+     - Integrated resolvers across search filtering (`filteredRecords`), card badges, and the full snapshot preview modal header.
 
 ---
 
 ## Files Modified
-- `src/portal/admin/SchoolAccountsManager.jsx`
+- `src/services/docHistoryService.js`
+- `src/portal/admin/DocumentHistoryModal.jsx`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ## Local Commit Message
 ```bash
-feat(clerk): enable comprehensive employee profile and photo editing in accounts portal
+fix(archive): accurately extract letter subjects and prevent sub-office false positives
 ```
 
 ---
@@ -63,5 +80,5 @@ git log -1 --stat
 
 # To amend or re-commit if desired
 git reset --soft HEAD~1
-git commit -m "feat(clerk): enable comprehensive employee profile and photo editing in accounts portal"
+git commit -m "fix(archive): accurately extract letter subjects and prevent sub-office false positives"
 ```

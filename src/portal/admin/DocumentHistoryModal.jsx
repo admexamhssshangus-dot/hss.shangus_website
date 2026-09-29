@@ -16,7 +16,9 @@ import {
   deleteGeneratedDocFromHistory,
   deleteMultipleGeneratedDocsFromHistory,
   extractLetterSubject,
-  extractLetterRecipient
+  extractLetterRecipient,
+  isValidSubjectString,
+  cleanSubjectString
 } from '../../services/docHistoryService';
 import { showToast } from '../../components/common/GlobalToast';
 import {
@@ -66,6 +68,52 @@ export const isBonafideDoc = (r) => {
   const dt = (r.docType || '').toLowerCase();
   const titleLower = (r.title || '').toLowerCase();
   return dt === 'bonafide' || dt === 'certificate' || titleLower.includes('bonafide');
+};
+
+/**
+ * Resolves the accurate, cleaned Subject line for any document record.
+ * For official letters, dynamically re-evaluates bodyHtml if saved subject was corrupted or missing.
+ */
+export const resolveRecordSubject = (rec) => {
+  if (!rec) return '';
+  const isLetter = isLetterDoc(rec);
+  if (isLetter) {
+    // 1. If bodyHtml exists, extract dynamic fresh subject
+    if (rec.bodyHtml) {
+      const extracted = extractLetterSubject(rec.bodyHtml);
+      if (isValidSubjectString(extracted)) return extracted;
+    }
+    // 2. If saved subject is valid and not corrupted
+    if (isValidSubjectString(rec.subject)) {
+      return cleanSubjectString(rec.subject);
+    }
+    return '';
+  }
+  // For non-letters (certificates, bonafide, discharge):
+  const raw = rec.subject || rec.studentDetails?.purpose || '';
+  if (raw && raw !== '[Enter Subject Line Here]') return cleanSubjectString(raw);
+  return '';
+};
+
+/**
+ * Resolves the recipient/addressee for any document record.
+ * Strips redundant school self-names for letters and pulls from bodyHtml if needed.
+ */
+export const resolveRecordRecipient = (rec) => {
+  if (!rec) return '';
+  let recipient = rec.recipientOrStudent || '';
+  if (isLetterDoc(rec)) {
+    const isSenderSelf = recipient.toLowerCase().includes('govt. hr') ||
+                         recipient.toLowerCase().includes('govt. higher') ||
+                         recipient.toLowerCase().includes('shangus') ||
+                         recipient.toLowerCase().includes('office of the');
+    if (rec.bodyHtml && (!recipient || isSenderSelf)) {
+      const extracted = extractLetterRecipient(rec.bodyHtml);
+      if (extracted) return extracted;
+    }
+    if (isSenderSelf) return '';
+  }
+  return recipient;
 };
 
 export default function DocumentHistoryModal({
@@ -178,10 +226,9 @@ export default function DocumentHistoryModal({
     if (!q) return list;
 
     return list.filter(r => {
-      const isLetter = isLetterDoc(r);
-      const subject = (r.subject || (isLetter ? extractLetterSubject(r.bodyHtml) : (r.studentDetails?.purpose || ''))).toLowerCase();
+      const subject = resolveRecordSubject(r).toLowerCase();
       const title = (r.title || '').toLowerCase();
-      const rec = (r.recipientOrStudent || '').toLowerCase();
+      const rec = resolveRecordRecipient(r).toLowerCase();
       const ref = (r.refNo || '').toLowerCase();
       const date = (r.dateStr || '').toLowerCase();
       const act = (r.actionType || '').toLowerCase();
@@ -657,24 +704,11 @@ export default function DocumentHistoryModal({
                     ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                     : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800';
 
-                // Subject resolution (auto-extracted from bodyHtml if not explicitly saved)
-                const rawSubject = rec.subject || (isLetter ? extractLetterSubject(rec.bodyHtml) : (rec.studentDetails?.purpose || ''));
-                const displaySubject = rawSubject && rawSubject !== '[Enter Subject Line Here]' ? rawSubject : '';
+                // Subject resolution (auto-healed from bodyHtml if corrupt)
+                const displaySubject = resolveRecordSubject(rec);
 
                 // Recipient resolution (clean up redundant sender school names for letters)
-                let recipient = rec.recipientOrStudent || '';
-                if (isLetter) {
-                  const extractedRec = extractLetterRecipient(rec.bodyHtml);
-                  const isSenderSelf = recipient.toLowerCase().includes('govt. hr') ||
-                                       recipient.toLowerCase().includes('govt. higher') ||
-                                       recipient.toLowerCase().includes('shangus') ||
-                                       recipient.toLowerCase().includes('office of the');
-                  if (extractedRec && (isSenderSelf || !recipient)) {
-                    recipient = extractedRec;
-                  } else if (isSenderSelf) {
-                    recipient = '';
-                  }
-                }
+                const recipient = resolveRecordRecipient(rec);
 
                 return (
                   <div
@@ -864,8 +898,8 @@ export default function DocumentHistoryModal({
                 <span className="text-xs font-black uppercase text-indigo-300 shrink-0">Snapshot:</span>
                 <span className="text-xs font-bold text-white truncate max-w-xs">{previewDoc.title}</span>
                 {(() => {
-                  const previewSubj = previewDoc.subject || (isLetterDoc(previewDoc) ? extractLetterSubject(previewDoc.bodyHtml) : (previewDoc.studentDetails?.purpose || ''));
-                  return previewSubj && previewSubj !== '[Enter Subject Line Here]' ? (
+                  const previewSubj = resolveRecordSubject(previewDoc);
+                  return previewSubj ? (
                     <span className="text-xs text-indigo-200 truncate max-w-sm font-semibold hidden md:inline" title={previewSubj}>
                       • Sub: {previewSubj}
                     </span>
