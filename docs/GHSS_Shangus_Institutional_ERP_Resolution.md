@@ -13,7 +13,7 @@
 ---
 
 ### Executive Preamble & Summary
-A formal administrative decree and statutory institutional resolution passed in an extraordinary council meeting chaired by the Principal, GHSS Shangus, with senior faculty members, lecturers, masters, academic conveners, and administrative in-charges. This resolution officially evaluates the capabilities, problems resolved, and whole-school transformative impacts of the custom-engineered GHSS Shangus School Enterprise Resource Planning (ERP) Platform (comprising **210,261 lines of custom code**, **4 autonomous portals**, and **22 integrated office tools**). The council formally approves, sanctions, and adopts the ERP system as the permanent, official, sovereign digital governance infrastructure of Govt. Higher Secondary School Shangus, establishing operational protocols, committee portfolios, data verification mandates, and authorizing public deployment.
+A formal administrative decree and statutory institutional resolution passed in an extraordinary council meeting chaired by the Principal, GHSS Shangus, with senior faculty members, lecturers, masters, academic conveners, and administrative in-charges. This resolution officially evaluates the capabilities, problems resolved, and whole-school transformative impacts of the custom-engineered GHSS Shangus School Enterprise Resource Planning (ERP) Platform (comprising **210,261 lines of custom code**, **4 autonomous portals**, and **25 integrated enterprise modules across 4 functional divisions**). The council formally approves, sanctions, and adopts the ERP system as the permanent, official, sovereign digital governance infrastructure of Govt. Higher Secondary School Shangus, establishing operational protocols, committee portfolios, data verification mandates, and authorizing public deployment.
 
 ---
 
@@ -65,7 +65,7 @@ The Joint Council conducted an exhaustive audit of traditional manual and semi-m
 
 6. **Staff Productivity & Focus on Pedagogy**:
    - *Legacy Bottleneck*: Senior lecturers and masters consumed hundreds of hours every academic session performing clerical tasks: writing registers, compiling rosters, filling award sheets, and formatting letters.
-   - *ERP Solution*: Suite of 22 integrated automated tools (Class Roll Number Generator, Roster Builder, ID Card Studio, Letterhead Writer, Batch Field Overwriter) executing complex tasks in seconds.
+   - *ERP Solution*: Suite of 25 integrated enterprise modules (Class Roll Number Generator, Roster Builder, ID Card Studio, Letterhead Writer, Batch Field Overwriter) executing complex tasks in seconds.
    - *School Impact*: Saves over 350+ staff hours annually across the faculty, returning valuable instructional time to classrooms, laboratories, and student mentorship.
 
 7. **Recurring Software Licensing Costs**:
@@ -79,7 +79,7 @@ The Joint Council conducted an exhaustive audit of traditional manual and semi-m
 - **WHEREAS**, Government Higher Secondary School Shangus, established in 1917 under the Department of School Education, UT of Jammu & Kashmir, is a premier rural educational institution catering to over 1,000 students across Class 9th through 12th in Science (Medical/Non-Medical), Humanities, and Commerce streams, and demands modern, transparent, and technology-driven administrative governance;
 - **WHEREAS**, the National Education Policy (NEP-2020) and the Digital India Mission, in conjunction with statutory directives from the Directorate of School Education Kashmir (DSEK), mandate the comprehensive digitisation of school governance, student record archives, transparent admissions, paperless workflows, and robust educational data integrity;
 - **WHEREAS**, the school's physical records—encompassing over 20 consecutive academic cohorts from 2006 to 2026—represent irreplaceable public institutional property containing student academic careers, registrations, and marks data, which cannot be left exposed to physical degradation, accidental loss, fire, moisture, or manual search delays;
-- **WHEREAS**, the faculty and administration have thoroughly tested, verified, and audited the custom-engineered institutional ERP platform comprising 210,261 lines of custom source code across 322 files, 4 autonomous portals, and 22 integrated office tools, finding it fully compliant with JKBOSE curriculum norms, financial reporting regulations, and student privacy requirements;
+- **WHEREAS**, the faculty and administration have thoroughly tested, verified, and audited the custom-engineered institutional ERP platform comprising 210,261 lines of custom source code across 322 files, 4 autonomous portals, and 25 integrated enterprise modules, finding it fully compliant with JKBOSE curriculum norms, financial reporting regulations, and student privacy requirements;
 - **WHEREAS**, the platform has been developed as a sovereign, self-contained educational asset with permanent institutional ownership and zero recurring third-party software licensing charges, eliminating commercial vendor lock-in and safeguarding public financial resources;
 - **WHEREAS**, the deployment of this platform provides high-availability cloud access, mobile responsiveness for rural families, offline Service Worker resilience for low-bandwidth environments, and tamper-proof cryptographic verification on all issued student documents;
 
@@ -119,32 +119,35 @@ The Joint Council conducted an exhaustive audit of traditional manual and semi-m
 
 ---
 
-### 5. Schedule A: Enterprise Architecture & 22 Integrated School Office Tools
+### 5. Schedule A: Enterprise Architecture & 25 Integrated School Office Modules
 
-| No. | Tool / Module Name | Core Functional Deliverables & Outputs | Designated Institutional Custodian |
+| No. | Module Name & Division | Core Functional Deliverables & Outputs | Designated Institutional Custodian |
 | :--- | :--- | :--- | :--- |
-| **1** | **Student Central Registry** | Class/stream cohort filters, inline quickCellEdit, photo ZIP downloads, bulk status controls. | Admission Committee & Clerical Cell |
-| **2** | **20-Year Admission Archive** | 2006–2026 digital cloud registers, 2-part departmental ledger, board registration matcher, Excel sync. | Admission & Archival Incharge |
-| **3** | **Custom Student Roster Builder** | Split-screen register designer, attendance sheets, seating arrangements, photo rosters, Word/PDF export. | Academic Affairs & Time-Table Cell |
-| **4** | **Official Letterhead Writer** | In-browser rich-text writer with school crest, AI draft assistance, dispatch tracking, PDF/Word export. | Principal's Secretariat & Office Dispatch |
-| **5** | **Student Certificate Studio** | Instant Character, Bonafide, Provisional, DOB (in words), and Transfer certificates with scannable QR codes. | Student Welfare & Examination Cell |
-| **6** | **Student Identity Card Studio** | CR80 ATM card layout (portrait/landscape), sheet capacity optimization (8–10 cards/A4), barcodes. | Student Welfare & IT Incharge |
-| **7** | **Competitive Exams & OMR Suite** | Talent Search, Olympiads, automated PDF admit card compiler with test centres, OMR scoring engine. | Examination & Guidance Incharge |
-| **8** | **Academic Intake Controls** | Live admission intake toggles for Classes 9th–12th, stream quotas (Medical, Non-Med, Arts, Commerce). | Principal & Admission Convener |
-| **9** | **Subject Combination Enforcer** | Rule-based curriculum validator enforcing JKBOSE compulsory and elective subject combination limits. | Academic Affairs & Admission Cell |
-| **10** | **Practical Marks & Award Rolls** | Isolated teacher workspaces, score boundary checks (0–20/30), master gazette compiler, Word/PDF export. | Subject Evaluators & Exam Incharge |
-| **11** | **Student Attendance Tracker** | Daily and subject roll call, automated visual warnings when student attendance drops below 75% threshold. | Class Teachers & Academic Incharge |
-| **12** | **Class Roll Number Generator** | Automated sequential roll number assignment by alphabet or stream with collision prevention algorithms. | Admission Committee & Exam Cell |
-| **13** | **Application Merge Studio** | Deduplication studio identifying duplicates by Aadhaar/Phone/RegNo with side-by-side field merge. | Admission Incharge & Data Manager |
-| **14** | **Group Communications Suite** | Rich-text official circular composer, class/stream filter targeting, live recipient counter, test preview. | Staff Secretary & Notice Board Incharge |
-| **15** | **Staff Accounts & Income Tax** | Pay slip viewer, automated tax liability calculator for UT employees comparing Old vs. New tax regimes. | Head Assistant & Accounts Cell |
-| **16** | **14+ Subsidiary Fund Splitter** | Central fee tracking, automated allocation into 14+ funds (Sports, Red Cross, Library, Lab, Development). | Accounts Incharge & Cashier |
-| **17** | **Website CMS & Announcements** | Instant notice uploader, scrolling ticker controller, homepage photo slider manager, faculty roster editor. | IT Coordinator & Media Committee |
-| **18** | **Express Walk-in Admissions** | Rapid on-the-spot registration interface for office clerks admitting offline walk-in candidates with receipt. | Admission Office Clerical Desk |
-| **19** | **JKBOSE Gazette Sync Engine** | Matches student records against official board gazettes by Reg Number with 30-day rollback memory. | Examination Incharge & Records Cell |
-| **20** | **Role-Based Access Governance** | Cryptographic multi-role access control for Principal, Exam Incharge, Accounts Clerk, and Faculty. | Principal & IT Systems Administrator |
-| **21** | **Activity Audit & Dispute Trail** | Tamper-proof, immutable event logging tracking student, teacher, and administrative mutations for audits. | Principal & Institutional Auditor |
-| **22** | **Bulk Ingestion & Batch Overwrite** | Batch upload records via Excel/CSV with column mapping, rollback protection, and demographic analytics. | IT Coordinator & Database Incharge |
+| **1** | **Student Records & Reports** [Records & Registers] | Class/stream cohort filters, inline cell edit, photo ZIP downloads, bulk approval status controls. | Admission Committee & Clerical Cell |
+| **2** | **Admission Register & Sent-up Suite** [Records & Registers] | 2006–2026 digital cloud registers, 2-part departmental ledger, board registration matcher, Excel sync. | Admission & Archival Incharge |
+| **3** | **Student Rosters & Registers** [Records & Registers] | Split-screen register designer, attendance sheets, seating arrangements, photo rosters, Word/PDF export. | Academic Affairs & Time-Table Cell |
+| **4** | **Official Letterhead Writer** [Records & Registers] | In-browser rich-text writer with school crest, AI draft assistance, dispatch tracking, PDF/Word export. | Principal's Secretariat & Office Dispatch |
+| **5** | **Student Bonafides & Certificates** [Records & Registers] | Instant Character, Bonafide, Provisional, DOB (in words), and Transfer certificates with scannable QR codes. | Student Welfare & Examination Cell |
+| **6** | **Student Identity Card Studio** [Records & Registers] | CR80 ATM card layout (portrait/landscape), sheet capacity optimization (8–10 cards/A4), barcodes. | Student Welfare & IT Incharge |
+| **7** | **Competitive Exams & OMR Suite** [Records & Registers] | Talent Search, Olympiads, automated PDF admit card compiler with test centres, OMR scoring engine. | Examination & Guidance Incharge |
+| **8** | **System & Admission Controls** [Academics & Controls] | Live admission intake toggles for Classes 9th–12th, stream quotas (Medical, Non-Med, Arts, Commerce), session rollover. | Principal & Admission Convener |
+| **9** | **Subjects, Streams & Feeder Schools** [Academics & Controls] | Rule-based curriculum validator enforcing JKBOSE compulsory and elective subject combination limits & feeder school sync. | Academic Affairs & Admission Cell |
+| **10** | **Practicals & Award Rolls** [Academics & Controls] | Isolated teacher workspaces, score boundary checks (0–20/30), master gazette compiler, Word/PDF export. | Subject Evaluators & Exam Incharge |
+| **11** | **Student Attendance Tracker** [Academics & Controls] | Daily and subject roll call, automated visual warnings when student attendance drops below 75% threshold. | Class Teachers & Academic Incharge |
+| **12** | **Class Roll Number Manager** [Academics & Controls] | Automated sequential roll number assignment by alphabet or stream with collision prevention algorithms. | Admission Committee & Exam Cell |
+| **13** | **Application Merge & Deduplication** [Operations & Automation] | Deduplication studio identifying duplicates by Aadhaar/Phone/RegNo with side-by-side field merge & 90-day trash safety. | Admission Incharge & Data Manager |
+| **14** | **Communications & Automations** [Operations & Automation] | Rich-text official circular composer, class/stream filter targeting, live recipient counter, test preview. | Staff Secretary & Notice Board Incharge |
+| **15** | **14+ Subsidiary Funds & Fee Accounts** [Operations & Automation] | Central fee tracking, automated allocation into 14+ funds (Sports, Red Cross, Library, Lab, Development). | Accounts Incharge & Cashier |
+| **16** | **School Accounts, Salaries & Staff Tax** [Operations & Automation] | Pay slip viewer, automated tax liability calculator for UT employees comparing Old vs. New tax regimes. | Head Assistant & Accounts Cell |
+| **17** | **Website CMS & Administration** [Operations & Automation] | Instant notice uploader, scrolling ticker controller, homepage photo slider manager, faculty roster editor. | IT Coordinator & Media Committee |
+| **18** | **Board Data Sync (JKBOSE)** [Operations & Automation] | Matches student records against official board gazettes by Reg Number with 30-day rollback memory. | Examination Incharge & Records Cell |
+| **19** | **Activity Audit & Dispute Trail** [Operations & Automation] | Tamper-proof, immutable event logging tracking student, teacher, and administrative mutations for audits. | Principal & Institutional Auditor |
+| **20** | **Google Contacts Bulk Exporter** [Operations & Automation] | Cohort export to Google Contacts CSV with standard naming formats, phone categorization & parent details. | IT Coordinator & Clerical Cell |
+| **21** | **Staff & Permissions Governance** [Operations & Automation] | Multi-role access governance (Principal, Exam Incharge, Accounts, Teacher) with fine-grained claim enforcement. | Principal & IT Systems Administrator |
+| **22** | **Quick Cell Edit Mode** [Quick Actions & Ingestion] | Inline cell click-and-edit mode directly modifying tabular student records with immediate auto-audit logs. | Admission Clerical Desk |
+| **23** | **Analytics & Statistical Reports** [Quick Actions & Ingestion] | Real-time cohort analytics, stream distribution, gender ratios, demographic charts, and enrollment trends. | Principal & Academic Coordinator |
+| **24** | **Express Direct Record Entry** [Quick Actions & Ingestion] | Rapid on-the-spot registration interface for office clerks admitting offline walk-in candidates with receipt. | Admission Office Clerical Desk |
+| **25** | **Bulk Ingestion & Batch Overwrite** [Quick Actions & Ingestion] | Batch upload records or overwrite fields via Excel/CSV with column mapping, rollback protection, and analytics. | IT Coordinator & Database Incharge |
 
 ---
 
@@ -160,7 +163,32 @@ The Joint Council conducted an exhaustive audit of traditional manual and semi-m
 
 ---
 
-### 7. Solemn Attestation, Committee Signatures & Executive Sanction
+### 7. Schedule C: End-to-End Custom Codebase & Technology Stack Complexity
+
+The Joint Council emphasizes that the GHSS Shangus Digital Platform is **100% custom-code based end-to-end**, engineered from the ground up specifically for Govt. Higher Secondary School Shangus. It relies on zero third-party website builders (e.g., WordPress, Wix) or generic commercial templates, guaranteeing absolute institutional software sovereignty, uncompromising performance, and zero vulnerability to vendor lock-in.
+
+#### Codebase Volume Breakdown (Direct Source File Audit)
+| Software Layer / Subsystem | Source Files | Volume (Lines of Code) | Architectural Complexity & Engineering Role |
+| :--- | :--- | :--- | :--- |
+| **React 19 JSX UI Components** | 97 Files | 134,838 LOC | Component-based single-page application (SPA); manages 4 autonomous portals, 25 integrated modules, modals, and responsive views. |
+| **Core JavaScript Engines & Services** | 95 Files | 55,640 LOC | Vector PDF (jsPDF), Word (.docx), Excel (.xlsx) export engines, business rules, caching algorithms, data synchronization logic. |
+| **Automation, Security & Audit Scripts** | 127 Files | 16,446 LOC | Automated regression test suites, Firestore security rules auditors, deduplication, photo downsamplers, integrity validators. |
+| **Design System & Responsive Stylesheets** | 3 Files | 3,337 LOC | Modern Vanilla CSS + Tailwind tokens, high-contrast accessibility compliance, adaptive print styling engine (@media print). |
+| **TOTAL ENTERPRISE CUSTOM CODEBASE** | **322 Files** | **210,261 LOC** | **Enterprise-grade, sovereign institutional digital infrastructure custom-coded from scratch for GHSS Shangus.** |
+
+#### Multi-Tier Technology Stack
+| Technology Domain | Engine / Technology | Concrete Implementation & Institutional Value |
+| :--- | :--- | :--- |
+| **Frontend Framework** | React 19 & React Router v7 | Modern SPA architecture with declarative state isolation, code-splitting chunks, dynamic routing, and fast load times. |
+| **3D Graphics & Simulation** | Three.js (WebGL Engine) | GPU-accelerated Bohr Carbon-12 atomic simulation with 6p+6n nucleus, parametric electron orbits, and central school crest disc. |
+| **Cloud Database Architecture** | Google Cloud Firestore | Enterprise NoSQL distributed document database, subcollections, compound indexing, real-time snapshot listeners, multi-region replication. |
+| **Identity & Access Governance** | Firebase Auth + Custom RBAC | Fine-grained Role-Based Access Control, single-faculty isolated session environments, encrypted session tokens. |
+| **Client-Side Document Engines** | jsPDF, docx, SheetJS (xlsx) | Direct in-browser generation of board-compliant mark cards (PDF), official award rolls (.docx), registers, and Excel reports. |
+| **Mobile & Offline Performance** | PWA, IndexedDB & Canvas Compression | Two-tier caching (dbCache + IndexedDB) for 2G/3G rural networks; in-browser HTML5 canvas image compression downsampling uploads to <100KB. |
+
+---
+
+### 8. Solemn Attestation, Committee Signatures & Executive Sanction
 
 *IN WITNESS WHEREOF, the Principal and the designated members of the Joint Academic and Administrative Council have appended their official signatures and institutional seals to this resolution on this 29th day of September, 2026, affirming full consensus, institutional adoption, and authorizing immediate deployment and publication of the GHSS Shangus School ERP System.*
 

@@ -47,11 +47,13 @@
      - *Resolution 8*: Automated Fee Allocation across 14+ Subsidiary Institutional Funds.
      - *Resolution 9*: Data Privacy, Non-Commercialization & 90-Day Deletion Safety Recycle Bin.
      - *Resolution 10*: Pre-Deployment Three-Phase Implementation Roadmap & Public Launch Mandate.
-  5. **Schedule A: Enterprise Architecture & 22 Office Tools Directory**:
-     - Comprehensive mapping of all 22 administrative tools with operational deliverables and designated school custodians.
+  5. **Schedule A: Enterprise Architecture & 25 Office Modules Directory**:
+     - Comprehensive mapping of all 25 administrative enterprise modules across 4 functional divisions with operational deliverables and designated school custodians.
   6. **Schedule B: Whole-School Transformative Impact & Valuation**:
      - Cost-benefit and productivity dividends for school governance.
-  7. **Attestation, Signatures & Administrative Order**:
+  7. **Schedule C: End-to-End Custom Codebase & Technology Stack Complexity**:
+     - Comprehensive audit of the 100% custom-code architecture, multi-tier tech stack (React 19, Three.js WebGL, Firebase Firestore, RBAC, jsPDF/docx/xlsx client compilers, PWA offline caching), and codebase scale (210,261 LOC across 322 custom files).
+  8. **Attestation, Signatures & Administrative Order**:
      - Formal signature table for all 10 council members, executive order block by the Principal, official institutional seal, and memo dispatch copies to DSEK, CEO Anantnag, ZEO Shangus, JKBOSE, notice boards, and office archive.
 
 - **Generated Deliverables**:
@@ -65,7 +67,6 @@
 - `docs/GHSS_Shangus_Institutional_ERP_Resolution.docx` (Added)
 - `docs/GHSS_Shangus_Institutional_ERP_Resolution.md` (Added)
 - `scripts/generate-erp-resolution-docx.js` (Added)
-- `.gitignore` (Modified)
 - `CHANGES_SINCE_LAST_COMMIT.md` (Modified)
 
 ---
