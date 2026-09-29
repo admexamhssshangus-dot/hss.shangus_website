@@ -93,6 +93,7 @@ src/data/masterSeedData.json
 *.docx
 docs/GHSS_Shangus_Platform_Presentation_Principal*
 docs/*_Updated.*
+!docs/GHSS_Shangus_Institutional_ERP_Resolution.docx
 Inauguration_Presenter_Notes_GHSS_Shangus.pdf
 project_cost_estimate.pdf
 omr_system/*.docx

@@ -2,71 +2,83 @@
 
 ## Current Working Changes
 
-### Accurate Letter Subject & Recipient Recognition in Document History & Cloud Archive
+### Official Institutional Administrative Resolution for GHSS Shangus School ERP System
 - **User Request Addressed:**
-  - *"subject not being recognised/shown correctly"*
+  - *"you know fully what the erp is about; capabilities and problems solved by the erp...what positive effect it will have on the school overall...something like .....actually i want to make a resolution from principal along with his team of certain optimal employees-lecturers/teachers who will pass it ........give a proper resolution docx in docs folder that will be used before developing/publishing the school erp"*
 
-- **Context & Problem:**
-  - In `Document History & Cloud Archive` (`Letters` tab), archived official letters were displaying truncated or corrupted subject lines such as:
-    - `SUBJECT: Office Anantnag`
-    - `SUBJECT: office,`
-  - In the letter print preview, the document actually contained:
-    - **Addressee**:
-      ```text
-      Assistant secretary,
-      JKBOSE Sub-office,
-      Anantnag
-      ```
-    - **Subject**:
-      ```text
-      Sub: Authorization letter in favour of Mr. Shabir Ahmad Khan for collection of 11th & 12th Class mark sheets — [Private/Biannual 2026] Examination.
-      ```
-  - **Root Cause**:
-    1. The previous regex in `extractLetterSubject` matched `(?:Subject|Sub)\s*[:：\-–—]+\s*([^<\n\r]+)`. When parsing the addressee block containing `JKBOSE Sub-office,`:
-       - `(?:Subject|Sub)` matched the prefix `Sub`.
-       - `[:：\-–—]+` matched the hyphen `-` in `Sub-office`.
-       - `([^<\n\r]+)` captured `office,` (or `Office Anantnag`), mistaking the addressee compound noun for the letter's subject line!
-    2. Once generated, this corrupted string was burned into Firestore as `record.subject`.
-    3. In `DocumentHistoryModal.jsx`, cards and search filtering used `rec.subject || (isLetter ? extractLetterSubject(...) : ...)`. Because `rec.subject` was non-empty (storing `"office,"`), it never re-evaluated from the letter snapshot `bodyHtml`.
+- **Context & Objectives:**
+  - Before developing, deploying, and publicly launching the institutional School Enterprise Resource Planning (ERP) platform for Government Higher Secondary School Shangus (GHSS Shangus), a formal, statutory administrative resolution was required.
+  - The resolution establishes institutional sanction, administrative chartering, faculty consensus, operational accountability, role delegations, and standard operating procedures (SOPs) passed in an extraordinary meeting chaired by the Principal along with key senior faculty members, lecturers, masters, and committee heads.
 
-- **Architectural & Logic Solutions Implemented:**
-  1. **Strict Subject Validation & Cleaning** ([docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js)):
-     - Added `isValidSubjectString(s)`: Validates that candidate subjects are >= 3 characters, excludes placeholder strings like `'[Enter Subject Line Here]'`, and explicitly rejects address/office fragments (e.g. `/^(?:office|sub-office|sub office|branch|sub-division|district)\b/i`).
-     - Added `cleanSubjectString(raw)`: Strips leading/trailing punctuation (`:`, `-`, `–`, `—`, `.`, `*`, `_`, `#`, whitespace) and HTML remnants.
-  2. **Rewritten Multi-Pass `extractLetterSubject`** ([docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js)):
-     - **Pass 1 (Line-by-Line Block Inspection)**: Respects block tags (`<p>`, `<div>`, `<tr>`, etc.). Requires `Subject` or `Sub` followed strictly by colon (`:`), `:-`, or dot+space, or whitespace-padded dashes. Hyphens directly attached to `Sub` without colons or spaces (e.g., `Sub-office`, `Sub-division`, `Sub-district`) are recognized as compound nouns and **never** matched.
-     - **Pass 2 (DOM Parsing)**: Analyzes DOM nodes individually for element-contained subject tags.
-     - **Pass 3 (Inline HTML Tag Formats)**: Matches bold/underlined subjects like `<b>Sub:</b> <u>...</u>`.
-     - **Pass 4 (Document Type Fallbacks)**: Detects prominent headings (`OFFICE ORDER`, `NOTIFICATION`, `CIRCULAR`, `ACCOMMODATION CERTIFICATE`, etc.).
-     - **Pass 5 (Semantic Standalone Lines)**: Detects standalone subject titles preceding the salutation (`Sir`/`Madam`).
-  3. **Multi-Line Recipient Extraction** ([docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js)):
-     - Enhanced `extractLetterRecipient`: Recognizes both explicit `To,` lines and multi-line addressee blocks that precede `Sub:` (e.g. `Assistant secretary, JKBOSE Sub-office, Anantnag`), while excluding school sender headers.
-  4. **Auto-Healing of Existing Archived Records** ([docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js)):
-     - `sanitizeRecords()` automatically heals existing corrupt records (`office,`, `Office Anantnag`) during fetch from Firestore or local cache, persisting the repaired records to local cache.
-     - `saveGeneratedDocToHistory()` guards against saving invalid or corrupt subjects on letter creation.
-  5. **Dynamic UI Resolvers in Archive Modal** ([DocumentHistoryModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/DocumentHistoryModal.jsx)):
-     - Exported `resolveRecordSubject(rec)`: Prioritizes fresh extraction from `rec.bodyHtml` for letters and discards corrupt saved strings.
-     - Exported `resolveRecordRecipient(rec)`: Cleans self-addressed sender names and extracts true addressees.
-     - Integrated resolvers across search filtering (`filteredRecords`), card badges, and the full snapshot preview modal header.
+- **Document Structure & Core Capabilities Codified:**
+  1. **Institutional Header & Identification**:
+     - Directorate of School Education, UT of Jammu & Kashmir.
+     - Office of the Principal, Govt. Higher Secondary School Shangus (Estd. 1917, U-DISE: 01041100608).
+     - Official Resolution Reference No.: `GHSS/SHG/RES/ERP-2026/01`, Dated: 29th September, 2026.
+  2. **Joint Academic & Administrative Council Quorum**:
+     - Formally assigns portfolios to a balanced 10-member institutional steering team:
+       1. Principal / DDO (Executive Chairman & Final Sanctioning Authority)
+       2. Senior Lecturer, Physics (Vice-Chairman & Staff Secretary)
+       3. Lecturer, Botany (Convener, Academic Affairs & JKBOSE Curriculum Alignment)
+       4. Lecturer, Chemistry (Convener, Admission Committee & Student Intake)
+       5. Master, Mathematics (Convener, Examination & Evaluation Cell)
+       6. Incharge IT & Computer Cell (Technical Coordinator, Cloud Architecture & Codebase Custody)
+       7. Senior Assistant, Accounts Cell (Custodian, School Accounts & 14+ Subsidiary Funds Reconciler)
+       8. Lecturer, Political Science (Convener, Student Welfare & Career Guidance Cell)
+       9. Lecturer, Zoology (Faculty Representative - Sciences)
+       10. Lecturer, Commerce / Economics (Faculty Representative - Commerce & Humanities)
+  3. **Contextual Preamble & Comprehensive Problem Diagnosis**:
+     - Documents the legacy bottlenecks resolved by the platform:
+       - 20-Year Archive Deterioration: Overcomes physical register decay and slow manual searches (hours/days) with a sub-2-second cloud search across 2006–2026 records.
+       - Admission Logistics & Subject Errors: Replaces campus queues and non-compliant elective choices with a multi-step digital admission pipeline enforcing strict JKBOSE rules and canvas photo downsampling (<100KB).
+       - Assessment & Practical Award Integrity: Replaces manual tabulations with isolated single-faculty assessment sessions, boundary validation, and 1-click Word/PDF board award rolls.
+       - Document Forgery: Introduces instant QR-coded verification for Character, Bonafide, Provisional, and Transfer certificates.
+       - Financial Accountability: Solves fee book-keeping chaos with an automated 14+ Subsidiary Fund Splitter (Sports, Library, Science Lab, Red Cross, School Development, Exam Fund).
+       - Staff Productivity: Recovers 350+ faculty hours annually from tedious clerical chores, re-allocating them to classroom pedagogy.
+       - Financial Prudence: Permanent institutional ownership saving ₹1,50,000+ every year in recurring commercial software licenses.
+  4. **Ten Binding Operative Resolutions ("RESOLVED UNANIMOUSLY THAT...")**:
+     - *Resolution 1*: Formal Sanction & Institutional Adoption of the School ERP System.
+     - *Resolution 2*: Declaration of Permanent Institutional Ownership & Zero-Vendor Lock-in.
+     - *Resolution 3*: Constitution of the Standing Digital ERP Steering & Oversight Committee (DESOC).
+     - *Resolution 4*: Mandated Digitisation & Cloud Indexing of 2006–2026 Historical Archives.
+     - *Resolution 5*: Mandatory Digital SOPs for Student Admissions & JKBOSE Combination Checks.
+     - *Resolution 6*: Departmental Academic Custody & Automated Practical Award Rolls.
+     - *Resolution 7*: Anti-Forgery Mandate with Cryptographic QR Code Verification.
+     - *Resolution 8*: Automated Fee Allocation across 14+ Subsidiary Institutional Funds.
+     - *Resolution 9*: Data Privacy, Non-Commercialization & 90-Day Deletion Safety Recycle Bin.
+     - *Resolution 10*: Pre-Deployment Three-Phase Implementation Roadmap & Public Launch Mandate.
+  5. **Schedule A: Enterprise Architecture & 22 Office Tools Directory**:
+     - Comprehensive mapping of all 22 administrative tools with operational deliverables and designated school custodians.
+  6. **Schedule B: Whole-School Transformative Impact & Valuation**:
+     - Cost-benefit and productivity dividends for school governance.
+  7. **Attestation, Signatures & Administrative Order**:
+     - Formal signature table for all 10 council members, executive order block by the Principal, official institutional seal, and memo dispatch copies to DSEK, CEO Anantnag, ZEO Shangus, JKBOSE, notice boards, and office archive.
+
+- **Generated Deliverables**:
+  - `docs/GHSS_Shangus_Institutional_ERP_Resolution.docx`: Full-fidelity, professionally styled Microsoft Word document with official government layout, custom tables, resolution callout boxes, and signature grids.
+  - `docs/GHSS_Shangus_Institutional_ERP_Resolution.md`: Complete companion markdown document for repository documentation and immediate preview.
+  - `scripts/generate-erp-resolution-docx.js`: Automated generation script utilizing the project's native `docx` engine.
 
 ---
 
-## Files Modified
-- `src/services/docHistoryService.js`
-- `src/portal/admin/DocumentHistoryModal.jsx`
-- `CHANGES_SINCE_LAST_COMMIT.md`
+## Files Added / Modified
+- `docs/GHSS_Shangus_Institutional_ERP_Resolution.docx` (Added)
+- `docs/GHSS_Shangus_Institutional_ERP_Resolution.md` (Added)
+- `scripts/generate-erp-resolution-docx.js` (Added)
+- `.gitignore` (Modified)
+- `CHANGES_SINCE_LAST_COMMIT.md` (Modified)
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(archive): accurately extract letter subjects and prevent sub-office false positives
+docs: add official institutional ERP adoption resolution docx and charter
 ```
 
 ---
 
 ## Instructions for User: Review & Push
-All changes have been tested and verified locally (`npm run build` completed with Exit Code 0).
+All changes have been built, verified locally (`npm run build` completed with Exit Code 0), staged, and committed to your local Git repository.
 
 To push these changes to your remote Git repository:
 ```bash
@@ -80,5 +92,5 @@ git log -1 --stat
 
 # To amend or re-commit if desired
 git reset --soft HEAD~1
-git commit -m "fix(archive): accurately extract letter subjects and prevent sub-office false positives"
+git commit -m "docs: add official institutional ERP adoption resolution docx and charter"
 ```
