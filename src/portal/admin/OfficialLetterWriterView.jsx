@@ -1854,8 +1854,8 @@ export default function OfficialLetterWriterView({
           style={{ width: isDesktop ? `${leftSplitPct}%` : "100%" }}
           className="w-full lg:flex-1 space-y-1.5 pr-0 lg:pr-1 min-w-0"
         >
-          {/* ════════ WORKSPACE CANVAS & VERTICAL FLOATING DOCK CONTAINER ════════ */}
-          <div className={`flex flex-col lg:flex-row items-start justify-center gap-2 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
+          {/* ════════ WORKSPACE CANVAS CONTAINER ════════ */}
+          <div className="flex flex-col items-center justify-center w-full">
             
             {/* ─── MOBILE UNIFIED SINGLE-ROW TOOLBAR (Compact & Grouped) ─── */}
             <div className="lg:hidden w-full relative mb-1.5">
@@ -2340,537 +2340,8 @@ export default function OfficialLetterWriterView({
               )}
             </div>
 
-            {/* ─── DESKTOP VERTICAL FLOATING DOCK (3 Columns) ─── */}
-            <div className="hidden lg:block lg:sticky lg:top-2 z-30 shrink-0">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-1.5 shadow-md grid grid-cols-3 items-center justify-items-center gap-1 max-w-fit">
-                {/* ── Row 1: Primary Actions (Print, Word, Save) ── */}
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  className="w-7 h-7 rounded-xl bg-gradient-to-r from-rose-700 to-amber-700 hover:from-rose-600 hover:to-amber-600 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
-                  title="Print or Save Official Letter as PDF"
-                >
-                  <Printer size={13} />
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isExportingDocx}
-                  onClick={handleExportDocx}
-                  className="w-7 h-7 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-xs cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0"
-                  title="Download editable Word Document (.docx)"
-                >
-                  {isExportingDocx ? <RefreshCw size={12} className="animate-spin" /> : <FileText size={13} />}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleQuickUpdateTemplate}
-                  className="w-7 h-7 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/60 flex items-center justify-center shadow-2xs cursor-pointer transition-all active:scale-95 shrink-0"
-                  title="Save & Overwrite active template in Cloud"
-                >
-                  <Save size={13} />
-                </button>
-
-                {/* ── Row 2: Template, Archive & Gemini AI ── */}
-                <button
-                  type="button"
-                  onClick={() => setShowSaveTemplateModal(true)}
-                  className="w-7 h-7 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all shrink-0"
-                  title="Save or overwrite as template"
-                >
-                  <BookmarkPlus size={13} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowHistoryModal(true)}
-                  className="w-7 h-7 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all shrink-0"
-                  title="Browse history & archived documents"
-                >
-                  <History size={13} />
-                </button>
-
-                {/* Gemini AI Drafter Dropdown */}
-                <div className="relative" ref={askGeminiMenuRef}>
-                  <button
-                    type="button"
-                    title="Gemini AI Letter Drafting & Humanize Tools"
-                    onClick={() => setShowAskGeminiMenu(!showAskGeminiMenu)}
-                    className="w-7 h-7 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
-                  >
-                    <Sparkles size={13} className="animate-pulse" />
-                  </button>
-
-                  {showAskGeminiMenu && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className={`absolute z-50 ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-2xl shadow-2xl p-1.5 w-60 space-y-1 animate-fadeIn`}
-                    >
-                      <div className="px-2 py-1 text-[9px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <span>Gemini AI Assistant</span>
-                        <span className="text-[8px] bg-purple-100 dark:bg-purple-950 text-purple-700 px-1 py-0.5 rounded font-mono">v2.5</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { handleOpenAiStudio('humanize'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold"
-                      >
-                        <Sparkles size={12} className="text-purple-600" />
-                        <span>🪄 Humanize & Polish</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { handleOpenAiStudio('formalize'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold"
-                      >
-                        <FileEdit size={12} className="text-indigo-600" />
-                        <span>📜 Formal Institutional</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { handleOpenAiStudio('shorten'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold"
-                      >
-                        <span className="text-amber-600 text-xs">✂️�</span>
-                        <span>Shorten & Summarize</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { handleOpenAiStudio('draft'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold border-t border-slate-100 dark:border-slate-800"
-                      >
-                        <Bot size={12} className="text-purple-600" />
-                        <span>âœ�ï¸� Draft New from Prompt</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
-
-                {/* ── Row 3: History & Block Formats (Undo, Redo, Paragraph) ── */}
-                <button
-                  type="button"
-                  title="Undo (Ctrl+Z)"
-                  disabled={!canUndo}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { handleUndo(); setTimeout(checkActiveFormats, 50); }}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
-                    canUndo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'
-                  }`}
-                >
-                  <Undo size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Redo (Ctrl+Y)"
-                  disabled={!canRedo}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { handleRedo(); setTimeout(checkActiveFormats, 50); }}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
-                    canRedo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'
-                  }`}
-                >
-                  <Redo size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Normal Body Paragraph (¶)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('formatBlock', '<p>')}
-                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.p
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  ¶
-                </button>
-
-                {/* ── Row 4: Headings & Color (H1, H2, Color) ── */}
-                <button
-                  type="button"
-                  title="Heading 1 (Click to apply, click again to revert to body text)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('formatBlock', '<h1>')}
-                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.h1
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs font-black'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  H1
-                </button>
-
-                <button
-                  type="button"
-                  title="Heading 2 (Click to apply, click again to revert to body text)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('formatBlock', '<h2>')}
-                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.h2
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs font-black'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  H2
-                </button>
-
-                {/* Color Palette Popout */}
-                <div className="relative" ref={colorMenuRef}>
-                  <button
-                    type="button"
-                    title="Text Color Palette"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      saveCurrentSelection();
-                    }}
-                    onClick={() => {
-                      saveCurrentSelection();
-                      setShowColorMenu(!showColorMenu);
-                    }}
-                    className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer transition-all active:scale-95"
-                  >
-                    <Palette size={12} className="text-amber-600" />
-                  </button>
-
-                  {showColorMenu && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className={`absolute z-50 ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 flex items-center gap-1.5 animate-fadeIn`}
-                    >
-                      {[
-                        { label: 'Black', color: '#0f172a' },
-                        { label: 'Maroon', color: '#800000' },
-                        { label: 'Navy Blue', color: '#0a192f' },
-                        { label: 'Forest Green', color: '#065f46' },
-                        { label: 'Slate Gray', color: '#475569' },
-                        { label: 'Crimson', color: '#dc2626' }
-                      ].map(c => (
-                        <button
-                          key={c.color}
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            applyTextColor(c.color);
-                            setShowColorMenu(false);
-                          }}
-                          className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 cursor-pointer hover:scale-110 transition-transform shadow-2xs"
-                          style={{ backgroundColor: c.color }}
-                          title={c.label}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
-
-                {/* ── Row 5: Character Styles (Bold, Italic, Underline) ── */}
-                <button
-                  type="button"
-                  title="Bold (Ctrl+B)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('bold')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.bold
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-black shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
-                  }`}
-                >
-                  <Bold size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Italic (Ctrl+I)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('italic')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.italic
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-black shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
-                  }`}
-                >
-                  <Italic size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Underline (Ctrl+U)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('underline')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.underline
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-black shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
-                  }`}
-                >
-                  <Underline size={12} />
-                </button>
-
-                {/* ── Row 6: Strike, Divider & Clear Format ── */}
-                <button
-                  type="button"
-                  title="Strikethrough"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('strikethrough')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.strikeThrough
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-black shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
-                  }`}
-                >
-                  <Strikethrough size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Insert Horizontal Divider Line"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('insertHorizontalRule')}
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
-                >
-                  <Minus size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Clear Text Formatting"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('removeFormat')}
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 flex items-center justify-center cursor-pointer"
-                >
-                  <RemoveFormatting size={12} />
-                </button>
-
-                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
-
-                {/* ── Row 7: Alignments (Left, Center, Right) ── */}
-                <button
-                  type="button"
-                  title="Align Left"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('justifyLeft')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.justifyLeft
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <AlignLeft size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Align Center"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('justifyCenter')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.justifyCenter
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <AlignCenter size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Align Right"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('justifyRight')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.justifyRight
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <AlignRight size={12} />
-                </button>
-
-                {/* ── Row 8: Justify, Bullet List, Numbered List ── */}
-                <button
-                  type="button"
-                  title="Justify"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('justifyFull')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.justifyFull
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <AlignJustify size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Bulleted List"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('insertUnorderedList')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.insertUnorderedList
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <List size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  title="Numbered List"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('insertOrderedList')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.insertOrderedList
-                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <ListOrdered size={12} />
-                </button>
-
-                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
-
-                {/* ── Row 9: Table & Switcher ── */}
-                <div className="relative" ref={tableMenuRef}>
-                  <button
-                    type="button"
-                    title="Insert or Edit Table"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => { checkTableContext(); setShowTableMenu(!showTableMenu); }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
-                      activeTableContext ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <TableIcon size={12} />
-                  </button>
-
-                  {showTableMenu && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className={`absolute z-50 ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 w-52 space-y-1.5 animate-fadeIn`}
-                    >
-                      {activeTableContext ? (
-                        <>
-                          <div className="px-2 py-1 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                            <span>Table Context</span>
-                            <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono">EDIT</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1">
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { insertTableColumn(false); setShowTableMenu(false); }}
-                              className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
-                            >
-                              + Col Right
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { insertTableColumn(true); setShowTableMenu(false); }}
-                              className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
-                            >
-                              + Col Left
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { deleteTableColumn(); setShowTableMenu(false); }}
-                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
-                          >
-                            - Delete Col
-                          </button>
-                          <div className="grid grid-cols-2 gap-1">
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { insertTableRow(false); setShowTableMenu(false); }}
-                              className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
-                            >
-                              + Row Below
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { insertTableRow(true); setShowTableMenu(false); }}
-                              className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
-                            >
-                              + Row Above
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { deleteTableRow(); setShowTableMenu(false); }}
-                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
-                          >
-                            - Delete Row
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { deleteEntireTable(); setShowTableMenu(false); }}
-                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200"
-                          >
-                            🗑 Remove Table
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="px-2 py-1 text-[9px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                            Insert Table Preset
-                          </div>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { insertTable(2, 4); setShowTableMenu(false); }}
-                            className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-900 dark:text-indigo-200 text-[10.5px] font-bold flex items-center justify-between"
-                          >
-                            <span>4 × 2 Fee Table</span>
-                            <span className="text-[9px] text-slate-400 font-mono">Standard</span>
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { insertTable(3, 3); setShowTableMenu(false); }}
-                            className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-900 dark:text-indigo-200 text-[10.5px] font-bold flex items-center justify-between"
-                          >
-                            <span>3 × 3 Grid Table</span>
-                            <span className="text-[9px] text-slate-400 font-mono">9 cells</span>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Dock Side Switcher (Spanning 2 columns) */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextSide = dockSide === 'left' ? 'right' : 'left';
-                    setDockSide(nextSide);
-                    try { localStorage.setItem('hss_letter_dock_side', nextSide); } catch {}
-                  }}
-                  className="col-span-2 w-full h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors text-[9px] font-bold font-mono hidden lg:flex"
-                  title={dockSide === 'left' ? 'Move Dock to Right side of Canvas' : 'Move Dock to Left side of Canvas'}
-                >
-                  {dockSide === 'left' ? '👉 Right' : '👈 Left'}
-                </button>
-
-              </div>
-            </div>
-
-            {/* â•�â•�â•�â•�â•�â•�â•�â•� A4 PAPER LIVE VIEWPORT & EDITOR â•�â•�â•�â•�â•�â•�â•�â•� */}
-            <div className="flex-1 w-full max-w-[840px] min-w-0">
+{/* â•�â•�â•�â•�â•�â•�â•�â•� A4 PAPER LIVE VIEWPORT & EDITOR â•�â•�â•�â•�â•�â•�â•�â•� */}
+            <div className="flex-1 w-full max-w-[860px] min-w-0 mx-auto">
               <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-4 sm:p-6 shadow-sm min-h-[420px] flex flex-col justify-start">
                 
                 {/* Top Official Letterhead Header Banner (Soft Ice-Blue Background) - Hidden in web view on mobile to focus on main content, preserved in desktop & print */}
@@ -3032,12 +2503,428 @@ export default function OfficialLetterWriterView({
         )}
 
 
-        {/* ─── RIGHT CONTROLS: REUSABLE TEMPLATES & GEMINI AI ASSISTANT (DESKTOP INLINE) ─── */}
+        {/* ─── RIGHT CONTROLS: UNIFIED TOOLS & TEMPLATES CARD (DESKTOP INLINE) ─── */}
         {isDesktop && (
           <div
             style={{ width: isDesktop ? `${100 - leftSplitPct}%` : "100%" }}
-            className="w-full lg:w-auto shrink-0 space-y-1.5 overflow-hidden pl-0 lg:pl-1"
+            className="w-full lg:w-auto shrink-0 pl-0 lg:pl-1 min-w-0"
           >
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-xs p-2.5 space-y-2 flex flex-col max-h-[calc(100dvh-95px)] min-h-[580px] overflow-hidden text-xs">
+              
+              {/* ─── PINNED TOOLS & FORMATTING TOOLBAR ─── */}
+              <div className="space-y-1.5 pb-2 border-b border-slate-200/80 dark:border-slate-800 shrink-0">
+                {/* Row 1: Document Actions */}
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handlePrint}
+                      className="h-7 px-2 rounded-lg bg-gradient-to-r from-rose-700 to-amber-700 hover:from-rose-600 text-white font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95"
+                      title="Print or Save Official Letter as PDF"
+                    >
+                      <Printer size={12} />
+                      <span>Print</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isExportingDocx}
+                      onClick={handleExportDocx}
+                      className="h-7 px-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+                      title="Download editable Word Document (.docx)"
+                    >
+                      {isExportingDocx ? <RefreshCw size={11} className="animate-spin" /> : <FileText size={12} />}
+                      <span>Word</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleQuickUpdateTemplate}
+                      className="h-7 px-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95"
+                      title="Save & Overwrite active template in Cloud"
+                    >
+                      <Save size={12} />
+                      <span>Save</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowSaveTemplateModal(true)}
+                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all"
+                      title="Save as new template"
+                    >
+                      <BookmarkPlus size={12} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowHistoryModal(true)}
+                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all"
+                      title="Browse document archive"
+                    >
+                      <History size={12} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveLeftTab('ai')}
+                      className="h-7 px-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95"
+                      title="Draft or polish with Gemini AI"
+                    >
+                      <Sparkles size={11} className="text-amber-200" />
+                      <span>AI</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Row 2: Rich Text & Formatting */}
+                <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Undo (Ctrl+Z)"
+                      disabled={!canUndo}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { handleUndo(); setTimeout(checkActiveFormats, 50); }}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-colors ${canUndo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'}`}
+                    >
+                      <Undo size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Redo (Ctrl+Y)"
+                      disabled={!canRedo}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { handleRedo(); setTimeout(checkActiveFormats, 50); }}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-colors ${canRedo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'}`}
+                    >
+                      <Redo size={11} />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Normal Body Paragraph (¶)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('formatBlock', '<p>')}
+                      className={`w-6 h-6 rounded font-black text-[9px] flex items-center justify-center cursor-pointer transition-all ${activeFormats.p ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      ¶
+                    </button>
+                    <button
+                      type="button"
+                      title="Heading 1"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('formatBlock', '<h1>')}
+                      className={`w-6 h-6 rounded font-black text-[9px] flex items-center justify-center cursor-pointer transition-all ${activeFormats.h1 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'}`}
+                    >
+                      H1
+                    </button>
+                    <button
+                      type="button"
+                      title="Heading 2"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('formatBlock', '<h2>')}
+                      className={`w-6 h-6 rounded font-black text-[9px] flex items-center justify-center cursor-pointer transition-all ${activeFormats.h2 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'}`}
+                    >
+                      H2
+                    </button>
+                  </div>
+
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Bold"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('bold')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.bold ? 'bg-amber-100 text-amber-900 font-black border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                    >
+                      <Bold size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Italic"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('italic')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.italic ? 'bg-amber-100 text-amber-900 font-black border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                    >
+                      <Italic size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Underline"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('underline')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.underline ? 'bg-amber-100 text-amber-900 font-black border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                    >
+                      <Underline size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Strikethrough"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('strikethrough')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.strikeThrough ? 'bg-amber-100 text-amber-900 font-black border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                    >
+                      <Strikethrough size={11} />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                  {/* Color Palette Popout */}
+                  <div className="relative" ref={colorMenuRef}>
+                    <button
+                      type="button"
+                      title="Text Color Palette"
+                      onMouseDown={(e) => { e.preventDefault(); saveCurrentSelection(); }}
+                      onClick={() => { saveCurrentSelection(); setShowColorMenu(!showColorMenu); }}
+                      className="w-6 h-6 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer transition-all"
+                    >
+                      <Palette size={11} className="text-amber-600" />
+                    </button>
+
+                    {showColorMenu && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 flex items-center gap-1.5 animate-fadeIn"
+                      >
+                        {[
+                          { label: 'Black', color: '#0f172a' },
+                          { label: 'Maroon', color: '#800000' },
+                          { label: 'Navy Blue', color: '#0a192f' },
+                          { label: 'Forest Green', color: '#065f46' },
+                          { label: 'Slate Gray', color: '#475569' },
+                          { label: 'Crimson', color: '#dc2626' }
+                        ].map(c => (
+                          <button
+                            key={c.color}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { applyTextColor(c.color); setShowColorMenu(false); }}
+                            className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 cursor-pointer hover:scale-110 transition-transform shadow-2xs"
+                            style={{ backgroundColor: c.color }}
+                            title={c.label}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Clear formatting */}
+                  <button
+                    type="button"
+                    title="Clear Formatting"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => executeFormat('removeFormat')}
+                    className="w-6 h-6 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 flex items-center justify-center cursor-pointer"
+                  >
+                    <RemoveFormatting size={11} />
+                  </button>
+                </div>
+
+                {/* Row 3: Alignments, Lists, Table, Divider */}
+                <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Align Left"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyLeft')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.justifyLeft ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <AlignLeft size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Align Center"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyCenter')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.justifyCenter ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <AlignCenter size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Align Right"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyRight')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.justifyRight ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <AlignRight size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Justify"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyFull')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.justifyFull ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <AlignJustify size={11} />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Bulleted List"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('insertUnorderedList')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.insertUnorderedList ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <List size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Numbered List"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('insertOrderedList')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.insertOrderedList ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <ListOrdered size={11} />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                  <div className="flex items-center gap-0.5">
+                    {/* Table Tool Popout */}
+                    <div className="relative" ref={tableMenuRef}>
+                      <button
+                        type="button"
+                        title="Insert or Edit Table"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { checkTableContext(); setShowTableMenu(!showTableMenu); }}
+                        className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-colors ${activeTableContext ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 border border-emerald-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                      >
+                        <TableIcon size={11} />
+                      </button>
+
+                      {showTableMenu && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 w-52 space-y-1.5 animate-fadeIn"
+                        >
+                          {activeTableContext ? (
+                            <>
+                              <div className="px-2 py-1 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <span>Table Context</span>
+                                <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono">EDIT</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1">
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { insertTableColumn(false); setShowTableMenu(false); }}
+                                  className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
+                                >
+                                  + Col Right
+                                </button>
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { insertTableColumn(true); setShowTableMenu(false); }}
+                                  className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
+                                >
+                                  + Col Left
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { deleteTableColumn(); setShowTableMenu(false); }}
+                                className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
+                              >
+                                - Delete Col
+                              </button>
+                              <div className="grid grid-cols-2 gap-1">
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { insertTableRow(false); setShowTableMenu(false); }}
+                                  className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
+                                >
+                                  + Row Below
+                                </button>
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { insertTableRow(true); setShowTableMenu(false); }}
+                                  className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
+                                >
+                                  + Row Above
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { deleteTableRow(); setShowTableMenu(false); }}
+                                className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
+                              >
+                                - Delete Row
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { deleteEntireTable(); setShowTableMenu(false); }}
+                                className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200"
+                              >
+                                🗑 Remove Table
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="px-2 py-1 text-[9px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                Insert Table Preset
+                              </div>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { insertTable(2, 4); setShowTableMenu(false); }}
+                                className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-900 dark:text-indigo-200 text-[10.5px] font-bold flex items-center justify-between"
+                              >
+                                <span>4 × 2 Fee Table</span>
+                                <span className="text-[9px] text-slate-400 font-mono">Standard</span>
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { insertTable(3, 3); setShowTableMenu(false); }}
+                                className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-900 dark:text-indigo-200 text-[10.5px] font-bold flex items-center justify-between"
+                              >
+                                <span>3 × 3 Grid Table</span>
+                                <span className="text-[9px] text-slate-400 font-mono">9 cells</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      title="Insert Horizontal Divider Line"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('insertHorizontalRule')}
+                      className="w-6 h-6 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
+                    >
+                      <Minus size={11} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ─── SCROLLABLE TEMPLATES & GEMINI AI CONTENT ─── */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-0.5 min-h-0">
             {/* Top Segmented Tab Switcher */}
             <div className="flex items-center justify-between p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
               <div className="flex items-center gap-1">
@@ -3466,6 +3353,8 @@ export default function OfficialLetterWriterView({
                 </div>
               </>
             )}
+              </div>
+            </div>
           </div>
         )}
 

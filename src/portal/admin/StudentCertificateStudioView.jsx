@@ -1558,11 +1558,13 @@ export default function StudentCertificateStudioView({
   // ─── Draggable Dual-Pane Splitter State ───
   const [leftSplitPct, setLeftSplitPct] = useState(() => {
     try {
-      const saved = localStorage.getItem('hss_cert_split_pct');
-      return saved ? Math.max(22, Math.min(65, Number(saved))) : 36;
-    } catch {
-      return 36;
-    }
+      const saved = localStorage.getItem('hss_cert_preview_split_pct');
+      if (saved) {
+        const val = parseFloat(saved);
+        if (!isNaN(val) && val >= 35 && val <= 80) return val;
+      }
+    } catch {}
+    return 67;
   });
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
@@ -1583,11 +1585,11 @@ export default function StudentCertificateStudioView({
     const handleMouseMove = (moveEvt) => {
       moveEvt.preventDefault();
       const mouseX = moveEvt.clientX - rect.left;
-      const pct = Math.max(22, Math.min(65, (mouseX / rect.width) * 100));
+      const pct = Math.max(35, Math.min(80, (mouseX / rect.width) * 100));
       const rounded = Math.round(pct * 10) / 10;
       setLeftSplitPct(rounded);
       try {
-        localStorage.setItem('hss_cert_split_pct', String(rounded));
+        localStorage.setItem('hss_cert_preview_split_pct', String(rounded));
       } catch {}
     };
 
@@ -5213,20 +5215,7 @@ export default function StudentCertificateStudioView({
       )}
 
       {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
-      <div className="cert-split-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
-        
-{/* == == == == == == == ==  LEFT HALF: STUDENT SELECTOR & CERTIFICATE PALETTE (DESKTOP) == == == == == == == ==  */}
-        {isDesktop && (
-          <div
-            style={{ width: `${leftSplitPct}%` }}
-            className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2.5 text-xs overflow-visible lg:overflow-hidden flex flex-col min-h-0 lg:min-h-[620px] lg:max-h-[calc(100dvh-95px)]"
-          >
-            {renderStudentAndTemplateSelector()}
-          </div>
-        )}
-
-        {/* == == == == == == == == MOBILE POPUP MODAL: STUDENT SELECTOR & CERTIFICATE PALETTE == == == == == == == == */}
-        {showRefDateModal && createPortal(
+      {showRefDateModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fadeIn">
           <div className="absolute inset-0" onClick={() => setShowRefDateModal(false)} />
           <div
@@ -5474,30 +5463,16 @@ export default function StudentCertificateStudioView({
           document.body
         )}
 
-        {/* ── DRAGGABLE VERTICAL SPLITTER HANDLE ── */}
-        {isDesktop && (
-          <div
-          onMouseDown={handleSplitterMouseDown}
-          title="Drag horizontally to adjust workspace split width (Double-click to reset)"
-          onDoubleClick={() => {
-            setLeftSplitPct(36);
-            try { localStorage.setItem('hss_cert_split_pct', '36'); } catch {}
-          }}
-          className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-teal-400/20 active:bg-teal-600/30 group transition-colors z-20 shrink-0 mx-0.5"
-        >
-          <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-teal-700 ${isDraggingSplitter ? 'bg-teal-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
-        </div>
-        )}
-
-        {/* == == == == == == == ==  RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK == == == == == == == ==  */}
+      {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
+      <div className="cert-split-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
+        
+        {/* == == == == == == == == LEFT HALF: LIVE A4 CERTIFICATE PREVIEW (2/3 OF PAGE) == == == == == == == == */}
         <div
-          style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
-          className="w-full lg:flex-1 pl-0 lg:pl-1 min-w-0"
+          style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
+          className="w-full flex flex-col items-center justify-start shrink-0 min-w-0"
         >
-          {/* Main preview container hosting the Vertical Floating Dock + A4 Canvas */}
-          <div className={`flex flex-col lg:flex-row items-start justify-center gap-3 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
-
-            {/* ─── MOBILE UNIFIED SINGLE-ROW TOOLBAR (Compact & Grouped) ─── */}
+          {/* ─── MOBILE UNIFIED SINGLE-ROW TOOLBAR (Compact & Grouped) ─── */}
+          {/* ─── MOBILE UNIFIED SINGLE-ROW TOOLBAR (Compact & Grouped) ─── */}
             <div className="lg:hidden w-full relative mb-1.5">
               {/* Click-outside backdrop to dismiss open dropdown */}
               {mobileDropdownOpen && (
@@ -5995,69 +5970,478 @@ export default function StudentCertificateStudioView({
               )}
             </div>
 
-            {/* ── VERTICAL FLOATING DOCK (3 Vertical Columns Side-by-Side - Desktop Only) ── */}
-            <div className="hidden lg:block lg:sticky lg:top-2 z-30 shrink-0">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-1.5 shadow-md flex flex-wrap lg:grid lg:grid-cols-3 items-center justify-items-center gap-1 max-w-fit">
+          {/* == == == == == == == == A4 PAPER LIVE VIEWPORT & EDITOR == == == == == == == == */}
+          <div className="w-full max-w-[860px] min-w-0 mx-auto">
+            <div
+                className="text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] -outline-offset-4 rounded-xl p-4 sm:p-6 shadow-md max-h-[75dvh] lg:max-h-[calc(100dvh-95px)] overflow-y-auto relative flex flex-col justify-start min-h-[520px] lg:min-h-[620px]"
+                style={{
+                  backgroundColor: '#fdfbf7',
+                  backgroundImage: 'radial-gradient(ellipse at 50% 30%, #ffffff 0%, #fbf9f4 60%, #f6f1e7 100%), repeating-linear-gradient(45deg, rgba(197, 160, 89, 0.016) 0px, rgba(197, 160, 89, 0.016) 1.5px, transparent 1.5px, transparent 8px)'
+                }}
+              >
+            
+            {/* Watermark Background */}
+            {watermark && (
+              <div
+                className="absolute inset-0 pointer-events-none opacity-5 flex items-center justify-center z-0"
+                style={{
+                  backgroundImage: `url('/logo192.png')`,
+                  backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '110px'
+                }}
+              />
+            )}
 
-                {/* ── Row 1: Primary Actions (Print, Word, Save) ── */}
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  disabled={isIssuingTcDc || isExportingDocx}
-                  className="w-7 h-7 rounded-xl bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 hover:to-indigo-600 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-90"
-                  title="Print or Save Certificate as PDF"
+            <div className="relative z-10 space-y-3">
+              
+              {/* Top Official Letterhead Header Banner (Matches Official Letterhead Writer) */}
+              <div
+                style={{ marginBottom: `${headerGap}in` }}
+                className="hidden lg:block print:!block -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-4 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl"
+              >
+                <img
+                  src="/logo192.png"
+                  alt="School Seal"
+                  style={{ width: '48px', height: '48px', maxWidth: '48px', maxHeight: '48px', objectFit: 'contain' }}
+                  className="w-12 h-12 object-contain mx-auto mb-1.5 drop-shadow-xs"
+                  onError={(e) => { e.target.src = '/logo.png'; e.target.onerror = null; }}
+                />
+                <h3 className="text-[11px] sm:text-xs font-black text-[#800000] uppercase tracking-[1.5px] m-0">
+                  {officeTitle || 'OFFICE OF THE PRINCIPAL'}
+                </h3>
+                <h1 className="text-base sm:text-lg font-black text-[#0a192f] tracking-wide uppercase m-0 mt-0.5 font-serif">
+                  {institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}
+                </h1>
+                <p className="text-[10px] text-slate-600 font-semibold m-0 mt-0.5">
+                  {institutionAddress || 'Anantnag, Kashmir — 192201 (J&K)'}
+                </p>
+              </div>
+
+              {/* Ref & Date Row — Direct Inline Editing */}
+              {!isTcDcActive && (
+                <div className="flex items-center justify-between text-[10px] sm:text-[10.5px] font-bold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 pb-1 px-1 mt-1 sm:mt-2 lg:-mt-[0.25in] mb-2 sm:mb-3 lg:mb-[0.25in] print:!-mt-[0.25in] print:!mb-[0.25in] gap-2">
+                  <div className="flex items-center gap-1 group/ref min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowRefDateModal(true)}
+                      className="shrink-0 text-slate-700 dark:text-slate-300 font-bold hover:underline cursor-pointer flex items-center gap-0.5 text-[10px] sm:text-[10.5px]"
+                      title="Click to edit Reference No. & Date in popup"
+                    >
+                      <span>Ref No:</span>
+                      <Edit3 size={9} className="text-slate-400 lg:hidden" />
+                    </button>
+                    <input
+                      type="text"
+                      value={refNo}
+                      onChange={(e) => handleGeneralRefChange(e.target.value)}
+                      onBlur={handleGeneralRefBlur}
+                      placeholder="e.g. HSS/1454/26"
+                      title="Click to directly edit Certificate Reference Number"
+                      aria-label="Certificate Reference Number"
+                      className="studio-inline-input font-mono font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[240px] sm:max-w-[360px] text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0 print:max-w-none print:w-auto"
+                      style={{ fontSize: '11px', height: '22px' }}
+                    />
+                    <div className="print:hidden inline-flex items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => handleStepFigure(-1)}
+                        className="px-1 py-0.5 rounded text-[8.5px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                        title="Step figure down (-1)"
+                      >
+                        -1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStepFigure(1)}
+                        className="px-1 py-0.5 rounded text-[8.5px] font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/60 cursor-pointer"
+                        title="Advance figure (+1 Next)"
+                      >
+                        +1
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 group/date shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowRefDateModal(true)}
+                      className="shrink-0 text-slate-700 dark:text-slate-300 font-bold hover:underline cursor-pointer flex items-center gap-0.5 text-[10px] sm:text-[10.5px]"
+                      title="Click to edit Reference No. & Date in popup"
+                    >
+                      <span>Date:</span>
+                      <Edit3 size={9} className="text-slate-400 lg:hidden" />
+                    </button>
+                    <input
+                      type="text"
+                      value={dateStr}
+                      onChange={(e) => setDateStr(e.target.value)}
+                      placeholder="DD/MM/YYYY"
+                      title="Click to directly edit Issue Date"
+                      aria-label="Issue Date"
+                      className="studio-inline-input font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-20 sm:w-24 text-right text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0 print:text-right"
+                      style={{ fontSize: '11px', height: '22px' }}
+                    />
+                    <input
+                      type="date"
+                      title="Pick certificate issue date from calendar"
+                      aria-label="Pick issue date from calendar"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const [y, m, d] = e.target.value.split('-');
+                          setDateStr(`${d}/${m}/${y}`);
+                        }
+                      }}
+                      className="w-3.5 h-3.5 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Certificate Title Banner — Kept Close Vertically */}
+              <div className="text-center pt-0 pb-0" style={{ marginTop: `${titleMetaGap}px`, marginBottom: `${titleMetaGap}px` }}>
+                <span className="inline-block font-serif text-xs sm:text-sm font-black uppercase text-[#800000] tracking-widest px-5 py-0.5 border-y-2 border-[#800000] bg-[#fff9f5] shadow-2xs">
+                  {certificateTitle}
+                </span>
+              </div>
+
+              {/* TC/DC Meta Details on Studio Canvas — Modern 2x2 Grid with Integrated QR Security Badge */}
+              {isTcDcActive && (
+                <div
+                  style={{
+                    marginTop: `${titleMetaGap}px`,
+                    marginBottom: `${metaBodyGap}in`
+                  }}
+                  className="w-full flex items-stretch justify-between bg-white border border-[#800000] rounded-md overflow-hidden text-[10px] font-sans shadow-2xs"
                 >
-                  {isIssuingTcDc ? <RefreshCw size={12} className="animate-spin" /> : <Printer size={13} />}
-                </button>
+                  {/* Left Column: 2x2 Metadata Grid */}
+                  <div className="grid grid-cols-[1fr_1.25fr] gap-x-3 gap-y-2 flex-1 px-3 py-2 leading-relaxed min-w-0">
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Certificate No.:</span>
+                      <input
+                        type="text"
+                        value={refNo}
+                        onChange={(e) => setRefNo(e.target.value)}
+                        placeholder="1368"
+                        title="Click to directly edit Certificate Serial Number"
+                        aria-label="Certificate Serial Number"
+                        className="font-mono font-black text-red-600 bg-transparent border-b border-dashed border-red-300/80 hover:border-red-500 focus:border-red-600 focus:bg-red-50/40 rounded px-0.5 py-0 outline-none transition-all w-24 text-[9.5px] print:border-none print:bg-transparent print:p-0"
+                      />
+                      <div className="print:hidden inline-flex items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => handleStepFigure(-1)}
+                          className="px-1 py-0.5 rounded text-[8.5px] font-bold text-slate-600 hover:bg-slate-200"
+                          title="Step TC/DC number down (-1)"
+                        >
+                          -1
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStepFigure(1)}
+                          className="px-1 py-0.5 rounded text-[8.5px] font-bold text-red-600 hover:bg-red-100"
+                          title="Advance TC/DC number (+1)"
+                        >
+                          +1
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Reg. No.:</span>
+                      <span className={`font-mono font-black text-blue-700 truncate ${String(regNo || '').length > 13 ? 'text-[8.5px] tracking-tight' : 'text-[9.5px]'}`}>{regNo || '—'}</span>
+                    </div>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Admission No.:</span>
+                      <input
+                        type="text"
+                        value={admissionNo || ''}
+                        onChange={(e) => setAdmissionNo(e.target.value)}
+                        placeholder="e.g. 1045"
+                        title="Click to directly edit Admission Number"
+                        aria-label="Admission Number"
+                        className="font-mono font-black text-blue-700 bg-transparent border-b border-dashed border-blue-300/80 hover:border-blue-500 focus:border-blue-600 focus:bg-blue-50/40 rounded px-0.5 py-0 outline-none transition-all w-20 text-[9px] print:border-none print:bg-transparent print:p-0"
+                      />
+                    </div>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Date of Admission:</span>
+                      <input
+                        type="text"
+                        value={admissionDate || ''}
+                        onChange={(e) => setAdmissionDate(e.target.value)}
+                        placeholder="DD-MM-YYYY"
+                        title="Click to directly edit Date of Admission"
+                        aria-label="Date of Admission"
+                        className="font-mono font-black text-blue-700 bg-transparent border-b border-dashed border-blue-300/80 hover:border-blue-500 focus:border-blue-600 focus:bg-blue-50/40 rounded px-0.5 py-0 outline-none transition-all w-20 text-[9px] print:border-none print:bg-transparent print:p-0"
+                      />
+                      <input
+                        type="date"
+                        title="Pick date of admission from calendar"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const [y, m, d] = e.target.value.split('-');
+                            setAdmissionDate(`${d}-${m}-${y}`);
+                          }
+                        }}
+                        className="w-3 h-3 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
+                      />
+                    </div>
+                  </div>
 
-                {/* Word (.docx) Export */}
-                <button
-                  type="button"
-                  disabled={isExportingDocx || isIssuingTcDc}
-                  onClick={handleExportDocx}
-                  className="w-7 h-7 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-xs cursor-pointer disabled:opacity-50 transition-all active:scale-90"
-                  title="Download editable Word Document (.docx)"
-                >
-                  {isExportingDocx ? <RefreshCw size={12} className="animate-spin" /> : <FileText size={13} />}
-                </button>
+                  {/* Right Column: Integrated QR Security Badge */}
+                  <div className="flex flex-col items-center justify-center px-2 py-1.5 bg-white border-l border-dashed border-slate-300 shrink-0 self-stretch w-[88px] min-w-[88px] max-w-[88px] box-border">
+                    <div className="w-14 h-14 bg-white border border-slate-200 rounded p-0.5 flex items-center justify-center shadow-2xs">
+                      {canvasQrUri ? (
+                        <img src={canvasQrUri} alt="Verification QR Code" className="w-full h-full object-contain" />
+                      ) : (
+                        <span className="text-[7px] font-mono text-slate-500 font-black">[ QR CODE ]</span>
+                      )}
+                    </div>
+                    <span className="text-[6px] font-black tracking-wider text-[#800000] uppercase mt-1 text-center whitespace-nowrap">SCAN TO VERIFY</span>
+                  </div>
+                </div>
+              )}
 
-                {/* History / Archive button in Row 1 */}
-                <button
-                  type="button"
-                  onClick={() => setShowHistoryModal(true)}
-                  className="w-7 h-7 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors"
-                  title="Browse past generated / printed documents archive"
-                >
-                  <History size={13} />
-                </button>
+              {/* Dynamic Injected Spacing Style Block for Live Canvas */}
+              <style>{`
+                .doc-studio-wysiwyg-body p {
+                  margin-bottom: ${paraSpacing}px !important;
+                }
+                .cert-footer-dates-row {
+                  margin-top: 0.5in !important;
+                }
+              `}</style>
 
-                {/* ── Row 2: Overwrite, Insert Fields & Gemini AI ── */}
-                <button
-                  type="button"
-                  onClick={handleQuickUpdateTemplate}
-                  className="w-7 h-7 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 flex items-center justify-center cursor-pointer transition-all active:scale-90"
-                  title="Save & Overwrite active template in Cloud"
-                >
-                  <Save size={13} />
-                </button>
+              {/* Main Body with Direct Inline Editing & Context Menu */}
+              <div className="flex items-start gap-4 relative" style={{ marginTop: '0px' }}>
+                <div
+                  ref={editorRef}
+                  contentEditable={true}
+                  suppressContentEditableWarning={true}
+                  style={{ lineHeight: bodyLineHeight }}
+                  onInput={(e) => {
+                    handleEditorInput(e);
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onKeyUp={() => {
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onMouseUp={() => {
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onClick={() => {
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onFocus={() => {
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onSelect={() => {
+                    saveCurrentSelection();
+                    checkActiveFormats();
+                  }}
+                  onContextMenu={handleContextMenu}
+                  className="doc-studio-wysiwyg-body flex-1 text-[11.5px] text-justify font-serif text-slate-900 space-y-2 focus:outline-none p-2 rounded-lg border border-dashed border-teal-200 hover:border-teal-400 focus:border-teal-500 focus:bg-teal-50/15 transition-all cursor-text min-h-[140px]"
+                  title="Click to edit text directly • Right-click anywhere to insert student details or placeholders"
+                />
 
-                {/* Insert Student Field Dropdown (Popout) */}
-                <div className="relative" ref={insertFieldDropdownRef}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      setShowInsertFieldDropdown(!showInsertFieldDropdown);
-                      setShowAskGeminiMenu(false);
-                    }}
-                    className="w-7 h-7 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 flex items-center justify-center cursor-pointer transition-all active:scale-90"
-                    title="Insert student database fields at cursor"
+                {showPhoto && (
+                  <div 
+                    onClick={() => { if (!studentPhotoUrl && !isFetchingPhoto) fetchAndResolveStudentPhoto(); }}
+                    className={`w-24 h-28 border border-[#800000] p-1 bg-white shadow-xs rounded flex flex-col items-center justify-center shrink-0 text-center relative overflow-hidden transition-all ${
+                      !studentPhotoUrl ? 'cursor-pointer hover:border-teal-600 hover:bg-teal-50/30 group' : ''
+                    }`}
+                    title={studentPhotoUrl ? "Student Photo (verified from database)" : "Click to fetch student photo from database"}
                   >
-                    <PlusCircle size={13} />
-                  </button>
+                    {isFetchingPhoto ? (
+                      <div className="flex flex-col items-center justify-center gap-1.5 p-1 animate-fadeIn">
+                        <RefreshCw size={16} className="animate-spin text-teal-600" />
+                        <span className="text-[7.5px] font-black text-teal-700 uppercase tracking-tighter">Fetching DB Photo...</span>
+                      </div>
+                    ) : studentPhotoUrl ? (
+                      <img
+                        src={studentPhotoUrl}
+                        alt={studentName}
+                        className="w-full h-full object-cover rounded shadow-2xs"
+                        onError={() => setStudentPhotoUrl(null)}
+                      />
+                    ) : (
+                      <div className="text-[8px] font-bold text-slate-400 uppercase leading-tight flex flex-col items-center justify-center gap-1 p-1">
+                        <ImageIcon size={16} className="text-slate-300 group-hover:text-teal-600 transition-colors" />
+                        <span>Affix Student Photo</span>
+                        <span className="text-[7px] text-teal-600 underline font-mono">Fetch DB Photo</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
 
-                  {showInsertFieldDropdown && (
-                    <div className={`absolute ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[999999] p-2 space-y-1 text-xs animate-fadeIn divide-y divide-slate-100 dark:divide-slate-800 max-h-[75vh] overflow-y-auto`}>
+            {/* Footer Verification & Signatories */}
+            <div
+              style={{ marginTop: '0.77in' }}
+              className="relative z-10 pt-0 border-t border-slate-200"
+            >
+              <div className="flex items-end justify-between px-2">
+                {/* Signatory 1: Incharge Admissions & Exam */}
+                <div className="w-28 sm:w-36 text-center">
+                  <div className="border-b-2 border-[#800000] mb-1"></div>
+                  <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatories[0] || 'Incharge Admissions & Exam'}</div>
+                  <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
+                </div>
+
+                {/* Signatory 2: Checked By (Shown for TC/DC or when 3 signatories exist) */}
+                {signatories.length > 2 && (
+                  <div className="w-28 sm:w-36 text-center">
+                    <div className="border-b-2 border-slate-800 mb-1"></div>
+                    <div className="font-black text-[9.5px] uppercase tracking-tight text-slate-800">{signatories[1] || 'Checked By'}</div>
+                    <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
+                  </div>
+                )}
+
+                {/* Signatory 3: Principal */}
+                <div className="w-28 sm:w-36 text-center">
+                  <div className="border-b-2 border-[#800000] mb-1"></div>
+                  <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatories[signatories.length - 1] || 'Principal'}</div>
+                  <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
+                </div>
+              </div>
+
+              {/* Interactive Preview of Office Copy Receipt Box when TC/DC is Active */}
+              {isTcDcActive && isDualCopy && (
+                <div className="flex justify-center" style={{ marginTop: `${sigReceiptGap}px` }}>
+                  <div className="relative pt-2 w-fit max-w-[460px]">
+                    <div className="absolute top-0 left-4 bg-slate-100 border border-slate-300 text-rose-600 font-black text-[8px] uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs z-10">
+                      Receipt by Student (Page 2 Office Copy)
+                    </div>
+                    <div className="p-3 px-6 rounded-xl bg-amber-50/90 border border-amber-300 font-sans shadow-2xs text-center">
+                      <div className="text-[9.5px] font-bold text-slate-800">
+                        Received <strong>'Discharge cum Character Certificate'</strong> in Original
+                      </div>
+                      <div className="flex justify-center items-end gap-6 text-[9px] mt-4">
+                        <div className="flex items-end gap-2">
+                          <span className="font-bold text-slate-700 whitespace-nowrap">today on</span>
+                          <div className="w-24 border-b-2 border-slate-600"></div>
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <span className="font-bold text-slate-700 whitespace-nowrap">Signature</span>
+                          <div className="w-32 border-b-2 border-slate-600"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── DRAGGABLE VERTICAL SPLITTER HANDLE ── */}
+        {isDesktop && (
+          <div
+            onMouseDown={handleSplitterMouseDown}
+            title="Drag horizontally to adjust workspace split width (Double-click to reset)"
+            onDoubleClick={() => {
+              setLeftSplitPct(67);
+              try { localStorage.setItem('hss_cert_preview_split_pct', '67'); } catch {}
+            }}
+            className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-teal-400/20 active:bg-teal-600/30 group transition-colors z-20 shrink-0 mx-0.5"
+          >
+            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-teal-700 ${isDraggingSplitter ? 'bg-teal-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
+          </div>
+        )}
+
+        {/* == == == == == == == == RIGHT HALF: UNIFIED TOOLS & FILTERS CARD (DESKTOP) == == == == == == == == */}
+        {isDesktop && (
+          <div
+            style={{ width: `${100 - leftSplitPct}%` }}
+            className="w-full lg:w-auto shrink-0 pl-0 lg:pl-1 min-w-0"
+          >
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-xs p-2.5 space-y-2 flex flex-col max-h-[calc(100dvh-95px)] min-h-[580px] overflow-hidden text-xs">
+              
+              {/* ─── PINNED TOOLS & FORMATTING TOOLBAR ─── */}
+              <div className="space-y-1.5 pb-2 border-b border-slate-200/80 dark:border-slate-800 shrink-0">
+                {/* Row 1: Document Actions */}
+                <div className="flex items-center justify-between gap-1 flex-wrap">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handlePrint}
+                      disabled={isIssuingTcDc || isExportingDocx}
+                      className="h-7 px-2 rounded-lg bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 text-white font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                      title="Print or Save Certificate as PDF"
+                    >
+                      {isIssuingTcDc ? <RefreshCw size={11} className="animate-spin" /> : <Printer size={12} />}
+                      <span>Print</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isExportingDocx || isIssuingTcDc}
+                      onClick={handleExportDocx}
+                      className="h-7 px-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+                      title="Download editable Word Document (.docx)"
+                    >
+                      {isExportingDocx ? <RefreshCw size={11} className="animate-spin" /> : <FileText size={12} />}
+                      <span>Word</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleQuickUpdateTemplate}
+                      className="h-7 px-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95"
+                      title="Save & Overwrite active template in Cloud"
+                    >
+                      <Save size={12} />
+                      <span>Save</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {/* Student Photo Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePhoto()}
+                      className={`h-7 px-1.5 rounded-lg flex items-center gap-1 text-[10px] font-bold cursor-pointer transition-all border ${
+                        showPhoto
+                          ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700 shadow-2xs'
+                          : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                      }`}
+                      title={`Student Photo: ${showPhoto ? 'ON (Click to hide)' : 'OFF (Click to show)'}`}
+                    >
+                      {isFetchingPhoto ? (
+                        <RefreshCw size={11} className="animate-spin text-teal-600" />
+                      ) : (
+                        <ImageIcon size={12} className={showPhoto ? 'text-teal-600' : 'text-slate-400'} />
+                      )}
+                      <span>Photo</span>
+                    </button>
+
+                    {/* Insert Field Dropdown Popout */}
+                    <div className="relative" ref={insertFieldDropdownRef}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setShowInsertFieldDropdown(!showInsertFieldDropdown);
+                          setShowAskGeminiMenu(false);
+                        }}
+                        className="h-7 px-2 rounded-lg bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                        title="Insert student database fields at cursor"
+                      >
+                        <PlusCircle size={12} />
+                        <span>Field</span>
+                      </button>
+
+                      {showInsertFieldDropdown && (
+                    <div className={`absolute right-0 top-full mt-1.5 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[999999] p-2 space-y-1 text-xs animate-fadeIn divide-y divide-slate-100 dark:divide-slate-800 max-h-[75vh] overflow-y-auto`}>
                       <div className="px-1.5 py-1 flex items-center justify-between">
                         <div className="flex items-center gap-1 text-[10px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider">
                           <PlusCircle size={10} className="text-teal-600" />
@@ -6451,7 +6835,7 @@ export default function StudentCertificateStudioView({
                   {showAskGeminiMenu && (
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className={`absolute ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[999999] p-1.5 space-y-1 text-xs font-bold animate-fadeIn`}
+                      className={`absolute right-0 top-full mt-1.5 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[999999] p-1.5 space-y-1 text-xs font-bold animate-fadeIn`}
                     >
                       <div className="px-2 py-1 text-[8.5px] font-black uppercase text-purple-600 dark:text-purple-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                         <span className="flex items-center gap-1">
@@ -6497,336 +6881,264 @@ export default function StudentCertificateStudioView({
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* ── Row 3: BookmarkPlus, Photo & Undo ── */}
-                <button
-                  type="button"
-                  onClick={() => setShowSaveTemplateModal(true)}
-                  className="w-7 h-7 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors"
-                  title="Save Certificate format as reusable template"
-                >
-                  <BookmarkPlus size={13} />
-                </button>
-
-                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
-
-                {/* ── Row 3: Photo, Undo & Redo ── */}
-                <button
-                  type="button"
-                  onClick={() => handleTogglePhoto()}
-                  className={`w-7 h-7 rounded-xl flex items-center justify-center cursor-pointer transition-all border ${
-                    showPhoto
-                      ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700 shadow-2xs'
-                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                  }`}
-                  title={`Student Photo: ${showPhoto ? 'ON (Click to hide)' : 'OFF (Click to show & fetch from DB)'}`}
-                >
-                  {isFetchingPhoto ? (
-                    <RefreshCw size={12} className="animate-spin text-teal-600" />
-                  ) : (
-                    <ImageIcon size={13} className={showPhoto ? 'text-teal-600' : 'text-slate-400'} />
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { handleUndo(); setTimeout(checkActiveFormats, 50); }}
-                  disabled={!canUndo}
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-20 flex items-center justify-center cursor-pointer transition-colors"
-                  title="Undo (Ctrl+Z)"
-                >
-                  <Undo size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { handleRedo(); setTimeout(checkActiveFormats, 50); }}
-                  disabled={!canRedo}
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-20 flex items-center justify-center cursor-pointer transition-colors"
-                  title="Redo (Ctrl+Y)"
-                >
-                  <Redo size={12} />
-                </button>
-
-                {/* ── Row 4: Headings & Paragraph ── */}
-                <button
-                  type="button"
-                  title="Heading 1 (Click to apply, click again to revert to body text)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('formatBlock', '<h1>')}
-                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.h1
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs font-black'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                  }`}
-                >
-                  H1
-                </button>
-
-                <button
-                  type="button"
-                  title="Heading 2 (Click to apply, click again to revert to body text)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('formatBlock', '<h2>')}
-                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.h2
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs font-black'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                  }`}
-                >
-                  H2
-                </button>
-
-                <button
-                  type="button"
-                  title="Normal Body Paragraph (Â¶)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('formatBlock', '<p>')}
-                  className={`w-7 h-7 rounded-lg font-bold text-[10px] flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.p
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                  }`}
-                >
-                  Â¶
-                </button>
-
-                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
-
-                {/* ── Row 5: Character Styles (Bold, Italic, Underline) ── */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('bold')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.bold
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-black shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 font-black'
-                  }`}
-                  title="Bold (Ctrl+B)"
-                >
-                  <Bold size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('italic')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.italic
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-black shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold'
-                  }`}
-                  title="Italic (Ctrl+I)"
-                >
-                  <Italic size={12} />
-                </button>
-
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('underline')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.underline
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-black shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold'
-                  }`}
-                  title="Underline (Ctrl+U)"
-                >
-                  <Underline size={12} />
-                </button>
-
-                {/* ── Row 6: Strike, Color & Divider Line ── */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('strikeThrough')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.strikeThrough
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-black shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
-                  }`}
-                  title="Strikethrough"
-                >
-                  <Strikethrough size={12} />
-                </button>
-
-                {/* Color Palette Popout */}
-                <div className="relative" ref={colorMenuRef}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      saveCurrentSelection();
-                    }}
-                    onClick={() => {
-                      saveCurrentSelection();
-                      setShowColorMenu(!showColorMenu);
-                    }}
-                    className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer"
-                    title="Text Color Palette"
-                  >
-                    <Palette size={12} className="text-amber-600" />
-                  </button>
-                  {showColorMenu && (
-                    <div 
-                      onClick={(e) => e.stopPropagation()}
-                      className={`absolute ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 z-50 flex items-center gap-1.5 animate-fadeIn`}
-                    >
-                      {[
-                        { label: 'Black', color: '#0f172a' },
-                        { label: 'Maroon', color: '#800000' },
-                        { label: 'Navy Blue', color: '#0a192f' },
-                        { label: 'Forest Green', color: '#065f46' },
-                        { label: 'Slate Gray', color: '#475569' },
-                        { label: 'Crimson', color: '#dc2626' }
-                      ].map(c => (
-                        <button
-                          key={c.color}
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            applyTextColor(c.color);
-                            setShowColorMenu(false);
-                          }}
-                          className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 cursor-pointer hover:scale-110 transition-transform shadow-2xs"
-                          style={{ backgroundColor: c.color }}
-                          title={c.label}
-                        />
-                      ))}
                     </div>
-                  )}
+
+                    {/* Save As New Template */}
+                    <button
+                      type="button"
+                      onClick={() => setShowSaveTemplateModal(true)}
+                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all"
+                      title="Save Certificate format as reusable template"
+                    >
+                      <BookmarkPlus size={12} />
+                    </button>
+
+                    {/* History / Archive */}
+                    <button
+                      type="button"
+                      onClick={() => setShowHistoryModal(true)}
+                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all"
+                      title="Browse past generated documents archive"
+                    >
+                      <History size={12} />
+                    </button>
+
+                    {/* Gemini AI Assistant */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAiModal('draft')}
+                      className="h-7 px-1.5 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95"
+                      title="Gemini AI Certificate Assistant (Draft, Polish, Formalize)"
+                    >
+                      <Sparkles size={11} className="text-amber-200" />
+                      <span>AI</span>
+                    </button>
+                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={insertHorizontalRule}
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
-                  title="Insert Divider Line"
-                >
-                  <Minus size={12} />
-                </button>
+                {/* Row 2: Rich Text & Formatting */}
+                <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Undo (Ctrl+Z)"
+                      disabled={!canUndo}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { handleUndo(); setTimeout(checkActiveFormats, 50); }}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-colors ${canUndo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'}`}
+                    >
+                      <Undo size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Redo (Ctrl+Y)"
+                      disabled={!canRedo}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { handleRedo(); setTimeout(checkActiveFormats, 50); }}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-colors ${canRedo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'}`}
+                    >
+                      <Redo size={11} />
+                    </button>
+                  </div>
 
-                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
 
-                {/* ── Row 7: Alignments Left, Center & Right ── */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('justifyLeft')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.justifyLeft
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                  title="Align Left"
-                >
-                  <AlignLeft size={12} />
-                </button>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Normal Body Paragraph (¶)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('formatBlock', '<p>')}
+                      className={`w-6 h-6 rounded font-black text-[9px] flex items-center justify-center cursor-pointer transition-all ${activeFormats.p ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      ¶
+                    </button>
+                    <button
+                      type="button"
+                      title="Heading 1"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('formatBlock', '<h1>')}
+                      className={`w-6 h-6 rounded font-black text-[9px] flex items-center justify-center cursor-pointer transition-all ${activeFormats.h1 ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'}`}
+                    >
+                      H1
+                    </button>
+                    <button
+                      type="button"
+                      title="Heading 2"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('formatBlock', '<h2>')}
+                      className={`w-6 h-6 rounded font-black text-[9px] flex items-center justify-center cursor-pointer transition-all ${activeFormats.h2 ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'}`}
+                    >
+                      H2
+                    </button>
+                  </div>
 
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('justifyCenter')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.justifyCenter
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                  title="Align Center"
-                >
-                  <AlignCenter size={12} />
-                </button>
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
 
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('justifyRight')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.justifyRight
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                  title="Align Right"
-                >
-                  <AlignRight size={12} />
-                </button>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Bold (Ctrl+B)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('bold')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.bold ? 'bg-teal-100 text-teal-900 font-black border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                    >
+                      <Bold size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Italic (Ctrl+I)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('italic')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.italic ? 'bg-teal-100 text-teal-900 font-black border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                    >
+                      <Italic size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Underline (Ctrl+U)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('underline')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.underline ? 'bg-teal-100 text-teal-900 font-black border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                    >
+                      <Underline size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Strikethrough"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('strikethrough')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.strikeThrough ? 'bg-teal-100 text-teal-900 font-black border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                    >
+                      <Strikethrough size={11} />
+                    </button>
+                  </div>
 
-                {/* ── Row 8: Justify & Lists ── */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('justifyFull')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.justifyFull
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                  title="Justify Text"
-                >
-                  <AlignJustify size={12} />
-                </button>
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
 
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('insertUnorderedList')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.insertUnorderedList
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                  title="Bulleted List"
-                >
-                  <List size={12} />
-                </button>
+                  {/* Color Palette Popout */}
+                  <div className="relative" ref={colorMenuRef}>
+                    <button
+                      type="button"
+                      title="Text Color Palette"
+                      onMouseDown={(e) => { e.preventDefault(); saveCurrentSelection(); }}
+                      onClick={() => { saveCurrentSelection(); setShowColorMenu(!showColorMenu); }}
+                      className="w-6 h-6 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer transition-all"
+                    >
+                      <Palette size={11} className="text-teal-600" />
+                    </button>
 
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('insertOrderedList')}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                    activeFormats.insertOrderedList
-                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
-                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                  title="Numbered List"
-                >
-                  <ListOrdered size={12} />
-                </button>
+                    {showColorMenu && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 flex items-center gap-1.5 animate-fadeIn"
+                      >
+                        {[
+                          { label: 'Black', color: '#0f172a' },
+                          { label: 'Maroon', color: '#800000' },
+                          { label: 'Navy Blue', color: '#0a192f' },
+                          { label: 'Forest Green', color: '#065f46' },
+                          { label: 'Slate Gray', color: '#475569' },
+                          { label: 'Crimson', color: '#dc2626' }
+                        ].map(c => (
+                          <button
+                            key={c.color}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { applyTextColor(c.color); setShowColorMenu(false); }}
+                            title={c.label}
+                            className="w-5 h-5 rounded-full border border-slate-300 shadow-2xs hover:scale-125 transition-transform cursor-pointer"
+                            style={{ backgroundColor: c.color }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
 
-                {/* ── Row 9: Table, Clear Format & Switcher ── */}
-                {/* Table Tool Popout */}
-                <div className="relative" ref={tableMenuRef}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      checkTableContext();
-                      setShowTableMenu(prev => !prev);
-                      setShowColorMenu(false);
-                    }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer ${
-                      activeTableContext || (editorRef.current && editorRef.current.querySelector('table'))
-                        ? 'bg-teal-50 dark:bg-teal-950 text-teal-700 border border-teal-300'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                    }`}
-                    title="Table Tools & Column / Row Controls"
-                  >
-                    <TableIcon size={12} />
-                  </button>
+                  {/* Alignment */}
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Align Left"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyLeft')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.justifyLeft ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <AlignLeft size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Align Center"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyCenter')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.justifyCenter ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <AlignCenter size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Align Right"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyRight')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.justifyRight ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <AlignRight size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Justify Full"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyFull')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.justifyFull ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <AlignJustify size={11} />
+                    </button>
+                  </div>
 
-                  {showTableMenu && (
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                  {/* Lists */}
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Bulleted List"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('insertUnorderedList')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.insertUnorderedList ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <List size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Numbered List"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('insertOrderedList')}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.insertOrderedList ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <ListOrdered size={11} />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                  {/* Table Tool Popout */}
+                  <div className="relative" ref={tableMenuRef}>
+                    <button
+                      type="button"
+                      title="Insert or Edit Table"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { checkTableContext(); setShowTableMenu(!showTableMenu); }}
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-colors ${activeTableContext || (editorRef.current && editorRef.current.querySelector('table')) ? 'bg-teal-100 dark:bg-teal-950 text-teal-700 border border-teal-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                    >
+                      <TableIcon size={11} />
+                    </button>
+
+                    {showTableMenu && (
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className={`absolute ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 z-50 w-52 space-y-1.5 text-xs animate-fadeIn font-bold`}
+                      className={`absolute right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 z-50 w-52 space-y-1.5 text-xs animate-fadeIn font-bold`}
                     >
                       {(activeTableContext || (editorRef.current && editorRef.current.querySelector('table'))) ? (
                         <>
@@ -6930,410 +7242,38 @@ export default function StudentCertificateStudioView({
                       )}
                     </div>
                   )}
-                </div>
-
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => executeFormat('removeFormat')}
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 flex items-center justify-center cursor-pointer"
-                  title="Clear Formatting"
-                >
-                  <RemoveFormatting size={12} />
-                </button>
-
-                {/* Dock Side Switcher (Spanning 2 columns) */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextSide = dockSide === 'left' ? 'right' : 'left';
-                    setDockSide(nextSide);
-                    try { localStorage.setItem('hss_cert_dock_side', nextSide); } catch {}
-                  }}
-                  className="col-span-2 w-full h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors text-[9px] font-bold font-mono hidden lg:flex"
-                  title={dockSide === 'left' ? 'Move Dock to Right side of Canvas' : 'Move Dock to Left side of Canvas'}
-                >
-                  {dockSide === 'left' ? '👉 Right' : '👈 Left'}
-                </button>
-
-              </div>
-            </div>
-
-            {/* ================ A4 PAPER LIVE VIEWPORT & EDITOR ================ */}
-            <div className="flex-1 w-full max-w-[840px] min-w-0">
-              <div
-                className="text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] -outline-offset-4 rounded-xl p-4 sm:p-6 shadow-md max-h-[75dvh] lg:max-h-[calc(100dvh-95px)] overflow-y-auto relative flex flex-col justify-start min-h-[520px] lg:min-h-[620px]"
-                style={{
-                  backgroundColor: '#fdfbf7',
-                  backgroundImage: 'radial-gradient(ellipse at 50% 30%, #ffffff 0%, #fbf9f4 60%, #f6f1e7 100%), repeating-linear-gradient(45deg, rgba(197, 160, 89, 0.016) 0px, rgba(197, 160, 89, 0.016) 1.5px, transparent 1.5px, transparent 8px)'
-                }}
-              >
-            
-            {/* Watermark Background */}
-            {watermark && (
-              <div
-                className="absolute inset-0 pointer-events-none opacity-5 flex items-center justify-center z-0"
-                style={{
-                  backgroundImage: `url('/logo192.png')`,
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundSize: '110px'
-                }}
-              />
-            )}
-
-            <div className="relative z-10 space-y-3">
-              
-              {/* Top Official Letterhead Header Banner (Matches Official Letterhead Writer) */}
-              <div
-                style={{ marginBottom: `${headerGap}in` }}
-                className="hidden lg:block print:!block -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-4 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl"
-              >
-                <img
-                  src="/logo192.png"
-                  alt="School Seal"
-                  style={{ width: '48px', height: '48px', maxWidth: '48px', maxHeight: '48px', objectFit: 'contain' }}
-                  className="w-12 h-12 object-contain mx-auto mb-1.5 drop-shadow-xs"
-                  onError={(e) => { e.target.src = '/logo.png'; e.target.onerror = null; }}
-                />
-                <h3 className="text-[11px] sm:text-xs font-black text-[#800000] uppercase tracking-[1.5px] m-0">
-                  {officeTitle || 'OFFICE OF THE PRINCIPAL'}
-                </h3>
-                <h1 className="text-base sm:text-lg font-black text-[#0a192f] tracking-wide uppercase m-0 mt-0.5 font-serif">
-                  {institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}
-                </h1>
-                <p className="text-[10px] text-slate-600 font-semibold m-0 mt-0.5">
-                  {institutionAddress || 'Anantnag, Kashmir — 192201 (J&K)'}
-                </p>
-              </div>
-
-              {/* Ref & Date Row — Direct Inline Editing */}
-              {!isTcDcActive && (
-                <div className="flex items-center justify-between text-[10px] sm:text-[10.5px] font-bold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 pb-1 px-1 mt-1 sm:mt-2 lg:-mt-[0.25in] mb-2 sm:mb-3 lg:mb-[0.25in] print:!-mt-[0.25in] print:!mb-[0.25in] gap-2">
-                  <div className="flex items-center gap-1 group/ref min-w-0 flex-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowRefDateModal(true)}
-                      className="shrink-0 text-slate-700 dark:text-slate-300 font-bold hover:underline cursor-pointer flex items-center gap-0.5 text-[10px] sm:text-[10.5px]"
-                      title="Click to edit Reference No. & Date in popup"
-                    >
-                      <span>Ref No:</span>
-                      <Edit3 size={9} className="text-slate-400 lg:hidden" />
-                    </button>
-                    <input
-                      type="text"
-                      value={refNo}
-                      onChange={(e) => handleGeneralRefChange(e.target.value)}
-                      onBlur={handleGeneralRefBlur}
-                      placeholder="e.g. HSS/1454/26"
-                      title="Click to directly edit Certificate Reference Number"
-                      aria-label="Certificate Reference Number"
-                      className="studio-inline-input font-mono font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[240px] sm:max-w-[360px] text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0 print:max-w-none print:w-auto"
-                      style={{ fontSize: '11px', height: '22px' }}
-                    />
-                    <div className="print:hidden inline-flex items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={() => handleStepFigure(-1)}
-                        className="px-1 py-0.5 rounded text-[8.5px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-                        title="Step figure down (-1)"
-                      >
-                        -1
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleStepFigure(1)}
-                        className="px-1 py-0.5 rounded text-[8.5px] font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/60 cursor-pointer"
-                        title="Advance figure (+1 Next)"
-                      >
-                        +1
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 group/date shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setShowRefDateModal(true)}
-                      className="shrink-0 text-slate-700 dark:text-slate-300 font-bold hover:underline cursor-pointer flex items-center gap-0.5 text-[10px] sm:text-[10.5px]"
-                      title="Click to edit Reference No. & Date in popup"
-                    >
-                      <span>Date:</span>
-                      <Edit3 size={9} className="text-slate-400 lg:hidden" />
-                    </button>
-                    <input
-                      type="text"
-                      value={dateStr}
-                      onChange={(e) => setDateStr(e.target.value)}
-                      placeholder="DD/MM/YYYY"
-                      title="Click to directly edit Issue Date"
-                      aria-label="Issue Date"
-                      className="studio-inline-input font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-20 sm:w-24 text-right text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0 print:text-right"
-                      style={{ fontSize: '11px', height: '22px' }}
-                    />
-                    <input
-                      type="date"
-                      title="Pick certificate issue date from calendar"
-                      aria-label="Pick issue date from calendar"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          const [y, m, d] = e.target.value.split('-');
-                          setDateStr(`${d}/${m}/${y}`);
-                        }
-                      }}
-                      className="w-3.5 h-3.5 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Certificate Title Banner — Kept Close Vertically */}
-              <div className="text-center pt-0 pb-0" style={{ marginTop: `${titleMetaGap}px`, marginBottom: `${titleMetaGap}px` }}>
-                <span className="inline-block font-serif text-xs sm:text-sm font-black uppercase text-[#800000] tracking-widest px-5 py-0.5 border-y-2 border-[#800000] bg-[#fff9f5] shadow-2xs">
-                  {certificateTitle}
-                </span>
-              </div>
-
-              {/* TC/DC Meta Details on Studio Canvas — Modern 2x2 Grid with Integrated QR Security Badge */}
-              {isTcDcActive && (
-                <div
-                  style={{
-                    marginTop: `${titleMetaGap}px`,
-                    marginBottom: `${metaBodyGap}in`
-                  }}
-                  className="w-full flex items-stretch justify-between bg-white border border-[#800000] rounded-md overflow-hidden text-[10px] font-sans shadow-2xs"
-                >
-                  {/* Left Column: 2x2 Metadata Grid */}
-                  <div className="grid grid-cols-[1fr_1.25fr] gap-x-3 gap-y-2 flex-1 px-3 py-2 leading-relaxed min-w-0">
-                    <div className="flex items-baseline gap-1.5 min-w-0">
-                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Certificate No.:</span>
-                      <input
-                        type="text"
-                        value={refNo}
-                        onChange={(e) => setRefNo(e.target.value)}
-                        placeholder="1368"
-                        title="Click to directly edit Certificate Serial Number"
-                        aria-label="Certificate Serial Number"
-                        className="font-mono font-black text-red-600 bg-transparent border-b border-dashed border-red-300/80 hover:border-red-500 focus:border-red-600 focus:bg-red-50/40 rounded px-0.5 py-0 outline-none transition-all w-24 text-[9.5px] print:border-none print:bg-transparent print:p-0"
-                      />
-                      <div className="print:hidden inline-flex items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          onClick={() => handleStepFigure(-1)}
-                          className="px-1 py-0.5 rounded text-[8.5px] font-bold text-slate-600 hover:bg-slate-200"
-                          title="Step TC/DC number down (-1)"
-                        >
-                          -1
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleStepFigure(1)}
-                          className="px-1 py-0.5 rounded text-[8.5px] font-bold text-red-600 hover:bg-red-100"
-                          title="Advance TC/DC number (+1)"
-                        >
-                          +1
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex items-baseline gap-1.5 min-w-0">
-                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Reg. No.:</span>
-                      <span className={`font-mono font-black text-blue-700 truncate ${String(regNo || '').length > 13 ? 'text-[8.5px] tracking-tight' : 'text-[9.5px]'}`}>{regNo || '—'}</span>
-                    </div>
-                    <div className="flex items-baseline gap-1.5 min-w-0">
-                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Admission No.:</span>
-                      <input
-                        type="text"
-                        value={admissionNo || ''}
-                        onChange={(e) => setAdmissionNo(e.target.value)}
-                        placeholder="e.g. 1045"
-                        title="Click to directly edit Admission Number"
-                        aria-label="Admission Number"
-                        className="font-mono font-black text-blue-700 bg-transparent border-b border-dashed border-blue-300/80 hover:border-blue-500 focus:border-blue-600 focus:bg-blue-50/40 rounded px-0.5 py-0 outline-none transition-all w-20 text-[9px] print:border-none print:bg-transparent print:p-0"
-                      />
-                    </div>
-                    <div className="flex items-baseline gap-1.5 min-w-0">
-                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Date of Admission:</span>
-                      <input
-                        type="text"
-                        value={admissionDate || ''}
-                        onChange={(e) => setAdmissionDate(e.target.value)}
-                        placeholder="DD-MM-YYYY"
-                        title="Click to directly edit Date of Admission"
-                        aria-label="Date of Admission"
-                        className="font-mono font-black text-blue-700 bg-transparent border-b border-dashed border-blue-300/80 hover:border-blue-500 focus:border-blue-600 focus:bg-blue-50/40 rounded px-0.5 py-0 outline-none transition-all w-20 text-[9px] print:border-none print:bg-transparent print:p-0"
-                      />
-                      <input
-                        type="date"
-                        title="Pick date of admission from calendar"
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            const [y, m, d] = e.target.value.split('-');
-                            setAdmissionDate(`${d}-${m}-${y}`);
-                          }
-                        }}
-                        className="w-3 h-3 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
-                      />
-                    </div>
                   </div>
 
-                  {/* Right Column: Integrated QR Security Badge */}
-                  <div className="flex flex-col items-center justify-center px-2 py-1.5 bg-white border-l border-dashed border-slate-300 shrink-0 self-stretch w-[88px] min-w-[88px] max-w-[88px] box-border">
-                    <div className="w-14 h-14 bg-white border border-slate-200 rounded p-0.5 flex items-center justify-center shadow-2xs">
-                      {canvasQrUri ? (
-                        <img src={canvasQrUri} alt="Verification QR Code" className="w-full h-full object-contain" />
-                      ) : (
-                        <span className="text-[7px] font-mono text-slate-500 font-black">[ QR CODE ]</span>
-                      )}
-                    </div>
-                    <span className="text-[6px] font-black tracking-wider text-[#800000] uppercase mt-1 text-center whitespace-nowrap">SCAN TO VERIFY</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Dynamic Injected Spacing Style Block for Live Canvas */}
-              <style>{`
-                .doc-studio-wysiwyg-body p {
-                  margin-bottom: ${paraSpacing}px !important;
-                }
-                .cert-footer-dates-row {
-                  margin-top: 0.5in !important;
-                }
-              `}</style>
-
-              {/* Main Body with Direct Inline Editing & Context Menu */}
-              <div className="flex items-start gap-4 relative" style={{ marginTop: '0px' }}>
-                <div
-                  ref={editorRef}
-                  contentEditable={true}
-                  suppressContentEditableWarning={true}
-                  style={{ lineHeight: bodyLineHeight }}
-                  onInput={(e) => {
-                    handleEditorInput(e);
-                    saveCurrentSelection();
-                    checkTableContext();
-                    checkActiveFormats();
-                  }}
-                  onKeyUp={() => {
-                    saveCurrentSelection();
-                    checkTableContext();
-                    checkActiveFormats();
-                  }}
-                  onMouseUp={() => {
-                    saveCurrentSelection();
-                    checkTableContext();
-                    checkActiveFormats();
-                  }}
-                  onClick={() => {
-                    saveCurrentSelection();
-                    checkTableContext();
-                    checkActiveFormats();
-                  }}
-                  onFocus={() => {
-                    saveCurrentSelection();
-                    checkTableContext();
-                    checkActiveFormats();
-                  }}
-                  onSelect={() => {
-                    saveCurrentSelection();
-                    checkActiveFormats();
-                  }}
-                  onContextMenu={handleContextMenu}
-                  className="doc-studio-wysiwyg-body flex-1 text-[11.5px] text-justify font-serif text-slate-900 space-y-2 focus:outline-none p-2 rounded-lg border border-dashed border-teal-200 hover:border-teal-400 focus:border-teal-500 focus:bg-teal-50/15 transition-all cursor-text min-h-[140px]"
-                  title="Click to edit text directly • Right-click anywhere to insert student details or placeholders"
-                />
-
-                {showPhoto && (
-                  <div 
-                    onClick={() => { if (!studentPhotoUrl && !isFetchingPhoto) fetchAndResolveStudentPhoto(); }}
-                    className={`w-24 h-28 border border-[#800000] p-1 bg-white shadow-xs rounded flex flex-col items-center justify-center shrink-0 text-center relative overflow-hidden transition-all ${
-                      !studentPhotoUrl ? 'cursor-pointer hover:border-teal-600 hover:bg-teal-50/30 group' : ''
-                    }`}
-                    title={studentPhotoUrl ? "Student Photo (verified from database)" : "Click to fetch student photo from database"}
+                  <button
+                    type="button"
+                    title="Insert Horizontal Divider Line"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={insertHorizontalRule}
+                    className="w-6 h-6 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
                   >
-                    {isFetchingPhoto ? (
-                      <div className="flex flex-col items-center justify-center gap-1.5 p-1 animate-fadeIn">
-                        <RefreshCw size={16} className="animate-spin text-teal-600" />
-                        <span className="text-[7.5px] font-black text-teal-700 uppercase tracking-tighter">Fetching DB Photo...</span>
-                      </div>
-                    ) : studentPhotoUrl ? (
-                      <img
-                        src={studentPhotoUrl}
-                        alt={studentName}
-                        className="w-full h-full object-cover rounded shadow-2xs"
-                        onError={() => setStudentPhotoUrl(null)}
-                      />
-                    ) : (
-                      <div className="text-[8px] font-bold text-slate-400 uppercase leading-tight flex flex-col items-center justify-center gap-1 p-1">
-                        <ImageIcon size={16} className="text-slate-300 group-hover:text-teal-600 transition-colors" />
-                        <span>Affix Student Photo</span>
-                        <span className="text-[7px] text-teal-600 underline font-mono">Fetch DB Photo</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+                    <Minus size={11} />
+                  </button>
 
-            {/* Footer Verification & Signatories */}
-            <div
-              style={{ marginTop: '0.77in' }}
-              className="relative z-10 pt-0 border-t border-slate-200"
-            >
-              <div className="flex items-end justify-between px-2">
-                {/* Signatory 1: Incharge Admissions & Exam */}
-                <div className="w-28 sm:w-36 text-center">
-                  <div className="border-b-2 border-[#800000] mb-1"></div>
-                  <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatories[0] || 'Incharge Admissions & Exam'}</div>
-                  <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
-                </div>
-
-                {/* Signatory 2: Checked By (Shown for TC/DC or when 3 signatories exist) */}
-                {signatories.length > 2 && (
-                  <div className="w-28 sm:w-36 text-center">
-                    <div className="border-b-2 border-slate-800 mb-1"></div>
-                    <div className="font-black text-[9.5px] uppercase tracking-tight text-slate-800">{signatories[1] || 'Checked By'}</div>
-                    <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
-                  </div>
-                )}
-
-                {/* Signatory 3: Principal */}
-                <div className="w-28 sm:w-36 text-center">
-                  <div className="border-b-2 border-[#800000] mb-1"></div>
-                  <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatories[signatories.length - 1] || 'Principal'}</div>
-                  <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
+                  <button
+                    type="button"
+                    title="Clear Text Formatting"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => executeFormat('removeFormat')}
+                    className="w-6 h-6 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 flex items-center justify-center cursor-pointer"
+                  >
+                    <RemoveFormatting size={11} />
+                  </button>
                 </div>
               </div>
 
-              {/* Interactive Preview of Office Copy Receipt Box when TC/DC is Active */}
-              {isTcDcActive && isDualCopy && (
-                <div className="flex justify-center" style={{ marginTop: `${sigReceiptGap}px` }}>
-                  <div className="relative pt-2 w-fit max-w-[460px]">
-                    <div className="absolute top-0 left-4 bg-slate-100 border border-slate-300 text-rose-600 font-black text-[8px] uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs z-10">
-                      Receipt by Student (Page 2 Office Copy)
-                    </div>
-                    <div className="p-3 px-6 rounded-xl bg-amber-50/90 border border-amber-300 font-sans shadow-2xs text-center">
-                      <div className="text-[9.5px] font-bold text-slate-800">
-                        Received <strong>'Discharge cum Character Certificate'</strong> in Original
-                      </div>
-                      <div className="flex justify-center items-end gap-6 text-[9px] mt-4">
-                        <div className="flex items-end gap-2">
-                          <span className="font-bold text-slate-700 whitespace-nowrap">today on</span>
-                          <div className="w-24 border-b-2 border-slate-600"></div>
-                        </div>
-                        <div className="flex items-end gap-2">
-                          <span className="font-bold text-slate-700 whitespace-nowrap">Signature</span>
-                          <div className="w-32 border-b-2 border-slate-600"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
 
+              {/* ─── SCROLLABLE FILTERS & TEMPLATES CONTENT ─── */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-0.5 min-h-0">
+                {renderStudentAndTemplateSelector()}
+              </div>
+            </div>
           </div>
-        </div>
-
-      </div>
+        )}
 
       </div>
 
