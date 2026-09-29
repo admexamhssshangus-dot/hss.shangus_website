@@ -2342,7 +2342,7 @@ export default function OfficialLetterWriterView({
 
 {/* â•�â•�â•�â•�â•�â•�â•�â•� A4 PAPER LIVE VIEWPORT & EDITOR â•�â•�â•�â•�â•�â•�â•�â•� */}
             <div className="flex-1 w-full min-w-0">
-              <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-4 sm:p-6 shadow-sm min-h-[420px] flex flex-col justify-start">
+              <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-4 sm:p-6 shadow-sm min-h-[420px] flex flex-col justify-start max-h-[75dvh] lg:max-h-[calc(100dvh-95px)] overflow-y-auto">
                 
                 {/* Top Official Letterhead Header Banner (Soft Ice-Blue Background) - Hidden in web view on mobile to focus on main content, preserved in desktop & print */}
                 <div className="hidden sm:block print:!block -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-3 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-3">
@@ -2498,7 +2498,7 @@ export default function OfficialLetterWriterView({
             }}
             className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-rose-400/20 active:bg-rose-600/30 group transition-colors z-20 shrink-0 mx-0.5"
           >
-            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-rose-700 ${isDraggingSplitter ? 'bg-rose-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
+            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-rose-700 sticky top-1/2 -translate-y-1/2 ${isDraggingSplitter ? 'bg-rose-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
           </div>
         )}
 
@@ -2507,7 +2507,7 @@ export default function OfficialLetterWriterView({
         {isDesktop && (
           <div
             style={{ width: isDesktop ? `calc(${100 - leftSplitPct}% - 9px)` : "100%" }}
-            className="w-full lg:w-auto shrink-0 pl-0 lg:pl-1 min-w-0"
+            className="w-full lg:w-auto shrink-0 pl-0 lg:pl-1 min-w-0 lg:sticky lg:top-1 self-start"
           >
             <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-xs p-2.5 space-y-2 flex flex-col max-h-[calc(100dvh-95px)] min-h-[580px] overflow-hidden text-xs">
               
@@ -2548,33 +2548,25 @@ export default function OfficialLetterWriterView({
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       type="button"
                       onClick={() => setShowSaveTemplateModal(true)}
-                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all"
-                      title="Save as new template"
+                      className="h-7 px-2 rounded-lg bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95"
+                      title="Save letterhead format as reusable template"
                     >
-                      <BookmarkPlus size={12} />
+                      <BookmarkPlus size={11} className="text-purple-600 dark:text-purple-400" />
+                      <span>+ Template</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setShowHistoryModal(true)}
-                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all"
-                      title="Browse document archive"
+                      className="h-7 px-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95"
+                      title="Browse past official letters archive"
                     >
-                      <History size={12} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setActiveLeftTab('ai')}
-                      className="h-7 px-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95"
-                      title="Draft or polish with Gemini AI"
-                    >
-                      <Sparkles size={11} className="text-amber-200" />
-                      <span>AI</span>
+                      <History size={11} className="text-indigo-600 dark:text-indigo-400" />
+                      <span>History</span>
                     </button>
                   </div>
                 </div>

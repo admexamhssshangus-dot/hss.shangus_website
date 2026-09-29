@@ -4833,117 +4833,125 @@ export default function StudentCertificateStudioView({
             )}
           </div>
 
-          {/* TEMPLATE SELECTOR & PRESETS */}
-          <div className="space-y-2 flex-1 flex flex-col min-h-0 pt-1">
-            <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 shrink-0">
+          {/* TEMPLATE SELECTOR & PRESETS DROPDOWN */}
+          <div className="space-y-1.5 shrink-0 pt-1.5 border-t border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500">
               <span className="flex items-center gap-1">
-                <Sparkles size={10} className="text-amber-600" />
-                <span>Certificate Templates ({displayedTemplates.length})</span>
+                <Sparkles size={10} className="text-teal-600 dark:text-teal-400" />
+                <span>Certificate Template ({allTemplatesList.length})</span>
               </span>
-              
-              {/* Template Filter Pills */}
-              <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[8.5px] font-bold">
+
+              {/* Action Buttons: Duplicate & Overwrite (if custom) */}
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => setTemplateFilterTab('all')}
-                  className={`px-1.5 py-0.2 rounded cursor-pointer ${templateFilterTab === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black' : 'text-slate-500'}`}
+                  onClick={(e) => {
+                    const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || allTemplatesList[0];
+                    if (activeTpl) handleDuplicateTemplate(activeTpl, e);
+                  }}
+                  className="px-2 py-0.5 rounded text-[9.5px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                  title="Duplicate current template into new custom preset"
                 >
-                  All ({allTemplatesList.length})
+                  <Copy size={10} />
+                  <span>Duplicate</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setTemplateFilterTab('builtin')}
-                  className={`px-1.5 py-0.2 rounded cursor-pointer ${templateFilterTab === 'builtin' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black' : 'text-slate-500'}`}
-                >
-                  Built-in ({BUILTIN_CERTIFICATE_TEMPLATES.length})
-                </button>
-                {customTemplates.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setTemplateFilterTab('custom')}
-                    className={`px-1.5 py-0.2 rounded cursor-pointer ${templateFilterTab === 'custom' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black' : 'text-slate-500'}`}
-                  >
-                    Custom ({customTemplates.length})
-                  </button>
-                )}
+
+                {(() => {
+                  const cur = allTemplatesList.find(t => t.id === selectedTemplateId);
+                  return cur?.isCustom ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTemplateSaveMode('update');
+                        setShowSaveTemplateModal(true);
+                      }}
+                      className="px-2 py-0.5 rounded text-[9.5px] font-black border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-100 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                      title="Overwrite this custom template in Cloud"
+                    >
+                      <Save size={10} />
+                      <span>Overwrite</span>
+                    </button>
+                  ) : null;
+                })()}
               </div>
             </div>
 
-            {/* Expansive Compact Template Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 overflow-y-auto p-1 flex-1 max-h-[42dvh] lg:max-h-[calc(100dvh-280px)] content-start items-start auto-rows-max rounded-xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800/80">
-              {displayedTemplates.map((tpl) => {
-                const isSelected = selectedTemplateId === tpl.id;
-                const isDefault = defaultTemplateId === tpl.id;
-                return (
-                  <div
-                    key={tpl.id}
-                    onClick={() => handleSelectTemplate(tpl)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        handleSelectTemplate(tpl);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    aria-pressed={isSelected}
-                    aria-label={`Use ${tpl.name}${isDefault ? ', default template' : ''}`}
-                    className={`p-1.5 rounded-lg border text-left cursor-pointer transition-all flex flex-col gap-0.5 group relative h-auto ${
-                      isSelected
-                        ? 'bg-teal-50/90 dark:bg-teal-950/70 border-teal-600 dark:border-teal-500 shadow-2xs ring-1 ring-teal-500/40'
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-teal-300 hover:bg-slate-50 dark:hover:bg-slate-850'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <div className="font-black text-[9px] text-slate-900 dark:text-white leading-tight flex items-start gap-1 flex-1 min-w-0">
-                        {isSelected && <CheckCircle2 size={10} className="text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />}
-                        <span className="line-clamp-2">{tpl.name}</span>
-                      </div>
-                      {isDefault && (
-                        <span className="px-1 py-0.2 rounded text-[7px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shrink-0">
-                          ⭐ Default
-                        </span>
-                      )}
-                    </div>
+            {/* Template Select Dropdown with Classified optgroups */}
+            <div>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => {
+                  const target = allTemplatesList.find(t => t.id === e.target.value);
+                  if (target) handleSelectTemplate(target);
+                }}
+                className="w-full p-2 rounded-lg border border-teal-300 dark:border-teal-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-2xs"
+              >
+                {/* Builtin Classified Categories */}
+                {Array.from(new Set(allTemplatesList.filter(t => !t.isCustom).map(t => t.category || 'General Certificates'))).map(cat => (
+                  <optgroup key={cat} label={`📂 ${cat}`}>
+                    {allTemplatesList
+                      .filter(t => !t.isCustom && (t.category || 'General Certificates') === cat)
+                      .map(tpl => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.name} {defaultTemplateId === tpl.id ? '⭐ (Default)' : ''}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
 
-                    <div className="flex items-center justify-between gap-1 text-[7.5px] mt-0.5">
-                      <span className="text-slate-400 dark:text-slate-500 truncate flex-1 font-medium">
-                        {tpl.category}
-                      </span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => handleDuplicateTemplate(tpl, e)}
-                          className="opacity-70 group-hover:opacity-100 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 p-0.5 transition-opacity cursor-pointer"
-                          title="Duplicate template to create new preset"
-                        >
-                          <Copy size={9} />
-                        </button>
-                        {!isDefault && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleSetDefaultTemplate(tpl.id, e)}
-                            className="opacity-0 group-hover:opacity-100 text-[7px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800 transition-opacity cursor-pointer"
-                            title="Set as default certificate template"
-                          >
-                            Set Default
-                          </button>
-                        )}
-                        {tpl.isCustom && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteCustomTemplate(tpl, e)}
-                            title="Delete custom template"
-                            className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
-                          >
-                            <Trash2 size={9} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                {/* Custom Presets Group */}
+                {customTemplates.length > 0 && (
+                  <optgroup label="✨ Custom Saved Presets">
+                    {customTemplates.map(tpl => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name} ★ {defaultTemplateId === tpl.id ? '⭐ (Default)' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+
+              {(() => {
+                const cur = allTemplatesList.find(t => t.id === selectedTemplateId);
+                return cur?.category ? (
+                  <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 mt-1 px-0.5">
+                    <span className="font-semibold text-teal-800 dark:text-teal-300">{cur.category}</span>
+                    {cur.isCustom && <span className="font-mono text-[8px] bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 px-1 rounded border border-teal-200 dark:border-teal-800">Custom Cloud Preset</span>}
                   </div>
-                );
-              })}
+                ) : null;
+              })()}
+            </div>
+
+            {/* Actions Bar: Set Default & Delete */}
+            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-[9.5px]">
+              <div>
+                {defaultTemplateId !== selectedTemplateId ? (
+                  <button
+                    type="button"
+                    onClick={(e) => handleSetDefaultTemplate(selectedTemplateId, e)}
+                    className="text-amber-700 dark:text-amber-400 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <span>⭐ Set as Default</span>
+                  </button>
+                ) : (
+                  <span className="text-amber-600 font-bold flex items-center gap-0.5">
+                    <span>⭐ Active Default</span>
+                  </span>
+                )}
+              </div>
+              {(() => {
+                const cur = allTemplatesList.find(t => t.id === selectedTemplateId);
+                return cur?.isCustom ? (
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteCustomTemplate(cur, e)}
+                    className="text-rose-600 dark:text-rose-400 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <Trash2 size={10} />
+                    <span>Delete Custom</span>
+                  </button>
+                ) : null;
+              })()}
             </div>
           </div>
     </div>
@@ -6355,7 +6363,7 @@ export default function StudentCertificateStudioView({
             }}
             className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-teal-400/20 active:bg-teal-600/30 group transition-colors z-20 shrink-0 mx-0.5"
           >
-            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-teal-700 ${isDraggingSplitter ? 'bg-teal-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
+            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-teal-700 sticky top-1/2 -translate-y-1/2 ${isDraggingSplitter ? 'bg-teal-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
           </div>
         )}
 
@@ -6363,7 +6371,7 @@ export default function StudentCertificateStudioView({
         {isDesktop && (
           <div
             style={{ width: isDesktop ? `calc(${100 - leftSplitPct}% - 9px)` : '100%' }}
-            className="w-full lg:w-auto shrink-0 pl-0 lg:pl-1 min-w-0"
+            className="w-full lg:w-auto shrink-0 pl-0 lg:pl-1 min-w-0 lg:sticky lg:top-1 self-start"
           >
             <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-xs p-2.5 space-y-2 flex flex-col max-h-[calc(100dvh-95px)] min-h-[580px] overflow-hidden text-xs">
               
@@ -6818,7 +6826,7 @@ export default function StudentCertificateStudioView({
                   )}
                 </div>
 
-                {/* Purple Gemini AI Assistant Button */}
+                {/* Purple Gemini AI Assistant Button & Menu */}
                 <div className="relative" ref={askGeminiMenuRef}>
                   <button
                     type="button"
@@ -6827,10 +6835,12 @@ export default function StudentCertificateStudioView({
                       setShowAskGeminiMenu(prev => !prev);
                       setShowInsertFieldDropdown(false);
                     }}
-                    className="w-7 h-7 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-90"
-                    title="Gemini AI Certificate Assistant (Draft, Polish, Formalize)"
+                    className="h-7 px-2 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer transition-all active:scale-95"
+                    title="Gemini AI Certificate Assistant (Draft, Polish, Formalize, Shorten)"
                   >
-                    <Sparkles size={13} className="text-amber-200" />
+                    <Sparkles size={11} className="text-amber-200" />
+                    <span>AI Assist</span>
+                    <ChevronDown size={9} className="text-white/80" />
                   </button>
 
                   {showAskGeminiMenu && (
@@ -6882,40 +6892,31 @@ export default function StudentCertificateStudioView({
                       </div>
                     </div>
                   )}
-                    </div>
-
-                    {/* Save As New Template */}
-                    <button
-                      type="button"
-                      onClick={() => setShowSaveTemplateModal(true)}
-                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all"
-                      title="Save Certificate format as reusable template"
-                    >
-                      <BookmarkPlus size={12} />
-                    </button>
-
-                    {/* History / Archive */}
-                    <button
-                      type="button"
-                      onClick={() => setShowHistoryModal(true)}
-                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all"
-                      title="Browse past generated documents archive"
-                    >
-                      <History size={12} />
-                    </button>
-
-                    {/* Gemini AI Assistant */}
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAiModal('draft')}
-                      className="h-7 px-1.5 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95"
-                      title="Gemini AI Certificate Assistant (Draft, Polish, Formalize)"
-                    >
-                      <Sparkles size={11} className="text-amber-200" />
-                      <span>AI</span>
-                    </button>
-                  </div>
                 </div>
+
+                {/* Save As New Template */}
+                <button
+                  type="button"
+                  onClick={() => setShowSaveTemplateModal(true)}
+                  className="h-7 px-2 rounded-lg bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95"
+                  title="Save Certificate format as reusable template"
+                >
+                  <BookmarkPlus size={11} className="text-purple-600 dark:text-purple-400" />
+                  <span>+ Template</span>
+                </button>
+
+                {/* History / Archive */}
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(true)}
+                  className="h-7 px-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95"
+                  title="Browse past generated documents archive"
+                >
+                  <History size={11} className="text-indigo-600 dark:text-indigo-400" />
+                  <span>History</span>
+                </button>
+              </div>
+            </div>
 
                 {/* Row 2: Rich Text & Formatting */}
                 <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800/80">
