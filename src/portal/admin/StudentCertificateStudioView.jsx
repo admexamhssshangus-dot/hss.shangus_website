@@ -1072,9 +1072,24 @@ export default function StudentCertificateStudioView({
   const [showPhoto, setShowPhoto] = useState(false);
   const [watermark, setWatermark] = useState(true);
   const [includeSalutations, setIncludeSalutations] = useState(false); // Default: unchecked / without Mr./Mrs./Ms.
+  const [showLeftSignatory, setShowLeftSignatory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_certificate_show_left_signatory');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
   const [signatoryLeft, setSignatoryLeft] = useState('Incharge Admissions & Exam');
   const [signatoryCenter, setSignatoryCenter] = useState('Checked By');
   const [signatoryRight, setSignatoryRight] = useState('Principal');
+  const [signatorySubtext, setSignatorySubtext] = useState(() => {
+    try {
+      return localStorage.getItem('hss_certificate_signatory_subtext') || 'Govt. HSS Shangus';
+    } catch {
+      return 'Govt. HSS Shangus';
+    }
+  });
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
   // ─── Templates State (Built-in + Custom) ───
@@ -1335,10 +1350,31 @@ export default function StudentCertificateStudioView({
 
   const signatories = useMemo(() => {
     if (isTcDcActive) {
+      if (!showLeftSignatory) {
+        return [signatoryCenter || 'Checked By', signatoryRight || 'Principal'].filter(Boolean);
+      }
       return [signatoryLeft || 'I/c Admissions', signatoryCenter || 'Checked By', signatoryRight || 'Principal'];
     }
+    if (!showLeftSignatory) {
+      return [signatoryRight || 'Principal'].filter(Boolean);
+    }
     return [signatoryLeft || 'Incharge Admissions & Exam', signatoryRight || 'Principal'].filter(Boolean);
-  }, [isTcDcActive, signatoryLeft, signatoryCenter, signatoryRight]);
+  }, [isTcDcActive, showLeftSignatory, signatoryLeft, signatoryCenter, signatoryRight]);
+
+  const handleToggleLeftSignatory = (val) => {
+    const next = typeof val === 'boolean' ? val : !showLeftSignatory;
+    setShowLeftSignatory(next);
+    try {
+      localStorage.setItem('hss_certificate_show_left_signatory', String(next));
+    } catch {}
+  };
+
+  const handleSignatorySubtextChange = (val) => {
+    setSignatorySubtext(val);
+    try {
+      localStorage.setItem('hss_certificate_signatory_subtext', val);
+    } catch {}
+  };
 
   // Live Scannable Canvas QR Code URL & Data URI (Direct screen scan testable)
   const canvasVerifyUrl = useMemo(() => {
@@ -1537,6 +1573,8 @@ export default function StudentCertificateStudioView({
           if (found.institutionAddress) setInstitutionAddress(found.institutionAddress);
           if (found.signatoryLeft !== undefined) setSignatoryLeft(found.signatoryLeft);
           if (found.signatoryRight !== undefined) setSignatoryRight(found.signatoryRight);
+          if (found.showLeftSignatory !== undefined) setShowLeftSignatory(found.showLeftSignatory);
+          if (found.signatorySubtext !== undefined) setSignatorySubtext(found.signatorySubtext);
           if (found.watermark !== undefined) setWatermark(found.watermark);
           if (found.isCustom && found.includeSalutations !== undefined) setIncludeSalutations(found.includeSalutations);
           if (found.showPhoto !== undefined) setShowPhoto(found.showPhoto);
@@ -2368,6 +2406,8 @@ export default function StudentCertificateStudioView({
     if (sanitizedTpl.institutionAddress) setInstitutionAddress(sanitizedTpl.institutionAddress);
     if (sanitizedTpl.signatoryLeft !== undefined) setSignatoryLeft(sanitizedTpl.signatoryLeft);
     if (sanitizedTpl.signatoryRight !== undefined) setSignatoryRight(sanitizedTpl.signatoryRight);
+    if (sanitizedTpl.showLeftSignatory !== undefined) setShowLeftSignatory(sanitizedTpl.showLeftSignatory);
+    if (sanitizedTpl.signatorySubtext !== undefined) setSignatorySubtext(sanitizedTpl.signatorySubtext);
     if (sanitizedTpl.watermark !== undefined) setWatermark(sanitizedTpl.watermark);
     if (sanitizedTpl.isCustom && sanitizedTpl.includeSalutations !== undefined) setIncludeSalutations(sanitizedTpl.includeSalutations);
     if (sanitizedTpl.showPhoto !== undefined) {
@@ -2622,6 +2662,8 @@ export default function StudentCertificateStudioView({
       refPrefix: activeTpl.refPrefix || '',
       signatoryLeft: signatoryLeft || '',
       signatoryRight: signatoryRight || '',
+      showLeftSignatory,
+      signatorySubtext: signatorySubtext || 'Govt. HSS Shangus',
       bodyHtml: cleanBodyHtml,
       showPhoto,
       watermark,
@@ -2670,6 +2712,8 @@ export default function StudentCertificateStudioView({
       refPrefix: activeTpl.refPrefix || '',
       signatoryLeft: signatoryLeft || '',
       signatoryRight: signatoryRight || '',
+      showLeftSignatory,
+      signatorySubtext: signatorySubtext || 'Govt. HSS Shangus',
       bodyHtml: cleanBodyHtml,
       showPhoto,
       watermark,
@@ -4147,6 +4191,7 @@ export default function StudentCertificateStudioView({
       showPhoto,
       watermark,
       signatories,
+      signatorySubtext: signatorySubtext || institutionName || 'Govt. HSS Shangus',
       isDualCopy: isDualCopy && isTcDcActive,
       metaDetails,
       pageMargin,
@@ -4292,6 +4337,7 @@ export default function StudentCertificateStudioView({
         dateStr,
         bodyHtml: currentHtml,
         signatories,
+        signatorySubtext: signatorySubtext || institutionName || 'Govt. HSS Shangus',
         isDualCopy: isDualCopy && isTcDcActive,
         metaDetails
       });
@@ -5137,13 +5183,29 @@ export default function StudentCertificateStudioView({
 
             {/* Signatory 1 (Left) */}
             <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory 1 (Left)</label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block text-[9.5px] font-black uppercase text-slate-500">Signatory 1 (Left)</label>
+                <label className="inline-flex items-center gap-1 cursor-pointer text-[9px] font-bold text-teal-700 dark:text-teal-400" title="Toggle to show or hide Left Signatory on certificate">
+                  <input
+                    type="checkbox"
+                    checked={showLeftSignatory}
+                    onChange={(e) => handleToggleLeftSignatory(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer w-3 h-3"
+                  />
+                  <span>{showLeftSignatory ? 'Shown' : 'Hidden'}</span>
+                </label>
+              </div>
               <input
                 type="text"
                 value={signatoryLeft}
+                disabled={!showLeftSignatory}
                 onChange={(e) => setSignatoryLeft(e.target.value)}
                 placeholder="Incharge Admissions & Exam"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
+                className={`w-full px-2 py-0.5 rounded border font-medium text-xs transition-colors ${
+                  showLeftSignatory 
+                    ? 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white' 
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/40 text-slate-400 cursor-not-allowed'
+                }`}
               />
             </div>
 
@@ -5172,6 +5234,18 @@ export default function StudentCertificateStudioView({
                 className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
               />
             </div>
+
+            {/* Signatory Subtext / Institute Line */}
+            <div>
+              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory Subtext / Institute</label>
+              <input
+                type="text"
+                value={signatorySubtext}
+                onChange={(e) => handleSignatorySubtextChange(e.target.value)}
+                placeholder="Govt. HSS Shangus"
+                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs text-slate-800 dark:text-slate-200"
+              />
+            </div>
           </div>
 
           {/* ─── OPTIONS TOGGLES & PRECISION SPACING CONTROLS (FULL-WIDTH) ─── */}
@@ -5184,6 +5258,18 @@ export default function StudentCertificateStudioView({
                   <CheckCircle2 size={12} className="text-teal-600 dark:text-teal-400" />
                   <span>Options:</span>
                 </span>
+
+                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors" title="Toggle to hide or show Left Signatory (Incharge Admissions & Exam) on certificate">
+                  <input
+                    type="checkbox"
+                    checked={showLeftSignatory}
+                    onChange={(e) => handleToggleLeftSignatory(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span className={showLeftSignatory ? 'text-teal-700 dark:text-teal-300 font-bold' : 'text-slate-400 line-through'}>
+                    Incharge Signatory (Left)
+                  </span>
+                </label>
 
                 <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
                   <input
@@ -6298,27 +6384,29 @@ export default function StudentCertificateStudioView({
               className="relative z-10 pt-0 border-t border-slate-200"
             >
               <div className="flex items-end justify-between px-2">
-                {/* Signatory 1: Incharge Admissions & Exam */}
-                <div className="w-28 sm:w-36 text-center">
-                  <div className="border-b-2 border-[#800000] mb-1"></div>
-                  <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatories[0] || 'Incharge Admissions & Exam'}</div>
-                  <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
-                </div>
+                {/* Signatory 1: Incharge Admissions & Exam (Controlled by showLeftSignatory) */}
+                {showLeftSignatory && (
+                  <div className="w-28 sm:w-36 text-center">
+                    <div className="border-b-2 border-[#800000] mb-1"></div>
+                    <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatoryLeft || 'Incharge Admissions & Exam'}</div>
+                    <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">{signatorySubtext || institutionName || 'Govt. HSS Shangus'}</div>
+                  </div>
+                )}
 
                 {/* Signatory 2: Checked By (Shown for TC/DC or when 3 signatories exist) */}
-                {signatories.length > 2 && (
+                {isTcDcActive && (
                   <div className="w-28 sm:w-36 text-center">
                     <div className="border-b-2 border-slate-800 mb-1"></div>
-                    <div className="font-black text-[9.5px] uppercase tracking-tight text-slate-800">{signatories[1] || 'Checked By'}</div>
-                    <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
+                    <div className="font-black text-[9.5px] uppercase tracking-tight text-slate-800">{signatoryCenter || 'Checked By'}</div>
+                    <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">{signatorySubtext || institutionName || 'Govt. HSS Shangus'}</div>
                   </div>
                 )}
 
                 {/* Signatory 3: Principal */}
-                <div className="w-28 sm:w-36 text-center">
+                <div className={`w-28 sm:w-36 text-center ${!showLeftSignatory && !isTcDcActive ? 'ml-auto' : ''}`}>
                   <div className="border-b-2 border-[#800000] mb-1"></div>
-                  <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatories[signatories.length - 1] || 'Principal'}</div>
-                  <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
+                  <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatoryRight || 'Principal'}</div>
+                  <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">{signatorySubtext || institutionName || 'Govt. HSS Shangus'}</div>
                 </div>
               </div>
 
@@ -8317,7 +8405,7 @@ export default function StudentCertificateStudioView({
               officeTitle={officeTitle}
               institutionName={institutionName}
               institutionAddress={institutionAddress}
-              signatories={[signatoryLeft || 'I/c Admissions', 'Checked By', signatoryRight || 'Principal']}
+              signatories={signatories}
               showToast={showToast}
             />
           </React.Suspense>
