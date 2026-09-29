@@ -2,53 +2,50 @@
 
 ## Current Working Changes
 
-### Support Inserting and Managing Multiple Tables in Official Letters & Certificates
+### Display Letter Subject & Addressee in Document History & Cloud Archive
 - **User Request Addressed:**
-  - *"what if we need another table"*
+  - *"allow to see subject to get idea about the letter"*
 - **Root Cause Identified:**
-  - Previously, if *any* table existed anywhere in the document, `checkTableContext()` aggressively assumed that a table context was active (`editorRef.current.querySelector('table')`).
-  - When active, the Table tool popover exclusively displayed table manipulation buttons (`+ Col Right`, `+ Col Left`, `- Delete Col`, etc.), completely hiding the "Insert Table" presets.
-  - This locked the user out from ever inserting a second, third, or subsequent table into their letter or certificate.
-  - Furthermore, attempting to insert a table while inside an existing cell would nest `<table>` inside `<td>`, distorting the document layout.
+  - In the `Document History & Cloud Archive` modal (`DocumentHistoryModal.jsx`), every letter card only displayed a generic template name (e.g., `Authority Letter_jkbose`, `Blank Letterhead (Custom)`), Ref No, Date, and `recipientOrStudent`.
+  - In `OfficialLetterWriterView.jsx`, `recipientOrStudent` was previously populated with `signatoryInstitution || institutionName || ''` (evaluating to the sender's own school: *"Govt. Hr Sec. School Shangus"*), repeating the school name on every card and providing zero information about what the letter was actually about.
+  - The card completely omitted the letter's Subject line. Users had to blindly click "View" or "Draft" on each card to know its contents.
 
 - **Architectural & UX Solutions Implemented:**
-  1. **Dual-Mode Segmented Table Popover (`➕ Insert` | `⚙️ Edit Table`)**:
-     - Both in [OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx) and [StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx), replaced the restrictive single-view popover with a clean segmented tabbed modal:
-       - **`➕ Insert Tab`**: Always accessible at any time, even when tables already exist in the document.
-         - **1-Click Presets**:
-           - Letter Writer: `4 × 2 Fee Table`, `3 × 3 Schedule`, `2 × 2 Two Column`, `5 × 3 Register`.
-           - Certificate Studio: `3 × 2 Details`, `3 × 3 Marks Grid`, `2 × 2 Two Column`, `4 × 3 Subjects`.
-         - **Custom Dimensions Builder**: Interactive steppers for Rows (1–15) and Columns (1–10) with 1-click `Insert [Cols] × [Rows] Table`.
-       - **`⚙️ Edit Table Tab`**:
-         - Shows live contextual dimensions badge (e.g., `4C × 2R`).
-         - **Prominent `➕ Insert Another Table Below` Button**: 1-click action directly within edit mode to insert a new table below the current table without needing to leave edit mode.
-         - Full column manipulation: `+ Col Right`, `+ Col Left`, `- Delete Col`.
-         - Full row manipulation: `+ Row Below`, `+ Row Above`, `- Delete Row`.
-         - Clean table removal: `🗑️ Remove Table`.
-         - Empty state helper when no table exists in the document yet with direct switch to Insert tab.
-  2. **Smart Table Placement & Nesting Prevention**:
-     - Updated `insertTable(rows, cols)` in both studios:
-       - If the user's cursor or active selection is inside an existing table, the new table is inserted safely **directly after** the active table separated by paragraph spacing (`<p><br/></p>`), preventing corrupted nested tables (`<table>` inside `<td>`).
-       - If the cursor is in regular body text outside any table, the table is inserted at the exact caret position.
-  3. **Accurate Caret Context Detection**:
-     - Updated `getSelectedTableElements()` to return `isInsideTable: boolean`.
-     - When the caret is in normal text, `checkTableContext()` automatically defaults the popover to the `insert` tab.
-     - When the caret is actively inside a table cell, it defaults to the `edit` tab while keeping the `insert` tab 1-click away.
-  4. **Multi-Table Native Word (.docx) & Print Compatibility**:
-     - Verified that [htmlDocxConverter.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/htmlDocxConverter.js) and print CSS recursively process all `<table>` elements in sequence, ensuring multi-table documents export and print with full fidelity.
+  1. **Dual-Strategy Subject & Addressee Extraction Engine** ([docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js)):
+     - Added and exported `extractLetterSubject(bodyHtml, fallbackTitle = '')`:
+       - Fast regex inspection for explicit `Subject:` or `Sub:` lines with arbitrary HTML formatting (`<strong>`, `<u>`, `<span>`).
+       - `DOMParser` fallback searching paragraphs and headings for subject markers.
+       - Heuristic detection for official notice headers (`OFFICE ORDER`, `NOTIFICATION`, `CIRCULAR`, `DUTY ORDER`) or first meaningful sentences.
+     - Added and exported `extractLetterRecipient(bodyHtml)`:
+       - Extracts the addressee from the `To, ...` paragraph block (handling `<br>` tags and adjacent sibling paragraphs).
+     - Updated `saveGeneratedDocToHistory()` to store the `subject` property, auto-extracting it from `bodyHtml` if not explicitly supplied.
+  2. **Official Letter Writer Metadata Archiving** ([OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx)):
+     - Updated `handleSaveDraft`, `handleSaveToCloud`, `handlePrint`, and `handleExportDocx` to extract and pass the letter's actual `subject` and extracted recipient rather than duplicating the sender's own school name.
+  3. **Visual Subject Callout & Recipient Cleanup in Document Archive** ([DocumentHistoryModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/DocumentHistoryModal.jsx)):
+     - **Prominent Subject Badge on Every Letter Card**:
+       - Added a dedicated, styled Subject callout with an uppercase `SUBJECT` tag and a line-clamp-2 title with tooltip.
+       - Works for both **newly generated letters** and **existing archived letters** (dynamically extracted on-the-fly from the stored `bodyHtml` without requiring database migration).
+     - **Addressee Resolution**:
+       - Replaces the redundant sender school name (`Govt. Hr Sec. School Shangus`) with the actual addressee (`To: <Recipient>`).
+     - **Subject-Aware Search**:
+       - Updated `filteredRecords` search filtering to match queries directly against letter subjects.
+       - Updated the search input placeholder to `"Search by student name, roll no, ref no, subject, title..."`.
+     - **Snapshot Preview Header**:
+       - Added letter subject indicator (`• Sub: <Subject>`) in the full snapshot modal header.
 
 ---
 
 ## Files Modified
+- `src/services/docHistoryService.js`
 - `src/portal/admin/OfficialLetterWriterView.jsx`
-- `src/portal/admin/StudentCertificateStudioView.jsx`
+- `src/portal/admin/DocumentHistoryModal.jsx`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ## Local Commit Message
 ```bash
-feat(wysiwyg): support inserting and managing multiple tables across official letters and certificates
+feat(archive): display letter subject and addressee in document history archive
 ```
 
 ---
@@ -61,12 +58,12 @@ To push these changes to your remote Git repository:
 git push origin main
 ```
 
-If you wish to inspect or modify the local commit:
+If you wish to review or amend the commit locally before pushing:
 ```bash
-# View last commit details
-git log -1 -p
+# View the committed change details:
+git show --stat HEAD
 
-# To amend or re-commit if desired:
+# Or amend the commit message if needed:
 git reset --soft HEAD~1
-git commit -m "feat(wysiwyg): support inserting and managing multiple tables across official letters and certificates"
+git commit -m "feat(archive): display letter subject and addressee in document history archive"
 ```
