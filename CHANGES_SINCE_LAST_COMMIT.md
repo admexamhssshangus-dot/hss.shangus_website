@@ -2,40 +2,62 @@
 
 ## Current Working Changes
 
-### 1. Header Navigation: Removal of Redundant "Sync" Button
-- **User Request Addressed:**
-  - *"and remove sync button not needed...."*
-- **Implementation Details:**
-  - In [AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx), removed the on-demand Cloud `Sync` button from the top administrative sub-navigation bar next to `Setup` and `Modules`.
-  - Cleaned up the unused `RefreshCw` icon import from `lucide-react`.
-
-### 2. Studio Layout: Fix Empty Right Side & Enable Full Horizontal Expansion on Drag
+### 1. Student Certificates Studio: Classified Dropdown, Static Tools & Prominent Toolbar
 - **User Requests Addressed:**
-  - *"why preview doensot fill space horizontally when dragged ..certificates right side is empty?"*
-- **Root Cause & Fixes:**
-  1. **Fixed Certificate Studio Layout Hierarchy ([StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)):**
-     - **Issue:** The left preview pane div (`line 5470`) was not closed before the vertical splitter and right-hand card. As a result, the draggable splitter and the unified tools/filters card were accidentally placed *inside* the 67% left container stacked below the certificate, leaving the entire right 33% of the desktop page completely blank and empty.
-     - **Fix:** Properly closed the left preview pane div immediately after the certificate canvas container, making the Left Half (Preview), Draggable Splitter Handle, and Right Half (Unified Tools & Filters Card) true direct siblings of `.cert-split-container`. Removed the trailing extra `</div>`.
-  2. **Enabled Full Horizontal Expansion on Drag in Both Studios:**
-     - **Official Letterhead Writer ([OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx)):** Removed restrictive `max-w-[860px]` and `mx-auto` from the letterhead preview container (`w-full min-w-0`), allowing the letterhead canvas to fill the full 2/3 workspace horizontally and expand seamlessly as the user drags the splitter.
-     - **Student Bonafides & Certificates Studio ([StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)):** Removed restrictive `max-w-[860px]` and `mx-auto` from the certificate canvas container (`w-full min-w-0`), allowing the certificate to stretch horizontally and adapt dynamically to splitter adjustments.
-  3. **Guaranteed Side-by-Side Flex Dimensions:**
-     - Added `lg:flex-nowrap` to both `.cert-split-container` and `.letter-split-container`.
-     - Replaced rigid percentage widths with precise `calc(${leftSplitPct}% - 9px)` on the left pane and `calc(${100 - leftSplitPct}% - 9px)` on the right pane to account for the 18px draggable splitter, preventing flex wrap or horizontal page overflow.
+  - *"i think tempaltes shall be in dropdown in classifed manner too.....and keep right side tools static when left side preview is scrolled"*
+  - *"and remove duplicate buttons like AI i can see or others....and redesign certain buttons to be more prominent like history, new templates etc whatever suits best"*
+- **Implementation Details ([StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)):**
+  1. **Categorized Certificate Templates Dropdown:**
+     - Replaced the large 11-card template grid with a classified `<select>` dropdown organized into clean `<optgroup>` categories:
+       - `📂 Bonafide & Age Certificates`
+       - `📂 Character & Conduct Certificates`
+       - `📂 Admission & Enrollment`
+       - `📂 Transfer & Migration`
+       - `📂 Transfer & Character Certificates (TC/DC)`
+       - `✨ Custom Saved Presets`
+     - Added quick template actions beside the selector: `[Duplicate]`, `[Overwrite]` (for custom presets), `⭐ Set Default`, and `🗑️ Delete Custom`.
+  2. **Static Right Tools on Scroll:**
+     - Added `lg:sticky lg:top-1 self-start` to the right-hand unified tools card.
+     - Ensured the certificate canvas maintains independent viewport scrolling via `max-h-[75dvh] lg:max-h-[calc(100dvh-95px)] overflow-y-auto`.
+     - Centered the draggable splitter handle with `sticky top-1/2 -translate-y-1/2`.
+  3. **Removed Duplicate AI Button & Unified AI Assist:**
+     - Removed the redundant standalone `[AI]` button that was directly adjacent to the AI icon menu button.
+     - Redesigned the primary Gemini AI trigger into a prominent `[ ✨ AI Assist ▾ ]` button with rich gradient styling and clear dropdown menu (Draft Certificate, Polish & Humanize, Formalize Terms, Shorten Wording).
+  4. **Redesigned Prominent `+ Template` & `History` Buttons:**
+     - Replaced tiny 28px square icon buttons with clear, color-coded, labeled buttons:
+       - `[ 🔖 + Template ]` with purple accent badge and hover states (`Save Certificate format as reusable template`).
+       - `[ 📜 History ]` with indigo accent badge and hover states (`Browse past generated documents archive`).
+
+---
+
+### 2. Official Letterhead Writer: Static Tools, Deduplicated AI & Prominent Buttons
+- **User Requests Addressed:**
+  - *"here also keep right side tools static when preview is scrolled"*
+  - *"and remove duplicate buttons like AI i can see or others....and redesign certain buttons to be more prominent like history, new templates etc whatever suits best"*
+- **Implementation Details ([OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx)):**
+  1. **Static Right Tools on Scroll:**
+     - Added `lg:sticky lg:top-1 self-start` to the right controls pane.
+     - Kept draggable splitter handle centered on scroll with `sticky top-1/2 -translate-y-1/2`.
+     - Confirmed independent vertical scrolling on the A4 letter sheet container (`max-h-[75dvh] lg:max-h-[calc(100dvh-95px)] overflow-y-auto`).
+  2. **Removed Duplicate AI Button:**
+     - Removed the redundant top-row `[AI]` button that duplicated the dedicated `[✨ Gemini AI]` tab sitting right below the rich-text formatting toolbar.
+  3. **Redesigned Prominent `+ Template` & `History` Buttons:**
+     - Redesigned `BookmarkPlus` and `History` into labeled, prominent buttons:
+       - `[ 🔖 + Template ]` (purple badge)
+       - `[ 📜 History ]` (indigo badge)
 
 ---
 
 ## Files Modified
-- `src/portal/admin/AdminDashboard.jsx`: Removed redundant on-demand cloud sync button from top sub-nav bar; cleaned up `RefreshCw` import.
-- `src/portal/admin/OfficialLetterWriterView.jsx`: Removed `max-w-[860px]` restriction from preview canvas container to fill available width horizontally on splitter drag; set `calc()` split widths and `lg:flex-nowrap`.
-- `src/portal/admin/StudentCertificateStudioView.jsx`: Fixed container div nesting so the right tools/filters card renders side-by-side with the preview canvas; removed `max-w-[860px]` to enable horizontal expansion on drag; set `calc()` split widths and `lg:flex-nowrap`.
+- `src/portal/admin/StudentCertificateStudioView.jsx`: Classified certificate template dropdown with optgroups; static right tools pane; removed duplicate AI button; prominent labeled `AI Assist ▾`, `+ Template`, and `History` buttons.
+- `src/portal/admin/OfficialLetterWriterView.jsx`: Static right tools pane; removed duplicate AI button in top row; prominent labeled `+ Template` and `History` buttons.
 - `CHANGES_SINCE_LAST_COMMIT.md`: Documented changes, commit message, and manual push instructions.
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(studio): restore certificates right card, expand preview horizontally on drag, and remove top sync button
+fix(studio): static tools pane on scroll, categorized cert templates, and prominent deduplicated toolbar
 ```
 
 ---
@@ -55,5 +77,5 @@ git log -1 -p
 
 # To amend or re-commit if desired:
 git reset --soft HEAD~1
-git commit -m "fix(studio): restore certificates right card, expand preview horizontally on drag, and remove top sync button"
+git commit -m "fix(studio): static tools pane on scroll, categorized cert templates, and prominent deduplicated toolbar"
 ```
