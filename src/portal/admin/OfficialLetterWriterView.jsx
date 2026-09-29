@@ -36,7 +36,11 @@ import {
   setCloudDefaultTemplate,
   deleteCloudDocTemplate
 } from '../../services/docTemplateService';
-import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
+import {
+  saveGeneratedDocToHistory,
+  extractLetterSubject,
+  extractLetterRecipient
+} from '../../services/docHistoryService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import DocumentHistoryModal from './DocumentHistoryModal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -1318,12 +1322,15 @@ export default function OfficialLetterWriterView({
       setSavedDraftsCount(existing.length);
 
       // Auto-archive in Cloud & Document History
+      const draftSubject = extractLetterSubject(bodyHtml) || tplName;
+      const draftRecipient = extractLetterRecipient(bodyHtml) || signatoryInstitution || institutionName || '';
       saveGeneratedDocToHistory({
         docType: 'letter',
         title: tplName,
+        subject: draftSubject,
         refNo: refNo || '',
         dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
-        recipientOrStudent: signatoryInstitution || institutionName || '',
+        recipientOrStudent: draftRecipient,
         bodyHtml,
         actionType: 'Saved to Cloud',
         templateId: selectedTemplateId,
@@ -1353,13 +1360,16 @@ export default function OfficialLetterWriterView({
     if (!editorRef.current) return;
     const bodyHtml = editorRef.current.innerHTML;
     const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
+    const cloudSubject = extractLetterSubject(bodyHtml) || tplName;
+    const cloudRecipient = extractLetterRecipient(bodyHtml) || signatoryInstitution || institutionName || '';
     try {
       await saveGeneratedDocToHistory({
         docType: 'letter',
         title: tplName,
+        subject: cloudSubject,
         refNo: refNo || '',
         dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
-        recipientOrStudent: signatoryInstitution || institutionName || '',
+        recipientOrStudent: cloudRecipient,
         bodyHtml,
         actionType: 'Saved to Cloud',
         templateId: selectedTemplateId,
@@ -1403,14 +1413,17 @@ export default function OfficialLetterWriterView({
     if (!editorRef.current) return;
     const bodyHtml = editorRef.current.innerHTML;
     const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
+    const printSubject = extractLetterSubject(bodyHtml) || tplName;
+    const printRecipient = extractLetterRecipient(bodyHtml) || signatoryInstitution || institutionName || '';
 
     // Auto-archive in Document History
     saveGeneratedDocToHistory({
       docType: 'letter',
       title: tplName,
+      subject: printSubject,
       refNo: refNo || '',
       dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
-      recipientOrStudent: signatoryInstitution || institutionName || '',
+      recipientOrStudent: printRecipient,
       bodyHtml,
       actionType: 'Printed / Saved PDF',
       templateId: selectedTemplateId,
@@ -1435,7 +1448,7 @@ export default function OfficialLetterWriterView({
       metadata: { refNo, selectedTemplateId, signatoryName, signatoryDesignation, dateStr }
     });
 
-    showToast('🖨️� Opening print dialog / PDF preview...', 'info', 2500);
+    showToast('🖨️ Opening print dialog / PDF preview...', 'info', 2500);
 
     printOfficialLetter({
       officeTitle,
@@ -1477,6 +1490,8 @@ export default function OfficialLetterWriterView({
     setIsExportingDocx(true);
     const bodyHtml = editorRef.current.innerHTML;
     const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
+    const docxSubject = extractLetterSubject(bodyHtml) || tplName;
+    const docxRecipient = extractLetterRecipient(bodyHtml) || signatoryInstitution || institutionName || '';
 
     logAdminActivity({
       actionType: 'export',
@@ -1489,9 +1504,10 @@ export default function OfficialLetterWriterView({
     saveGeneratedDocToHistory({
       docType: 'letter',
       title: tplName,
+      subject: docxSubject,
       refNo: refNo || '',
       dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
-      recipientOrStudent: signatoryInstitution || institutionName || '',
+      recipientOrStudent: docxRecipient,
       bodyHtml,
       actionType: 'Downloaded (.docx)',
       templateId: selectedTemplateId,

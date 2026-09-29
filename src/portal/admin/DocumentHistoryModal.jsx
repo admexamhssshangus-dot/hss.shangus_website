@@ -14,7 +14,9 @@ import {
 import {
   fetchGeneratedDocHistory,
   deleteGeneratedDocFromHistory,
-  deleteMultipleGeneratedDocsFromHistory
+  deleteMultipleGeneratedDocsFromHistory,
+  extractLetterSubject,
+  extractLetterRecipient
 } from '../../services/docHistoryService';
 import { showToast } from '../../components/common/GlobalToast';
 import {
@@ -176,6 +178,8 @@ export default function DocumentHistoryModal({
     if (!q) return list;
 
     return list.filter(r => {
+      const isLetter = isLetterDoc(r);
+      const subject = (r.subject || (isLetter ? extractLetterSubject(r.bodyHtml) : (r.studentDetails?.purpose || ''))).toLowerCase();
       const title = (r.title || '').toLowerCase();
       const rec = (r.recipientOrStudent || '').toLowerCase();
       const ref = (r.refNo || '').toLowerCase();
@@ -186,6 +190,7 @@ export default function DocumentHistoryModal({
 
       return (
         title.includes(q) ||
+        subject.includes(q) ||
         rec.includes(q) ||
         ref.includes(q) ||
         date.includes(q) ||
@@ -467,7 +472,7 @@ export default function DocumentHistoryModal({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by student name, roll no, ref no, title..."
+              placeholder="Search by student name, roll no, ref no, subject, title..."
               className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             {searchQuery && (
@@ -652,6 +657,25 @@ export default function DocumentHistoryModal({
                     ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                     : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800';
 
+                // Subject resolution (auto-extracted from bodyHtml if not explicitly saved)
+                const rawSubject = rec.subject || (isLetter ? extractLetterSubject(rec.bodyHtml) : (rec.studentDetails?.purpose || ''));
+                const displaySubject = rawSubject && rawSubject !== '[Enter Subject Line Here]' ? rawSubject : '';
+
+                // Recipient resolution (clean up redundant sender school names for letters)
+                let recipient = rec.recipientOrStudent || '';
+                if (isLetter) {
+                  const extractedRec = extractLetterRecipient(rec.bodyHtml);
+                  const isSenderSelf = recipient.toLowerCase().includes('govt. hr') ||
+                                       recipient.toLowerCase().includes('govt. higher') ||
+                                       recipient.toLowerCase().includes('shangus') ||
+                                       recipient.toLowerCase().includes('office of the');
+                  if (extractedRec && (isSenderSelf || !recipient)) {
+                    recipient = extractedRec;
+                  } else if (isSenderSelf) {
+                    recipient = '';
+                  }
+                }
+
                 return (
                   <div
                     key={rec.id}
@@ -706,11 +730,28 @@ export default function DocumentHistoryModal({
                         </span>
                       </div>
 
+                      {/* Subject Callout Badge (for Letters & documents with subject/purpose) */}
+                      {displaySubject && (
+                        <div className="mt-1.5 p-2 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 text-slate-800 dark:text-slate-200">
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-[9px] font-black uppercase text-indigo-700 dark:text-indigo-300 tracking-wider shrink-0 bg-indigo-100 dark:bg-indigo-900/80 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                              Subject
+                            </span>
+                            <span className="font-bold text-[11px] leading-snug line-clamp-2 text-slate-900 dark:text-slate-100" title={displaySubject}>
+                              {displaySubject}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Recipient / Student Info */}
-                      {rec.recipientOrStudent && (
+                      {recipient && (
                         <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-800 mt-1">
                           <User size={12} className="text-slate-400 shrink-0" />
-                          <span className="truncate">{rec.recipientOrStudent}</span>
+                          <span className="truncate">
+                            {isLetter && <span className="font-semibold text-slate-500 mr-1">To:</span>}
+                            {recipient}
+                          </span>
                           {rec.studentDetails?.cls && (
                             <span className="text-[9.5px] font-mono text-slate-500 bg-slate-200 dark:bg-slate-700 px-1 rounded ml-auto shrink-0">
                               {rec.studentDetails.cls}
@@ -819,10 +860,18 @@ export default function DocumentHistoryModal({
             
             {/* Preview Header */}
             <div className="px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase text-indigo-300">Document Snapshot:</span>
-                <span className="text-xs font-bold text-white truncate max-w-md">{previewDoc.title}</span>
-                <span className="text-[10px] font-mono bg-white/10 px-1.5 py-0.2 rounded text-slate-300">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-black uppercase text-indigo-300 shrink-0">Snapshot:</span>
+                <span className="text-xs font-bold text-white truncate max-w-xs">{previewDoc.title}</span>
+                {(() => {
+                  const previewSubj = previewDoc.subject || (isLetterDoc(previewDoc) ? extractLetterSubject(previewDoc.bodyHtml) : (previewDoc.studentDetails?.purpose || ''));
+                  return previewSubj && previewSubj !== '[Enter Subject Line Here]' ? (
+                    <span className="text-xs text-indigo-200 truncate max-w-sm font-semibold hidden md:inline" title={previewSubj}>
+                      • Sub: {previewSubj}
+                    </span>
+                  ) : null;
+                })()}
+                <span className="text-[10px] font-mono bg-white/10 px-1.5 py-0.2 rounded text-slate-300 shrink-0">
                   {previewDoc.refNo}
                 </span>
               </div>

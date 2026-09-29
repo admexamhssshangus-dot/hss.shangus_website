@@ -49,6 +49,117 @@ function sanitizeFirestoreData(val) {
 }
 
 /**
+ * Extract Subject line or main topic from letter HTML snapshot.
+ * Supports:
+ * - "Subject: <topic>"
+ * - "Sub: <topic>"
+ * - "<strong>Subject:</strong> <u><topic></u>"
+ * - Prominent notice/order headings
+ * 
+ * @param {string} bodyHtml
+ * @param {string} [fallbackTitle]
+ * @returns {string}
+ */
+export function extractLetterSubject(bodyHtml, fallbackTitle = '') {
+  if (!bodyHtml || typeof bodyHtml !== 'string') return fallbackTitle || '';
+
+  // 1. Fast regex for explicit "Subject:" or "Sub:" lines
+  const subRegex = /(?:Subject|Sub)\s*[:：\-–—]+\s*(?:<\/?(?:strong|b|u|em|span)[^>]*>|\s)*([^<\n\r]+(?:<\/?(?:strong|b|u|em|span)[^>]*>[^<\n\r]+)*)/i;
+  const match = bodyHtml.match(subRegex);
+  if (match && match[1]) {
+    const clean = match[1].replace(/<[^>]+>/g, '').trim();
+    if (clean && clean.length > 2 && clean !== '[Enter Subject Line Here]') {
+      return clean;
+    }
+  }
+
+  // 2. DOM Parser inspection (browser environment)
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const doc = new DOMParser().parseFromString(`<div>${bodyHtml}</div>`, 'text/html');
+      
+      // Look for any paragraph or heading containing Subject / Sub
+      const paragraphs = Array.from(doc.querySelectorAll('p, div, h1, h2, h3, h4'));
+      for (const el of paragraphs) {
+        const text = el.textContent || '';
+        const m = text.match(/(?:Subject|Sub)\s*[:：\-–—]+\s*(.*)/i);
+        if (m && m[1]) {
+          const s = m[1].trim();
+          if (s && s.length > 2 && s !== '[Enter Subject Line Here]') {
+            return s;
+          }
+        }
+      }
+
+      // 3. Fallback: Check for prominent title or heading like "OFFICE ORDER" or first paragraph
+      for (const el of paragraphs) {
+        const text = (el.textContent || '').trim();
+        if (!text) continue;
+        if (text.startsWith('To,') || text.startsWith('To:') || text.startsWith('Respected') || text.startsWith('Sir') || text.startsWith('Madam')) {
+          continue;
+        }
+        if (/^(OFFICE ORDER|NOTIFICATION|CIRCULAR|MEMORANDUM|MEETING NOTICE|DUTY ORDER)/i.test(text)) {
+          return text.slice(0, 120);
+        }
+      }
+
+      // 4. Fallback: First meaningful sentence if no subject
+      for (const el of paragraphs) {
+        const text = (el.textContent || '').trim();
+        if (!text || text.startsWith('To,') || text.startsWith('To:') || text.startsWith('Respected') || text.startsWith('Sir') || text.startsWith('Yours')) {
+          continue;
+        }
+        if (text.length >= 15) {
+          return text.slice(0, 110) + (text.length > 110 ? '...' : '');
+        }
+      }
+    } catch (_) {}
+  }
+
+  return fallbackTitle || '';
+}
+
+/**
+ * Extract recipient addressee from letter HTML snapshot.
+ * E.g. "To, <br/> The Chief Education Officer" -> "The Chief Education Officer"
+ * 
+ * @param {string} bodyHtml
+ * @returns {string}
+ */
+export function extractLetterRecipient(bodyHtml) {
+  if (!bodyHtml || typeof bodyHtml !== 'string') return '';
+
+  try {
+    const doc = new DOMParser().parseFromString(`<div>${bodyHtml}</div>`, 'text/html');
+    const paragraphs = Array.from(doc.querySelectorAll('p, div'));
+    for (let i = 0; i < paragraphs.length; i++) {
+      const p = paragraphs[i];
+      const text = (p.textContent || '').trim();
+      if (/^To\s*[,:]/i.test(text)) {
+        // Handle <br> tags within the paragraph
+        const htmlWithBreaks = (p.innerHTML || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        const lines = htmlWithBreaks.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length > 1) {
+          const recipientLine = lines[1].replace(/^To\s*[,:]?\s*/i, '').trim();
+          if (recipientLine && recipientLine !== '[Addressee Name / Designation]' && recipientLine.length > 2) {
+            return recipientLine;
+          }
+        }
+        // If "To," is on its own line/paragraph, check immediate next sibling paragraph
+        if (i + 1 < paragraphs.length) {
+          const nextText = (paragraphs[i + 1].textContent || '').trim();
+          if (nextText && !nextText.match(/^(Subject|Sub\s*[:-]|Respected|Sir|Madam)/i) && nextText.length > 2) {
+            return nextText.split('\n')[0].trim();
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  return '';
+}
+
+/**
  * Save a generated document (Bonafide, Certificate, or Official Letter) to Cloud History.
  * Every record is immutable and captures the full rendered HTML snapshot, timestamp,
  * recipient/student metadata, and the triggering action (Printed, Downloaded, or Saved to Cloud).
@@ -56,6 +167,7 @@ function sanitizeFirestoreData(val) {
  * @param {object} params
  * @param {'bonafide' | 'letter' | 'certificate'} params.docType
  * @param {string} params.title
+ * @param {string} [params.subject]
  * @param {string} params.refNo
  * @param {string} params.dateStr
  * @param {string} [params.recipientOrStudent]
@@ -70,6 +182,7 @@ function sanitizeFirestoreData(val) {
 export async function saveGeneratedDocToHistory({
   docType = 'bonafide',
   title = '',
+  subject = '',
   refNo = '',
   dateStr = '',
   recipientOrStudent = '',
@@ -83,7 +196,21 @@ export async function saveGeneratedDocToHistory({
   const nowIso = new Date().toISOString();
   const normalizedTitle = String(title || (docType === 'letter' ? 'Official Letter' : 'Student Certificate')).trim();
   const normalizedRefNo = String(refNo || '').trim();
-  const normalizedRecipient = String(recipientOrStudent || '').trim();
+
+  // Resolve Subject: if passed use it, otherwise auto-extract if letter
+  let resolvedSubject = String(subject || '').trim();
+  if (!resolvedSubject && docType === 'letter' && bodyHtml) {
+    resolvedSubject = extractLetterSubject(bodyHtml);
+  }
+
+  // Resolve Recipient: for letters, if generic school name or empty, extract addressee from bodyHtml
+  let normalizedRecipient = String(recipientOrStudent || '').trim();
+  if (docType === 'letter' && (!normalizedRecipient || normalizedRecipient.toLowerCase().includes('shangus'))) {
+    const extractedAddressee = extractLetterRecipient(bodyHtml);
+    if (extractedAddressee) {
+      normalizedRecipient = extractedAddressee;
+    }
+  }
 
   // Clean and sanitize extraData (strip large redundant raw objects)
   const cleanExtraData = { ...(extraData || {}) };
@@ -110,8 +237,12 @@ export async function saveGeneratedDocToHistory({
       // Match by exact reference number
       if (normalizedRefNo && item.refNo && item.refNo === normalizedRefNo) return true;
 
-      // Match by recipient + title
-      if (normalizedRecipient && item.recipientOrStudent && item.recipientOrStudent.toLowerCase() === normalizedRecipient.toLowerCase() && item.title === normalizedTitle) return true;
+      // Match by recipient + title + subject
+      if (normalizedRecipient && item.recipientOrStudent && item.recipientOrStudent.toLowerCase() === normalizedRecipient.toLowerCase() && item.title === normalizedTitle) {
+        if (!resolvedSubject || !item.subject || item.subject.toLowerCase() === resolvedSubject.toLowerCase()) {
+          return true;
+        }
+      }
 
       return false;
     });
@@ -124,6 +255,7 @@ export async function saveGeneratedDocToHistory({
     id,
     docType, // 'bonafide' | 'letter' | 'discharge'
     title: normalizedTitle,
+    subject: resolvedSubject,
     refNo: normalizedRefNo,
     dateStr: String(dateStr || new Date().toLocaleDateString('en-GB')).trim(),
     recipientOrStudent: normalizedRecipient,
