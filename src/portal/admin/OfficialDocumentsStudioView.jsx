@@ -371,6 +371,8 @@ export default function OfficialDocumentsStudioView({
           onSwitchSubTab={setActiveSubTab}
           globalSession={selectedGlobalSession}
           onSelectGlobalSession={handleSessionChange}
+          showSettingsDrawerProp={showSettingsDrawer}
+          onToggleSettingsDrawer={onToggleSettingsDrawer}
         />
       )}
 

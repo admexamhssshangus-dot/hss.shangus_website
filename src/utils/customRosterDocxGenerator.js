@@ -90,7 +90,11 @@ export async function generateCustomRosterDocx({
   rowHeightDxa = 450,
   signatories = ['Incharge Admissions & Exam', 'Principal'],
   layoutMode = 'standard',
-  examDetails = {}
+  examDetails = {},
+  institutionName = 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS',
+  institutionSubtitle = 'District Anantnag, Kashmir — 192201 | Official Institutional Record',
+  showHeader = true,
+  showMetaBadges = true
 }) {
   if (layoutMode === 'two_column_attendance') {
     return generateTwoColumnAttendanceDocx({
@@ -363,31 +367,33 @@ export async function generateCustomRosterDocx({
         },
         children: [
           // Institution Header
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 40 },
-            children: [
-              new TextRun({
-                text: 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS',
-                bold: true,
-                size: 26, // 13pt
-                font: 'Calibri',
-                color: '800000'
-              })
-            ]
-          }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 120 },
-            children: [
-              new TextRun({
-                text: 'District Anantnag, Kashmir — 192201 | Official Institutional Record',
-                size: 16, // 8pt
-                color: '555555',
-                font: 'Calibri'
-              })
-            ]
-          }),
+          ...(showHeader !== false ? [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 40 },
+              children: [
+                new TextRun({
+                  text: (institutionName || 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS').toUpperCase(),
+                  bold: true,
+                  size: 26, // 13pt
+                  font: 'Calibri',
+                  color: '800000'
+                })
+              ]
+            }),
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 120 },
+              children: [
+                new TextRun({
+                  text: institutionSubtitle || 'District Anantnag, Kashmir — 192201 | Official Institutional Record',
+                  size: 16, // 8pt
+                  color: '555555',
+                  font: 'Calibri'
+                })
+              ]
+            })
+          ] : []),
 
           // Document Title
           new Paragraph({
@@ -674,20 +680,31 @@ async function generateTwoColumnAttendanceDocx({
           }
         },
         children: [
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            shading: { fill: 'CBD5E1' },
-            spacing: { after: 80 },
-            children: [
-              new TextRun({
-                text: 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG',
-                bold: true,
-                size: 23,
-                font: 'Calibri',
-                color: '0F172A'
-              })
-            ]
-          }),
+          // Institution Header Banner
+          ...(examDetails.showInstBanner !== false ? [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              shading: {
+                fill: examDetails.bannerBg === 'white'
+                  ? 'FFFFFF'
+                  : examDetails.bannerBg === 'amber'
+                  ? 'FEF3C7'
+                  : examDetails.bannerBg === 'indigo'
+                  ? 'E0E7FF'
+                  : 'CBD5E1'
+              },
+              spacing: { after: 80 },
+              children: [
+                new TextRun({
+                  text: (examDetails.instBanner || 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG').toUpperCase(),
+                  bold: true,
+                  size: 23,
+                  font: 'Calibri',
+                  color: '0F172A'
+                })
+              ]
+            })
+          ] : []),
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { after: 80 },
@@ -697,7 +714,7 @@ async function generateTwoColumnAttendanceDocx({
                 bold: true,
                 size: 24,
                 font: 'Calibri',
-                underline: { type: 'single', color: '111111' },
+                underline: examDetails.titleUnderline !== false ? { type: 'single', color: '111111' } : undefined,
                 color: '111111'
               })
             ]
@@ -706,9 +723,9 @@ async function generateTwoColumnAttendanceDocx({
             alignment: AlignmentType.LEFT,
             spacing: { after: 40 },
             children: [
-              new TextRun({ text: 'Name of the Examination: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: `${examDetails.examNameLabel || 'Name of the Examination'}: `, bold: true, size: 17, font: 'Calibri' }),
               new TextRun({ text: `${examNameText}          `, size: 17, font: 'Calibri' }),
-              new TextRun({ text: 'Year: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: `${examDetails.examYearLabel || 'Year'}: `, bold: true, size: 17, font: 'Calibri' }),
               new TextRun({ text: examYearText, size: 17, font: 'Calibri' })
             ]
           }),
@@ -716,14 +733,18 @@ async function generateTwoColumnAttendanceDocx({
             alignment: AlignmentType.LEFT,
             spacing: { after: 140 },
             children: [
-              new TextRun({ text: 'Class: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: `${examDetails.classLabel || 'Class'}: `, bold: true, size: 17, font: 'Calibri' }),
               new TextRun({ text: `${classText}      `, size: 17, font: 'Calibri' }),
-              new TextRun({ text: 'Date: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: `${examDetails.dateLabel || 'Date'}: `, bold: true, size: 17, font: 'Calibri' }),
               new TextRun({ text: `${dateText}      `, size: 17, font: 'Calibri' }),
-              new TextRun({ text: 'Subject: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: `${examDetails.subjectLabel || 'Subject'}: `, bold: true, size: 17, font: 'Calibri' }),
               new TextRun({ text: `${subjectText}      `, size: 17, font: 'Calibri' }),
-              new TextRun({ text: 'Paper: ', bold: true, size: 17, font: 'Calibri' }),
-              new TextRun({ text: paperText, size: 17, font: 'Calibri' })
+              new TextRun({ text: `${examDetails.paperLabel || 'Paper'}: `, bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: paperText, size: 17, font: 'Calibri' }),
+              ...(examDetails.centre ? [
+                new TextRun({ text: `      ${examDetails.centreLabel || 'Centre No.'}: `, bold: true, size: 17, font: 'Calibri' }),
+                new TextRun({ text: String(examDetails.centre), size: 17, font: 'Calibri' })
+              ] : [])
             ]
           }),
           attendanceTable,
@@ -743,7 +764,7 @@ async function generateTwoColumnAttendanceDocx({
                       }),
                       new Paragraph({
                         alignment: AlignmentType.CENTER,
-                        children: [new TextRun({ text: (signatories && signatories[0]) || 'Sig. of the Asstt. Supdt.', bold: true, size: 17, font: 'Calibri' })]
+                        children: [new TextRun({ text: (examDetails.sigLeft || (signatories && signatories[0]) || 'Sig. of the Asstt. Supdt.'), bold: true, size: 17, font: 'Calibri' })]
                       })
                     ]
                   }),
@@ -757,7 +778,7 @@ async function generateTwoColumnAttendanceDocx({
                       }),
                       new Paragraph({
                         alignment: AlignmentType.CENTER,
-                        children: [new TextRun({ text: (signatories && signatories[1]) || 'Sig. of the Centre Supdt.', bold: true, size: 17, font: 'Calibri' })]
+                        children: [new TextRun({ text: (examDetails.sigRight || (signatories && signatories[1]) || 'Sig. of the Centre Supdt.'), bold: true, size: 17, font: 'Calibri' })]
                       })
                     ]
                   })

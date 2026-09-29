@@ -19,7 +19,11 @@ export function printCustomRosterTable({
   signatories = ['Incharge Admissions & Exam', 'Principal'],
   layoutMode = 'standard',
   examDetails = {},
-  rowsPerColumn = 25
+  rowsPerColumn = 25,
+  institutionName = 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS',
+  institutionSubtitle = 'District Anantnag, Kashmir — 192201 | Official Institutional Record',
+  showHeader = true,
+  showMetaBadges = true
 }) {
   if (layoutMode === 'two_column_attendance') {
     const attHtml = buildTwoColumnAttendanceHtml({
@@ -35,7 +39,7 @@ export function printCustomRosterTable({
 
   const isLandscape = orientation === 'landscape';
 
-  const metaHtml = metaBadges.length > 0
+  const metaHtml = (showMetaBadges && metaBadges.length > 0)
     ? `<div class="meta-bar">${metaBadges.map(b => `<span>${b}</span>`).join('<span class="meta-sep">|</span>')}</div>`
     : '';
 
@@ -228,13 +232,19 @@ export function printCustomRosterTable({
       </style>
     </head>
     <body>
+      ${showHeader !== false ? `
       <div class="header-container">
-        <div class="inst-title">GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS</div>
-        <div class="inst-sub">District Anantnag, Kashmir — 192201 | Official Institutional Record</div>
+        <div class="inst-title">${institutionName || 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS'}</div>
+        <div class="inst-sub">${institutionSubtitle || 'District Anantnag, Kashmir — 192201 | Official Institutional Record'}</div>
         <div class="doc-title">${title}</div>
         ${subtitle ? `<div class="doc-sub">${subtitle}</div>` : ''}
         ${metaHtml}
-      </div>
+      </div>` : `
+      <div class="header-container" style="border-bottom: 1.5px solid #111827; padding-bottom: 4px; margin-bottom: 8px;">
+        <div class="doc-title">${title}</div>
+        ${subtitle ? `<div class="doc-sub">${subtitle}</div>` : ''}
+        ${metaHtml}
+      </div>`}
 
       <table>
         <thead>
@@ -405,35 +415,62 @@ function buildTwoColumnAttendanceHtml({
   const pagesHtml = pages.map((pg, pageIdx) => {
     const leftStart = pageIdx * studentsPerPage;
     const rightStart = leftStart + pg.left.length;
+    const bannerBgStyle = examDetails.bannerBg === 'white'
+      ? 'background: #ffffff; color: #020617; border-color: #020617;'
+      : examDetails.bannerBg === 'amber'
+      ? 'background: #fef3c7; color: #78350f; border-color: #92400e;'
+      : examDetails.bannerBg === 'indigo'
+      ? 'background: #e0e7ff; color: #1e1b4b; border-color: #312e81;'
+      : 'background: #cbd5e1; color: #020617; border-color: #1e293b;';
+
+    const showBanner = examDetails.showInstBanner !== false;
+    const bannerText = examDetails.instBanner || 'Govt. Higher Secondary School Shangus, Anantnag';
+    const isUnderline = examDetails.titleUnderline !== false;
+    const examNameLabel = examDetails.examNameLabel || 'Name of the Examination';
+    const examYearLabel = examDetails.examYearLabel || 'Year';
+    const classLabel = examDetails.classLabel || 'Class';
+    const dateLabel = examDetails.dateLabel || 'Date';
+    const subjectLabel = examDetails.subjectLabel || 'Subject';
+    const paperLabel = examDetails.paperLabel || 'Paper';
+    const centreText = examDetails.centre ? `<b>${examDetails.centre}</b>` : '';
+    const centreLabel = examDetails.centreLabel || 'Centre No.';
+    const leftSigTitle = examDetails.sigLeft || signatories[0] || 'Sig. of the Asstt. Supdt.';
+    const rightSigTitle = examDetails.sigRight || signatories[1] || 'Sig. of the Centre Supdt.';
+
     return `
       <div class="attendance-page">
-        <div class="inst-banner-box">
-          Govt. Higher Secondary School Shangus, Anantnag
-        </div>
-        <div class="attendance-title">${title || 'DAILY ATTENDANCE SHEET'}</div>
+        ${showBanner ? `
+        <div class="inst-banner-box" style="${bannerBgStyle}">
+          ${bannerText}
+        </div>` : ''}
+        <div class="attendance-title" style="${isUnderline ? 'text-decoration: underline;' : 'text-decoration: none;'}">${title || 'DAILY ATTENDANCE SHEET'}</div>
         
         <div class="exam-info-container">
           <div class="exam-info-row">
             <div class="exam-field" style="flex: 2.2;">
-              Name of the Examination <span class="dots">${examNameText}</span>
+              ${examNameLabel} <span class="dots">${examNameText}</span>
             </div>
             <div class="exam-field" style="flex: 1; text-align: right;">
-              Year <span class="dots">${examYearText}</span>
+              ${examYearLabel} <span class="dots">${examYearText}</span>
             </div>
           </div>
           <div class="exam-info-row" style="margin-top: 5px;">
             <div class="exam-field" style="flex: 1.1;">
-              Class <span class="dots">${classText}</span>
+              ${classLabel} <span class="dots">${classText}</span>
             </div>
             <div class="exam-field" style="flex: 1.1;">
-              Date <span class="dots">${dateText}</span>
+              ${dateLabel} <span class="dots">${dateText}</span>
             </div>
             <div class="exam-field" style="flex: 1.4;">
-              Subject <span class="dots">${subjectText}</span>
+              ${subjectLabel} <span class="dots">${subjectText}</span>
             </div>
             <div class="exam-field" style="flex: 1.1; text-align: right;">
-              Paper <span class="dots">${paperText}</span>
+              ${paperLabel} <span class="dots">${paperText}</span>
             </div>
+            ${centreText ? `
+            <div class="exam-field" style="flex: 1.1; text-align: right;">
+              ${centreLabel} <span class="dots">${centreText}</span>
+            </div>` : ''}
           </div>
         </div>
 
@@ -472,11 +509,11 @@ function buildTwoColumnAttendanceHtml({
         <div class="att-signatories">
           <div class="sig-box">
             <div class="sig-line"></div>
-            <div class="sig-title">${signatories[0] || 'Sig. of the Asstt. Supdt.'}</div>
+            <div class="sig-title">${leftSigTitle}</div>
           </div>
           <div class="sig-box">
             <div class="sig-line"></div>
-            <div class="sig-title">${signatories[1] || 'Sig. of the Centre Supdt.'}</div>
+            <div class="sig-title">${rightSigTitle}</div>
           </div>
         </div>
       </div>
@@ -671,11 +708,20 @@ export function exportCustomRosterExcel({
     const subjectName = examDetails.subjectName || '..................';
     const paper = examDetails.paper || '..................';
 
+    const bannerText = examDetails.instBanner || 'Govt. Higher Secondary School Shangus, Anantnag';
+    const examNameLabel = examDetails.examNameLabel || 'Name of the Examination';
+    const examYearLabel = examDetails.examYearLabel || 'Year';
+    const classLabel = examDetails.classLabel || 'Class';
+    const dateLabel = examDetails.dateLabel || 'Date';
+    const subjectLabel = examDetails.subjectLabel || 'Subject';
+    const paperLabel = examDetails.paperLabel || 'Paper';
+    const centreStr = examDetails.centre ? ` | ${examDetails.centreLabel || 'Centre No.'}: ${examDetails.centre}` : '';
+
     const wsData = [
-      ['Govt. Higher Secondary School Shangus, Anantnag'],
+      ...(examDetails.showInstBanner !== false ? [[bannerText]] : []),
       [title || 'DAILY ATTENDANCE SHEET'],
-      [`Name of the Examination: ${examName}`, '', '', '', `Year: ${examYear}`],
-      [`Class: ${className}`, `Date: ${examDate}`, `Subject: ${subjectName}`, '', `Paper: ${paper}`],
+      [`${examNameLabel}: ${examName}`, '', '', '', `${examYearLabel}: ${examYear}`],
+      [`${classLabel}: ${className}`, `${dateLabel}: ${examDate}`, `${subjectLabel}: ${subjectName}`, '', `${paperLabel}: ${paper}${centreStr}`],
       [],
       ['R.No.', 'Name of the Candidate', 'Sig. of the Candidate', '', 'R.No.', 'Name of the Candidate', 'Sig. of the Candidate']
     ];
