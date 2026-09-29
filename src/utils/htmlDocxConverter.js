@@ -34,7 +34,15 @@ function getAlignment(alignStr) {
  */
 function sanitizeColor(col) {
   if (!col) return undefined;
-  let c = String(col).trim().replace(/^#/, '');
+  let c = String(col).trim();
+  const rgbMatch = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (rgbMatch) {
+    const r = parseInt(rgbMatch[1], 10).toString(16).padStart(2, '0');
+    const g = parseInt(rgbMatch[2], 10).toString(16).padStart(2, '0');
+    const b = parseInt(rgbMatch[3], 10).toString(16).padStart(2, '0');
+    return (r + g + b).toUpperCase();
+  }
+  c = c.replace(/^#/, '');
   if (/^[0-9a-fA-F]{6}$/.test(c)) return c.toUpperCase();
   if (/^[0-9a-fA-F]{3}$/.test(c)) {
     return (c[0] + c[0] + c[1] + c[1] + c[2] + c[2]).toUpperCase();
