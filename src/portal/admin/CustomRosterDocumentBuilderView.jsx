@@ -10,12 +10,12 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import {
   Printer, FileText, FileSpreadsheet, Download, Plus, Minus, Trash2,
-  Sliders, SlidersHorizontal, CheckSquare, Square, Eye, Layers, Sparkles,
+  Sliders, SlidersHorizontal, CheckSquare, Square, Eye, EyeOff, Layers, Sparkles,
   Settings2, RefreshCw, X, UserCheck, BookOpen, User,
   ChevronDown, ChevronUp, ArrowLeft, ArrowRight, GripVertical,
   ArrowUpDown, ArrowUp, ArrowDown, Edit3, Save, RotateCcw, Check, Bookmark, Award,
   Calculator, IndianRupee, FlaskConical, CheckCircle2, Cloud, Info, Zap,
-  Columns, ClipboardList, Search
+  Columns, ClipboardList, Search, Underline, Type
 } from 'lucide-react';
 import { generateCustomRosterDocx } from '../../utils/customRosterDocxGenerator';
 import {
@@ -2966,21 +2966,232 @@ export default function CustomRosterDocumentBuilderView({
   };
 
   // ─── Document Layout & Header States ───
-  const [docTitle, setDocTitle] = useState('STUDENT RECORD & SIGNATURE SHEET');
-  const [docSubtitle, setDocSubtitle] = useState('');
+  const [institutionName, setInstitutionName] = useState(() => {
+    try {
+      return localStorage.getItem('hss_roster_institution_name') || 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS';
+    } catch {
+      return 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS';
+    }
+  });
+  const [institutionSubtitle, setInstitutionSubtitle] = useState(() => {
+    try {
+      return localStorage.getItem('hss_roster_institution_subtitle') || 'District Anantnag, Kashmir — 192201 | Official Institutional Record';
+    } catch {
+      return 'District Anantnag, Kashmir — 192201 | Official Institutional Record';
+    }
+  });
+  const [docTitle, setDocTitle] = useState(() => {
+    try {
+      return localStorage.getItem('hss_roster_doc_title') || 'STUDENT RECORD & SIGNATURE SHEET';
+    } catch {
+      return 'STUDENT RECORD & SIGNATURE SHEET';
+    }
+  });
+  const [docSubtitle, setDocSubtitle] = useState(() => {
+    try {
+      return localStorage.getItem('hss_roster_doc_subtitle') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [showHeader, setShowHeader] = useState(() => {
+    try {
+      const v = localStorage.getItem('hss_roster_show_header');
+      return v !== null ? v === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+  const [showMetaBadges, setShowMetaBadges] = useState(() => {
+    try {
+      const v = localStorage.getItem('hss_roster_show_meta_badges');
+      return v !== null ? v === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+  const [signatoryLeft, setSignatoryLeft] = useState(() => {
+    try {
+      return localStorage.getItem('hss_roster_sig_left') || 'Incharge Admissions & Exam';
+    } catch {
+      return 'Incharge Admissions & Exam';
+    }
+  });
+  const [signatoryRight, setSignatoryRight] = useState(() => {
+    try {
+      return localStorage.getItem('hss_roster_sig_right') || 'Principal';
+    } catch {
+      return 'Principal';
+    }
+  });
+  const [showSignatories, setShowSignatories] = useState(() => {
+    try {
+      const v = localStorage.getItem('hss_roster_show_signatories');
+      return v !== null ? v === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
   const [orientation, setOrientation] = useState('portrait');
   const [selectedRowHeightIdx, setSelectedRowHeightIdx] = useState(2); // Default: Signature (52px)
-  const [signatories] = useState(['Incharge Admissions & Exam', 'Principal']);
+
+  const signatories = useMemo(() => {
+    if (!showSignatories) return [];
+    return [signatoryLeft || 'Incharge Admissions & Exam', signatoryRight || 'Principal'].filter(Boolean);
+  }, [showSignatories, signatoryLeft, signatoryRight]);
 
   // ─── 2-Column Attendance Sheet Layout States ───
   const [layoutMode, setLayoutMode] = useState('standard'); // 'standard' | 'two_column_attendance'
+  const [attendanceInstBanner, setAttendanceInstBanner] = useState(() => {
+    try {
+      return localStorage.getItem('hss_roster_attendance_banner') || 'Govt. Higher Secondary School Shangus, Anantnag';
+    } catch {
+      return 'Govt. Higher Secondary School Shangus, Anantnag';
+    }
+  });
+  const [showAttendanceInstBanner, setShowAttendanceInstBanner] = useState(() => {
+    try {
+      const v = localStorage.getItem('hss_roster_show_attendance_banner');
+      return v !== null ? v === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+  const [attendanceBannerBg, setAttendanceBannerBg] = useState(() => {
+    try {
+      return localStorage.getItem('hss_roster_attendance_banner_bg') || 'slate';
+    } catch {
+      return 'slate';
+    }
+  });
+  const [attendanceTitleUnderline, setAttendanceTitleUnderline] = useState(() => {
+    try {
+      const v = localStorage.getItem('hss_roster_attendance_underline');
+      return v !== null ? v === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
   const [attendanceExamName, setAttendanceExamName] = useState('Annual Regular Examination');
   const [attendanceExamYear, setAttendanceExamYear] = useState('');
   const [attendanceClass, setAttendanceClass] = useState('');
   const [attendanceDate, setAttendanceDate] = useState('');
   const [attendanceSubject, setAttendanceSubject] = useState('');
   const [attendancePaper, setAttendancePaper] = useState('');
+  const [attendanceCentre, setAttendanceCentre] = useState('');
+  const [attendanceExamNameLabel, setAttendanceExamNameLabel] = useState('Name of the Examination');
+  const [attendanceExamYearLabel, setAttendanceExamYearLabel] = useState('Year');
+  const [attendanceClassLabel, setAttendanceClassLabel] = useState('Class');
+  const [attendanceDateLabel, setAttendanceDateLabel] = useState('Date');
+  const [attendanceSubjectLabel, setAttendanceSubjectLabel] = useState('Subject');
+  const [attendancePaperLabel, setAttendancePaperLabel] = useState('Paper');
+  const [attendanceCentreLabel, setAttendanceCentreLabel] = useState('Centre No.');
+  const [attendanceSigLeft, setAttendanceSigLeft] = useState('Sig. of the Asstt. Supdt.');
+  const [attendanceSigRight, setAttendanceSigRight] = useState('Sig. of the Centre Supdt.');
+  const [showAttendanceAdvanced, setShowAttendanceAdvanced] = useState(false);
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [attendanceRowsPerColumn, setAttendanceRowsPerColumn] = useState(25);
+
+  const handleInstitutionNameChange = (val) => {
+    setInstitutionName(val);
+    try { localStorage.setItem('hss_roster_institution_name', val); } catch {}
+  };
+  const handleInstitutionSubtitleChange = (val) => {
+    setInstitutionSubtitle(val);
+    try { localStorage.setItem('hss_roster_institution_subtitle', val); } catch {}
+  };
+  const handleDocTitleChange = (val) => {
+    setDocTitle(val);
+    try { localStorage.setItem('hss_roster_doc_title', val); } catch {}
+  };
+  const handleDocSubtitleChange = (val) => {
+    setDocSubtitle(val);
+    try { localStorage.setItem('hss_roster_doc_subtitle', val); } catch {}
+  };
+  const handleToggleShowHeader = (val) => {
+    setShowHeader(val);
+    try { localStorage.setItem('hss_roster_show_header', String(val)); } catch {}
+  };
+  const handleToggleShowMetaBadges = (val) => {
+    setShowMetaBadges(val);
+    try { localStorage.setItem('hss_roster_show_meta_badges', String(val)); } catch {}
+  };
+  const handleSignatoryLeftChange = (val) => {
+    setSignatoryLeft(val);
+    try { localStorage.setItem('hss_roster_sig_left', val); } catch {}
+  };
+  const handleSignatoryRightChange = (val) => {
+    setSignatoryRight(val);
+    try { localStorage.setItem('hss_roster_sig_right', val); } catch {}
+  };
+  const handleToggleShowSignatories = (val) => {
+    setShowSignatories(val);
+    try { localStorage.setItem('hss_roster_show_signatories', String(val)); } catch {}
+  };
+  const handleAttendanceBannerChange = (val) => {
+    setAttendanceInstBanner(val);
+    try { localStorage.setItem('hss_roster_attendance_banner', val); } catch {}
+  };
+  const handleToggleAttendanceBanner = (val) => {
+    setShowAttendanceInstBanner(val);
+    try { localStorage.setItem('hss_roster_show_attendance_banner', String(val)); } catch {}
+  };
+  const handleAttendanceBannerBgChange = (val) => {
+    setAttendanceBannerBg(val);
+    try { localStorage.setItem('hss_roster_attendance_banner_bg', val); } catch {}
+  };
+  const handleToggleAttendanceUnderline = (val) => {
+    setAttendanceTitleUnderline(val);
+    try { localStorage.setItem('hss_roster_attendance_underline', String(val)); } catch {}
+  };
+
+  const handleResetHeaderDefaults = () => {
+    const defInst = 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS';
+    const defSub = 'District Anantnag, Kashmir — 192201 | Official Institutional Record';
+    const defBanner = 'Govt. Higher Secondary School Shangus, Anantnag';
+    const defTitle = layoutMode === 'two_column_attendance' ? 'DAILY ATTENDANCE SHEET' : 'STUDENT RECORD & SIGNATURE SHEET';
+
+    setInstitutionName(defInst);
+    setInstitutionSubtitle(defSub);
+    setAttendanceInstBanner(defBanner);
+    setDocTitle(defTitle);
+    setDocSubtitle('');
+    setShowHeader(true);
+    setShowMetaBadges(true);
+    setShowAttendanceInstBanner(true);
+    setAttendanceBannerBg('slate');
+    setAttendanceTitleUnderline(true);
+    setSignatoryLeft('Incharge Admissions & Exam');
+    setSignatoryRight('Principal');
+    setShowSignatories(true);
+    setAttendanceCentre('');
+    setAttendanceExamNameLabel('Name of the Examination');
+    setAttendanceExamYearLabel('Year');
+    setAttendanceClassLabel('Class');
+    setAttendanceDateLabel('Date');
+    setAttendanceSubjectLabel('Subject');
+    setAttendancePaperLabel('Paper');
+    setAttendanceCentreLabel('Centre No.');
+    setAttendanceSigLeft('Sig. of the Asstt. Supdt.');
+    setAttendanceSigRight('Sig. of the Centre Supdt.');
+
+    try {
+      localStorage.removeItem('hss_roster_institution_name');
+      localStorage.removeItem('hss_roster_institution_subtitle');
+      localStorage.removeItem('hss_roster_attendance_banner');
+      localStorage.removeItem('hss_roster_doc_title');
+      localStorage.removeItem('hss_roster_doc_subtitle');
+      localStorage.removeItem('hss_roster_show_header');
+      localStorage.removeItem('hss_roster_show_meta_badges');
+      localStorage.removeItem('hss_roster_show_attendance_banner');
+      localStorage.removeItem('hss_roster_attendance_banner_bg');
+      localStorage.removeItem('hss_roster_attendance_underline');
+      localStorage.removeItem('hss_roster_sig_left');
+      localStorage.removeItem('hss_roster_sig_right');
+      localStorage.removeItem('hss_roster_show_signatories');
+    } catch {}
+    showToast('Header & title settings reset to institutional defaults', 'info');
+  };
 
   const effectiveExamDetails = useMemo(() => {
     return {
@@ -2989,19 +3200,40 @@ export default function CustomRosterDocumentBuilderView({
       className: attendanceClass || (selectedClasses.length === 1 ? selectedClasses[0] : (selectedClasses.length > 1 ? selectedClasses.join(', ') : '')),
       examDate: attendanceDate,
       subjectName: attendanceSubject || (selectedSubjects.length === 1 ? selectedSubjects[0] : (selectedSubjects.length > 1 ? selectedSubjects.join(', ') : '')),
-      paper: attendancePaper
+      paper: attendancePaper,
+      centre: attendanceCentre,
+      examNameLabel: attendanceExamNameLabel || 'Name of the Examination',
+      examYearLabel: attendanceExamYearLabel || 'Year',
+      classLabel: attendanceClassLabel || 'Class',
+      dateLabel: attendanceDateLabel || 'Date',
+      subjectLabel: attendanceSubjectLabel || 'Subject',
+      paperLabel: attendancePaperLabel || 'Paper',
+      centreLabel: attendanceCentreLabel || 'Centre No.',
+      sigLeft: attendanceSigLeft || 'Sig. of the Asstt. Supdt.',
+      sigRight: attendanceSigRight || 'Sig. of the Centre Supdt.',
+      instBanner: attendanceInstBanner || 'Govt. Higher Secondary School Shangus, Anantnag',
+      showInstBanner: showAttendanceInstBanner,
+      bannerBg: attendanceBannerBg,
+      titleUnderline: attendanceTitleUnderline
     };
-  }, [attendanceExamName, attendanceExamYear, selectedSessions, attendanceClass, selectedClasses, attendanceDate, attendanceSubject, selectedSubjects, attendancePaper]);
+  }, [
+    attendanceExamName, attendanceExamYear, selectedSessions, attendanceClass, selectedClasses,
+    attendanceDate, attendanceSubject, selectedSubjects, attendancePaper, attendanceCentre,
+    attendanceExamNameLabel, attendanceExamYearLabel, attendanceClassLabel, attendanceDateLabel,
+    attendanceSubjectLabel, attendancePaperLabel, attendanceCentreLabel, attendanceSigLeft,
+    attendanceSigRight, attendanceInstBanner, showAttendanceInstBanner, attendanceBannerBg,
+    attendanceTitleUnderline
+  ]);
 
   const handleLayoutModeChange = (mode) => {
     setLayoutMode(mode);
     if (mode === 'two_column_attendance') {
       if (docTitle === 'STUDENT RECORD & SIGNATURE SHEET' || !docTitle) {
-        setDocTitle('DAILY ATTENDANCE SHEET');
+        handleDocTitleChange('DAILY ATTENDANCE SHEET');
       }
     } else {
       if (docTitle === 'DAILY ATTENDANCE SHEET') {
-        setDocTitle('STUDENT RECORD & SIGNATURE SHEET');
+        handleDocTitleChange('STUDENT RECORD & SIGNATURE SHEET');
       }
     }
   };
@@ -3022,6 +3254,7 @@ export default function CustomRosterDocumentBuilderView({
     setAttendanceDate('');
     setAttendanceSubject('');
     setAttendancePaper('');
+    setAttendanceCentre('');
   };
 
   // ─── Draggable Dual-Pane Splitter State (Left Palette % vs Right Preview %) ───
@@ -3041,6 +3274,7 @@ export default function CustomRosterDocumentBuilderView({
   useEffect(() => {
     if (!isActive) {
       setShowMobileOptionsModal(false);
+      setShowSettingsDrawer(false);
     }
   }, [isActive]);
 
@@ -3048,7 +3282,7 @@ export default function CustomRosterDocumentBuilderView({
   useEffect(() => {
     if (!isActive) return;
     if (showSettingsDrawerProp !== undefined) {
-      setShowMobileOptionsModal(showSettingsDrawerProp);
+      setShowSettingsDrawer(showSettingsDrawerProp);
     }
   }, [showSettingsDrawerProp, isActive]);
 
@@ -3065,18 +3299,31 @@ export default function CustomRosterDocumentBuilderView({
         return;
       }
       if (typeof e?.detail?.open === 'boolean') {
+        setShowSettingsDrawer(e.detail.open);
+      } else {
+        setShowSettingsDrawer(prev => !prev);
+      }
+    };
+    const handleToggleFilters = (e) => {
+      if (!isActive) return;
+      if (typeof e?.detail?.open === 'boolean') {
         setShowMobileOptionsModal(e.detail.open);
       } else {
         setShowMobileOptionsModal(prev => !prev);
       }
     };
     window.addEventListener('hss-toggle-studio-setup', handleToggle);
-    window.addEventListener('hss-toggle-roster-filters', handleToggle);
+    window.addEventListener('hss-toggle-roster-filters', handleToggleFilters);
     return () => {
       window.removeEventListener('hss-toggle-studio-setup', handleToggle);
-      window.removeEventListener('hss-toggle-roster-filters', handleToggle);
+      window.removeEventListener('hss-toggle-roster-filters', handleToggleFilters);
     };
   }, [isActive]);
+
+  const handleCloseSettings = useCallback(() => {
+    setShowSettingsDrawer(false);
+    if (onToggleSettingsDrawer) onToggleSettingsDrawer(false);
+  }, [onToggleSettingsDrawer]);
 
   const handleCloseMobileOptions = useCallback(() => {
     setShowMobileOptionsModal(false);
@@ -3861,7 +4108,11 @@ export default function CustomRosterDocumentBuilderView({
         rowHeightDxa: ROW_HEIGHT_PRESETS[selectedRowHeightIdx].dxa,
         signatories,
         layoutMode,
-        examDetails: effectiveExamDetails
+        examDetails: effectiveExamDetails,
+        institutionName,
+        institutionSubtitle,
+        showHeader,
+        showMetaBadges
       });
     } catch (err) {
       console.error('Word export error:', err);
@@ -3919,7 +4170,11 @@ export default function CustomRosterDocumentBuilderView({
         signatories,
         layoutMode,
         examDetails: effectiveExamDetails,
-        rowsPerColumn: attendanceRowsPerColumn
+        rowsPerColumn: attendanceRowsPerColumn,
+        institutionName,
+        institutionSubtitle,
+        showHeader,
+        showMetaBadges
       });
     } catch (err) {
       console.error('Print generation error:', err);
@@ -4548,6 +4803,27 @@ export default function CustomRosterDocumentBuilderView({
             </button>
           </div>
 
+          {/* Setup Drawer Toggle (Mobile) */}
+          <div className="md:hidden shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                const next = !showSettingsDrawer;
+                setShowSettingsDrawer(next);
+                if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
+              }}
+              className={`studio-compact-toolbar-btn px-2 sm:px-2.5 h-6 sm:h-7 rounded-md border text-[9px] sm:text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
+                showSettingsDrawer
+                  ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 dark:border-amber-600 text-amber-900 dark:text-amber-200'
+                  : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+              }`}
+              title="Configure Institutional Letterhead, Title & Attendance Setup"
+            >
+              <Sliders size={9.5} className={showSettingsDrawer ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'} />
+              <span>Setup</span>
+            </button>
+          </div>
+
           {/* Mobile Layout & Page Setup Popover (visible on < md) */}
           <div className="md:hidden shrink-0">
             <RosterPageSetupDropdown
@@ -4582,8 +4858,27 @@ export default function CustomRosterDocumentBuilderView({
             />
           </div>
 
-          {/* Desktop Actions: Separate Export Dropdown and Primary Print Button (visible on md+) */}
+          {/* Desktop Actions: Setup Drawer Toggle, Separate Export Dropdown and Primary Print Button (visible on md+) */}
           <div className="hidden md:flex items-center gap-1 sm:gap-1.5 ml-auto md:ml-0 shrink-0">
+            {/* Setup Drawer Toggle (Desktop) */}
+            <button
+              type="button"
+              onClick={() => {
+                const next = !showSettingsDrawer;
+                setShowSettingsDrawer(next);
+                if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
+              }}
+              className={`studio-compact-toolbar-btn px-2 sm:px-2.5 h-6.5 sm:h-7 rounded-md border text-[9.5px] sm:text-[10px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 shrink-0 ${
+                showSettingsDrawer
+                  ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 dark:border-amber-600 text-amber-900 dark:text-amber-200 shadow-sm'
+                  : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-400'
+              }`}
+              title="Configure Institutional Letterhead, Document Title & Attendance Setup"
+            >
+              <Sliders size={10} className={showSettingsDrawer ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'} />
+              <span>Setup</span>
+            </button>
+
             {/* Unified Export Dropdown (Excel & Word) */}
             <RosterExportDropdown
               onExportExcel={handleExportExcel}
@@ -4606,6 +4901,290 @@ export default function CustomRosterDocumentBuilderView({
           </div>
         </div>
       </div>
+
+      {/* ── COLLAPSIBLE ROSTER & ATTENDANCE SETUP DRAWER ── */}
+      {showSettingsDrawer && (
+        <div
+          className="rounded-xl p-3 shadow-2xs space-y-2.5 animate-fadeIn text-xs border"
+          style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
+        >
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5 flex-wrap gap-1">
+            <div className="flex items-center gap-1.5">
+              <span className="p-1 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+                <Sliders size={12} />
+              </span>
+              <h3 className="font-black text-xs text-slate-900 dark:text-slate-100 uppercase tracking-wider m-0">
+                Document & Institutional Header Setup
+              </h3>
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
+                {layoutMode === 'two_column_attendance' ? '2-Column Attendance Mode' : 'Standard Roster Mode'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleResetHeaderDefaults}
+                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-extrabold text-[9px] cursor-pointer flex items-center gap-1 transition-colors"
+                title="Reset all header, title and banner fields to default"
+              >
+                <RotateCcw size={8.5} />
+                <span>Reset Defaults</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseSettings}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Close setup drawer"
+                aria-label="Close setup drawer"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          </div>
+
+          {layoutMode === 'two_column_attendance' ? (
+            /* ── 2-Column Attendance Mode Header Setup ── */
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                {/* Banner Text */}
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
+                      Institution Banner (Gray Box Text)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAttendanceBanner(!showAttendanceInstBanner)}
+                      className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-1 cursor-pointer ${
+                        showAttendanceInstBanner
+                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {showAttendanceInstBanner ? <Eye size={8} /> : <EyeOff size={8} />}
+                      <span>{showAttendanceInstBanner ? 'Banner Visible' : 'Banner Hidden'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={attendanceInstBanner}
+                    onChange={(e) => handleAttendanceBannerChange(e.target.value)}
+                    placeholder="Govt. Higher Secondary School Shangus, Anantnag"
+                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+
+                {/* Banner Style */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-600 dark:text-slate-400 mb-0.5">
+                    Banner Background Theme
+                  </label>
+                  <select
+                    value={attendanceBannerBg}
+                    onChange={(e) => handleAttendanceBannerBgChange(e.target.value)}
+                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="slate">Classic Slate Grey (#cbd5e1)</option>
+                    <option value="white">Clean White (Border Only)</option>
+                    <option value="amber">Warm Amber (#fef3c7)</option>
+                    <option value="indigo">Soft Indigo (#e0e7ff)</option>
+                  </select>
+                </div>
+
+                {/* Document Title */}
+                <div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
+                      Sheet Title
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAttendanceUnderline(!attendanceTitleUnderline)}
+                      className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-0.5 cursor-pointer ${
+                        attendanceTitleUnderline
+                          ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      <Underline size={8} />
+                      <span>{attendanceTitleUnderline ? 'Underline' : 'Plain'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={docTitle}
+                    onChange={(e) => handleDocTitleChange(e.target.value)}
+                    placeholder="DAILY ATTENDANCE SHEET"
+                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Superintendent Signatures Row */}
+              <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5">
+                    Left Signature Block Title
+                  </label>
+                  <input
+                    type="text"
+                    value={attendanceSigLeft}
+                    onChange={(e) => setAttendanceSigLeft(e.target.value)}
+                    placeholder="Sig. of the Asstt. Supdt."
+                    className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5">
+                    Right Signature Block Title
+                  </label>
+                  <input
+                    type="text"
+                    value={attendanceSigRight}
+                    onChange={(e) => setAttendanceSigRight(e.target.value)}
+                    placeholder="Sig. of the Centre Supdt."
+                    className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ── Standard Roster Mode Header Setup ── */
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {/* Institution Name */}
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
+                      Institution Main Name (Letterhead Header)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleShowHeader(!showHeader)}
+                      className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-1 cursor-pointer ${
+                        showHeader
+                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {showHeader ? <Eye size={8} /> : <EyeOff size={8} />}
+                      <span>{showHeader ? 'Header Visible' : 'Header Hidden'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={institutionName}
+                    onChange={(e) => handleInstitutionNameChange(e.target.value)}
+                    placeholder="GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS"
+                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-xs text-rose-900 dark:text-rose-300 uppercase tracking-wide"
+                  />
+                </div>
+
+                {/* Document Title */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-600 dark:text-slate-400 mb-0.5">
+                    Document Title (Printed On Register)
+                  </label>
+                  <input
+                    type="text"
+                    value={docTitle}
+                    onChange={(e) => handleDocTitleChange(e.target.value)}
+                    placeholder="STUDENT ROSTER & RECORD SHEET"
+                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase"
+                  />
+                </div>
+
+                {/* Institution Subtitle / Address */}
+                <div className="sm:col-span-2">
+                  <label className="block text-[9px] font-black uppercase text-slate-600 dark:text-slate-400 mb-0.5">
+                    Institution Subtitle / Location / U-DISE Line
+                  </label>
+                  <input
+                    type="text"
+                    value={institutionSubtitle}
+                    onChange={(e) => handleInstitutionSubtitleChange(e.target.value)}
+                    placeholder="District Anantnag, Kashmir — 192201 | Official Institutional Record"
+                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold text-xs text-slate-800 dark:text-slate-200"
+                  />
+                </div>
+
+                {/* Document Subtitle / Notes */}
+                <div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
+                      Document Subtitle / Section Note
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleShowMetaBadges(!showMetaBadges)}
+                      className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-1 cursor-pointer ${
+                        showMetaBadges
+                          ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                      }`}
+                      title="Show or hide cohort badges below title"
+                    >
+                      <span>{showMetaBadges ? 'Cohort Badges ON' : 'Cohort Badges OFF'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={docSubtitle}
+                    onChange={(e) => handleDocSubtitleChange(e.target.value)}
+                    placeholder="e.g. Science Stream • Academic Session 2025-26"
+                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300"
+                  />
+                </div>
+              </div>
+
+              {/* Signatories Setup Row */}
+              <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
+                    Institutional Signatories (Bottom of Register)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleShowSignatories(!showSignatories)}
+                    className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-1 cursor-pointer ${
+                      showSignatories
+                        ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {showSignatories ? <Eye size={8} /> : <EyeOff size={8} />}
+                    <span>{showSignatories ? 'Signatures Visible' : 'Signatures Hidden'}</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[8.5px] font-bold text-slate-500 mb-0.5">Signatory 1 (Left)</label>
+                    <input
+                      type="text"
+                      value={signatoryLeft}
+                      onChange={(e) => handleSignatoryLeftChange(e.target.value)}
+                      disabled={!showSignatories}
+                      placeholder="Incharge Admissions & Exam"
+                      className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[8.5px] font-bold text-slate-500 mb-0.5">Signatory 2 (Right)</label>
+                    <input
+                      type="text"
+                      value={signatoryRight}
+                      onChange={(e) => handleSignatoryRightChange(e.target.value)}
+                      disabled={!showSignatories}
+                      placeholder="Principal"
+                      className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
       <div className="split-pane-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
@@ -4693,13 +5272,27 @@ export default function CustomRosterDocumentBuilderView({
         >
           {/* Quick Examination Attendance Setup Toolbar (Visible when in 2-Column Attendance layout) */}
           {layoutMode === 'two_column_attendance' && (
-            <div className="mb-2 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs shadow-2xs space-y-1.5">
+            <div className="mb-2 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs shadow-2xs space-y-2">
+              {/* Header Title & Action Buttons */}
               <div className="flex items-center justify-between gap-1 flex-wrap">
                 <span className="font-black text-[11px] text-amber-900 dark:text-amber-300 flex items-center gap-1">
                   <ClipboardList size={13} className="text-amber-600" />
                   <span>Examination Attendance Sheet Setup</span>
                 </span>
                 <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAttendanceAdvanced(prev => !prev)}
+                    className={`px-2 py-0.5 rounded font-extrabold text-[9.5px] cursor-pointer flex items-center gap-1 transition-colors ${
+                      showAttendanceAdvanced
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'bg-amber-200/70 hover:bg-amber-300 dark:bg-amber-900/60 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-200'
+                    }`}
+                    title="Customize field labels, banner themes, and superintendent signatures"
+                  >
+                    <Sliders size={9.5} />
+                    <span>{showAttendanceAdvanced ? 'Hide Labels & Themes' : 'Labels, Themes & Supdt.'}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handlePrefillExamDetails}
@@ -4719,9 +5312,87 @@ export default function CustomRosterDocumentBuilderView({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5">
+              {/* Row 1: Institution Banner, Sheet Title & Centre No. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-1.5 pt-0.5 border-t border-amber-200/60 dark:border-amber-800/60">
+                {/* Institution Banner */}
+                <div className="sm:col-span-1 lg:col-span-5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[8.5px] font-black text-slate-700 dark:text-slate-300 uppercase">
+                      Institution Banner
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAttendanceBanner(!showAttendanceInstBanner)}
+                      className={`text-[8px] font-black px-1 py-0.2 rounded flex items-center gap-0.5 cursor-pointer ${
+                        showAttendanceInstBanner
+                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                      }`}
+                      title={showAttendanceInstBanner ? "Hide institutional banner box" : "Show institutional banner box"}
+                    >
+                      {showAttendanceInstBanner ? <Eye size={7.5} /> : <EyeOff size={7.5} />}
+                      <span>{showAttendanceInstBanner ? 'Shown' : 'Hidden'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={attendanceInstBanner}
+                    onChange={(e) => handleAttendanceBannerChange(e.target.value)}
+                    placeholder="Govt. Higher Secondary School Shangus, Anantnag"
+                    className="w-full px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+
+                {/* Sheet Title */}
+                <div className="sm:col-span-1 lg:col-span-4">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[8.5px] font-black text-slate-700 dark:text-slate-300 uppercase">
+                      Sheet Title
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAttendanceUnderline(!attendanceTitleUnderline)}
+                      className={`text-[8px] font-black px-1 py-0.2 rounded flex items-center gap-0.5 cursor-pointer ${
+                        attendanceTitleUnderline
+                          ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                      }`}
+                      title={attendanceTitleUnderline ? "Remove underline from sheet title" : "Underline sheet title"}
+                    >
+                      <Underline size={7.5} />
+                      <span>{attendanceTitleUnderline ? 'Underlined' : 'Plain'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={docTitle}
+                    onChange={(e) => handleDocTitleChange(e.target.value)}
+                    placeholder="DAILY ATTENDANCE SHEET"
+                    className="w-full px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase"
+                  />
+                </div>
+
+                {/* Centre No. */}
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="block text-[8.5px] font-black text-slate-700 dark:text-slate-300 uppercase mb-0.5">
+                    Centre No. / Venue
+                  </label>
+                  <input
+                    type="text"
+                    value={attendanceCentre}
+                    onChange={(e) => setAttendanceCentre(e.target.value)}
+                    placeholder="e.g. 6112 or Centre A"
+                    className="w-full px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Standard Exam Details Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-1.5">
                 <div className="sm:col-span-2 lg:col-span-2">
-                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Exam Name</label>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">
+                    {attendanceExamNameLabel || 'Exam Name'}
+                  </label>
                   <input
                     type="text"
                     value={attendanceExamName}
@@ -4731,7 +5402,9 @@ export default function CustomRosterDocumentBuilderView({
                   />
                 </div>
                 <div>
-                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Year</label>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">
+                    {attendanceExamYearLabel || 'Year'}
+                  </label>
                   <input
                     type="text"
                     value={attendanceExamYear}
@@ -4741,7 +5414,9 @@ export default function CustomRosterDocumentBuilderView({
                   />
                 </div>
                 <div>
-                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Class</label>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">
+                    {attendanceClassLabel || 'Class'}
+                  </label>
                   <input
                     type="text"
                     value={attendanceClass}
@@ -4751,7 +5426,9 @@ export default function CustomRosterDocumentBuilderView({
                   />
                 </div>
                 <div>
-                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Date</label>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">
+                    {attendanceDateLabel || 'Date'}
+                  </label>
                   <input
                     type="text"
                     value={attendanceDate}
@@ -4761,7 +5438,9 @@ export default function CustomRosterDocumentBuilderView({
                   />
                 </div>
                 <div>
-                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Subject</label>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">
+                    {attendanceSubjectLabel || 'Subject'}
+                  </label>
                   <input
                     type="text"
                     value={attendanceSubject}
@@ -4771,7 +5450,9 @@ export default function CustomRosterDocumentBuilderView({
                   />
                 </div>
                 <div>
-                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Paper</label>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">
+                    {attendancePaperLabel || 'Paper'}
+                  </label>
                   <input
                     type="text"
                     value={attendancePaper}
@@ -4781,6 +5462,134 @@ export default function CustomRosterDocumentBuilderView({
                   />
                 </div>
               </div>
+
+              {/* Row 3 (Expandable): Customizable Labels, Banner Theme & Signatures */}
+              {showAttendanceAdvanced && (
+                <div className="p-2 rounded-lg bg-amber-100/60 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 space-y-2 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-1 border-b border-amber-200 dark:border-amber-800">
+                    <span className="font-extrabold text-[9px] uppercase tracking-wider text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                      <Type size={10} />
+                      <span>Custom Header Labels & Signature Titles</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleResetHeaderDefaults}
+                      className="px-1.5 py-0.2 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[8.5px] font-bold cursor-pointer transition-colors"
+                    >
+                      Reset Defaults
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5">
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase">Exam Label</label>
+                      <input
+                        type="text"
+                        value={attendanceExamNameLabel}
+                        onChange={(e) => setAttendanceExamNameLabel(e.target.value)}
+                        placeholder="Name of the Examination"
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase">Year Label</label>
+                      <input
+                        type="text"
+                        value={attendanceExamYearLabel}
+                        onChange={(e) => setAttendanceExamYearLabel(e.target.value)}
+                        placeholder="Year"
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase">Class Label</label>
+                      <input
+                        type="text"
+                        value={attendanceClassLabel}
+                        onChange={(e) => setAttendanceClassLabel(e.target.value)}
+                        placeholder="Class"
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase">Date Label</label>
+                      <input
+                        type="text"
+                        value={attendanceDateLabel}
+                        onChange={(e) => setAttendanceDateLabel(e.target.value)}
+                        placeholder="Date"
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase">Subject Label</label>
+                      <input
+                        type="text"
+                        value={attendanceSubjectLabel}
+                        onChange={(e) => setAttendanceSubjectLabel(e.target.value)}
+                        placeholder="Subject"
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase">Paper Label</label>
+                      <input
+                        type="text"
+                        value={attendancePaperLabel}
+                        onChange={(e) => setAttendancePaperLabel(e.target.value)}
+                        placeholder="Paper"
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase">Centre Label</label>
+                      <input
+                        type="text"
+                        value={attendanceCentreLabel}
+                        onChange={(e) => setAttendanceCentreLabel(e.target.value)}
+                        placeholder="Centre No."
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-amber-200/50 dark:border-amber-800/50">
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-0.5">Banner Background Theme</label>
+                      <select
+                        value={attendanceBannerBg}
+                        onChange={(e) => handleAttendanceBannerBgChange(e.target.value)}
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-bold"
+                      >
+                        <option value="slate">Classic Slate (#cbd5e1)</option>
+                        <option value="white">Clean White (Border Only)</option>
+                        <option value="amber">Warm Amber (#fef3c7)</option>
+                        <option value="indigo">Soft Indigo (#e0e7ff)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-0.5">Left Signature Title</label>
+                      <input
+                        type="text"
+                        value={attendanceSigLeft}
+                        onChange={(e) => setAttendanceSigLeft(e.target.value)}
+                        placeholder="Sig. of the Asstt. Supdt."
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-0.5">Right Signature Title</label>
+                      <input
+                        type="text"
+                        value={attendanceSigRight}
+                        onChange={(e) => setAttendanceSigRight(e.target.value)}
+                        placeholder="Sig. of the Centre Supdt."
+                        className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-semibold"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -4790,12 +5599,26 @@ export default function CustomRosterDocumentBuilderView({
               /* ── 2-COLUMN EXAMINATION ATTENDANCE PREVIEW ── */
               <div>
                 {/* Official Gray Institutional Header Banner */}
-                <div className="bg-[#cbd5e1] text-slate-950 font-black text-center py-1.5 px-3 text-sm sm:text-base tracking-wide border-2 border-slate-800 shadow-2xs font-serif">
-                  Govt. Higher Secondary School Shangus, Anantnag
-                </div>
+                {showAttendanceInstBanner && (
+                  <div
+                    style={{
+                      backgroundColor:
+                        attendanceBannerBg === 'white'
+                          ? '#ffffff'
+                          : attendanceBannerBg === 'amber'
+                          ? '#fef3c7'
+                          : attendanceBannerBg === 'indigo'
+                          ? '#e0e7ff'
+                          : '#cbd5e1'
+                    }}
+                    className="text-slate-950 font-black text-center py-1.5 px-3 text-sm sm:text-base tracking-wide border-2 border-slate-800 shadow-2xs font-serif"
+                  >
+                    {attendanceInstBanner || 'Govt. Higher Secondary School Shangus, Anantnag'}
+                  </div>
+                )}
 
-                {/* Centered Underlined Attendance Sheet Title */}
-                <h3 className="text-center font-black text-xs sm:text-sm uppercase underline tracking-wider text-slate-950 my-2.5 font-serif">
+                {/* Centered Attendance Sheet Title */}
+                <h3 className={`text-center font-black text-xs sm:text-sm uppercase tracking-wider text-slate-950 my-2.5 font-serif ${attendanceTitleUnderline ? 'underline' : ''}`}>
                   {docTitle || 'DAILY ATTENDANCE SHEET'}
                 </h3>
 
@@ -4803,13 +5626,21 @@ export default function CustomRosterDocumentBuilderView({
                 <div className="text-[10px] font-semibold text-slate-900 space-y-1.5 mb-3 px-1">
                   <div className="flex items-baseline justify-between flex-wrap gap-2">
                     <div className="flex items-baseline gap-1">
-                      <span className="font-bold">Name of the Examination</span>
+                      <span className="font-bold">{effectiveExamDetails.examNameLabel}</span>
                       <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[200px] px-1 inline-block">
                         {effectiveExamDetails.examName || '...........................................................................'}
                       </span>
                     </div>
+                    {effectiveExamDetails.centre && (
+                      <div className="flex items-baseline gap-1">
+                        <span className="font-bold">{effectiveExamDetails.centreLabel}</span>
+                        <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[80px] px-1 inline-block text-center">
+                          {effectiveExamDetails.centre}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-baseline gap-1">
-                      <span className="font-bold">Year</span>
+                      <span className="font-bold">{effectiveExamDetails.examYearLabel}</span>
                       <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[90px] px-1 inline-block text-center">
                         {effectiveExamDetails.examYear || '.............................'}
                       </span>
@@ -4817,25 +5648,25 @@ export default function CustomRosterDocumentBuilderView({
                   </div>
                   <div className="flex items-baseline justify-between flex-wrap gap-2">
                     <div className="flex items-baseline gap-1">
-                      <span className="font-bold">Class</span>
+                      <span className="font-bold">{effectiveExamDetails.classLabel}</span>
                       <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[70px] px-1 inline-block text-center">
                         {effectiveExamDetails.className || '..................'}
                       </span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="font-bold">Date</span>
+                      <span className="font-bold">{effectiveExamDetails.dateLabel}</span>
                       <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[70px] px-1 inline-block text-center">
                         {effectiveExamDetails.examDate || '..................'}
                       </span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="font-bold">Subject</span>
+                      <span className="font-bold">{effectiveExamDetails.subjectLabel}</span>
                       <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[100px] px-1 inline-block text-center">
                         {effectiveExamDetails.subjectName || '..................'}
                       </span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="font-bold">Paper</span>
+                      <span className="font-bold">{effectiveExamDetails.paperLabel}</span>
                       <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[60px] px-1 inline-block text-center">
                         {effectiveExamDetails.paper || '..................'}
                       </span>
@@ -4943,11 +5774,15 @@ export default function CustomRosterDocumentBuilderView({
                         <div className="flex items-center justify-between pt-8 px-6 text-center mt-4">
                           <div className="w-44 sm:w-56 text-center">
                             <div className="border-b-2 border-slate-700 mb-1"></div>
-                            <div className="font-black text-[9.5px] text-slate-900 uppercase tracking-tight">Sig. of the Asstt. Supdt.</div>
+                            <div className="font-black text-[9.5px] text-slate-900 uppercase tracking-tight">
+                              {effectiveExamDetails.sigLeft || 'Sig. of the Asstt. Supdt.'}
+                            </div>
                           </div>
                           <div className="w-44 sm:w-56 text-center">
                             <div className="border-b-2 border-slate-700 mb-1"></div>
-                            <div className="font-black text-[9.5px] text-slate-900 uppercase tracking-tight">Sig. of the Centre Supdt.</div>
+                            <div className="font-black text-[9.5px] text-slate-900 uppercase tracking-tight">
+                              {effectiveExamDetails.sigRight || 'Sig. of the Centre Supdt.'}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -4959,28 +5794,36 @@ export default function CustomRosterDocumentBuilderView({
               /* ── STANDARD MULTI-COLUMN ROSTER PREVIEW ── */
               <div>
                 {/* Institution Official Letterhead Header (Hidden on mobile web view to maximize data table focus, preserved on desktop & print) */}
-                <div className="hidden sm:block print:!block text-center border-b-2 border-[#800000] pb-2 mb-2.5">
-                  <h2 className="text-sm sm:text-base font-black text-[#800000] tracking-wide m-0">
-                    GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS
-                  </h2>
-               <p className="text-[9.5px] text-slate-600 font-semibold m-0 mt-0.5">
-                 District Anantnag, Kashmir — 192201 | Official Institutional Record
-               </p>
-               <h3 className="text-xs sm:text-xs font-extrabold uppercase underline tracking-wider text-slate-900 mt-1.5">
-                 {docTitle || 'STUDENT ROSTER & RECORD SHEET'}
-               </h3>
-               {docSubtitle && (
-                 <p className="text-[9px] text-slate-500 italic mt-0.5">{docSubtitle}</p>
-               )}
-               <div className="flex items-center justify-center gap-2 sm:gap-2.5 text-[9px] font-bold text-slate-700 mt-1 flex-wrap">
-                 {metaBadges.map((b, i) => (
-                   <span key={i} className="flex items-center gap-1.5">
-                     <span>{b}</span>
-                     {i < metaBadges.length - 1 && <span className="text-slate-400 font-normal">|</span>}
-                   </span>
-                 ))}
-               </div>
-             </div>
+                {showHeader && (
+                  <div className="hidden sm:block print:!block text-center border-b-2 border-[#800000] pb-2 mb-2.5">
+                    {institutionName && (
+                      <h2 className="text-sm sm:text-base font-black text-[#800000] tracking-wide m-0">
+                        {institutionName}
+                      </h2>
+                    )}
+                    {institutionSubtitle && (
+                      <p className="text-[9.5px] text-slate-600 font-semibold m-0 mt-0.5">
+                        {institutionSubtitle}
+                      </p>
+                    )}
+                    <h3 className="text-xs sm:text-xs font-extrabold uppercase underline tracking-wider text-slate-900 mt-1.5">
+                      {docTitle || 'STUDENT ROSTER & RECORD SHEET'}
+                    </h3>
+                    {docSubtitle && (
+                      <p className="text-[9px] text-slate-500 italic mt-0.5">{docSubtitle}</p>
+                    )}
+                    {showMetaBadges && metaBadges.length > 0 && (
+                      <div className="flex items-center justify-center gap-2 sm:gap-2.5 text-[9px] font-bold text-slate-700 mt-1 flex-wrap">
+                        {metaBadges.map((b, i) => (
+                          <span key={i} className="flex items-center gap-1.5">
+                            <span>{b}</span>
+                            {i < metaBadges.length - 1 && <span className="text-slate-400 font-normal">|</span>}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
             {/* Minimal Compact Controls Bar: Student Inclusion, Skip Toggle & Column Default Saver (Visible on desktop md+, consolidated into top action bar on mobile) */}
             <div className="hidden md:flex items-center justify-between gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 mb-1 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200/90 dark:border-slate-700/90 text-xs select-none min-h-[26px] sm:min-h-[30px]">
@@ -5309,14 +6152,16 @@ export default function CustomRosterDocumentBuilderView({
             )}
 
             {/* Signatories Block (Incharge Admissions & Exam and Principal) */}
-            <div className="flex items-center justify-between pt-6 px-4 text-center mt-3">
-              {signatories.map((sig, idx) => (
-                <div key={idx} className="w-36 sm:w-48">
-                  <div className="border-b-2 border-slate-700 mb-1.5"></div>
-                  <div className="font-black text-[10px] text-slate-900 uppercase tracking-tight">{sig}</div>
-                </div>
-              ))}
-            </div>
+            {showSignatories && signatories.length > 0 && (
+              <div className={`flex items-center ${signatories.length === 1 ? 'justify-end' : 'justify-between'} pt-6 px-4 text-center mt-3`}>
+                {signatories.map((sig, idx) => (
+                  <div key={idx} className="w-36 sm:w-48">
+                    <div className="border-b-2 border-slate-700 mb-1.5"></div>
+                    <div className="font-black text-[10px] text-slate-900 uppercase tracking-tight">{sig}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
