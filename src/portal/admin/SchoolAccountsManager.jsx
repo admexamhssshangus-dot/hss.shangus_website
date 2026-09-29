@@ -5,10 +5,12 @@ import {
   Check, X, ChevronDown, Sliders, RefreshCw, AlertCircle, 
   Shield, CheckSquare, Square, FileSpreadsheet,
   Users, Info, Settings, Sparkles, History,
-  ShieldAlert, Lock, UserPlus, ArrowRight, CheckCircle2
+  ShieldAlert, Lock, UserPlus, ArrowRight, CheckCircle2,
+  User, Camera, Building2, CreditCard, Upload, Image as ImageIcon, Plus, MapPin, Eye, EyeOff
 } from 'lucide-react';
-import { db, auth } from '../../services/firebase';
+import { db, auth, storage } from '../../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { DEFAULT_SETTINGS, loadSiteSettings } from '../../utils/settingsLoader';
 import { toPublicFacultyList } from '../../utils/facultyPrivacy';
 import { logAdminActivity } from '../../services/adminActivityLogger';
@@ -201,6 +203,75 @@ const TAX_CATEGORIES = [
   { key: 'other_inactive', label: 'Drawing Pay / Other Inactive', color: 'bg-gray-600 border-gray-500' }
 ];
 
+// Image compression helper (max 400x400 passport size, ~35-70KB)
+const compressStaffPhoto = (file, maxWidth = 400, maxHeight = 400, quality = 0.85) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type?.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => resolve(file);
+      img.src = event.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+};
+
+const uploadStaffPhotoToCloud = async (file, staffName = 'staff') => {
+  const sanitized = (staffName || 'staff').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const filename = `staff_${sanitized}_${Date.now()}.jpg`;
+
+  if (storage) {
+    try {
+      const storageRef = ref(storage, `slides/photos/${filename}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      return url;
+    } catch (err) {
+      console.warn('Firebase Storage upload failed, falling back to base64 data URL:', err);
+    }
+  }
+
+  // Fallback to base64 Data URL
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function SchoolAccountsManager({ user }) {
   const [activeTab, setActiveTab] = useState(() => {
     try {
@@ -224,16 +295,47 @@ export default function SchoolAccountsManager({ user }) {
   const [expandedStaffId, setExpandedStaffId] = useState(null);
   const [editingStaffIndex, setEditingStaffIndex] = useState(null);
   const [isNewStaffRecord, setIsNewStaffRecord] = useState(false);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [modalActiveTab, setModalActiveTab] = useState('personal'); // 'personal' | 'photo' | 'service' | 'accounts' | 'postings'
+  const [newCustomKey, setNewCustomKey] = useState('');
+  const [newCustomVal, setNewCustomVal] = useState('');
   const [staffModalFormData, setStaffModalFormData] = useState({
     name: '',
-    designation: '',
-    department: '',
-    cadre: 'Teaching',
-    cpis_no: '',
-    pan: '',
+    parentage: '',
+    dob: '',
+    gender: 'Male',
     phone: '',
     email: '',
+    permanent_address: '',
+    present_address: '',
+    aadhar_no: '',
+    category: 'OM',
+    bed: 'No',
+    subject_pg: '',
+    profile: '',
+    hidden: false,
+    inactiveReason: '',
+    photo: '',
+
+    designation: '',
+    department: '',
+    subject: '',
+    cadre: 'Teaching',
+    qualification: '',
+    cpis_no: '',
+    pan: '',
     pension_scheme: 'NPS',
+    pran_gpf: '',
+    doj: '',
+    designation_at_first_appointment: '',
+    zone_name: '',
+    ddo_code: '',
+    ddo_code_hrms: '',
+    if_deployed: 'No',
+
+    bank_account: '',
+    ifsc: '',
     grossSalary: '',
     tds: '0',
     regime: 'new',
@@ -241,8 +343,9 @@ export default function SchoolAccountsManager({ user }) {
     deduction80D: '0',
     hraExemption: '0',
     otherDeductions: '0',
-    if_deployed: 'No',
-    inactiveReason: ''
+
+    postings: [],
+    customFields: {}
   });
 
   // Clerk Permission & Security Confirmation Modal State
@@ -707,21 +810,46 @@ export default function SchoolAccountsManager({ user }) {
     setIsNewStaffRecord(false);
     setEditingStaffIndex(targetIdx);
     setEditingStaffMember(emp);
+    setPhotoFile(null);
+    setPhotoPreview(emp.photo || '');
+    setModalActiveTab('personal');
+    setNewCustomKey('');
+    setNewCustomVal('');
+
     setStaffModalFormData({
       name: emp.name || '',
+      parentage: emp.parentage || emp.father_name || emp.customFields?.Parentage || '',
+      dob: emp.dob || emp.birth_date || emp.customFields?.DOB || '',
+      gender: emp.gender || emp.customFields?.Gender || 'Male',
+      phone: emp.phone || emp.mobile || '',
+      email: emp.email || '',
+      permanent_address: emp.permanent_address || emp.customFields?.['Permanent Address'] || '',
+      present_address: emp.present_address || emp.customFields?.['Present Address'] || '',
+      aadhar_no: emp.aadhar_no || emp.aadhar || emp.customFields?.['Aadhar No'] || '',
+      category: emp.category || emp.customFields?.Category || 'OM',
+      bed: emp.bed || emp.customFields?.['B.Ed Completed?'] || 'No',
+      subject_pg: emp.subject_pg || emp.customFields?.['Subject in PG'] || '',
+      profile: emp.profile || emp.bio || '',
+      hidden: !!emp.hidden,
+      inactiveReason: emp.inactiveReason || '',
+      photo: emp.photo || '',
+
       designation: emp.designation || '',
       department: emp.department || '',
+      subject: emp.subject || emp.customFields?.Subject || '',
       cadre: emp.cadre || (isNonTeaching(emp) ? 'Non-Teaching' : 'Teaching'),
       qualification: emp.qualification || emp.customFields?.Qualification || '',
       cpis_no: emp.cpis_no || emp.cpis || '',
       pan: getEmployeePan(emp),
-      phone: emp.phone || emp.mobile || '',
-      email: emp.email || '',
       pension_scheme: getStaffPensionScheme(emp),
       pran_gpf: emp.pran_gpf || emp.pran || emp.gpf_no || emp.customFields?.['PRAN / GPF No'] || '',
       doj: emp.doj || emp.joining_date || emp.appointment_date || emp.customFields?.['Date of Joining'] || '',
-      dob: emp.dob || emp.birth_date || emp.customFields?.DOB || '',
-      parentage: emp.parentage || emp.father_name || emp.customFields?.Parentage || '',
+      designation_at_first_appointment: emp.designation_at_first_appointment || emp.customFields?.['Designation at 1st Appt'] || '',
+      zone_name: emp.zone_name || emp.customFields?.['Zone Name'] || '',
+      ddo_code: emp.ddo_code || emp.customFields?.['UDISE Code'] || '',
+      ddo_code_hrms: emp.ddo_code_hrms || emp.customFields?.['DDO Code HRMS'] || '',
+      if_deployed: emp.if_deployed || 'No',
+
       bank_account: emp.bank_account || emp.account_no || emp.customFields?.['Bank Account No'] || '',
       ifsc: emp.ifsc || emp.customFields?.['IFSC Code'] || '',
       grossSalary: getEmployeeGross(emp).toString(),
@@ -731,8 +859,9 @@ export default function SchoolAccountsManager({ user }) {
       deduction80D: getEmployee80D(emp).toString(),
       hraExemption: getEmployeeHra(emp).toString(),
       otherDeductions: getEmployeeOtherDeductions(emp).toString(),
-      if_deployed: emp.if_deployed || 'No',
-      inactiveReason: emp.inactiveReason || ''
+
+      postings: Array.isArray(emp.postings) ? JSON.parse(JSON.stringify(emp.postings)) : [],
+      customFields: emp.customFields ? JSON.parse(JSON.stringify(emp.customFields)) : {}
     });
   };
 
@@ -740,21 +869,46 @@ export default function SchoolAccountsManager({ user }) {
     setIsNewStaffRecord(true);
     setEditingStaffIndex(null);
     setEditingStaffMember(null);
+    setPhotoFile(null);
+    setPhotoPreview('');
+    setModalActiveTab('personal');
+    setNewCustomKey('');
+    setNewCustomVal('');
+
     setStaffModalFormData({
       name: '',
+      parentage: '',
+      dob: '',
+      gender: 'Male',
+      phone: '',
+      email: '',
+      permanent_address: '',
+      present_address: '',
+      aadhar_no: '',
+      category: 'OM',
+      bed: 'No',
+      subject_pg: '',
+      profile: '',
+      hidden: false,
+      inactiveReason: '',
+      photo: '',
+
       designation: 'Teacher',
       department: 'General',
+      subject: '',
       cadre: 'Teaching',
       qualification: '',
       cpis_no: '',
       pan: '',
-      phone: '',
-      email: '',
       pension_scheme: 'NPS',
       pran_gpf: '',
       doj: '',
-      dob: '',
-      parentage: '',
+      designation_at_first_appointment: '',
+      zone_name: '',
+      ddo_code: '',
+      ddo_code_hrms: '',
+      if_deployed: 'No',
+
       bank_account: '',
       ifsc: 'JAKA0...',
       grossSalary: '',
@@ -764,8 +918,9 @@ export default function SchoolAccountsManager({ user }) {
       deduction80D: '0',
       hraExemption: '0',
       otherDeductions: '0',
-      if_deployed: 'No',
-      inactiveReason: ''
+
+      postings: [],
+      customFields: {}
     });
   };
 
@@ -832,11 +987,80 @@ export default function SchoolAccountsManager({ user }) {
     setShowPermissionModal(true);
   };
 
+  // Helpers for postings and custom fields in staff modal
+  const handleAddPosting = () => {
+    setStaffModalFormData(prev => ({
+      ...prev,
+      postings: [...(prev.postings || []), { office: '', designation: '', from: '', to: '' }]
+    }));
+  };
+
+  const handleUpdatePosting = (index, field, value) => {
+    setStaffModalFormData(prev => {
+      const updated = [...(prev.postings || [])];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, postings: updated };
+    });
+  };
+
+  const handleRemovePosting = (index) => {
+    setStaffModalFormData(prev => ({
+      ...prev,
+      postings: (prev.postings || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleAddCustomField = () => {
+    const key = newCustomKey.trim();
+    if (!key) return;
+    setStaffModalFormData(prev => ({
+      ...prev,
+      customFields: {
+        ...(prev.customFields || {}),
+        [key]: newCustomVal.trim()
+      }
+    }));
+    setNewCustomKey('');
+    setNewCustomVal('');
+  };
+
+  const handleRemoveCustomField = (key) => {
+    setStaffModalFormData(prev => {
+      const updated = { ...(prev.customFields || {}) };
+      delete updated[key];
+      return { ...prev, customFields: updated };
+    });
+  };
+
+  const handleUpdateCustomField = (key, val) => {
+    setStaffModalFormData(prev => ({
+      ...prev,
+      customFields: {
+        ...(prev.customFields || {}),
+        [key]: val
+      }
+    }));
+  };
+
   // Submit full staff modal data with clerk authorization
-  const requestSaveStaffModalRecord = () => {
+  const requestSaveStaffModalRecord = async () => {
     if (!staffModalFormData.name?.trim()) {
       showToast('Staff member name is required.', 'error');
+      setModalActiveTab('personal');
       return;
+    }
+
+    let finalPhotoUrl = (staffModalFormData.photo || '').trim();
+    if (photoFile) {
+      try {
+        setIsSavingCommit(true);
+        showToast('Uploading staff photo...', 'info', 2000);
+        finalPhotoUrl = await uploadStaffPhotoToCloud(photoFile, staffModalFormData.name);
+      } catch (err) {
+        console.warn('Photo upload failed, using existing preview:', err);
+      } finally {
+        setIsSavingCommit(false);
+      }
     }
 
     const cleanGross = parseFloat(staffModalFormData.grossSalary || 0);
@@ -851,42 +1075,77 @@ export default function SchoolAccountsManager({ user }) {
     let updatedFaculty = [...faculty];
     const changes = [];
 
+    const baseFields = {
+      name: staffModalFormData.name.trim(),
+      parentage: staffModalFormData.parentage.trim(),
+      father_name: staffModalFormData.parentage.trim(),
+      dob: staffModalFormData.dob.trim(),
+      birth_date: staffModalFormData.dob.trim(),
+      gender: staffModalFormData.gender,
+      phone: staffModalFormData.phone.trim(),
+      mobile: staffModalFormData.phone.trim(),
+      email: staffModalFormData.email.trim(),
+      permanent_address: staffModalFormData.permanent_address.trim(),
+      present_address: staffModalFormData.present_address.trim(),
+      aadhar_no: staffModalFormData.aadhar_no.trim(),
+      aadhar: staffModalFormData.aadhar_no.trim(),
+      category: staffModalFormData.category.trim(),
+      bed: staffModalFormData.bed,
+      subject_pg: staffModalFormData.subject_pg.trim(),
+      profile: staffModalFormData.profile.trim(),
+      bio: staffModalFormData.profile.trim(),
+      hidden: !!staffModalFormData.hidden,
+      inactiveReason: staffModalFormData.inactiveReason,
+      photo: finalPhotoUrl,
+
+      designation: staffModalFormData.designation.trim(),
+      department: staffModalFormData.department.trim(),
+      subject: staffModalFormData.subject.trim(),
+      cadre: staffModalFormData.cadre || 'Teaching',
+      qualification: staffModalFormData.qualification?.trim() || '',
+      cpis_no: cleanCpis,
+      cpis: cleanCpis,
+      pan: cleanPan,
+      pension_scheme: staffModalFormData.pension_scheme,
+      pensionScheme: staffModalFormData.pension_scheme,
+      pran_gpf: staffModalFormData.pran_gpf?.trim() || '',
+      doj: staffModalFormData.doj?.trim() || '',
+      designation_at_first_appointment: staffModalFormData.designation_at_first_appointment.trim(),
+      zone_name: staffModalFormData.zone_name.trim(),
+      ddo_code: staffModalFormData.ddo_code.trim(),
+      ddo_code_hrms: staffModalFormData.ddo_code_hrms.trim(),
+      if_deployed: staffModalFormData.if_deployed,
+
+      bank_account: staffModalFormData.bank_account?.trim() || '',
+      account_no: staffModalFormData.bank_account?.trim() || '',
+      ifsc: staffModalFormData.ifsc?.trim() || '',
+      grossSalary: cleanGross,
+      tds: cleanTds,
+      taxRegime: staffModalFormData.regime,
+      deduction80C: clean80C,
+      deduction80D: clean80D,
+      hraExemption: cleanHra,
+      otherDeductions: cleanOther,
+
+      postings: Array.isArray(staffModalFormData.postings) ? staffModalFormData.postings : []
+    };
+
     if (isNewStaffRecord) {
       const newStaff = {
         id: `emp_${Date.now()}`,
-        name: staffModalFormData.name.trim(),
-        designation: staffModalFormData.designation.trim(),
-        department: staffModalFormData.department.trim(),
-        cadre: staffModalFormData.cadre || 'Teaching',
-        qualification: staffModalFormData.qualification?.trim() || '',
-        cpis_no: cleanCpis,
-        cpis: cleanCpis,
-        pan: cleanPan,
-        phone: staffModalFormData.phone.trim(),
-        email: staffModalFormData.email.trim(),
-        pension_scheme: staffModalFormData.pension_scheme,
-        pensionScheme: staffModalFormData.pension_scheme,
-        pran_gpf: staffModalFormData.pran_gpf?.trim() || '',
-        doj: staffModalFormData.doj?.trim() || '',
-        dob: staffModalFormData.dob?.trim() || '',
-        parentage: staffModalFormData.parentage?.trim() || '',
-        bank_account: staffModalFormData.bank_account?.trim() || '',
-        ifsc: staffModalFormData.ifsc?.trim() || '',
-        grossSalary: cleanGross,
-        tds: cleanTds,
-        taxRegime: staffModalFormData.regime,
-        deduction80C: clean80C,
-        deduction80D: clean80D,
-        hraExemption: cleanHra,
-        otherDeductions: cleanOther,
-        if_deployed: staffModalFormData.if_deployed,
-        inactiveReason: staffModalFormData.inactiveReason,
+        ...baseFields,
         customFields: {
+          ...(staffModalFormData.customFields || {}),
           PAN: cleanPan,
           Qualification: staffModalFormData.qualification?.trim() || '',
           'Date of Joining': staffModalFormData.doj?.trim() || '',
           DOB: staffModalFormData.dob?.trim() || '',
           Parentage: staffModalFormData.parentage?.trim() || '',
+          Gender: staffModalFormData.gender,
+          Category: staffModalFormData.category.trim(),
+          'Permanent Address': staffModalFormData.permanent_address.trim(),
+          'Present Address': staffModalFormData.present_address.trim(),
+          'Aadhar No': staffModalFormData.aadhar_no.trim(),
           'Bank Account No': staffModalFormData.bank_account?.trim() || '',
           'IFSC Code': staffModalFormData.ifsc?.trim() || '',
           'PRAN / GPF No': staffModalFormData.pran_gpf?.trim() || '',
@@ -916,40 +1175,21 @@ export default function SchoolAccountsManager({ user }) {
       const original = faculty[targetIndex] || {};
       const updatedEmp = {
         ...original,
-        name: staffModalFormData.name.trim(),
-        designation: staffModalFormData.designation.trim(),
-        department: staffModalFormData.department.trim(),
+        ...baseFields,
         cadre: staffModalFormData.cadre || (isNonTeaching(original) ? 'Non-Teaching' : 'Teaching'),
-        qualification: staffModalFormData.qualification?.trim() || '',
-        cpis_no: cleanCpis,
-        cpis: cleanCpis,
-        pan: cleanPan,
-        phone: staffModalFormData.phone.trim(),
-        email: staffModalFormData.email.trim(),
-        pension_scheme: staffModalFormData.pension_scheme,
-        pensionScheme: staffModalFormData.pension_scheme,
-        pran_gpf: staffModalFormData.pran_gpf?.trim() || '',
-        doj: staffModalFormData.doj?.trim() || '',
-        dob: staffModalFormData.dob?.trim() || '',
-        parentage: staffModalFormData.parentage?.trim() || '',
-        bank_account: staffModalFormData.bank_account?.trim() || '',
-        ifsc: staffModalFormData.ifsc?.trim() || '',
-        grossSalary: cleanGross,
-        tds: cleanTds,
-        taxRegime: staffModalFormData.regime,
-        deduction80C: clean80C,
-        deduction80D: clean80D,
-        hraExemption: cleanHra,
-        otherDeductions: cleanOther,
-        if_deployed: staffModalFormData.if_deployed,
-        inactiveReason: staffModalFormData.inactiveReason,
         customFields: {
           ...(original.customFields || {}),
+          ...(staffModalFormData.customFields || {}),
           PAN: cleanPan,
           Qualification: staffModalFormData.qualification?.trim() || '',
           'Date of Joining': staffModalFormData.doj?.trim() || '',
           DOB: staffModalFormData.dob?.trim() || '',
           Parentage: staffModalFormData.parentage?.trim() || '',
+          Gender: staffModalFormData.gender,
+          Category: staffModalFormData.category.trim(),
+          'Permanent Address': staffModalFormData.permanent_address.trim(),
+          'Present Address': staffModalFormData.present_address.trim(),
+          'Aadhar No': staffModalFormData.aadhar_no.trim(),
           'Bank Account No': staffModalFormData.bank_account?.trim() || '',
           'IFSC Code': staffModalFormData.ifsc?.trim() || '',
           'PRAN / GPF No': staffModalFormData.pran_gpf?.trim() || '',
@@ -966,6 +1206,7 @@ export default function SchoolAccountsManager({ user }) {
       updatedFaculty[targetIndex] = updatedEmp;
 
       if (updatedEmp.name !== original.name) changes.push({ label: 'Name', oldVal: original.name || '—', newVal: updatedEmp.name });
+      if (updatedEmp.photo !== original.photo) changes.push({ label: 'Photo', oldVal: original.photo ? 'Existing Photo' : 'None', newVal: updatedEmp.photo ? 'New Photo Updated' : 'None' });
       if (updatedEmp.designation !== original.designation) changes.push({ label: 'Designation', oldVal: original.designation || '—', newVal: updatedEmp.designation });
       if (updatedEmp.cpis_no !== original.cpis_no) changes.push({ label: 'CPIS ID', oldVal: original.cpis_no || '—', newVal: updatedEmp.cpis_no });
       if (cleanPan !== getEmployeePan(original)) changes.push({ label: 'PAN', oldVal: getEmployeePan(original) || '—', newVal: cleanPan });
@@ -973,6 +1214,8 @@ export default function SchoolAccountsManager({ user }) {
       if (cleanGross !== getEmployeeGross(original)) changes.push({ label: 'Gross Salary', oldVal: `₹${getEmployeeGross(original).toLocaleString('en-IN')}`, newVal: `₹${cleanGross.toLocaleString('en-IN')}` });
       if (staffModalFormData.regime !== getEmployeeRegime(original)) changes.push({ label: 'Tax Regime', oldVal: getEmployeeRegime(original).toUpperCase(), newVal: staffModalFormData.regime.toUpperCase() });
       if (cleanTds !== getEmployeeTds(original)) changes.push({ label: 'TDS Deducted', oldVal: `₹${getEmployeeTds(original).toLocaleString('en-IN')}`, newVal: `₹${cleanTds.toLocaleString('en-IN')}` });
+      if (staffModalFormData.parentage !== (original.parentage || original.father_name)) changes.push({ label: 'Parentage', oldVal: original.parentage || original.father_name || '—', newVal: staffModalFormData.parentage || '—' });
+      if (staffModalFormData.dob !== original.dob) changes.push({ label: 'DOB', oldVal: original.dob || '—', newVal: staffModalFormData.dob || '—' });
     }
 
     setPendingCommitDetails({
@@ -1819,8 +2062,18 @@ export default function SchoolAccountsManager({ user }) {
                                 className="flex items-center gap-2 cursor-pointer select-none group"
                                 title="Click to view full establishment details"
                               >
-                                <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-black text-[9px] shrink-0 group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                                  {(emp.name || 'S').charAt(0)}
+                                <div className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shrink-0 flex items-center justify-center">
+                                  {emp.photo ? (
+                                    <img
+                                      src={emp.photo}
+                                      alt={emp.name}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                  ) : null}
+                                  <span className={`font-black text-[10px] text-slate-700 dark:text-slate-300 ${emp.photo ? 'hidden' : 'flex'}`}>
+                                    {(emp.name || 'S').charAt(0)}
+                                  </span>
                                 </div>
                                 <div className="min-w-0">
                                   <div className="font-extrabold text-slate-900 dark:text-white truncate flex items-center gap-1">
@@ -1931,39 +2184,109 @@ export default function SchoolAccountsManager({ user }) {
                           {isExpanded && (
                             <tr className="bg-slate-50/80 dark:bg-slate-950/70 border-b border-amber-200 dark:border-amber-900/60 animate-fadeIn">
                               <td colSpan={9} className="p-3">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[10.5px]">
-                                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
-                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider">Service Particulars</div>
-                                    <div><strong>Cadre:</strong> {cadre}</div>
-                                    <div><strong>Qualification:</strong> {qualification || '—'}</div>
-                                    <div><strong>1st Appt. Date:</strong> {doj || '—'}</div>
-                                    <div><strong>Status:</strong> {emp.if_deployed === 'in' ? 'Deployed In' : emp.if_deployed === 'out' ? 'Deployed Out' : 'Regular'}</div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-[10.5px]">
+                                  {/* Card 1: Official Photo & Identity */}
+                                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 flex flex-col justify-between">
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                                        <div className="w-12 h-14 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-950 shrink-0 flex items-center justify-center">
+                                          {emp.photo ? (
+                                            <img
+                                              src={emp.photo}
+                                              alt={emp.name}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
+                                          ) : (
+                                            <User size={20} className="text-slate-500" />
+                                          )}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="font-extrabold text-slate-900 dark:text-white truncate text-xs">{emp.name}</div>
+                                          <div className="text-[9.5px] text-slate-500 truncate">{emp.gender || 'Staff'} • {emp.category || 'OM'}</div>
+                                          <div className="text-[9px] font-mono text-slate-400">DOB: {emp.dob || '—'}</div>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1 text-[10px]">
+                                        <div><strong>Parentage:</strong> <span className="text-slate-700 dark:text-slate-300">{emp.parentage || emp.father_name || '—'}</span></div>
+                                        <div><strong>Aadhar No:</strong> <span className="font-mono text-slate-700 dark:text-slate-300">{emp.aadhar_no || emp.aadhar || '—'}</span></div>
+                                        <div><strong>Mobile:</strong> <span className="font-mono text-slate-700 dark:text-slate-300">{emp.phone || emp.mobile || '—'}</span></div>
+                                      </div>
+                                    </div>
+                                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold text-center w-full block ${
+                                      emp.hidden 
+                                        ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900' 
+                                        : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                                    }`}>
+                                      {emp.hidden ? `Hidden (${emp.inactiveReason || 'Inactive'})` : 'Visible on Website'}
+                                    </span>
                                   </div>
 
-                                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
-                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider">Accounts & Banking</div>
+                                  {/* Card 2: Service Particulars */}
+                                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider flex items-center gap-1">
+                                      <Building2 size={11} className="text-amber-500" />
+                                      <span>Service Particulars</span>
+                                    </div>
+                                    <div><strong>Cadre:</strong> {cadre}</div>
+                                    <div><strong>Qualification:</strong> {qualification || '—'}</div>
+                                    <div><strong>B.Ed Completed:</strong> {emp.bed || emp.customFields?.['B.Ed Completed?'] || '—'}</div>
+                                    <div><strong>Subject in PG:</strong> {emp.subject_pg || emp.customFields?.['Subject in PG'] || '—'}</div>
+                                    <div><strong>1st Appt. Date:</strong> {doj || '—'}</div>
+                                    <div><strong>1st Appt. Desig:</strong> {emp.designation_at_first_appointment || '—'}</div>
+                                    <div><strong>Deployment:</strong> {emp.if_deployed === 'in' ? 'Deployed In' : emp.if_deployed === 'out' ? 'Deployed Out' : 'Regular'}</div>
+                                  </div>
+
+                                  {/* Card 3: Accounts & Banking */}
+                                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider flex items-center gap-1">
+                                      <CreditCard size={11} className="text-amber-500" />
+                                      <span>Accounts &amp; Banking</span>
+                                    </div>
                                     <div><strong>Bank Account:</strong> <span className="font-mono">{bankAccount || '—'}</span></div>
                                     <div><strong>IFSC Code:</strong> <span className="font-mono">{ifsc || '—'}</span></div>
+                                    <div><strong>CPIS ID:</strong> <span className="font-mono font-bold">{emp.cpis_no || emp.cpis || '—'}</span></div>
+                                    <div><strong>PAN Card:</strong> <span className="font-mono font-bold">{pan || '—'}</span></div>
                                     <div><strong>PRAN / GPF:</strong> <span className="font-mono">{pranGpf || '—'}</span></div>
                                     <div><strong>Pension Scheme:</strong> <span className="font-bold text-amber-600">{scheme}</span></div>
                                   </div>
 
-                                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
-                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider">Contact & Bio</div>
-                                    <div><strong>Mobile:</strong> {emp.phone || emp.mobile || '—'}</div>
-                                    <div><strong>Email:</strong> {emp.email || '—'}</div>
-                                    <div><strong>Parentage:</strong> {emp.parentage || emp.father_name || '—'}</div>
-                                    <div><strong>DOB:</strong> {emp.dob || '—'}</div>
-                                  </div>
-
-                                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
-                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider">Tax & Deductions Summary</div>
+                                  {/* Card 4: Tax & Deductions Summary */}
+                                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                                    <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider flex items-center gap-1">
+                                      <Calculator size={11} className="text-amber-500" />
+                                      <span>Tax &amp; Deductions</span>
+                                    </div>
+                                    <div><strong>Gross Salary:</strong> ₹{gross.toLocaleString('en-IN')}</div>
                                     <div><strong>TDS Deducted:</strong> ₹{tds.toLocaleString('en-IN')}</div>
                                     <div><strong>80C Deductions:</strong> ₹{getEmployee80C(emp).toLocaleString('en-IN')}</div>
                                     <div><strong>80D / HRA:</strong> ₹{(getEmployee80D(emp) + getEmployeeHra(emp)).toLocaleString('en-IN')}</div>
-                                    <div className="text-emerald-600 dark:text-emerald-400 font-bold">
-                                      Best Regime: {isNewCheaper ? 'New Regime' : isOldCheaper ? 'Old Regime' : 'Equal'}
+                                    <div><strong>Active Regime:</strong> <span className="font-bold uppercase text-amber-600">{regime}</span></div>
+                                    <div className="text-emerald-600 dark:text-emerald-400 font-bold pt-1 border-t border-slate-100 dark:border-slate-800">
+                                      Best: {isNewCheaper ? 'New Regime' : isOldCheaper ? 'Old Regime' : 'Equal'}
                                     </div>
+                                  </div>
+
+                                  {/* Card 5: Address, Postings & Full Edit Action */}
+                                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5 flex flex-col justify-between">
+                                    <div className="space-y-1">
+                                      <div className="font-bold text-slate-500 text-[9px] uppercase tracking-wider flex items-center gap-1">
+                                        <MapPin size={11} className="text-amber-500" />
+                                        <span>Address &amp; Records</span>
+                                      </div>
+                                      <div className="truncate" title={emp.present_address}><strong>Present:</strong> {emp.present_address || '—'}</div>
+                                      <div className="truncate" title={emp.permanent_address}><strong>Permanent:</strong> {emp.permanent_address || '—'}</div>
+                                      <div><strong>Zone / UDISE:</strong> {emp.zone_name || '—'} / {emp.ddo_code || '—'}</div>
+                                      <div><strong>Postings:</strong> {(emp.postings || []).length} Recorded</div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditStaffModal(emp, origIdx)}
+                                      className="w-full py-1.5 px-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10.5px] cursor-pointer flex items-center justify-center gap-1 shadow-xs transition-transform hover:scale-[1.02]"
+                                    >
+                                      <Edit3 size={12} />
+                                      <span>Edit All Fields &amp; Photo</span>
+                                    </button>
                                   </div>
                                 </div>
                               </td>
@@ -2688,22 +3011,38 @@ export default function SchoolAccountsManager({ user }) {
         </div>
       )}
 
-      {/* ─── MODAL: COMPREHENSIVE ESTABLISHMENT & TAX RECORD EDITOR ─── */}
+      {/* ─── MODAL: COMPREHENSIVE ESTABLISHMENT, PERSONAL & TAX RECORD EDITOR ─── */}
       {(editingStaffMember !== null || isNewStaffRecord) && (
-        <div className="fixed inset-0 z-[999998] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-fadeIn">
-          <div className="w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-4 sm:p-5 max-h-[92vh] overflow-y-auto space-y-4 animate-scaleUp">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <Users size={16} />
+        <div className="fixed inset-0 z-[999998] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
+          <div className="w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-scaleUp">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl overflow-hidden bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                  {photoPreview || staffModalFormData.photo ? (
+                    <img
+                      src={photoPreview || staffModalFormData.photo}
+                      alt="Thumbnail"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <Users size={20} />
+                  )}
                 </div>
-                <div>
-                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
-                    {isNewStaffRecord ? 'Enroll New Staff Member' : `Edit Establishment Record: ${staffModalFormData.name || 'Official'}`}
-                  </h3>
-                  <p className="text-[10px] text-slate-500">
-                    Master establishment, payroll &amp; dynamic income tax record (Firebase Cloud sync)
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white truncate">
+                      {isNewStaffRecord ? 'Enroll New Staff Member' : `Edit Record: ${staffModalFormData.name || 'Staff Member'}`}
+                    </h3>
+                    {staffModalFormData.cadre && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shrink-0">
+                        {staffModalFormData.cadre}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate">
+                    Clerk Portal: Personal Details, Photo, Service, Banking &amp; Income Tax (Cloud Synced)
                   </p>
                 </div>
               </div>
@@ -2713,444 +3052,1135 @@ export default function SchoolAccountsManager({ user }) {
                   setEditingStaffMember(null);
                   setIsNewStaffRecord(false);
                 }}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* Form Sections */}
-            <div className="space-y-3.5 text-xs">
-              {/* Section 1: Official Particulars */}
-              <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5">
-                <span className="font-extrabold text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
-                  1. Official Particulars &amp; Identity
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Full Name *</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.name}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, name: e.target.value })}
-                      placeholder="e.g. Mohd Iqbal Lone"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
+            {/* Segmented Navigation Tabs */}
+            <div className="flex items-center gap-1 px-4 py-2 bg-slate-100/70 dark:bg-slate-950/70 border-b border-slate-200 dark:border-slate-800 overflow-x-auto shrink-0 no-scrollbar">
+              {[
+                { id: 'personal', label: 'Personal Details', icon: User },
+                { 
+                  id: 'photo', 
+                  label: 'Staff Photo & Bio', 
+                  icon: Camera, 
+                  badge: (photoPreview || staffModalFormData.photo) ? '✓ Photo' : null,
+                  badgeColor: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                },
+                { id: 'service', label: 'Service Particulars', icon: Building2 },
+                { id: 'accounts', label: 'Accounts & Tax', icon: CreditCard },
+                { 
+                  id: 'postings', 
+                  label: 'Postings & Custom', 
+                  icon: History,
+                  badge: ((staffModalFormData.postings?.length || 0) + Object.keys(staffModalFormData.customFields || {}).length) > 0 ? `${(staffModalFormData.postings?.length || 0) + Object.keys(staffModalFormData.customFields || {}).length}` : null,
+                  badgeColor: 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                },
+              ].map(tab => {
+                const TabIcon = tab.icon;
+                const isActive = modalActiveTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setModalActiveTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs border border-slate-200 dark:border-slate-700'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-900/50'
+                    }`}
+                  >
+                    <TabIcon size={14} />
+                    <span>{tab.label}</span>
+                    {tab.badge && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${tab.badgeColor}`}>
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Scrollable Form Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              {/* TAB 1: PERSONAL DETAILS */}
+              {modalActiveTab === 'personal' && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                      Identity &amp; Resident Details
+                    </span>
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                      * Required for official school establishment
+                    </span>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Designation</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.designation}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, designation: e.target.value })}
-                      placeholder="e.g. Lecturer, Master, Teacher"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Department / Subject</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.department}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, department: e.target.value })}
-                      placeholder="e.g. Physics, Chemistry, MTS"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">CPIS ID</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.cpis_no}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, cpis_no: e.target.value })}
-                      placeholder="e.g. 1002345"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">PAN Card Number</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.pan}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, pan: e.target.value.toUpperCase() })}
-                      placeholder="e.g. ABCDE1234F"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono uppercase font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Phone / Mobile</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.phone}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, phone: e.target.value })}
-                      placeholder="e.g. 9876543210"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Pension Scheme (NPS / GPF)</label>
-                    <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-900">
-                      <button
-                        type="button"
-                        onClick={() => setStaffModalFormData({ ...staffModalFormData, pension_scheme: 'NPS' })}
-                        className={`flex-1 py-1 text-center rounded text-[10px] font-black cursor-pointer transition-all ${
-                          staffModalFormData.pension_scheme === 'NPS'
-                            ? 'bg-blue-600 text-white shadow-2xs'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                        }`}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Full Name <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.name}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, name: e.target.value })}
+                        placeholder="e.g. Aijaz Ahmad Wagay"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Parentage (Father's Name)
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.parentage}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, parentage: e.target.value })}
+                        placeholder="e.g. Mohd Sultan Wagay"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Date of Birth (DOB)
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.dob}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, dob: e.target.value })}
+                        placeholder="e.g. 05.09.1968"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Gender
+                      </label>
+                      <select
+                        value={staffModalFormData.gender}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, gender: e.target.value })}
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs"
                       >
-                        NPS
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStaffModalFormData({ ...staffModalFormData, pension_scheme: 'GPF' })}
-                        className={`flex-1 py-1 text-center rounded text-[10px] font-black cursor-pointer transition-all ${
-                          staffModalFormData.pension_scheme === 'GPF'
-                            ? 'bg-emerald-600 text-white shadow-2xs'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                        }`}
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Contact / Mobile Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={staffModalFormData.phone}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, phone: e.target.value })}
+                        placeholder="e.g. 7006912918"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={staffModalFormData.email}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, email: e.target.value })}
+                        placeholder="e.g. official@gmail.com"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Permanent Address
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.permanent_address}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, permanent_address: e.target.value })}
+                        placeholder="e.g. Nowgam, Shangus, Anantnag"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Present Address
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.present_address}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, present_address: e.target.value })}
+                        placeholder="e.g. Nowgam, Shangus"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Aadhar Card Number
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.aadhar_no}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, aadhar_no: e.target.value })}
+                        placeholder="e.g. 1234 5678 9012"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Category (OM / OBC / SC / ST / RBA)
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.category}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, category: e.target.value.toUpperCase() })}
+                        placeholder="e.g. OM, RBA, OBC, SC, ST"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs uppercase"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        B.Ed Completed? (Yes / No)
+                      </label>
+                      <select
+                        value={staffModalFormData.bed}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, bed: e.target.value })}
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs"
                       >
-                        GPF
-                      </button>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                        <option value="In Progress">In Progress</option>
+                      </select>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Deployment Status</label>
-                    <select
-                      value={staffModalFormData.if_deployed}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, if_deployed: e.target.value })}
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    >
-                      <option value="No">Regular / Station</option>
-                      <option value="in">Deployed In (From other school)</option>
-                      <option value="out">Deployed Out (To other station)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Service Cadre</label>
-                    <select
-                      value={staffModalFormData.cadre || 'Teaching'}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, cadre: e.target.value })}
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    >
-                      <option value="Teaching">Teaching (Lecturer/Master/Teacher)</option>
-                      <option value="Ministerial">Ministerial / Office Staff</option>
-                      <option value="Non-Teaching">MTS / Laboratory / Library</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Highest Qualification</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.qualification || ''}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, qualification: e.target.value })}
-                      placeholder="e.g. M.Sc, B.Ed, M.A, M.Phil"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">PRAN / GPF Account No.</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.pran_gpf || ''}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, pran_gpf: e.target.value })}
-                      placeholder="e.g. 110023456789"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Date of 1st Joining (Govt Service)</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.doj || ''}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, doj: e.target.value })}
-                      placeholder="e.g. 15-05-2012"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Bank Account No. (Salary)</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.bank_account || ''}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, bank_account: e.target.value })}
-                      placeholder="e.g. 0123040100001234"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Bank IFSC Code</label>
-                    <input
-                      type="text"
-                      value={staffModalFormData.ifsc || ''}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, ifsc: e.target.value.toUpperCase() })}
-                      placeholder="e.g. JAKA0SHANGU"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono uppercase font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Email Address</label>
-                    <input
-                      type="email"
-                      value={staffModalFormData.email || ''}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, email: e.target.value })}
-                      placeholder="e.g. official@jk.gov.in"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                </div>
-              </div>
 
-              {/* Section 2: Payroll & Annual Gross */}
-              <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5">
-                <span className="font-extrabold text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
-                  2. Payroll &amp; Gross Salary
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Gross Salary (Annual) ₹</label>
-                    <input
-                      type="number"
-                      value={staffModalFormData.grossSalary}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, grossSalary: e.target.value })}
-                      placeholder="e.g. 1150000"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-black text-sm outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                    <div className="text-[9.5px] font-mono text-slate-500 mt-0.5">
-                      Monthly: ₹{Math.round(parseFloat(staffModalFormData.grossSalary || 0) / 12).toLocaleString('en-IN')}
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Subject in PG (Qualification)
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.subject_pg}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, subject_pg: e.target.value })}
+                        placeholder="e.g. Zoology, Chemistry, History"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">TDS Deducted Up-to-Date ₹</label>
-                    <input
-                      type="number"
-                      value={staffModalFormData.tds}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, tds: e.target.value })}
-                      placeholder="e.g. 45000"
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Active Tax Regime</label>
-                    <select
-                      value={staffModalFormData.regime}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, regime: e.target.value })}
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                    >
-                      <option value="new">New Tax Regime (Sec 115BAC)</option>
-                      <option value="old">Old Tax Regime (With Deductions)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
 
-              {/* Section 3: Deductions */}
-              <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
-                    3. Deductions &amp; Exemptions
-                  </span>
-                  <span className="text-[10px] text-slate-500">
-                    {staffModalFormData.regime === 'old' ? 'Applicable under Old Regime' : 'Under New Regime, 80CCD(2) applies'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
-                      80C Deductions (Max ₹1.5L)
-                    </label>
-                    <input
-                      type="number"
-                      value={staffModalFormData.deduction80C}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, deduction80C: e.target.value })}
-                      disabled={staffModalFormData.regime === 'new'}
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none disabled:opacity-40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
-                      80D Health Insurance
-                    </label>
-                    <input
-                      type="number"
-                      value={staffModalFormData.deduction80D}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, deduction80D: e.target.value })}
-                      disabled={staffModalFormData.regime === 'new'}
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none disabled:opacity-40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
-                      HRA Exemption
-                    </label>
-                    <input
-                      type="number"
-                      value={staffModalFormData.hraExemption}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, hraExemption: e.target.value })}
-                      disabled={staffModalFormData.regime === 'new'}
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none disabled:opacity-40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
-                      80CCD(2) Employer NPS
-                    </label>
-                    <input
-                      type="number"
-                      value={staffModalFormData.otherDeductions}
-                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, otherDeductions: e.target.value })}
-                      className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 4: Live Side-by-Side Tax Comparison */}
-              <div className="space-y-2">
-                <span className="font-extrabold text-[11px] text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <Calculator size={13} className="text-amber-500" />
-                  <span>4. Side-by-Side Tax Comparison (Live Recomputing)</span>
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* New Regime Card */}
-                  <div className={`p-2.5 rounded-xl border transition-all ${
-                    staffModalFormData.regime === 'new'
-                      ? 'bg-amber-500/10 border-amber-500 ring-1 ring-amber-500'
-                      : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'
-                  }`}>
-                    <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-slate-200 dark:border-slate-800">
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-teal-600 text-white">NEW REGIME</span>
-                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Sec 115BAC</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setStaffModalFormData(prev => ({ ...prev, regime: 'new' }))}
-                        className={`px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors ${
-                          staffModalFormData.regime === 'new'
-                            ? 'bg-amber-600 text-white font-black'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                        }`}
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Visibility Status
+                      </label>
+                      <select
+                        value={staffModalFormData.hidden ? 'hidden' : 'visible'}
+                        onChange={(e) => {
+                          const isHidden = e.target.value === 'hidden';
+                          setStaffModalFormData(prev => ({
+                            ...prev,
+                            hidden: isHidden,
+                            inactiveReason: isHidden && !prev.inactiveReason ? 'Transferred' : prev.inactiveReason
+                          }));
+                        }}
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs"
                       >
-                        {staffModalFormData.regime === 'new' ? '✓ Selected' : 'Choose New'}
-                      </button>
+                        <option value="visible">Visible (Active on Website)</option>
+                        <option value="hidden">Hidden (Inactive)</option>
+                      </select>
                     </div>
-                    <div className="space-y-1 text-[10.5px]">
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>Standard Deduction:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">₹{modalNewTaxCalc.standardDeduction.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>Taxable Income:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">₹{modalNewTaxCalc.taxableIncome.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-slate-900 dark:text-white pt-1 border-t border-slate-200 dark:border-slate-800">
-                        <span>Total Annual Tax:</span>
-                        <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-xs">₹{modalNewTaxCalc.totalTax.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>Tax Due (After TDS):</span>
-                        <span className="font-mono font-bold">
-                          {modalNewTaxCalc.taxPayableNow > 0 ? `₹${modalNewTaxCalc.taxPayableNow.toLocaleString('en-IN')}` : 'NIL'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Old Regime Card */}
-                  <div className={`p-2.5 rounded-xl border transition-all ${
-                    staffModalFormData.regime === 'old'
-                      ? 'bg-amber-500/10 border-amber-500 ring-1 ring-amber-500'
-                      : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'
-                  }`}>
-                    <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-slate-200 dark:border-slate-800">
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-rose-700 text-white">OLD REGIME</span>
-                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">With Deductions</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setStaffModalFormData(prev => ({ ...prev, regime: 'old' }))}
-                        className={`px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors ${
-                          staffModalFormData.regime === 'old'
-                            ? 'bg-amber-600 text-white font-black'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                        }`}
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Deployment Status
+                      </label>
+                      <select
+                        value={staffModalFormData.if_deployed || 'No'}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, if_deployed: e.target.value })}
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs"
                       >
-                        {staffModalFormData.regime === 'old' ? '✓ Selected' : 'Choose Old'}
-                      </button>
+                        <option value="No">No Deployment (Regular Station)</option>
+                        <option value="in">Deployed In (From other school)</option>
+                        <option value="out">Deployed Out (Posted elsewhere)</option>
+                      </select>
                     </div>
-                    <div className="space-y-1 text-[10.5px]">
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>Total Deductions:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">₹{modalOldTaxCalc.totalDeductions.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>Taxable Income:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">₹{modalOldTaxCalc.taxableIncome.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-slate-900 dark:text-white pt-1 border-t border-slate-200 dark:border-slate-800">
-                        <span>Total Annual Tax:</span>
-                        <span className="font-mono font-black text-rose-600 dark:text-rose-400 text-xs">₹{modalOldTaxCalc.totalTax.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>Tax Due (After TDS):</span>
-                        <span className="font-mono font-bold">
-                          {modalOldTaxCalc.taxPayableNow > 0 ? `₹${modalOldTaxCalc.taxPayableNow.toLocaleString('en-IN')}` : 'NIL'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Recommendation Banner */}
-                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 flex items-center justify-between gap-2">
-                  <div className="text-[11px] text-emerald-900 dark:text-emerald-200 font-bold">
-                    {modalNewTaxCalc.totalTax < modalOldTaxCalc.totalTax ? (
-                      <span>💡 <strong>New Regime Recommended:</strong> Saves ₹{(modalOldTaxCalc.totalTax - modalNewTaxCalc.totalTax).toLocaleString('en-IN')} annually compared to Old Regime.</span>
-                    ) : modalOldTaxCalc.totalTax < modalNewTaxCalc.totalTax ? (
-                      <span>💡 <strong>Old Regime Recommended:</strong> Saves ₹{(modalNewTaxCalc.totalTax - modalOldTaxCalc.totalTax).toLocaleString('en-IN')} annually due to deductions.</span>
-                    ) : (
-                      <span>⚖️ Both tax regimes result in identical tax of ₹{modalNewTaxCalc.totalTax.toLocaleString('en-IN')} for this salary.</span>
+                    {staffModalFormData.hidden && (
+                      <div className="animate-fadeIn">
+                        <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Reason for Inactive
+                        </label>
+                        <select
+                          value={['Transferred', 'Retired', 'Deployed Out'].includes(staffModalFormData.inactiveReason) ? staffModalFormData.inactiveReason : (staffModalFormData.inactiveReason ? 'Other' : 'Transferred')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'Other') {
+                              const custom = window.prompt("Enter custom reason for inactive status:");
+                              setStaffModalFormData(prev => ({ ...prev, inactiveReason: custom || 'Other' }));
+                            } else {
+                              setStaffModalFormData(prev => ({ ...prev, inactiveReason: val }));
+                            }
+                          }}
+                          className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                        >
+                          <option value="Transferred">Transferred</option>
+                          <option value="Retired">Retired</option>
+                          <option value="Deployed Out">Deployed Out</option>
+                          <option value="Other">Other...</option>
+                        </select>
+                        {staffModalFormData.inactiveReason && !['Transferred', 'Retired', 'Deployed Out'].includes(staffModalFormData.inactiveReason) && (
+                          <input
+                            type="text"
+                            placeholder="Enter custom reason..."
+                            value={staffModalFormData.inactiveReason}
+                            onChange={(e) => setStaffModalFormData({ ...staffModalFormData, inactiveReason: e.target.value })}
+                            className="w-full mt-1.5 p-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs outline-none"
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
-                  {modalNewTaxCalc.totalTax !== modalOldTaxCalc.totalTax && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const best = modalNewTaxCalc.totalTax < modalOldTaxCalc.totalTax ? 'new' : 'old';
-                        setStaffModalFormData(prev => ({ ...prev, regime: best }));
-                      }}
-                      className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[9.5px] whitespace-nowrap cursor-pointer shadow-2xs"
-                    >
-                      Apply Cheaper Regime
-                    </button>
-                  )}
+
+                  <div>
+                    <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Profile / Bio (Optional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={staffModalFormData.profile}
+                      onChange={(e) => setStaffModalFormData({ ...staffModalFormData, profile: e.target.value })}
+                      placeholder="Brief introduction or public faculty profile..."
+                      className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs resize-none"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* TAB 2: STAFF PHOTO & BIO */}
+              {modalActiveTab === 'photo' && (
+                <div className="space-y-5 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                      Staff Photo Management &amp; Portrait
+                    </span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                      Auto-compressed &amp; synced across Web &amp; ID cards
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                    {/* Live Portrait Preview Card */}
+                    <div className="md:col-span-4 flex flex-col items-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center">
+                      <div className="relative w-36 h-44 rounded-xl overflow-hidden shadow-md border-2 border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 flex items-center justify-center group">
+                        {photoPreview || staffModalFormData.photo ? (
+                          <img
+                            src={photoPreview || staffModalFormData.photo}
+                            alt={staffModalFormData.name || 'Staff'}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-300"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center p-3 text-slate-400">
+                            <Camera size={36} className="mb-2 opacity-50" />
+                            <span className="text-[10px] font-bold">No Photo Available</span>
+                          </div>
+                        )}
+                        {(photoPreview || staffModalFormData.photo) && (
+                          <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-emerald-600/90 text-white text-[9px] font-black tracking-wide shadow-2xs">
+                            ACTIVE
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3">
+                        <div className="text-xs font-black text-slate-900 dark:text-white">
+                          {staffModalFormData.name || 'Staff Member'}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-medium">
+                          {staffModalFormData.designation || 'Official'}
+                        </div>
+                      </div>
+
+                      {(photoPreview || staffModalFormData.photo) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhotoFile(null);
+                            setPhotoPreview('');
+                            setStaffModalFormData(prev => ({ ...prev, photo: '' }));
+                          }}
+                          className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-900 cursor-pointer transition-colors"
+                        >
+                          <Trash2 size={12} />
+                          <span>Remove Photo</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Upload Controls & URL Input */}
+                    <div className="md:col-span-8 space-y-4">
+                      {/* File Uploader */}
+                      <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                            <Upload size={14} className="text-amber-600" />
+                            <span>Upload New Passport Photo</span>
+                          </span>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
+                            JPG / PNG / WebP
+                          </span>
+                        </div>
+
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                          Select any photo from your computer or phone. Our system automatically optimizes, crops to passport aspect ratio, and compresses it to ultra-light size (&lt;50KB) for instant loading.
+                        </p>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs cursor-pointer shadow-md transition-all hover:scale-[1.01]">
+                            <Camera size={14} />
+                            <span>{photoFile ? 'Change Chosen Image' : 'Choose Photo File'}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                try {
+                                  showToast('Compressing photo...', 'info', 1500);
+                                  const compressed = await compressStaffPhoto(file, 400, 0.85);
+                                  setPhotoFile(compressed);
+                                  const previewUrl = URL.createObjectURL(compressed);
+                                  setPhotoPreview(previewUrl);
+                                  showToast(`Photo loaded & compressed (${Math.round(compressed.size / 1024)} KB)!`, 'success');
+                                } catch (err) {
+                                  console.error('Error compressing photo:', err);
+                                  showToast('Could not process photo file', 'error');
+                                }
+                              }}
+                            />
+                          </label>
+
+                          {photoFile && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-[11px] font-bold text-emerald-800 dark:text-emerald-200">
+                              <CheckCircle2 size={13} className="text-emerald-600" />
+                              <span>Ready to sync ({Math.round(photoFile.size / 1024)} KB)</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Direct URL / Storage Path Input */}
+                      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                          Direct Photo URL or Website Slide Path
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={staffModalFormData.photo}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setStaffModalFormData(prev => ({ ...prev, photo: val }));
+                              if (!photoFile) {
+                                setPhotoPreview(val);
+                              }
+                            }}
+                            placeholder="e.g. /slides/photos/teacher.jpg or https://firebasestorage.googleapis.com/..."
+                            className="w-full p-2 pl-8 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-xs outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                          <ImageIcon size={14} className="absolute left-2.5 top-3 text-slate-400" />
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Supports local static slide paths (e.g. <code className="font-mono text-amber-600">/slides/photos/aijaz.jpg</code>), external web URLs, or Firebase Storage links.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: SERVICE PARTICULARS */}
+              {modalActiveTab === 'service' && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                      Official Designation &amp; Service Particulars
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Govt. Higher Secondary School Shangus Establishment
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Official Designation
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.designation}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, designation: e.target.value })}
+                        placeholder="e.g. Principal, Senior Lecturer, Master, MTS"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Department / Wing
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.department}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, department: e.target.value })}
+                        placeholder="e.g. Science, Humanities, Commerce, Administration"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Teaching Subject
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.subject}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, subject: e.target.value })}
+                        placeholder="e.g. Botany, Physics, Chemistry, Urdu"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Service Cadre
+                      </label>
+                      <select
+                        value={staffModalFormData.cadre}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, cadre: e.target.value })}
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      >
+                        <option value="Teaching">Teaching (Lecturer / Master / Teacher)</option>
+                        <option value="Ministerial">Ministerial / Office Staff</option>
+                        <option value="Non-Teaching">Non-Teaching / MTS / Lab Bearer / Class IV</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Highest Qualification
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.qualification}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, qualification: e.target.value })}
+                        placeholder="e.g. M.Sc, M.Ed, M.Phil, Ph.D, B.Ed"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Date of 1st Joining (Govt Service)
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.doj}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, doj: e.target.value })}
+                        placeholder="e.g. 15-05-2012"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Designation at 1st Appt
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.designation_at_first_appointment}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, designation_at_first_appointment: e.target.value })}
+                        placeholder="e.g. Teacher, Junior Assistant"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Zone Name
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.zone_name}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, zone_name: e.target.value })}
+                        placeholder="e.g. Shangus, Anantnag"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        UDISE Code
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.ddo_code}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, ddo_code: e.target.value })}
+                        placeholder="e.g. 01040300101"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        DDO Code HRMS
+                      </label>
+                      <input
+                        type="text"
+                        value={staffModalFormData.ddo_code_hrms}
+                        onChange={(e) => setStaffModalFormData({ ...staffModalFormData, ddo_code_hrms: e.target.value })}
+                        placeholder="e.g. 04030101"
+                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: ACCOUNTS, BANKING & TAX */}
+              {modalActiveTab === 'accounts' && (
+                <div className="space-y-4 animate-fadeIn">
+                  {/* Banking & Identification Sub-section */}
+                  <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                    <span className="font-extrabold text-[11px] text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <CreditCard size={13} className="text-amber-500" />
+                      <span>Identification &amp; Bank Accounts</span>
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">CPIS ID</label>
+                        <input
+                          type="text"
+                          value={staffModalFormData.cpis_no}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, cpis_no: e.target.value })}
+                          placeholder="e.g. SHGEDU00200028"
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">PAN Card Number</label>
+                        <input
+                          type="text"
+                          value={staffModalFormData.pan}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, pan: e.target.value.toUpperCase() })}
+                          placeholder="e.g. ABBPM3797Q"
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono uppercase font-bold outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Pension Scheme (NPS / GPF)</label>
+                        <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-900">
+                          <button
+                            type="button"
+                            onClick={() => setStaffModalFormData({ ...staffModalFormData, pension_scheme: 'NPS' })}
+                            className={`flex-1 py-1 text-center rounded text-[10px] font-black cursor-pointer transition-all ${
+                              staffModalFormData.pension_scheme === 'NPS'
+                                ? 'bg-blue-600 text-white shadow-2xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                            }`}
+                          >
+                            NPS
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStaffModalFormData({ ...staffModalFormData, pension_scheme: 'GPF' })}
+                            className={`flex-1 py-1 text-center rounded text-[10px] font-black cursor-pointer transition-all ${
+                              staffModalFormData.pension_scheme === 'GPF'
+                                ? 'bg-emerald-600 text-white shadow-2xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                            }`}
+                          >
+                            GPF
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">PRAN / GPF Account No.</label>
+                        <input
+                          type="text"
+                          value={staffModalFormData.pran_gpf}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, pran_gpf: e.target.value })}
+                          placeholder="e.g. 110023456789"
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Bank Account No. (Salary)</label>
+                        <input
+                          type="text"
+                          value={staffModalFormData.bank_account}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, bank_account: e.target.value })}
+                          placeholder="e.g. 0123040100001234"
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Bank IFSC Code</label>
+                        <input
+                          type="text"
+                          value={staffModalFormData.ifsc}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, ifsc: e.target.value.toUpperCase() })}
+                          placeholder="e.g. JAKA0SHANGU"
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono uppercase font-bold outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payroll & Annual Gross */}
+                  <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                    <span className="font-extrabold text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
+                      Payroll &amp; Gross Salary
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Gross Salary (Annual) ₹</label>
+                        <input
+                          type="number"
+                          value={staffModalFormData.grossSalary}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, grossSalary: e.target.value })}
+                          placeholder="e.g. 1150000"
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-black text-sm outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                        <div className="text-[9.5px] font-mono text-slate-500 mt-0.5">
+                          Monthly: ₹{Math.round(parseFloat(staffModalFormData.grossSalary || 0) / 12).toLocaleString('en-IN')}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">TDS Deducted Up-to-Date ₹</label>
+                        <input
+                          type="number"
+                          value={staffModalFormData.tds}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, tds: e.target.value })}
+                          placeholder="e.g. 45000"
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Active Tax Regime</label>
+                        <select
+                          value={staffModalFormData.regime}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, regime: e.target.value })}
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold outline-none focus:ring-1 focus:ring-amber-500 text-xs"
+                        >
+                          <option value="new">New Tax Regime (Sec 115BAC)</option>
+                          <option value="old">Old Tax Regime (With Deductions)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Deductions & Exemptions */}
+                  <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-[11px] text-slate-900 dark:text-white uppercase tracking-wider">
+                        Deductions &amp; Exemptions
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        {staffModalFormData.regime === 'old' ? 'Applicable under Old Regime' : 'Under New Regime, 80CCD(2) applies'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                          80C Deductions (Max ₹1.5L)
+                        </label>
+                        <input
+                          type="number"
+                          value={staffModalFormData.deduction80C}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, deduction80C: e.target.value })}
+                          disabled={staffModalFormData.regime === 'new'}
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none disabled:opacity-40 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                          80D Health Insurance
+                        </label>
+                        <input
+                          type="number"
+                          value={staffModalFormData.deduction80D}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, deduction80D: e.target.value })}
+                          disabled={staffModalFormData.regime === 'new'}
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none disabled:opacity-40 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                          HRA Exemption
+                        </label>
+                        <input
+                          type="number"
+                          value={staffModalFormData.hraExemption}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, hraExemption: e.target.value })}
+                          disabled={staffModalFormData.regime === 'new'}
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none disabled:opacity-40 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                          80CCD(2) Employer NPS
+                        </label>
+                        <input
+                          type="number"
+                          value={staffModalFormData.otherDeductions}
+                          onChange={(e) => setStaffModalFormData({ ...staffModalFormData, otherDeductions: e.target.value })}
+                          className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold outline-none text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live Tax Comparison */}
+                  <div className="space-y-2">
+                    <span className="font-extrabold text-[11px] text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Calculator size={13} className="text-amber-500" />
+                      <span>Live Recomputed Tax Comparison</span>
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* New Regime Card */}
+                      <div className={`p-2.5 rounded-xl border transition-all ${
+                        staffModalFormData.regime === 'new'
+                          ? 'bg-amber-500/10 border-amber-500 ring-1 ring-amber-500'
+                          : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'
+                      }`}>
+                        <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-slate-200 dark:border-slate-800">
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-teal-600 text-white">NEW REGIME</span>
+                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Sec 115BAC</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setStaffModalFormData(prev => ({ ...prev, regime: 'new' }))}
+                            className={`px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors ${
+                              staffModalFormData.regime === 'new'
+                                ? 'bg-amber-600 text-white font-black'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {staffModalFormData.regime === 'new' ? '✓ Selected' : 'Choose New'}
+                          </button>
+                        </div>
+                        <div className="space-y-1 text-[10.5px]">
+                          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                            <span>Standard Deduction:</span>
+                            <span className="font-mono font-bold text-slate-900 dark:text-white">₹{modalNewTaxCalc.standardDeduction.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                            <span>Taxable Income:</span>
+                            <span className="font-mono font-bold text-slate-900 dark:text-white">₹{modalNewTaxCalc.taxableIncome.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between font-bold text-slate-900 dark:text-white pt-1 border-t border-slate-200 dark:border-slate-800">
+                            <span>Total Annual Tax:</span>
+                            <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-xs">₹{modalNewTaxCalc.totalTax.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                            <span>Tax Due (After TDS):</span>
+                            <span className="font-mono font-bold">
+                              {modalNewTaxCalc.taxPayableNow > 0 ? `₹${modalNewTaxCalc.taxPayableNow.toLocaleString('en-IN')}` : 'NIL'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Old Regime Card */}
+                      <div className={`p-2.5 rounded-xl border transition-all ${
+                        staffModalFormData.regime === 'old'
+                          ? 'bg-amber-500/10 border-amber-500 ring-1 ring-amber-500'
+                          : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'
+                      }`}>
+                        <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-slate-200 dark:border-slate-800">
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-rose-700 text-white">OLD REGIME</span>
+                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">With Deductions</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setStaffModalFormData(prev => ({ ...prev, regime: 'old' }))}
+                            className={`px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors ${
+                              staffModalFormData.regime === 'old'
+                                ? 'bg-amber-600 text-white font-black'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {staffModalFormData.regime === 'old' ? '✓ Selected' : 'Choose Old'}
+                          </button>
+                        </div>
+                        <div className="space-y-1 text-[10.5px]">
+                          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                            <span>Total Deductions:</span>
+                            <span className="font-mono font-bold text-slate-900 dark:text-white">₹{modalOldTaxCalc.totalDeductions.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                            <span>Taxable Income:</span>
+                            <span className="font-mono font-bold text-slate-900 dark:text-white">₹{modalOldTaxCalc.taxableIncome.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between font-bold text-slate-900 dark:text-white pt-1 border-t border-slate-200 dark:border-slate-800">
+                            <span>Total Annual Tax:</span>
+                            <span className="font-mono font-black text-rose-600 dark:text-rose-400 text-xs">₹{modalOldTaxCalc.totalTax.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                            <span>Tax Due (After TDS):</span>
+                            <span className="font-mono font-bold">
+                              {modalOldTaxCalc.taxPayableNow > 0 ? `₹${modalOldTaxCalc.taxPayableNow.toLocaleString('en-IN')}` : 'NIL'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recommendation Banner */}
+                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 flex items-center justify-between gap-2">
+                      <div className="text-[11px] text-emerald-900 dark:text-emerald-200 font-bold">
+                        {modalNewTaxCalc.totalTax < modalOldTaxCalc.totalTax ? (
+                          <span>💡 <strong>New Regime Recommended:</strong> Saves ₹{(modalOldTaxCalc.totalTax - modalNewTaxCalc.totalTax).toLocaleString('en-IN')} annually compared to Old Regime.</span>
+                        ) : modalOldTaxCalc.totalTax < modalNewTaxCalc.totalTax ? (
+                          <span>💡 <strong>Old Regime Recommended:</strong> Saves ₹{(modalNewTaxCalc.totalTax - modalOldTaxCalc.totalTax).toLocaleString('en-IN')} annually due to deductions.</span>
+                        ) : (
+                          <span>⚖️ Both tax regimes result in identical tax of ₹{modalNewTaxCalc.totalTax.toLocaleString('en-IN')} for this salary.</span>
+                        )}
+                      </div>
+                      {modalNewTaxCalc.totalTax !== modalOldTaxCalc.totalTax && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const best = modalNewTaxCalc.totalTax < modalOldTaxCalc.totalTax ? 'new' : 'old';
+                            setStaffModalFormData(prev => ({ ...prev, regime: best }));
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] whitespace-nowrap cursor-pointer shadow-2xs"
+                        >
+                          Apply Cheaper Regime
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: POSTINGS & CUSTOM FIELDS */}
+              {modalActiveTab === 'postings' && (
+                <div className="space-y-6 animate-fadeIn">
+                  {/* Historical Postings */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800">
+                      <div>
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <History size={13} className="text-amber-500" />
+                          <span>Historical Posting Profile</span>
+                        </span>
+                        <p className="text-[10px] text-slate-500">Record past school postings, stations, and transfer history</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddPosting}
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 cursor-pointer transition-colors"
+                      >
+                        <Plus size={12} />
+                        <span>Add Posting</span>
+                      </button>
+                    </div>
+
+                    {(staffModalFormData.postings || []).length === 0 ? (
+                      <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-dashed border-slate-300 dark:border-slate-800 text-center text-xs text-slate-500">
+                        No historical postings recorded yet. Click "Add Posting" to log past stations.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {staffModalFormData.postings.map((p, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center"
+                          >
+                            <div className="sm:col-span-5">
+                              <label className="block text-[9.5px] font-bold text-slate-500 mb-0.5">Office / Institution</label>
+                              <input
+                                type="text"
+                                value={p.office || ''}
+                                onChange={(e) => handleUpdatePosting(idx, 'office', e.target.value)}
+                                placeholder="e.g. HSS Mattan, GHSS Ranipora"
+                                className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs outline-none"
+                              />
+                            </div>
+                            <div className="sm:col-span-3">
+                              <label className="block text-[9.5px] font-bold text-slate-500 mb-0.5">Designation</label>
+                              <input
+                                type="text"
+                                value={p.designation || ''}
+                                onChange={(e) => handleUpdatePosting(idx, 'designation', e.target.value)}
+                                placeholder="e.g. Lecturer"
+                                className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs outline-none"
+                              />
+                            </div>
+                            <div className="sm:col-span-3 grid grid-cols-2 gap-1.5">
+                              <div>
+                                <label className="block text-[9.5px] font-bold text-slate-500 mb-0.5">From</label>
+                                <input
+                                  type="text"
+                                  value={p.from || ''}
+                                  onChange={(e) => handleUpdatePosting(idx, 'from', e.target.value)}
+                                  placeholder="2018"
+                                  className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs outline-none font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9.5px] font-bold text-slate-500 mb-0.5">To</label>
+                                <input
+                                  type="text"
+                                  value={p.to || ''}
+                                  onChange={(e) => handleUpdatePosting(idx, 'to', e.target.value)}
+                                  placeholder="2023"
+                                  className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs outline-none font-mono"
+                                />
+                              </div>
+                            </div>
+                            <div className="sm:col-span-1 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePosting(idx)}
+                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 cursor-pointer transition-colors"
+                                title="Remove Posting"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Custom & Additional Fields */}
+                  <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between pb-1">
+                      <div>
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                          Custom &amp; Additional Staff Attributes
+                        </span>
+                        <p className="text-[10px] text-slate-500">Add any school-specific administrative or register metadata</p>
+                      </div>
+                    </div>
+
+                    {/* Existing Custom Fields */}
+                    {Object.keys(staffModalFormData.customFields || {}).length > 0 && (
+                      <div className="space-y-2">
+                        {Object.entries(staffModalFormData.customFields).map(([key, val]) => (
+                          <div
+                            key={key}
+                            className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center gap-2"
+                          >
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 w-1/3 truncate">
+                              {key}:
+                            </span>
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => handleUpdateCustomField(key, e.target.value)}
+                              className="flex-1 p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCustomField(key)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 cursor-pointer transition-colors"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add New Custom Field Form */}
+                    <div className="p-3 rounded-xl bg-slate-100/70 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 flex flex-wrap sm:flex-nowrap gap-2 items-center">
+                      <input
+                        type="text"
+                        value={newCustomKey}
+                        onChange={(e) => setNewCustomKey(e.target.value)}
+                        placeholder="Field Name (e.g. Blood Group, Caste)"
+                        className="flex-1 p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={newCustomVal}
+                        onChange={(e) => setNewCustomVal(e.target.value)}
+                        placeholder="Value (e.g. O+)"
+                        className="flex-1 p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomField}
+                        disabled={!newCustomKey.trim()}
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs disabled:opacity-40 cursor-pointer whitespace-nowrap"
+                      >
+                        + Add Field
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingStaffMember(null);
-                  setIsNewStaffRecord(false);
-                }}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={requestSaveStaffModalRecord}
-                className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs cursor-pointer shadow-md flex items-center gap-1.5"
-              >
-                <Check size={14} />
-                <span>Save Establishment Record</span>
-              </button>
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 shrink-0">
+              <span className="text-[11px] text-slate-500 hidden sm:inline">
+                🔐 Clerk security authorization required before cloud commit.
+              </span>
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingStaffMember(null);
+                    setIsNewStaffRecord(false);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={requestSaveStaffModalRecord}
+                  disabled={isSavingCommit}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-black text-xs cursor-pointer shadow-md flex items-center gap-1.5 transition-all hover:scale-[1.01]"
+                >
+                  <Check size={14} />
+                  <span>Save Record &amp; Sync</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
