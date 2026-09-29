@@ -1190,6 +1190,7 @@ export function printStudentCertificate({
   showPhoto = false,
   watermark = true,
   signatories = ['Incharge Admissions & Exam', 'Checked By', 'Principal'],
+  signatorySubtext = 'Govt. HSS Shangus',
   isDualCopy = true,
   metaDetails = {},
   pageMargin = 0.3,
@@ -1319,40 +1320,40 @@ export function printStudentCertificate({
         <div class="footer-block">
           <div class="signatures-dotted-row ${signatories.length <= 2 ? 'two-sigs' : 'three-sigs'}">
             ${signatories.length === 1 ? `
-              <div class="sig-col" style="margin: 0 auto; width: 40%;">
+              <div class="sig-col" style="margin-left: auto; width: 36%;">
                 <div class="sig-dot-line"></div>
                 <div class="sig-title-red">${signatories[0] || 'Principal'}</div>
-                <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
               </div>
             ` : signatories.length === 2 ? `
               <div class="sig-col">
                 <div class="sig-dot-line"></div>
                 <div class="sig-title-red">${signatories[0] || 'Incharge Admissions & Exam'}</div>
-                <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
               </div>
 
               <div class="sig-col">
                 <div class="sig-dot-line"></div>
                 <div class="sig-title-red">${signatories[1] || 'Principal'}</div>
-                <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
               </div>
             ` : `
               <div class="sig-col">
                 <div class="sig-dot-line"></div>
                 <div class="sig-title-red">${signatories[0] || 'Incharge Admissions & Exam'}</div>
-                <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
               </div>
 
               <div class="sig-col">
                 <div class="sig-dot-line"></div>
                 <div class="sig-title-dark">${signatories[1] || 'Checked By'}</div>
-                <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
               </div>
 
               <div class="sig-col">
                 <div class="sig-dot-line"></div>
                 <div class="sig-title-red">${signatories[signatories.length - 1] || 'Principal'}</div>
-                <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
               </div>
             `}
           </div>
@@ -2087,6 +2088,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     institutionAddress = 'District Anantnag, Kashmir — 192201 (J&K)',
     certificateTitle = 'Discharge/Transfer cum Character Certificate',
     signatories = ['Incharge Admissions & Exam', 'Checked By', 'Principal'],
+    signatorySubtext = 'Govt. HSS Shangus',
     watermark = true,
     showPhoto = false,
     pageMargin = 0.3,
@@ -2214,40 +2216,40 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
           <div class="footer-block">
             <div class="signatures-dotted-row ${signatories.length <= 2 ? 'two-sigs' : 'three-sigs'}">
               ${signatories.length === 1 ? `
-                <div class="sig-col" style="margin: 0 auto; width: 40%;">
+                <div class="sig-col" style="margin-left: auto; width: 36%;">
                   <div class="sig-dot-line"></div>
                   <div class="sig-title-red">${signatories[0] || 'Principal'}</div>
-                  <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                  <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
                 </div>
               ` : signatories.length === 2 ? `
                 <div class="sig-col">
                   <div class="sig-dot-line"></div>
                   <div class="sig-title-red">${signatories[0] || 'Incharge Admissions & Exam'}</div>
-                  <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                  <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
                 </div>
 
                 <div class="sig-col">
                   <div class="sig-dot-line"></div>
                   <div class="sig-title-red">${signatories[1] || 'Principal'}</div>
-                  <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                  <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
                 </div>
               ` : `
                 <div class="sig-col">
                   <div class="sig-dot-line"></div>
                   <div class="sig-title-red">${signatories[0] || 'Incharge Admissions & Exam'}</div>
-                  <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                  <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
                 </div>
 
                 <div class="sig-col">
                   <div class="sig-dot-line"></div>
                   <div class="sig-title-dark">${signatories[1] || 'Checked By'}</div>
-                  <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                  <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
                 </div>
 
                 <div class="sig-col">
                   <div class="sig-dot-line"></div>
                   <div class="sig-title-red">${signatories[signatories.length - 1] || 'Principal'}</div>
-                  <div class="sig-sub-inst">Govt. HSS Shangus</div>
+                  <div class="sig-sub-inst">${signatorySubtext || 'Govt. HSS Shangus'}</div>
                 </div>
               `}
             </div>
@@ -2971,6 +2973,7 @@ export async function generateStudentCertificateDocx({
   dateStr = new Date().toLocaleDateString('en-GB'),
   bodyHtml = '',
   signatories = ['Incharge Admissions & Exam', 'Principal'],
+  signatorySubtext = 'Govt. HSS Shangus',
   isDualCopy = false,
   metaDetails = {}
 }) {
@@ -3111,7 +3114,56 @@ export async function generateStudentCertificateDocx({
       },
       rows: [
         new TableRow({
-          children: signatories.length <= 2 ? [
+          children: signatories.length === 1 ? [
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              borders: { top: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE } },
+              children: [new Paragraph({ children: [] })]
+            }),
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              borders: { top: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE } },
+              children: [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  spacing: { before: 60, after: 40 },
+                  children: [
+                    new TextRun({
+                      text: '_________________________',
+                      color: '94A3B8',
+                      bold: true,
+                      size: 16,
+                      font: 'Calibri'
+                    })
+                  ]
+                }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  spacing: { after: 10 },
+                  children: [
+                    new TextRun({
+                      text: signatories[0] || 'Principal',
+                      bold: true,
+                      size: 18,
+                      font: 'Georgia',
+                      color: '0F172A'
+                    })
+                  ]
+                }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({
+                      text: signatorySubtext || institutionName || 'Govt. HSS Shangus',
+                      size: 14,
+                      font: 'Calibri',
+                      color: '64748B'
+                    })
+                  ]
+                })
+              ]
+            })
+          ] : signatories.length === 2 ? [
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
               borders: { top: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE } },
@@ -3146,7 +3198,7 @@ export async function generateStudentCertificateDocx({
                   alignment: AlignmentType.CENTER,
                   children: [
                     new TextRun({
-                      text: institutionName || 'Govt. HSS Shangus',
+                      text: signatorySubtext || institutionName || 'Govt. HSS Shangus',
                       size: 14,
                       font: 'Calibri',
                       color: '64748B'
@@ -3177,7 +3229,7 @@ export async function generateStudentCertificateDocx({
                   spacing: { after: 10 },
                   children: [
                     new TextRun({
-                      text: signatories[signatories.length - 1] || 'Principal',
+                      text: signatories[1] || 'Principal',
                       bold: true,
                       size: 18,
                       font: 'Georgia',
@@ -3189,7 +3241,7 @@ export async function generateStudentCertificateDocx({
                   alignment: AlignmentType.CENTER,
                   children: [
                     new TextRun({
-                      text: institutionName || 'Govt. HSS Shangus',
+                      text: signatorySubtext || institutionName || 'Govt. HSS Shangus',
                       size: 14,
                       font: 'Calibri',
                       color: '64748B'
@@ -3233,7 +3285,7 @@ export async function generateStudentCertificateDocx({
                   alignment: AlignmentType.CENTER,
                   children: [
                     new TextRun({
-                      text: institutionName || 'Govt. HSS Shangus',
+                      text: signatorySubtext || institutionName || 'Govt. HSS Shangus',
                       size: 14,
                       font: 'Calibri',
                       color: '64748B'
@@ -3319,7 +3371,7 @@ export async function generateStudentCertificateDocx({
                   alignment: AlignmentType.CENTER,
                   children: [
                     new TextRun({
-                      text: institutionName || 'Govt. HSS Shangus',
+                      text: signatorySubtext || institutionName || 'Govt. HSS Shangus',
                       size: 14,
                       font: 'Calibri',
                       color: '64748B'

@@ -2,62 +2,45 @@
 
 ## Current Working Changes
 
-### 1. Student Certificates Studio: Classified Dropdown, Static Tools & Prominent Toolbar
-- **User Requests Addressed:**
-  - *"i think tempaltes shall be in dropdown in classifed manner too.....and keep right side tools static when left side preview is scrolled"*
-  - *"and remove duplicate buttons like AI i can see or others....and redesign certain buttons to be more prominent like history, new templates etc whatever suits best"*
+### 1. Student Certificates Studio: Setup Controls for Left Signatory & Institute Subtext
+- **User Request Addressed:**
+  - *"allow this too to control in setup of Student Bonafides & Certificates"* (referencing the Incharge Admissions & Exam signature block).
 - **Implementation Details ([StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)):**
-  1. **Categorized Certificate Templates Dropdown:**
-     - Replaced the large 11-card template grid with a classified `<select>` dropdown organized into clean `<optgroup>` categories:
-       - `📂 Bonafide & Age Certificates`
-       - `📂 Character & Conduct Certificates`
-       - `📂 Admission & Enrollment`
-       - `📂 Transfer & Migration`
-       - `📂 Transfer & Character Certificates (TC/DC)`
-       - `✨ Custom Saved Presets`
-     - Added quick template actions beside the selector: `[Duplicate]`, `[Overwrite]` (for custom presets), `⭐ Set Default`, and `🗑️ Delete Custom`.
-  2. **Static Right Tools on Scroll:**
-     - Added `lg:sticky lg:top-1 self-start` to the right-hand unified tools card.
-     - Ensured the certificate canvas maintains independent viewport scrolling via `max-h-[75dvh] lg:max-h-[calc(100dvh-95px)] overflow-y-auto`.
-     - Centered the draggable splitter handle with `sticky top-1/2 -translate-y-1/2`.
-  3. **Removed Duplicate AI Button & Unified AI Assist:**
-     - Removed the redundant standalone `[AI]` button that was directly adjacent to the AI icon menu button.
-     - Redesigned the primary Gemini AI trigger into a prominent `[ ✨ AI Assist ▾ ]` button with rich gradient styling and clear dropdown menu (Draft Certificate, Polish & Humanize, Formalize Terms, Shorten Wording).
-  4. **Redesigned Prominent `+ Template` & `History` Buttons:**
-     - Replaced tiny 28px square icon buttons with clear, color-coded, labeled buttons:
-       - `[ 🔖 + Template ]` with purple accent badge and hover states (`Save Certificate format as reusable template`).
-       - `[ 📜 History ]` with indigo accent badge and hover states (`Browse past generated documents archive`).
+  1. **Show/Hide Toggle for Left Signatory (`Incharge Admissions & Exam`):**
+     - Added a direct toggle switch on the `Signatory 1 (Left)` field in the Setup Drawer (`Shown / Hidden`). When hidden, the text field is disabled and dimmed.
+     - Added an `Incharge Signatory (Left)` checkbox toggle in the Setup Drawer's top `Options` bar alongside `Seal Watermark`, `Photo Box`, and `Mr. / Mrs. Titles`.
+     - When unchecked, the entire left signature block (rule line, title, and institute subtext) is completely removed from the certificate preview canvas, and the Principal's signature on the right smoothly aligns to the right (`ml-auto`).
+  2. **Configurable Signatory Institute Subtext:**
+     - Added a new `Signatory Subtext / Institute` field in the Setup Drawer (defaulting to `'Govt. HSS Shangus'`), replacing the previously hardcoded institution string beneath all signatures.
+  3. **State Persistence & Template Integration:**
+     - Persisted `showLeftSignatory` and `signatorySubtext` in `localStorage` (`hss_certificate_show_left_signatory` and `hss_certificate_signatory_subtext`).
+     - Integrated `showLeftSignatory` and `signatorySubtext` into custom template saving (`handleSaveAsTemplate`), overwriting (`handleQuickUpdateTemplate`), and template selection (`handleSelectTemplate`).
+  4. **Bulk Generation Synchronization:**
+     - Passed dynamic `signatories` directly to `BulkCertificateGeneratorModal` so bulk certificate jobs respect the configured signatory count.
 
 ---
 
-### 2. Official Letterhead Writer: Static Tools, Deduplicated AI & Prominent Buttons
-- **User Requests Addressed:**
-  - *"here also keep right side tools static when preview is scrolled"*
-  - *"and remove duplicate buttons like AI i can see or others....and redesign certain buttons to be more prominent like history, new templates etc whatever suits best"*
-- **Implementation Details ([OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx)):**
-  1. **Static Right Tools on Scroll:**
-     - Added `lg:sticky lg:top-1 self-start` to the right controls pane.
-     - Kept draggable splitter handle centered on scroll with `sticky top-1/2 -translate-y-1/2`.
-     - Confirmed independent vertical scrolling on the A4 letter sheet container (`max-h-[75dvh] lg:max-h-[calc(100dvh-95px)] overflow-y-auto`).
-  2. **Removed Duplicate AI Button:**
-     - Removed the redundant top-row `[AI]` button that duplicated the dedicated `[✨ Gemini AI]` tab sitting right below the rich-text formatting toolbar.
-  3. **Redesigned Prominent `+ Template` & `History` Buttons:**
-     - Redesigned `BookmarkPlus` and `History` into labeled, prominent buttons:
-       - `[ 🔖 + Template ]` (purple badge)
-       - `[ 📜 History ]` (indigo badge)
+### 2. Export Synchronization: PDF Print & Word (.docx) Export
+- **Implementation Details ([certificateExportUtils.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/certificateExportUtils.js)):**
+  1. **Print PDF Engine (`printStudentCertificate` & `printTcDcCertificate`):**
+     - Accepted dynamic `signatorySubtext`.
+     - When `signatories.length === 1` (left signatory disabled), the signature renders cleanly right-aligned (`margin-left: auto; width: 36%`) with the Principal title and dynamic institute subtext.
+  2. **Word Processor Export (`generateStudentCertificateDocx`):**
+     - Handled `signatories.length === 1` with a blank 50% left cell and right-aligned 50% Principal signature cell.
+     - Replaced hardcoded text with `signatorySubtext || institutionName || 'Govt. HSS Shangus'`.
 
 ---
 
 ## Files Modified
-- `src/portal/admin/StudentCertificateStudioView.jsx`: Classified certificate template dropdown with optgroups; static right tools pane; removed duplicate AI button; prominent labeled `AI Assist ▾`, `+ Template`, and `History` buttons.
-- `src/portal/admin/OfficialLetterWriterView.jsx`: Static right tools pane; removed duplicate AI button in top row; prominent labeled `+ Template` and `History` buttons.
+- `src/portal/admin/StudentCertificateStudioView.jsx`: Added Left Signatory toggle, Signatory Subtext field in Setup Drawer, live canvas preview responsiveness, and template persistence.
+- `src/utils/certificateExportUtils.js`: Added `signatorySubtext` support and single-signatory right-aligned layout in HTML print and Word export.
 - `CHANGES_SINCE_LAST_COMMIT.md`: Documented changes, commit message, and manual push instructions.
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(studio): static tools pane on scroll, categorized cert templates, and prominent deduplicated toolbar
+feat(cert-studio): add setup controls for incharge left signatory toggle and institute subtext
 ```
 
 ---
@@ -77,5 +60,5 @@ git log -1 -p
 
 # To amend or re-commit if desired:
 git reset --soft HEAD~1
-git commit -m "fix(studio): static tools pane on scroll, categorized cert templates, and prominent deduplicated toolbar"
+git commit -m "feat(cert-studio): add setup controls for incharge left signatory toggle and institute subtext"
 ```
