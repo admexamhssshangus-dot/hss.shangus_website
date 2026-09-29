@@ -2914,6 +2914,9 @@ export default function StudentCertificateStudioView({
   const [canRedo, setCanRedo] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
   const [showTableMenu, setShowTableMenu] = useState(false);
+  const [tableMenuTab, setTableMenuTab] = useState('insert'); // 'insert' | 'edit'
+  const [customTableRows, setCustomTableRows] = useState(3);
+  const [customTableCols, setCustomTableCols] = useState(3);
   const colorMenuRef = useRef(null);
   const tableMenuRef = useRef(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -2991,7 +2994,7 @@ export default function StudentCertificateStudioView({
 
   const getSelectedTableElements = () => {
     const sel = window.getSelection();
-    let node = sel && sel.rangeCount > 0 ? sel.anchorNode : null;
+    let node = sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode) ? sel.anchorNode : null;
     let td = null;
     let tr = null;
     let table = null;
@@ -3016,12 +3019,12 @@ export default function StudentCertificateStudioView({
       colIndex = Array.from(tr.children).indexOf(td);
       const allRows = Array.from(table.querySelectorAll('tr'));
       rowIndex = allRows.indexOf(tr);
-      lastActiveTableRef.current = { td, tr, table, colIndex, rowIndex };
-      return { td, tr, table, colIndex, rowIndex };
+      lastActiveTableRef.current = { td, tr, table, colIndex, rowIndex, isInsideTable: true };
+      return { td, tr, table, colIndex, rowIndex, isInsideTable: true };
     }
 
     if (lastActiveTableRef.current && editorRef.current && editorRef.current.contains(lastActiveTableRef.current.table)) {
-      return lastActiveTableRef.current;
+      return { ...lastActiveTableRef.current, isInsideTable: false };
     }
 
     if (editorRef.current) {
@@ -3035,7 +3038,8 @@ export default function StudentCertificateStudioView({
           tr: lastTr,
           table: firstTable,
           colIndex: lastTr ? lastTr.children.length - 1 : 0,
-          rowIndex: allTrs.length - 1
+          rowIndex: allTrs.length - 1,
+          isInsideTable: false
         };
       }
     }
@@ -3052,22 +3056,17 @@ export default function StudentCertificateStudioView({
         rowIndex: ctx.rowIndex,
         totalCols: ctx.tr ? ctx.tr.children.length : 0,
         totalRows: allTrs.length,
-        hasTable: true
+        hasTable: true,
+        isInsideTable: !!ctx.isInsideTable
       });
-    } else {
-      if (editorRef.current && editorRef.current.querySelector('table')) {
-        const table = editorRef.current.querySelector('table');
-        const allTrs = Array.from(table.querySelectorAll('tr'));
-        setActiveTableContext({
-          colIndex: 0,
-          rowIndex: 0,
-          totalCols: table.querySelector('tr')?.children.length || 0,
-          totalRows: allTrs.length,
-          hasTable: true
-        });
+      if (ctx.isInsideTable) {
+        setTableMenuTab('edit');
       } else {
-        setActiveTableContext(null);
+        setTableMenuTab('insert');
       }
+    } else {
+      setActiveTableContext(null);
+      setTableMenuTab('insert');
     }
   };
 
@@ -3280,6 +3279,22 @@ export default function StudentCertificateStudioView({
   };
 
   const insertTable = (rows = 2, cols = 3) => {
+    pushSnapshot();
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    // Check if live selection or saved range was inside an existing table
+    const sel = window.getSelection();
+    let currentTable = null;
+    if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
+      let node = sel.getRangeAt(0).commonAncestorContainer;
+      if (node.nodeType === 3) node = node.parentNode;
+      currentTable = node?.closest('table');
+    }
+    if (!currentTable && lastActiveTableRef.current?.table?.isConnected && lastActiveTableRef.current.isInsideTable) {
+      currentTable = lastActiveTableRef.current.table;
+    }
+
     let tableHtml = `<table style="width:100%; border-collapse:collapse; margin:10px 0;"><thead><tr style="background-color:#f1f5f9;">`;
     for (let c = 1; c <= cols; c++) {
       tableHtml += `<th style="border:1px solid #64748b; padding:4px 6px; text-align:left; font-weight:bold; font-size:11px;">Header ${c}</th>`;
@@ -3292,13 +3307,31 @@ export default function StudentCertificateStudioView({
       }
       tableHtml += `</tr>`;
     }
-    tableHtml += `</tbody></table><p></p>`;
+    tableHtml += `</tbody></table><p><br/></p>`;
 
-    pushSnapshot();
-    executeFormat('insertHTML', tableHtml);
+    if (currentTable && currentTable.parentNode && editorRef.current.contains(currentTable)) {
+      // Smart insertion: Place new table directly AFTER currentTable with paragraph break to avoid nesting
+      const tempWrapper = document.createElement('div');
+      tempWrapper.innerHTML = `<p><br/></p>${tableHtml}`;
+      const fragment = document.createDocumentFragment();
+      while (tempWrapper.firstChild) {
+        fragment.appendChild(tempWrapper.firstChild);
+      }
+      if (currentTable.nextSibling) {
+        currentTable.parentNode.insertBefore(fragment, currentTable.nextSibling);
+      } else {
+        currentTable.parentNode.appendChild(fragment);
+      }
+      showToast('Inserted another table below existing table', 'info', 2000);
+    } else {
+      executeFormat('insertHTML', tableHtml);
+      showToast('Table inserted', 'info', 1500);
+    }
+
     setTimeout(() => {
       pushSnapshot();
       checkTableContext();
+      if (editorRef.current) setCustomCanvasHtml(editorRef.current.innerHTML);
     }, 50);
     setShowTableMenu(false);
   };
@@ -7452,112 +7485,259 @@ export default function StudentCertificateStudioView({
                     </button>
 
                     {showTableMenu && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className={`absolute right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 z-50 w-52 space-y-1.5 text-xs animate-fadeIn font-bold`}
-                    >
-                      {(activeTableContext || (editorRef.current && editorRef.current.querySelector('table'))) ? (
-                        <>
-                          <div className="px-2 py-0.5 text-[9px] font-black uppercase text-teal-600 dark:text-teal-400 border-b border-slate-100 dark:border-slate-800">
-                            Table Controls
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 w-64 space-y-2 animate-fadeIn"
+                      >
+                        {/* Segmented Mode Switcher */}
+                        <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => setTableMenuTab('insert')}
+                            className={`flex-1 py-1 px-1.5 text-[10px] font-black rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                              tableMenuTab === 'insert'
+                                ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-xs'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                          >
+                            <span>➕ Insert</span>
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => setTableMenuTab('edit')}
+                            className={`flex-1 py-1 px-1.5 text-[10px] font-black rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                              tableMenuTab === 'edit'
+                                ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-xs'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                          >
+                            <span>⚙️ Edit Table</span>
+                            {activeTableContext && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* ─── INSERT TAB ─── */}
+                        {tableMenuTab === 'insert' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between px-1">
+                              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Quick Presets</span>
+                              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-bold">1-Click</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => insertTable(2, 3)}
+                                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-teal-400 hover:bg-teal-50/60 dark:hover:bg-teal-950/40 text-left transition-all group cursor-pointer"
+                              >
+                                <div className="text-[10px] font-black text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-300">
+                                  3 × 2 Details
+                                </div>
+                                <div className="text-[8.5px] text-slate-400 font-mono">Standard 3 cols</div>
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => insertTable(3, 3)}
+                                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-teal-400 hover:bg-teal-50/60 dark:hover:bg-teal-950/40 text-left transition-all group cursor-pointer"
+                              >
+                                <div className="text-[10px] font-black text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-300">
+                                  3 × 3 Marks Grid
+                                </div>
+                                <div className="text-[8.5px] text-slate-400 font-mono">9 cells grid</div>
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => insertTable(2, 2)}
+                                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-teal-400 hover:bg-teal-50/60 dark:hover:bg-teal-950/40 text-left transition-all group cursor-pointer"
+                              >
+                                <div className="text-[10px] font-black text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-300">
+                                  2 × 2 Two Column
+                                </div>
+                                <div className="text-[8.5px] text-slate-400 font-mono">Compact layout</div>
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => insertTable(3, 4)}
+                                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-teal-400 hover:bg-teal-50/60 dark:hover:bg-teal-950/40 text-left transition-all group cursor-pointer"
+                              >
+                                <div className="text-[10px] font-black text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-300">
+                                  4 × 3 Subjects
+                                </div>
+                                <div className="text-[8.5px] text-slate-400 font-mono">Grades / Marks</div>
+                              </button>
+                            </div>
+
+                            {/* Custom Dimensions */}
+                            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                              <div className="flex items-center justify-between px-1">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Custom Dimensions</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700/70">
+                                <div className="flex-1 flex items-center justify-between bg-white dark:bg-slate-900 px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                  <span className="text-[9px] font-bold text-slate-500">Rows</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => setCustomTableRows(Math.max(1, customTableRows - 1))}
+                                      className="w-4 h-4 rounded flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="text-[10px] font-black w-3 text-center">{customTableRows}</span>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => setCustomTableRows(Math.min(15, customTableRows + 1))}
+                                      className="w-4 h-4 rounded flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                                <span className="text-slate-400 font-bold text-xs">×</span>
+                                <div className="flex-1 flex items-center justify-between bg-white dark:bg-slate-900 px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                  <span className="text-[9px] font-bold text-slate-500">Cols</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => setCustomTableCols(Math.max(1, customTableCols - 1))}
+                                      className="w-4 h-4 rounded flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="text-[10px] font-black w-3 text-center">{customTableCols}</span>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => setCustomTableCols(Math.min(10, customTableCols + 1))}
+                                      className="w-4 h-4 rounded flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => insertTable(customTableRows, customTableCols)}
+                                className="w-full py-1.5 px-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                              >
+                                <span>Insert {customTableCols} × {customTableRows} Table</span>
+                              </button>
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-1">
+                        )}
+
+                        {/* ─── EDIT TAB ─── */}
+                        {tableMenuTab === 'edit' && (
+                          <div className="space-y-1.5">
+                            {/* Prominent Action to insert another table directly below */}
                             <button
                               type="button"
                               onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { insertTableColumn(false); setShowTableMenu(false); }}
-                              className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
+                              onClick={() => insertTable(2, 3)}
+                              className="w-full py-1.5 px-2 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-200 border border-teal-300 dark:border-teal-700 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer"
                             >
-                              + Col Right
+                              <span>➕ Insert Another Table Below</span>
                             </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { insertTableColumn(true); setShowTableMenu(false); }}
-                              className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
-                            >
-                              + Col Left
-                            </button>
+
+                            {!activeTableContext && !editorRef.current?.querySelector('table') ? (
+                              <div className="p-3 text-center space-y-1.5">
+                                <div className="text-[10px] text-slate-500">No table in document yet.</div>
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => setTableMenuTab('insert')}
+                                  className="px-2.5 py-1 bg-teal-50 text-teal-700 text-[10px] font-bold rounded-lg border border-teal-200 hover:bg-teal-100"
+                                >
+                                  ➕ Insert a Table
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="px-1.5 py-0.5 text-[9px] font-black uppercase text-teal-600 dark:text-teal-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                  <span>Active Table Controls</span>
+                                  <span className="text-[8px] bg-teal-100 text-teal-800 px-1 py-0.2 rounded font-mono">
+                                    {activeTableContext?.totalCols || 3}C × {activeTableContext?.totalRows || 2}R
+                                  </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-1">
+                                  <button
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => { insertTableColumn(false); setShowTableMenu(false); }}
+                                    className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
+                                  >
+                                    + Col Right
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => { insertTableColumn(true); setShowTableMenu(false); }}
+                                    className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
+                                  >
+                                    + Col Left
+                                  </button>
+                                </div>
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { deleteTableColumn(); setShowTableMenu(false); }}
+                                  className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
+                                >
+                                  - Delete Col
+                                </button>
+                                <div className="grid grid-cols-2 gap-1">
+                                  <button
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => { insertTableRow(false); setShowTableMenu(false); }}
+                                    className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
+                                  >
+                                    + Row Below
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => { insertTableRow(true); setShowTableMenu(false); }}
+                                    className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
+                                  >
+                                    + Row Above
+                                  </button>
+                                </div>
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { deleteTableRow(); setShowTableMenu(false); }}
+                                  className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
+                                >
+                                  - Delete Row
+                                </button>
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { deleteEntireTable(); setShowTableMenu(false); }}
+                                  className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200 flex items-center justify-between"
+                                >
+                                  <span>🗑️ Delete Table</span>
+                                </button>
+                              </>
+                            )}
                           </div>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { deleteTableColumn(); setShowTableMenu(false); }}
-                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
-                          >
-                            - Delete Col
-                          </button>
-                          <div className="grid grid-cols-2 gap-1">
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { insertTableRow(false); setShowTableMenu(false); }}
-                              className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
-                            >
-                              + Row Below
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { insertTableRow(true); setShowTableMenu(false); }}
-                              className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
-                            >
-                              + Row Above
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { deleteTableRow(); setShowTableMenu(false); }}
-                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
-                          >
-                            - Delete Row
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { deleteEntireTable(); setShowTableMenu(false); }}
-                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200"
-                          >
-                            🗑️ Delete Table
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="px-2 py-1 text-[9px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                            Insert Table Preset
-                          </div>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { insertTable(2, 2); setShowTableMenu(false); }}
-                            className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
-                          >
-                            <span>2 × 2 Table</span>
-                            <span className="text-[9px] text-slate-400 font-mono">4 cells</span>
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { insertTable(2, 3); setShowTableMenu(false); }}
-                            className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
-                          >
-                            <span>2 × 3 Table</span>
-                            <span className="text-[9px] text-slate-400 font-mono">6 cells</span>
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { insertTable(3, 3); setShowTableMenu(false); }}
-                            className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
-                          >
-                            <span>3 × 3 Table</span>
-                            <span className="text-[9px] text-slate-400 font-mono">9 cells</span>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <button
