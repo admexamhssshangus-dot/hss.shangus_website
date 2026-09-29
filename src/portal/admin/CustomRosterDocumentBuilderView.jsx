@@ -4858,27 +4858,8 @@ export default function CustomRosterDocumentBuilderView({
             />
           </div>
 
-          {/* Desktop Actions: Setup Drawer Toggle, Separate Export Dropdown and Primary Print Button (visible on md+) */}
+          {/* Desktop Actions: Separate Export Dropdown and Primary Print Button (visible on md+) */}
           <div className="hidden md:flex items-center gap-1 sm:gap-1.5 ml-auto md:ml-0 shrink-0">
-            {/* Setup Drawer Toggle (Desktop) */}
-            <button
-              type="button"
-              onClick={() => {
-                const next = !showSettingsDrawer;
-                setShowSettingsDrawer(next);
-                if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
-              }}
-              className={`studio-compact-toolbar-btn px-2 sm:px-2.5 h-6.5 sm:h-7 rounded-md border text-[9.5px] sm:text-[10px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 shrink-0 ${
-                showSettingsDrawer
-                  ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 dark:border-amber-600 text-amber-900 dark:text-amber-200 shadow-sm'
-                  : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-400'
-              }`}
-              title="Configure Institutional Letterhead, Document Title & Attendance Setup"
-            >
-              <Sliders size={10} className={showSettingsDrawer ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'} />
-              <span>Setup</span>
-            </button>
-
             {/* Unified Export Dropdown (Excel & Word) */}
             <RosterExportDropdown
               onExportExcel={handleExportExcel}

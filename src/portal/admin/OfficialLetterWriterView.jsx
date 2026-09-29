@@ -651,20 +651,19 @@ export default function OfficialLetterWriterView({
     pushSnapshot();
     editorRef.current.focus();
 
+    // 1. Unconditionally restore activeRange into selection
+    const sel = window.getSelection();
+    const activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel && editorRef.current.contains(activeRange.commonAncestorContainer)) {
+      try {
+        sel.removeAllRanges();
+        sel.addRange(activeRange);
+      } catch {}
+    }
+
     try {
       document.execCommand('styleWithCSS', false, true);
     } catch {}
-
-    const sel = window.getSelection();
-    const activeRange = savedRangeRef.current || savedRange;
-    if (activeRange && sel) {
-      try {
-        if (sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) {
-          sel.removeAllRanges();
-          sel.addRange(activeRange);
-        }
-      } catch {}
-    }
 
     try {
       if (command === 'formatBlock') {
@@ -705,6 +704,7 @@ export default function OfficialLetterWriterView({
       console.warn('Formatting command error:', err);
     }
     saveCurrentSelection();
+    handleEditorInput();
     setTimeout(() => {
       pushSnapshot();
       checkTableContext();
@@ -712,30 +712,25 @@ export default function OfficialLetterWriterView({
     }, 50);
   };
 
-  // Instantaneous Text Color Application with CSS styling & smart selection recovery
+  // Instantaneous Text Color Application with CSS styling, font conversion & smart selection recovery
   const applyTextColor = (color) => {
     if (!editorRef.current) return;
     pushSnapshot();
     editorRef.current.focus();
 
-    // 1. Enable CSS inline styles so color overrides all parent CSS classes immediately
-    try {
-      document.execCommand('styleWithCSS', false, true);
-    } catch {}
-
-    // 2. Restore saved selection if shifted or blurred
+    // 1. Restore saved selection unconditionally
     const sel = window.getSelection();
-    const activeRange = savedRangeRef.current || savedRange;
-    if (activeRange && sel) {
+    let activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel && editorRef.current.contains(activeRange.commonAncestorContainer)) {
       try {
-        if (sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) {
-          sel.removeAllRanges();
-          sel.addRange(activeRange);
-        }
-      } catch {}
+        sel.removeAllRanges();
+        sel.addRange(activeRange);
+      } catch (err) {
+        console.warn('Could not restore selection range:', err);
+      }
     }
 
-    // 3. If selection is collapsed inside text, auto-expand to word under cursor
+    // 2. If selection is collapsed inside text, auto-expand to word under cursor
     if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
       if (range.collapsed && editorRef.current.contains(range.startContainer)) {
@@ -752,26 +747,69 @@ export default function OfficialLetterWriterView({
             wordRange.setEnd(node, end);
             sel.removeAllRanges();
             sel.addRange(wordRange);
+            activeRange = wordRange;
           }
         }
       }
     }
 
-    // 4. Apply text color command
+    // 3. Enable styleWithCSS so colors are applied as inline styles
     try {
-      const ok = document.execCommand('foreColor', false, color);
-      if (!ok) {
+      document.execCommand('styleWithCSS', false, true);
+    } catch {}
+
+    // 4. Apply text color command with fallback
+    let applied = false;
+    try {
+      applied = document.execCommand('foreColor', false, color);
+      if (!applied) {
         document.execCommand('styleWithCSS', false, false);
-        document.execCommand('foreColor', false, color);
+        applied = document.execCommand('foreColor', false, color);
       }
     } catch (err) {
       console.warn('Text color command error:', err);
     }
 
+    // 5. Convert any generated <font color="..."> elements to <span style="color: ...">
+    if (editorRef.current) {
+      const fontTags = editorRef.current.querySelectorAll('font[color]');
+      fontTags.forEach(f => {
+        const span = document.createElement('span');
+        const cVal = f.getAttribute('color') || color;
+        span.style.color = cVal;
+        span.innerHTML = f.innerHTML;
+        if (f.parentNode) {
+          f.parentNode.replaceChild(span, f);
+        }
+        applied = true;
+      });
+    }
+
+    // 6. Direct DOM wrap fallback if range is non-collapsed and execCommand didn't wrap it
+    if (!applied && sel && sel.rangeCount > 0) {
+      const currentRange = sel.getRangeAt(0);
+      if (!currentRange.collapsed && editorRef.current.contains(currentRange.commonAncestorContainer)) {
+        try {
+          const span = document.createElement('span');
+          span.style.color = color;
+          span.appendChild(currentRange.extractContents());
+          currentRange.insertNode(span);
+          const newRange = document.createRange();
+          newRange.selectNodeContents(span);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        } catch (domErr) {
+          console.warn('Direct DOM wrap fallback error:', domErr);
+        }
+      }
+    }
+
     saveCurrentSelection();
+    handleEditorInput();
     setTimeout(() => {
       pushSnapshot();
       checkTableContext();
+      checkActiveFormats();
     }, 50);
     showToast(`Color applied (${color})`, 'info', 1500);
   };
@@ -2685,6 +2723,7 @@ export default function OfficialLetterWriterView({
 
                     {showColorMenu && (
                       <div
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={(e) => e.stopPropagation()}
                         className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 flex items-center gap-1.5 animate-fadeIn"
                       >

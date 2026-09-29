@@ -1489,6 +1489,7 @@ export default function StudentCertificateStudioView({
   });
 
   // ─── Gemini AI Assistant State ───
+  const [activeRightTab, setActiveRightTab] = useState('templates'); // 'templates' | 'ai'
   const [showAiModal, setShowAiModal] = useState(false);
   const [showAskGeminiMenu, setShowAskGeminiMenu] = useState(false);
   const [aiMode, setAiMode] = useState('draft'); // 'draft' | 'humanize' | 'formalize' | 'shorten'
@@ -3110,20 +3111,19 @@ export default function StudentCertificateStudioView({
     pushSnapshot();
     editorRef.current.focus();
 
+    // 1. Unconditionally restore activeRange into selection
+    const sel = window.getSelection();
+    const activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel && editorRef.current.contains(activeRange.commonAncestorContainer)) {
+      try {
+        sel.removeAllRanges();
+        sel.addRange(activeRange);
+      } catch {}
+    }
+
     try {
       document.execCommand('styleWithCSS', false, true);
     } catch {}
-
-    const sel = window.getSelection();
-    const activeRange = savedRangeRef.current || savedRange;
-    if (activeRange && sel) {
-      try {
-        if (sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) {
-          sel.removeAllRanges();
-          sel.addRange(activeRange);
-        }
-      } catch {}
-    }
 
     try {
       if (command === 'formatBlock') {
@@ -3174,30 +3174,25 @@ export default function StudentCertificateStudioView({
     }, 50);
   };
 
-  // Instantaneous Text Color Application with CSS styling & smart selection recovery
+  // Instantaneous Text Color Application with CSS styling, font conversion & smart selection recovery
   const applyTextColor = (color) => {
     if (!editorRef.current) return;
     pushSnapshot();
     editorRef.current.focus();
 
-    // 1. Enable CSS inline styles so color overrides all parent CSS classes immediately
-    try {
-      document.execCommand('styleWithCSS', false, true);
-    } catch {}
-
-    // 2. Restore saved selection if shifted or blurred
+    // 1. Restore saved selection unconditionally
     const sel = window.getSelection();
-    const activeRange = savedRangeRef.current || savedRange;
-    if (activeRange && sel) {
+    let activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel && editorRef.current.contains(activeRange.commonAncestorContainer)) {
       try {
-        if (sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) {
-          sel.removeAllRanges();
-          sel.addRange(activeRange);
-        }
-      } catch {}
+        sel.removeAllRanges();
+        sel.addRange(activeRange);
+      } catch (err) {
+        console.warn('Could not restore selection range:', err);
+      }
     }
 
-    // 3. If selection is collapsed inside text, auto-expand to word under cursor
+    // 2. If selection is collapsed inside text, auto-expand to word under cursor
     if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
       if (range.collapsed && editorRef.current.contains(range.startContainer)) {
@@ -3214,23 +3209,64 @@ export default function StudentCertificateStudioView({
             wordRange.setEnd(node, end);
             sel.removeAllRanges();
             sel.addRange(wordRange);
+            activeRange = wordRange;
           }
         }
       }
     }
 
-    // 4. Apply text color command
+    // 3. Enable styleWithCSS so colors are applied as inline styles
     try {
-      const ok = document.execCommand('foreColor', false, color);
-      if (!ok) {
+      document.execCommand('styleWithCSS', false, true);
+    } catch {}
+
+    // 4. Apply text color command with fallback
+    let applied = false;
+    try {
+      applied = document.execCommand('foreColor', false, color);
+      if (!applied) {
         document.execCommand('styleWithCSS', false, false);
-        document.execCommand('foreColor', false, color);
+        applied = document.execCommand('foreColor', false, color);
       }
     } catch (err) {
       console.warn('Text color command error:', err);
     }
 
-    // 5. Update canvas state immediately
+    // 5. Convert any generated <font color="..."> elements to <span style="color: ...">
+    if (editorRef.current) {
+      const fontTags = editorRef.current.querySelectorAll('font[color]');
+      fontTags.forEach(f => {
+        const span = document.createElement('span');
+        const cVal = f.getAttribute('color') || color;
+        span.style.color = cVal;
+        span.innerHTML = f.innerHTML;
+        if (f.parentNode) {
+          f.parentNode.replaceChild(span, f);
+        }
+        applied = true;
+      });
+    }
+
+    // 6. Direct DOM wrap fallback if range is non-collapsed and execCommand didn't wrap it
+    if (!applied && sel && sel.rangeCount > 0) {
+      const currentRange = sel.getRangeAt(0);
+      if (!currentRange.collapsed && editorRef.current.contains(currentRange.commonAncestorContainer)) {
+        try {
+          const span = document.createElement('span');
+          span.style.color = color;
+          span.appendChild(currentRange.extractContents());
+          currentRange.insertNode(span);
+          const newRange = document.createRange();
+          newRange.selectNodeContents(span);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        } catch (domErr) {
+          console.warn('Direct DOM wrap fallback error:', domErr);
+        }
+      }
+    }
+
+    // 7. Update canvas state immediately
     if (editorRef.current) {
       setCustomCanvasHtml(editorRef.current.innerHTML);
     }
@@ -3238,6 +3274,7 @@ export default function StudentCertificateStudioView({
     setTimeout(() => {
       pushSnapshot();
       checkTableContext();
+      checkActiveFormats();
     }, 50);
     showToast(`Color applied (${color})`, 'info', 1500);
   };
@@ -4879,127 +4916,381 @@ export default function StudentCertificateStudioView({
             )}
           </div>
 
-          {/* TEMPLATE SELECTOR & PRESETS DROPDOWN */}
-          <div className="space-y-1.5 shrink-0 pt-1.5 border-t border-slate-200/80 dark:border-slate-800">
-            <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500">
-              <span className="flex items-center gap-1">
-                <Sparkles size={10} className="text-teal-600 dark:text-teal-400" />
-                <span>Certificate Template ({allTemplatesList.length})</span>
+          {/* Top Segmented Tab Switcher (Templates vs Gemini AI) */}
+          <div className="flex items-center justify-between p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0 pt-1 border-t border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveRightTab('templates')}
+                className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                  activeRightTab === 'templates'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Sparkles size={11} className="text-teal-600 dark:text-teal-400" />
+                <span>Templates ({allTemplatesList.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveRightTab('ai')}
+                className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                  activeRightTab === 'ai'
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-2xs'
+                    : 'text-purple-700 dark:text-purple-300 hover:bg-purple-100/50 dark:hover:bg-purple-950/50'
+                }`}
+              >
+                <Bot size={11} />
+                <span>✨ Gemini AI</span>
+              </button>
+            </div>
+
+            {activeRightTab === 'ai' && (
+              <span className="px-2 py-0.5 rounded text-[8.5px] font-black border bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border-emerald-300 flex items-center gap-1" title="Gemini credentials are held only by the server">
+                <Shield size={9} />
+                Server secured
               </span>
+            )}
+          </div>
 
-              {/* Action Buttons: Duplicate & Overwrite (if custom) */}
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || allTemplatesList[0];
-                    if (activeTpl) handleDuplicateTemplate(activeTpl, e);
+          {/* TAB 1: GEMINI AI ASSISTANT (INLINE SIDEBAR PANEL) */}
+          {activeRightTab === 'ai' && (
+            <div className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/60 rounded-xl p-2.5 shadow-2xs space-y-2 animate-fadeIn text-xs">
+              {/* API Keys Configuration Drawer */}
+              {showKeysConfig && (
+                <div className="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-1.5 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <label className="font-black text-[10px] text-amber-950 dark:text-amber-200 flex items-center gap-1">
+                      <Key size={11} className="text-amber-600" />
+                      <span>Gemini API Key Pool:</span>
+                    </label>
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[9.5px] text-amber-800 dark:text-amber-400 font-extrabold hover:underline flex items-center gap-0.5"
+                    >
+                      <span>Free Key</span>
+                      <ExternalLink size={9} />
+                    </a>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={keysInputText}
+                    onChange={(e) => setKeysInputText(e.target.value)}
+                    placeholder="Paste API key here"
+                    className="w-full px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[10.5px] text-slate-900 dark:text-slate-100"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-amber-800 dark:text-amber-300">
+                      {keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length} keys detected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSaveKeys}
+                      className="px-2.5 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] cursor-pointer"
+                    >
+                      Save Keys
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Compact Mode Selector Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+                {[
+                  { id: 'draft', label: '✍️ Draft' },
+                  { id: 'humanize', label: '🪄 Polish' },
+                  { id: 'formalize', label: '📜 Formalize' },
+                  { id: 'shorten', label: '✂️ Shorten' }
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => { setAiMode(m.id); setAiGeneratedHtml(''); setAiError(''); }}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap cursor-pointer transition-all border ${
+                      aiMode === m.id
+                        ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-purple-50'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Prompt Input */}
+              <div className="space-y-1">
+                <textarea
+                  rows={4}
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder={
+                    aiMode === 'draft'
+                      ? 'What should this certificate certify? (e.g. Certify student passed Class 11th with distinction and displayed exemplary conduct)'
+                      : 'Additional refinement notes or instructions (optional)'
+                  }
+                  className="w-full px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-medium text-xs text-slate-900 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 resize-y min-h-[85px]"
+                />
+
+                {/* Quick Suggestion Chips */}
+                {aiMode === 'draft' && (
+                  <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+                    {[
+                      'Scholarship Bonafide',
+                      'Exemplary Conduct',
+                      'Provisional Passing',
+                      'Migration NOC',
+                      'Sports Merit'
+                    ].map((sug, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setAiPrompt(sug)}
+                        className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-purple-50 text-slate-600 dark:text-slate-300 text-[8.5px] font-bold border border-slate-200 dark:border-slate-700 shrink-0 cursor-pointer"
+                      >
+                        + {sug}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Model & Tone Selectors */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Model</label>
+                  <select
+                    value={aiModel}
+                    onChange={(e) => setAiModel(e.target.value)}
+                    className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
+                  >
+                    {AVAILABLE_GEMINI_MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name.split(' (')[0]}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-500 mb-0.5">Tone</label>
+                  <select
+                    value={aiTone}
+                    onChange={(e) => setAiTone(e.target.value)}
+                    className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-[10px]"
+                  >
+                    <option value="Formal School">Formal Academic</option>
+                    <option value="Dignified & Prestigious">Commendatory</option>
+                    <option value="Meritorious">Meritorious</option>
+                    <option value="Standard Official">Standard Official</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Generate AI Button */}
+              <button
+                type="button"
+                disabled={isGeneratingAi}
+                onClick={handleGenerateAi}
+                className="w-full py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black text-xs cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all"
+              >
+                {isGeneratingAi ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>Drafting with Gemini AI...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={12} className="text-amber-200" />
+                    <span>{aiMode === 'draft' ? 'Generate Certificate Text' : 'Refine Certificate Wording'}</span>
+                  </>
+                )}
+              </button>
+
+              {/* Error Banner */}
+              {aiError && (
+                <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-[10px] flex items-center gap-1.5">
+                  <AlertCircle size={12} className="shrink-0 text-rose-600" />
+                  <span>{aiError}</span>
+                </div>
+              )}
+
+              {/* Generated Result Preview Card & Real-Time Live Insertion */}
+              {aiGeneratedHtml && (
+                <div className="space-y-1.5 pt-2 border-t border-purple-200 dark:border-purple-900/60 animate-fadeIn">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                      <Check size={12} />
+                      <span>Certificate Draft Ready</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAiGeneratedHtml('')}
+                      className="text-slate-400 hover:text-slate-600 text-[9px] font-bold"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+
+                  <div
+                    className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-purple-200 dark:border-purple-800 text-[10.5px] leading-relaxed max-h-40 overflow-y-auto font-serif"
+                    dangerouslySetInnerHTML={{ __html: aiGeneratedHtml }}
+                  />
+
+                  <div className="grid grid-cols-3 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyAiContent('replace')}
+                      className="px-2 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-black text-[9.5px] cursor-pointer shadow-2xs"
+                      title="Replace current certificate body with this generated text"
+                    >
+                      Replace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyAiContent('append')}
+                      className="px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9.5px] cursor-pointer shadow-2xs"
+                      title="Append this text to the end of the certificate"
+                    >
+                      Append
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyAiContent('insert')}
+                      className="px-2 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-black text-[9.5px] cursor-pointer shadow-2xs"
+                      title="Insert at current cursor position"
+                    >
+                      Insert
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: TEMPLATE SELECTOR & PRESETS DROPDOWN */}
+          {activeRightTab === 'templates' && (
+            <div className="space-y-1.5 shrink-0 pt-1.5 animate-fadeIn">
+              <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500">
+                <span className="flex items-center gap-1">
+                  <Sparkles size={10} className="text-teal-600 dark:text-teal-400" />
+                  <span>Certificate Template ({allTemplatesList.length})</span>
+                </span>
+
+                {/* Action Buttons: Duplicate & Overwrite (if custom) */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || allTemplatesList[0];
+                      if (activeTpl) handleDuplicateTemplate(activeTpl, e);
+                    }}
+                    className="px-2 py-0.5 rounded text-[9.5px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                    title="Duplicate current template into new custom preset"
+                  >
+                    <Copy size={10} />
+                    <span>Duplicate</span>
+                  </button>
+
+                  {(() => {
+                    const cur = allTemplatesList.find(t => t.id === selectedTemplateId);
+                    return cur?.isCustom ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTemplateSaveMode('update');
+                          setShowSaveTemplateModal(true);
+                        }}
+                        className="px-2 py-0.5 rounded text-[9.5px] font-black border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-100 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                        title="Overwrite this custom template in Cloud"
+                      >
+                        <Save size={10} />
+                        <span>Overwrite</span>
+                      </button>
+                    ) : null;
+                  })()}
+                </div>
+              </div>
+
+              {/* Template Select Dropdown with Classified optgroups */}
+              <div>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => {
+                    const target = allTemplatesList.find(t => t.id === e.target.value);
+                    if (target) handleSelectTemplate(target);
                   }}
-                  className="px-2 py-0.5 rounded text-[9.5px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-                  title="Duplicate current template into new custom preset"
+                  className="w-full p-2 rounded-lg border border-teal-300 dark:border-teal-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-2xs"
                 >
-                  <Copy size={10} />
-                  <span>Duplicate</span>
-                </button>
+                  {/* Builtin Classified Categories */}
+                  {Array.from(new Set(allTemplatesList.filter(t => !t.isCustom).map(t => t.category || 'General Certificates'))).map(cat => (
+                    <optgroup key={cat} label={`📂 ${cat}`}>
+                      {allTemplatesList
+                        .filter(t => !t.isCustom && (t.category || 'General Certificates') === cat)
+                        .map(tpl => (
+                          <option key={tpl.id} value={tpl.id}>
+                            {tpl.name} {defaultTemplateId === tpl.id ? '⭐ (Default)' : ''}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
 
+                  {/* Custom Presets Group */}
+                  {customTemplates.length > 0 && (
+                    <optgroup label="✨ Custom Saved Presets">
+                      {customTemplates.map(tpl => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.name} ★ {defaultTemplateId === tpl.id ? '⭐ (Default)' : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+
+                {(() => {
+                  const cur = allTemplatesList.find(t => t.id === selectedTemplateId);
+                  return cur?.category ? (
+                    <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 mt-1 px-0.5">
+                      <span className="font-semibold text-teal-800 dark:text-teal-300">{cur.category}</span>
+                      {cur.isCustom && <span className="font-mono text-[8px] bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 px-1 rounded border border-teal-200 dark:border-teal-800">Custom Cloud Preset</span>}
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+
+              {/* Actions Bar: Set Default & Delete */}
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-[9.5px]">
+                <div>
+                  {defaultTemplateId !== selectedTemplateId ? (
+                    <button
+                      type="button"
+                      onClick={(e) => handleSetDefaultTemplate(selectedTemplateId, e)}
+                      className="text-amber-700 dark:text-amber-400 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <span>⭐ Set as Default</span>
+                    </button>
+                  ) : (
+                    <span className="text-amber-600 font-bold flex items-center gap-0.5">
+                      <span>⭐ Active Default</span>
+                    </span>
+                  )}
+                </div>
                 {(() => {
                   const cur = allTemplatesList.find(t => t.id === selectedTemplateId);
                   return cur?.isCustom ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        setTemplateSaveMode('update');
-                        setShowSaveTemplateModal(true);
-                      }}
-                      className="px-2 py-0.5 rounded text-[9.5px] font-black border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 hover:bg-amber-100 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-                      title="Overwrite this custom template in Cloud"
+                      onClick={(e) => handleDeleteCustomTemplate(cur, e)}
+                      className="text-rose-600 dark:text-rose-400 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
                     >
-                      <Save size={10} />
-                      <span>Overwrite</span>
+                      <Trash2 size={10} />
+                      <span>Delete Custom</span>
                     </button>
                   ) : null;
                 })()}
               </div>
             </div>
-
-            {/* Template Select Dropdown with Classified optgroups */}
-            <div>
-              <select
-                value={selectedTemplateId}
-                onChange={(e) => {
-                  const target = allTemplatesList.find(t => t.id === e.target.value);
-                  if (target) handleSelectTemplate(target);
-                }}
-                className="w-full p-2 rounded-lg border border-teal-300 dark:border-teal-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-2xs"
-              >
-                {/* Builtin Classified Categories */}
-                {Array.from(new Set(allTemplatesList.filter(t => !t.isCustom).map(t => t.category || 'General Certificates'))).map(cat => (
-                  <optgroup key={cat} label={`📂 ${cat}`}>
-                    {allTemplatesList
-                      .filter(t => !t.isCustom && (t.category || 'General Certificates') === cat)
-                      .map(tpl => (
-                        <option key={tpl.id} value={tpl.id}>
-                          {tpl.name} {defaultTemplateId === tpl.id ? '⭐ (Default)' : ''}
-                        </option>
-                      ))}
-                  </optgroup>
-                ))}
-
-                {/* Custom Presets Group */}
-                {customTemplates.length > 0 && (
-                  <optgroup label="✨ Custom Saved Presets">
-                    {customTemplates.map(tpl => (
-                      <option key={tpl.id} value={tpl.id}>
-                        {tpl.name} ★ {defaultTemplateId === tpl.id ? '⭐ (Default)' : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-
-              {(() => {
-                const cur = allTemplatesList.find(t => t.id === selectedTemplateId);
-                return cur?.category ? (
-                  <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 mt-1 px-0.5">
-                    <span className="font-semibold text-teal-800 dark:text-teal-300">{cur.category}</span>
-                    {cur.isCustom && <span className="font-mono text-[8px] bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 px-1 rounded border border-teal-200 dark:border-teal-800">Custom Cloud Preset</span>}
-                  </div>
-                ) : null;
-              })()}
-            </div>
-
-            {/* Actions Bar: Set Default & Delete */}
-            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-[9.5px]">
-              <div>
-                {defaultTemplateId !== selectedTemplateId ? (
-                  <button
-                    type="button"
-                    onClick={(e) => handleSetDefaultTemplate(selectedTemplateId, e)}
-                    className="text-amber-700 dark:text-amber-400 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <span>⭐ Set as Default</span>
-                  </button>
-                ) : (
-                  <span className="text-amber-600 font-bold flex items-center gap-0.5">
-                    <span>⭐ Active Default</span>
-                  </span>
-                )}
-              </div>
-              {(() => {
-                const cur = allTemplatesList.find(t => t.id === selectedTemplateId);
-                return cur?.isCustom ? (
-                  <button
-                    type="button"
-                    onClick={(e) => handleDeleteCustomTemplate(cur, e)}
-                    className="text-rose-600 dark:text-rose-400 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <Trash2 size={10} />
-                    <span>Delete Custom</span>
-                  </button>
-                ) : null;
-              })()}
-            </div>
-          </div>
+          )}
     </div>
   );
 
@@ -6914,73 +7205,7 @@ export default function StudentCertificateStudioView({
                   )}
                 </div>
 
-                {/* Purple Gemini AI Assistant Button & Menu */}
-                <div className="relative" ref={askGeminiMenuRef}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowAskGeminiMenu(prev => !prev);
-                      setShowInsertFieldDropdown(false);
-                    }}
-                    className="h-7 px-2 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer transition-all active:scale-95"
-                    title="Gemini AI Certificate Assistant (Draft, Polish, Formalize, Shorten)"
-                  >
-                    <Sparkles size={11} className="text-amber-200" />
-                    <span>AI Assist</span>
-                    <ChevronDown size={9} className="text-white/80" />
-                  </button>
 
-                  {showAskGeminiMenu && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className={`absolute right-0 top-full mt-1.5 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[999999] p-1.5 space-y-1 text-xs font-bold animate-fadeIn`}
-                    >
-                      <div className="px-2 py-1 text-[8.5px] font-black uppercase text-purple-600 dark:text-purple-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <span className="flex items-center gap-1">
-                          <Sparkles size={10} className="text-purple-600" />
-                          <span>Gemini AI Assistant</span>
-                        </span>
-                        <span className="text-[7.5px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">secure server</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { handleOpenAiModal('draft'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-2 cursor-pointer text-[10.5px]"
-                      >
-                        <Bot size={13} className="text-purple-600 dark:text-purple-400 shrink-0" />
-                        <span>Draft Certificate with AI</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { handleOpenAiModal('humanize'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-2 cursor-pointer text-[10.5px]"
-                      >
-                        <Sparkles size={13} className="text-purple-600 dark:text-purple-400 shrink-0" />
-                        <span>Polish & Humanize</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { handleOpenAiModal('formalize'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 flex items-center gap-2 cursor-pointer text-[10.5px]"
-                      >
-                        <FileText size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-                        <span>Formalize Terms</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { handleOpenAiModal('shorten'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 flex items-center gap-2 cursor-pointer text-[10.5px]"
-                      >
-                        <Scissors size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span>Shorten Wording</span>
-                      </button>
-                      <div className="pt-1 border-t border-slate-100 dark:border-slate-800 px-2 py-1 text-[9.5px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                        <Shield size={9} /> Server-secured AI
-                      </div>
-                    </div>
-                  )}
-                </div>
 
                 {/* Save As New Template */}
                 <button
@@ -7120,6 +7345,7 @@ export default function StudentCertificateStudioView({
 
                     {showColorMenu && (
                       <div
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={(e) => e.stopPropagation()}
                         className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 flex items-center gap-1.5 animate-fadeIn"
                       >

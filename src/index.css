@@ -2450,7 +2450,7 @@ img {
 [contenteditable="true"] h1 {
   font-size: 1.35rem !important;
   font-weight: 900 !important;
-  color: #0f172a !important;
+  color: #0f172a;
   margin: 0.75rem 0 0.4rem 0 !important;
   line-height: 1.3 !important;
   letter-spacing: -0.015em !important;
@@ -2462,7 +2462,7 @@ img {
 [contenteditable="true"] h2 {
   font-size: 1.15rem !important;
   font-weight: 800 !important;
-  color: #1e293b !important;
+  color: #1e293b;
   margin: 0.6rem 0 0.35rem 0 !important;
   line-height: 1.35 !important;
   letter-spacing: -0.01em !important;
@@ -2474,7 +2474,7 @@ img {
 [contenteditable="true"] h3 {
   font-size: 1.05rem !important;
   font-weight: 700 !important;
-  color: #334155 !important;
+  color: #334155;
   margin: 0.5rem 0 0.3rem 0 !important;
   line-height: 1.4 !important;
   display: block !important;
@@ -2515,7 +2515,7 @@ img {
 [contenteditable="true"] blockquote {
   border-left: 3.5px solid #cbd5e1 !important;
   padding-left: 0.75rem !important;
-  color: #475569 !important;
+  color: #475569;
   font-style: italic !important;
   margin: 0.5rem 0 !important;
 }
@@ -2528,5 +2528,17 @@ img {
   margin: 0.75rem 0 !important;
 }
 
+/* Ensure font[color] tags and inline color spans always apply cleanly across contenteditable areas */
+font[color="#0f172a"], [color="#0f172a"] { color: #0f172a !important; }
+font[color="#800000"], [color="#800000"] { color: #800000 !important; }
+font[color="#0a192f"], [color="#0a192f"] { color: #0a192f !important; }
+font[color="#065f46"], [color="#065f46"] { color: #065f46 !important; }
+font[color="#475569"], [color="#475569"] { color: #475569 !important; }
+font[color="#dc2626"], [color="#dc2626"] { color: #dc2626 !important; }
 
-
+/* Ensure inline color spans take priority inside contenteditable editors */
+.doc-studio-wysiwyg-body [style*="color"],
+.official-letter-wysiwyg-content [style*="color"],
+[contenteditable="true"] [style*="color"] {
+  -webkit-text-fill-color: initial;
+}

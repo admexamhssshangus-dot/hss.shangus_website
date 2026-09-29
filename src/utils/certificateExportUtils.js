@@ -1801,7 +1801,7 @@ export function printStudentCertificate({
     }
 
     .body-text-col strong {
-      color: #0a192f;
+      color: inherit;
       font-weight: 700;
       font-family: 'Lora', 'Merriweather', Georgia, serif;
     }
@@ -2694,7 +2694,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .body-text-col strong {
-      color: #0a192f;
+      color: inherit;
       font-weight: 700;
       font-family: 'Lora', 'Merriweather', Georgia, serif;
     }
