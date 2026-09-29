@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, ChevronDown, Wrench, Sliders, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Lock, ChevronDown, Wrench, Sliders, ArrowLeft } from 'lucide-react';
 import SEO from '../../components/SEO';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown, { ADMIN_TOOL_MODULES, isUserPermittedForModule } from './AdminToolsDropdown';
@@ -653,21 +653,8 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Right Slot: On-Demand Cloud Sync + Setup Button + Admin Tools Dropdown Button */}
+                {/* Right Slot: Setup Button + Admin Tools Dropdown Button */}
                 <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 ml-auto">
-                  {/* On-Demand Cloud Sync Button (For modules that require live data refresh, hidden in Document/Roster Studio where redundant) */}
-                  {ADMISSIONS_DATA_TABS.has(activeTab) && !['customRoster', 'docStudio', 'roster'].includes(activeTab) && (
-                    <button
-                      type="button"
-                      onClick={() => loadAdminData(true, { progressive: true })}
-                      disabled={isSyncing || loading}
-                      className="flex h-6 sm:h-7 items-center gap-1 px-1.5 sm:px-2 rounded sm:rounded-lg border border-teal-300 dark:border-teal-700 bg-teal-50/70 dark:bg-teal-950/50 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-200 transition-all cursor-pointer shadow-2xs font-bold text-[9.5px] sm:text-xs shrink-0 disabled:opacity-60 active:scale-95"
-                      title="Sync and refresh data from cloud database"
-                    >
-                      <RefreshCw size={11} className={`${isSyncing ? 'animate-spin text-teal-600' : 'text-teal-700 dark:text-teal-300'}`} />
-                      <span className="hidden md:inline font-bold">Sync</span>
-                    </button>
-                  )}
 
                   {/* Setup / Configuration Button (Shown on sm+ screens; each module has its own focused mobile setup) */}
                   {(activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate' || activeTab === 'customRoster' || activeTab === 'docStudio') && (
