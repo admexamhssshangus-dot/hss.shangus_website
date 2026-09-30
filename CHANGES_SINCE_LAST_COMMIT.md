@@ -2,64 +2,52 @@
 
 ## Current Working Changes
 
-### 1. Multi-Select Cohort Checkbox Filters & Full Student Identity Display
-- **User Requests Addressed:**
-  - *"why all labels not not shown like class, name, session etc..."*
-  - *"and why shows 386 instead of 399 overwrite for class 11th and 12th....."*
-  - *"morever all check box drop down to chose custom filter"*
-  - *".see two modules seems to be not needed now as integrated into Analytics & Statistical Reports Suite....if already addressed then ignore"*
-- **Context & Root Cause Analysis:**
-  1. **Missing Student Labels (Name, Class, Session, Stream, Roll, Parentage):**
-     - In `BulkFieldOverwriteModal.jsx`, the preview table cell only looked for `st.studentName || st["Student's Name"]` and `st.selectedClass || st.Class`.
-     - In the institutional database, student records often store these attributes under `"Student's Name (as per school records)"`, `className`, `"Admission sought for class"`, `classRollNo`, etc.
-     - Father's name, session, stream, and roll number were omitted from the table cell entirely.
-  2. **386 vs 399/400 Overwrite Discrepancy:**
-     - The cohort filter previously used a single `<select>` HTML element restricted to one class at a time (e.g. `11th`).
-     - Uploading a combined 400-row spreadsheet for both Class 11th and Class 12th resulted in 8 Class 12th students failing `sameCohort()`, getting classified as `8 Out of Cohort` with disabled checkboxes.
-     - Out-of-cohort matches did not attach `matchedStudent`, so their diffs were never calculated.
-     - 6 records failed to match because `rawReg` and `cleanReg` missed aliases such as `Registration No. (allotted by JKBOSE)` or had floating `.0` suffixes from Excel numeric formatting (`386 + 8 + 6 = 400`).
-  3. **Custom Filter Request:**
-     - The user requested checkbox dropdowns for Cohort filtering so multiple classes (e.g. 11th and 12th together) can be selected simultaneously.
-  4. **Redundant Launcher Module:**
-     - `jkboseSubjectRolls` was present as a standalone launcher module in the navigation menu while already integrated into `Analytics & Statistical Reports Suite`.
+### 1. Fix Student Pool Deduplication & On-Demand Ingestion for Class 11th and 12th
+- **User Request Addressed:**
+  - *"seems not to show all approved students for 11th and 12th that may cause issue in import data"*
+  - In the Student Data & Board Ingestion Hub (`BulkFieldOverwriteModal.jsx`), selecting Class 12th for Session 2025-26 (Approved) previously showed only 189 students, and Class 11th showed only 190 students.
+  - This count deficit caused legitimate enrolled students to be omitted during batch spreadsheet import/overwrite or flagged as out-of-cohort/unmatched.
+
+- **Root Cause Analysis:**
+  1. **Premature Record Suppression in `buildUniversalPool`:**
+     - Many students submit an initial unassigned draft/form before being officially allotted an assigned Class Roll Number on their approved application.
+     - `buildUniversalPool` iterated over student records in linear order, encountering the preliminary unassigned draft first and registering its name in `seenNames` or `seenForms`.
+     - When the official application with the assigned Class Roll Number and Approved status was subsequently reached, `seenNames.has(...)` returned true, causing `buildUniversalPool` to drop the approved record!
+     - As a result, the student remained in the pool with `classRollNo: ''` and status `'Submitted'`, causing them to be excluded when filtering by `'Approved'`.
+  2. **Non-Prioritized Pool Assembly:**
+     - `buildUniversalPool` did not sort incoming records before deduplication. Records with verified assigned roll numbers were not prioritized over blank drafts.
+  3. **Narrow Status Evaluator:**
+     - The component used a localized `getEffectiveStatus` function rather than the authoritative `resolveStudentAdmissionStatus` and `hasAssignedClassRollNumber` from `src/utils/studentApprovalStatus.js`.
+  4. **Missing On-Demand Session Hydration:**
+     - `BulkFieldOverwriteModal` previously relied solely on in-memory `allStudents` passed via props or synchronous cache. If full session records in Firestore were not pre-cached, background hydration was skipped.
+  5. **Session String Matching Discrepancies:**
+     - `isStudentInSelectedCohort` relied on simple string inclusion (`stSess.includes(sess)`) rather than the flexible `isStudentInSession(st, sess)` from `src/utils/studentDataFetcher.js`.
 
 - **Key Implementations:**
-  1. **Authoritative Student Extractors (`BulkFieldOverwriteModal.jsx`)**:
-     - `getStudentDisplayName(st)`: Unified lookup across 10+ student name keys (`"Student's Name (as per school records)"`, `studentName`, `name`, `Candidate Name`, etc.).
-     - `getStudentDisplayFather(st)`: Unified lookup across `"Father's/Guardian's Name (as per school records)"`, `fatherName`, `parentName`, `parentage`, etc.
-     - `getStudentDisplayClass(st)`: Resolves `selectedClass`, `className`, `Class`, `class`, `classCanonical`, `"Admission sought for class"`.
-     - `getStudentDisplaySession(st)`: Resolves `selectedSession`, `Session`, `session`, `academicSession`.
-     - `getStudentProperStream(st)`: Resolves verified stream with historical reg number fallback.
-     - `getStudentDisplayRollNo(st)`: Resolves `classRollNo`, `rollNo`, `RL. NO.`, `Class R.No.`.
-     - `getStudentDisplayFormNo(st)`: Resolves `formNo`, `Form Number`, `fNo`.
-     - `getStudentDisplayRegNo(st)`: Resolves all 20+ Board and DIET registration aliases and strips trailing `.0+`.
-  2. **Multi-Select Checkbox Dropdown Component (`CohortCheckboxDropdown`)**:
-     - Custom dropdown with multi-select checkboxes, `All` toggle, and `Clear` reset button.
-     - Quick preset buttons: `11th & 12th (Sr Sec)` and `9th & 10th (Secondary)`.
-     - Item-level live candidate counts and click-outside dismissal.
-  3. **Multi-Select Cohort Evaluation & Engine Matching**:
-     - State updated to `selectedClasses` (defaulting to `['12th', '11th']` so senior secondary is selected simultaneously), `selectedSessions`, `selectedStreams`, and `selectedStatuses`.
-     - Evaluates incoming students against `isStudentInSelectedCohort(st)`.
-     - Out-of-cohort matches bind `matchedStudent = universalMatch`, calculate diffs, display out-of-cohort warnings, and keep row checkboxes enabled for administrative overwrite.
-  4. **Rich 2-Line Matched Student Details in Diff Table**:
-     - Line 1: **Student Name** (bold) + `S/D of [Father's Name]` + Warning badges (`⚠️ Name in File`, `Matched by Name`, `⚠️ Out of Cohort`).
-     - Line 2: Clean badge metadata: `Class: [cls]` • `Session: [sess]` • `Stream: [stream]` • `Roll: [roll]` • `Form: [form]`.
-     - Inspect profile modal displays full student name, class, and session in header.
-  5. **Menu Redundancy Cleanup (`adminModuleCatalog.js`)**:
-     - Set `launcher: false` on `jkboseSubjectRolls` to hide it from the modules dropdown, unifying access within the Analytics & Statistical Reports Suite.
+  1. **Intelligent Deduplication with Record Merging (`buildUniversalPool`)**:
+     - Pre-sorts records so records with assigned Class Roll Numbers (`hasAssignedClassRollNumber(s)`) and higher source priority are processed first.
+     - When a matching candidate is found across ID, Board Reg No, Form No, Admission No, or Student + Father Name:
+       - Merges into the existing record rather than dropping the incoming record.
+       - Guarantees that assigned class roll numbers, approved status, board registration numbers, streams, photos, and subjects are fully preserved.
+  2. **On-Demand Background Session Fetching**:
+     - Imported `fetchStudentsForSessionOnDemand` and integrated an active effect fetching complete session records for all `selectedSessions` (or default `2025-26`).
+     - Merges on-demand Firestore records into `universalStudents`.
+  3. **Authoritative Status & Session Integration**:
+     - Integrated `resolveStudentAdmissionStatus(st)`, `isStudentAdmissionApproved(st)`, and `hasAssignedClassRollNumber(st)`.
+     - Integrated `isStudentInSession(st, sess)` in `isStudentInSelectedCohort` for bulletproof session matching.
+     - Aligned `availableStatuses` and `matchingCohortStudents` to accurately classify approved students.
 
 ---
 
 ## Files Added / Modified
 - `src/portal/admin/BulkFieldOverwriteModal.jsx` (Modified)
-- `src/portal/admin/adminModuleCatalog.js` (Modified)
 - `CHANGES_SINCE_LAST_COMMIT.md` (Modified)
 
 ---
 
 ## Local Commit Message
 ```bash
-feat(ingestion-hub): add multi-select cohort filters, full student labels, and out-of-cohort matching
+fix(ingestion-hub): preserve all approved students in universal pool with prioritized deduplication merging and on-demand session loading
 ```
 
 ---
@@ -77,7 +65,7 @@ git show HEAD
 ```bash
 git reset --soft HEAD~1
 # Make any additional changes if needed
-git commit -m "feat(ingestion-hub): add multi-select cohort filters, full student labels, and out-of-cohort matching"
+git commit -m "fix(ingestion-hub): preserve all approved students in universal pool with prioritized deduplication merging and on-demand session loading"
 ```
 
 ### Manual Push (Mandatory Policy):
