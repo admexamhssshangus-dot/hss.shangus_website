@@ -10,6 +10,7 @@ import {
 import { parseJkboseMarks, calculateDivision } from '../../utils/jkboseMarksParser';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, AlertTriangle, CheckSquare, Square, FileSpreadsheet, 
   Upload, Copy, CheckCircle2, User, BookOpen, Award, Hash,
@@ -653,7 +654,8 @@ export default function BulkFieldOverwriteModal({
   onRecordAdded,
   onIngestSuccess,
   initialMode = 'overwrite', // 'overwrite' | 'express' | 'gazette_ai' | 'admit_ai'
-  showToast: externalShowToast
+  showToast: externalShowToast,
+  onOpenHub
 }) {
   // Top-level modal mode tab
   const [modalMode, setModalMode] = useState(initialMode || 'overwrite');
@@ -824,6 +826,17 @@ export default function BulkFieldOverwriteModal({
   const [executionLogs, setExecutionLogs] = useState([]);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isImportExpanded, setIsImportExpanded] = useState(false);
+
+  // Expand from minimized background dock back into full screen dialog
+  const handleMaximize = useCallback(() => {
+    setIsMinimized(false);
+    if (typeof onOpenHub === 'function') {
+      onOpenHub();
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hss-switch-tab', { detail: { tab: 'directEntry' } }));
+    }
+  }, [onOpenHub]);
 
   // Reset workflow back to initial upload step (enables immediate overwrite for another cohort/class)
   const handleResetToUpload = useCallback(() => {
@@ -2541,7 +2554,6 @@ export default function BulkFieldOverwriteModal({
       setProgressPercent(100);
       setProgressStage(abortExecutionRef.current ? `Execution stopped safely. ${updatedCount} records updated.` : 'All fields successfully overwritten and synchronized!');
       setExecutionStats({ updatedCount });
-      setIsMinimized(false);
       setStep('completed');
 
       if (onComplete) onComplete({ updatedCount });
@@ -2558,55 +2570,83 @@ export default function BulkFieldOverwriteModal({
 
   if (!isOpen && !isPage) return null;
 
-  // Floating Minimized Background Dock Widget (leaves website 100% interactive in View-Only mode)
-  if (isMinimized && (isProcessingRows || step === 'executing')) {
-    return (
-      <div className="fixed bottom-5 right-5 z-[9999] bg-white/95 dark:bg-slate-900/95 border border-emerald-500/50 shadow-2xl rounded-2xl p-3.5 flex flex-col gap-2.5 w-80 sm:w-96 backdrop-blur-md animate-slideUp transition-all select-none">
+  // Floating Minimized Background Dock Widget (leaves website 100% interactive across all modules and tabs)
+  if (isMinimized && (isProcessingRows || step === 'executing' || step === 'completed')) {
+    const isCompleted = step === 'completed';
+    const widgetContent = (
+      <div className="fixed bottom-5 right-5 z-[99999] bg-white/95 dark:bg-slate-900/95 border border-emerald-500/50 shadow-2xl rounded-2xl p-3.5 flex flex-col gap-2.5 w-80 sm:w-96 backdrop-blur-md animate-slideUp transition-all select-none">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 shadow-2xs">
-              <RefreshCw size={13} className="animate-spin" />
+            <div className={`w-7 h-7 rounded-lg ${isCompleted ? 'bg-emerald-600 text-white' : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400'} flex items-center justify-center flex-shrink-0 shadow-2xs`}>
+              {isCompleted ? <CheckCircle2 size={15} /> : <RefreshCw size={13} className="animate-spin" />}
             </div>
             <div className="min-w-0">
               <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
-                <span>{isProcessingRows ? 'Verifying Cohort Data' : 'Syncing Database Records'}</span>
+                <span>{isCompleted ? 'Overwrite Completed' : (isProcessingRows ? 'Verifying Cohort Data' : 'Syncing Database Records')}</span>
                 <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-950/80 px-1 py-0.2 rounded">
-                  {isProcessingRows ? `${parsingProgress.percent}%` : `${progressPercent}%`}
+                  {isCompleted ? '100%' : (isProcessingRows ? `${parsingProgress.percent}%` : `${progressPercent}%`)}
                 </span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                {isProcessingRows 
-                  ? `${parsingProgress.current} of ${parsingProgress.total} evaluated`
-                  : `${progressStage || 'Applying transactional updates...'}`}
+                {isCompleted 
+                  ? `${executionStats?.updatedCount !== undefined ? executionStats.updatedCount : progressPercent} student record(s) synchronized`
+                  : (isProcessingRows 
+                    ? `${parsingProgress.current} of ${parsingProgress.total} evaluated`
+                    : `${progressStage || 'Applying transactional updates...'}`)}
               </div>
             </div>
           </div>
           
-          <button
-            type="button"
-            onClick={() => setIsMinimized(false)}
-            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer flex-shrink-0 shadow-2xs"
-            title="Expand to full sync dialog"
-          >
-            <Maximize2 size={13} />
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={handleMaximize}
+              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs text-[11px] font-bold flex items-center gap-1"
+              title="Expand to full sync dialog"
+            >
+              <Maximize2 size={12} />
+              <span>Expand</span>
+            </button>
+            {isCompleted && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMinimized(false);
+                  setStep('upload');
+                }}
+                className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors cursor-pointer"
+                title="Dismiss"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Mini progress bar */}
         <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-700/60 shadow-inner">
           <div 
             className="bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-400 h-full rounded-full transition-all duration-300"
-            style={{ width: `${isProcessingRows ? parsingProgress.percent : progressPercent}%` }}
+            style={{ width: `${isCompleted ? 100 : (isProcessingRows ? parsingProgress.percent : progressPercent)}%` }}
           />
         </div>
 
         {/* Lock indicator & safe abort */}
         <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-100 dark:border-slate-800/80">
           <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
-            <Lock size={10} />
-            <span>View-Only Mode • Edits Locked</span>
+            {isCompleted ? (
+              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <BookmarkCheck size={11} />
+                <span>Ready for inspection</span>
+              </span>
+            ) : (
+              <>
+                <Lock size={10} />
+                <span>View-Only Mode • Edits Locked</span>
+              </>
+            )}
           </div>
-          {step === 'executing' && (
+          {!isCompleted && step === 'executing' && (
             isAborting ? (
               <span className="text-amber-600 font-bold">Stopping...</span>
             ) : (
@@ -2622,6 +2662,8 @@ export default function BulkFieldOverwriteModal({
         </div>
       </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(widgetContent, document.body) : widgetContent;
   }
 
   const hubContent = (

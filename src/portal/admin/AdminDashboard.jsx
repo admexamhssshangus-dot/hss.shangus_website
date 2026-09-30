@@ -323,6 +323,18 @@ export default function AdminDashboard() {
     } catch (_) {}
   }, [activeTab]);
 
+  // Support global tab switching events (e.g. from minimized floating progress dock widgets)
+  useEffect(() => {
+    const handleSwitchTab = (e) => {
+      if (e?.detail?.tab) {
+        setMountedTabs(prev => new Set(prev).add(e.detail.tab));
+        setActiveTab(e.detail.tab);
+      }
+    };
+    window.addEventListener('hss-switch-tab', handleSwitchTab);
+    return () => window.removeEventListener('hss-switch-tab', handleSwitchTab);
+  }, [setActiveTab]);
+
   // Auto-route to the first permitted module if current activeTab is not permitted for this user
   useEffect(() => {
     if (!user) return;
@@ -1014,6 +1026,7 @@ export default function AdminDashboard() {
                         isPage={true}
                         isOpen={activeTab === 'boardSync' || activeTab === 'jkboseSync' || activeTab === 'ingestionHub' || activeTab === 'bulkOverwrite' || activeTab === 'directEntry'}
                         onClose={() => setActiveTab('reports')}
+                        onOpenHub={() => setActiveTab('directEntry')}
                         allStudents={identityStudents || applications}
                         currentSession={(sessionStorage.getItem('hss_last_selected_session') || '2025-26')}
                         initialMode={activeTab === 'directEntry' ? 'express' : 'overwrite'}
