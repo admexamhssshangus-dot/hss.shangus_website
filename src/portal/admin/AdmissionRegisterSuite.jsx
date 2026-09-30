@@ -1399,6 +1399,7 @@ export default function AdmissionRegisterSuite({
   allHistory: propAllHistory,
   onClose: propOnClose,
   onDataUpdated,
+  onOpenSubjectRolls,
   user: propUser,
   initialTab = 'adm_register'
 }) {
@@ -7876,6 +7877,12 @@ export default function AdmissionRegisterSuite({
               value={activeTab}
               onChange={(e) => {
                 const nextTab = e.target.value;
+                if (nextTab === 'jkbose_rolls') {
+                  if (typeof onOpenSubjectRolls === 'function') {
+                    onOpenSubjectRolls();
+                  }
+                  return;
+                }
                 setActiveTab(nextTab);
                 if (nextTab === 'assign_ids') {
                   setAssignViewMode('integrated');
@@ -7888,6 +7895,9 @@ export default function AdmissionRegisterSuite({
             >
               <option value="adm_register">📖 Admission Register</option>
               <option value="sentup">📋 Sentup Export</option>
+              {typeof onOpenSubjectRolls === 'function' && (
+                <option value="jkbose_rolls">📜 JKBOSE Subject Rolls</option>
+              )}
               <option value="assign_ids">🔢 Assign IDs & Gap Auditor</option>
               <option value="assign_dates">📅 Assign Dates</option>
             </select>
@@ -8099,7 +8109,19 @@ export default function AdmissionRegisterSuite({
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
             {/* Sentup Columns Selector (Only in Sentup Module) */}
             {activeTab === 'sentup' && (
-              <div className="relative shrink-0" ref={sentupColsPopoverRef}>
+              <>
+                {typeof onOpenSubjectRolls === 'function' && (
+                  <button
+                    type="button"
+                    onClick={onOpenSubjectRolls}
+                    className="py-0.5 px-2 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-900 dark:bg-sky-950/80 dark:text-sky-200 border border-sky-300 dark:border-sky-800 font-bold text-[11px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 shrink-0"
+                    title="Open Official JKBOSE Subject-wise Roll Return Statement (Word / Excel / PDF)"
+                  >
+                    <FileText size={11} className="text-sky-700 dark:text-sky-300" />
+                    <span>Subject Roll Return</span>
+                  </button>
+                )}
+                <div className="relative shrink-0" ref={sentupColsPopoverRef}>
                 <button
                   type="button"
                   onClick={() => {
@@ -8161,6 +8183,7 @@ export default function AdmissionRegisterSuite({
                   </div>
                 )}
               </div>
+              </>
             )}
 
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (

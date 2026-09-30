@@ -20,6 +20,7 @@ const OfficialLetterWriterView = lazyWithChunkRecovery(() => import('./OfficialL
 const StudentCertificateStudioView = lazyWithChunkRecovery(() => import('./StudentCertificateStudioView'), 'admin-certificate');
 const StudentIdCardManager = lazyWithChunkRecovery(() => import('./StudentIdCardManager'), 'admin-id-cards');
 const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./AdmissionRegisterSuite'), 'admin-register-suite');
+const JkboseSubjectRollReturnView = lazyWithChunkRecovery(() => import('./JkboseSubjectRollReturnView'), 'admin-jkbose-rolls');
 const ApplicationMergerStudio = lazyWithChunkRecovery(() => import('./ApplicationMergerStudio'), 'admin-merger');
 const ControlsAndSubjects = lazyWithChunkRecovery(() => import('./ControlsAndSubjects'), 'admin-controls');
 const CurriculumAndSubjectsManager = lazyWithChunkRecovery(() => import('./CurriculumAndSubjectsManager'), 'admin-curriculum');
@@ -44,6 +45,9 @@ export const MODULE_LOADERS = {
   certificate: () => import('./StudentCertificateStudioView'),
   idCards: () => import('./StudentIdCardManager'),
   admRegisterSuite: () => import('./AdmissionRegisterSuite'),
+  jkboseSubjectRolls: () => import('./JkboseSubjectRollReturnView'),
+  subjectRolls: () => import('./JkboseSubjectRollReturnView'),
+  jkboseRolls: () => import('./JkboseSubjectRollReturnView'),
   mergeStudio: () => import('./ApplicationMergerStudio'),
   controls: () => import('./ControlsAndSubjects'),
   admissionControls: () => import('./ControlsAndSubjects'),
@@ -873,6 +877,10 @@ export default function AdminDashboard() {
                         students={applications}
                         allHistory={getCachedCollectionSync('masterRegisters') || []}
                         onClose={() => setActiveTab('reports')}
+                        onOpenSubjectRolls={() => {
+                          setMountedTabs(prev => new Set(prev).add('jkboseSubjectRolls'));
+                          setActiveTab('jkboseSubjectRolls');
+                        }}
                         onDataUpdated={(updated) => {
                           if (Array.isArray(updated)) {
                             const map = new Map(updated.filter(u => u && u.id).map(u => [u.id, u]));
@@ -887,6 +895,34 @@ export default function AdminDashboard() {
                           }
                         }}
                         user={user}
+                      />
+                    </div>
+                  )}
+
+                  {/* TAB: JKBOSE Subject Roll Return Statement */}
+                  {(mountedTabs.has('jkboseSubjectRolls') || mountedTabs.has('subjectRolls') || mountedTabs.has('jkboseRolls')) && (
+                    <div
+                      key="jkbose-subject-rolls-container"
+                      className={(activeTab === 'jkboseSubjectRolls' || activeTab === 'subjectRolls' || activeTab === 'jkboseRolls') ? 'block w-full' : 'hidden'}
+                      style={(activeTab === 'jkboseSubjectRolls' || activeTab === 'subjectRolls' || activeTab === 'jkboseRolls') ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'jkboseSubjectRolls' && activeTab !== 'subjectRolls' && activeTab !== 'jkboseRolls'}
+                    >
+                      <JkboseSubjectRollReturnView
+                        students={applications}
+                        onClose={() => setActiveTab('reports')}
+                        onDataUpdated={(updated) => {
+                          if (Array.isArray(updated)) {
+                            const map = new Map(updated.filter(u => u && u.id).map(u => [u.id, u]));
+                            setApplications(prev => (prev || []).map(a => map.has(a.id) ? { ...a, ...map.get(a.id) } : a));
+                          } else if (updated && updated.id) {
+                            setApplications(prev => (prev || []).map(a => a.id === updated.id ? { ...a, ...updated } : a));
+                          } else {
+                            const cached = getCachedCollectionSync('admissions');
+                            if (cached && cached.length > 0) {
+                              commitApplications(cached, false);
+                            }
+                          }
+                        }}
                       />
                     </div>
                   )}

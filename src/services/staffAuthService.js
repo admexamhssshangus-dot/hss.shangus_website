@@ -1,6 +1,14 @@
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { sendSignInLinkToEmail, sendPasswordResetEmail, getAuth, createUserWithEmailAndPassword, signOut as secondarySignOut } from 'firebase/auth';
+import { 
+  sendSignInLinkToEmail, 
+  sendPasswordResetEmail, 
+  getAuth, 
+  createUserWithEmailAndPassword, 
+  updatePassword, 
+  updateEmail, 
+  signOut as secondarySignOut 
+} from 'firebase/auth';
 import { staffCallable } from './staffCommand';
 import { auth, db, firebaseConfig } from './firebase';
 import { 
@@ -591,7 +599,28 @@ export async function createStaffAccount({
       await secondarySignOut(secondaryAuth).catch(() => {});
       await deleteApp(secondaryApp).catch(() => {});
     } catch (authErr) {
-      console.warn('Direct Auth user creation note (may already exist in Auth):', authErr?.message || authErr);
+      if (authErr?.code === 'auth/email-already-in-use') {
+        console.log('Account exists in Auth; updating credentials via backend callable...');
+        try {
+          await staffCallable('manageStaffAccount')({
+            action: 'update',
+            email: cleanEmail,
+            oldEmail: cleanEmail,
+            name: cleanName,
+            role,
+            password,
+            perms: newAdminEntry.perms,
+            subject: primarySubject,
+            assignedSubjects: cleanSubjects,
+            assignedClasses: cleanClasses,
+            mobile
+          });
+        } catch (bErr) {
+          console.warn('Backend password sync error for existing Auth account:', bErr?.message || bErr);
+        }
+      } else {
+        console.warn('Direct Auth user creation note (may already exist in Auth):', authErr?.message || authErr);
+      }
     }
   }
 
@@ -744,21 +773,69 @@ export async function updateStaffAccount({
     console.warn('Update users document note:', err);
   }
 
-  // 3. If password was set, create auth user or send password reset
+  // 3. If password was set, update it in Firebase Auth so user can immediately log in
+  let passwordUpdatedInAuth = false;
   if (password && password.length >= 6) {
+    const isCurrentActiveUser = Boolean(
+      auth.currentUser &&
+      [cleanOld, cleanNew].includes(String(auth.currentUser.email || '').toLowerCase().trim())
+    );
+
+    // 3a. If the account being edited is the active logged-in user, update password directly via client SDK
+    if (isCurrentActiveUser && auth.currentUser) {
+      try {
+        await updatePassword(auth.currentUser, password);
+        passwordUpdatedInAuth = true;
+        console.log('Firebase Auth password updated directly for active user.');
+      } catch (clientErr) {
+        console.warn('Direct updatePassword note:', clientErr?.message || clientErr);
+      }
+      if (cleanOld !== cleanNew) {
+        try {
+          await updateEmail(auth.currentUser, cleanNew);
+        } catch (_) {}
+      }
+    }
+
+    // 3b. Call backend manageStaffAccount to update password for any staff/admin in Firebase Auth via Admin SDK
     try {
-      const secondaryAppName = `StaffUpdateApp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
-      const secondaryAuth = getAuth(secondaryApp);
-      await createUserWithEmailAndPassword(secondaryAuth, cleanNew, password);
-      await secondarySignOut(secondaryAuth).catch(() => {});
-      await deleteApp(secondaryApp).catch(() => {});
-    } catch (authErr) {
-      // If user already exists in Firebase Auth, trigger password reset email to allow password change
-      if (authErr?.code === 'auth/email-already-in-use') {
-        sendResetEmail = true;
-      } else {
-        console.warn('Secondary auth user update note:', authErr?.message || authErr);
+      await staffCallable('manageStaffAccount')({
+        action: 'update',
+        email: cleanNew,
+        oldEmail: cleanOld,
+        name: cleanName,
+        role,
+        password,
+        perms: updatedEntry.perms,
+        subject: primarySubject,
+        assignedSubjects: cleanSubjects,
+        assignedClasses: cleanClasses,
+        mobile
+      });
+      passwordUpdatedInAuth = true;
+      console.log('Firebase Auth password synchronized via backend manageStaffAccount.');
+    } catch (backendErr) {
+      console.warn('Backend manageStaffAccount update note:', backendErr?.message || backendErr);
+    }
+
+    // 3c. If account did not exist in Firebase Auth yet, provision it now
+    if (!passwordUpdatedInAuth) {
+      try {
+        const secondaryAppName = `StaffUpdateApp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+        const secondaryAuth = getAuth(secondaryApp);
+        await createUserWithEmailAndPassword(secondaryAuth, cleanNew, password);
+        await secondarySignOut(secondaryAuth).catch(() => {});
+        await deleteApp(secondaryApp).catch(() => {});
+        passwordUpdatedInAuth = true;
+      } catch (authErr) {
+        if (authErr?.code === 'auth/email-already-in-use') {
+          if (!isCurrentActiveUser) {
+            sendResetEmail = true;
+          }
+        } else {
+          console.warn('Secondary auth user update note:', authErr?.message || authErr);
+        }
       }
     }
   }

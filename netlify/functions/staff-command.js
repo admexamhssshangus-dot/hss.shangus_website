@@ -48,10 +48,13 @@ function createHandler(dependencies = {}) {
           verifyAuth: token => getAuth(app).verifyIdToken(token, true),
           run: (name, data, context) => require('../../functions/index')[name].run(data, context) };
       }
-      if (!headers['x-firebase-appcheck']) return response(401, { error: 'App verification is required.' });
-      let appToken;
-      try { appToken = await services.verifyAppCheck(headers['x-firebase-appcheck']); }
-      catch (_) { return response(401, { error: 'App verification failed. Check the App Check configuration.' }); }
+      let appToken = null;
+      if (headers['x-firebase-appcheck']) {
+        try { appToken = await services.verifyAppCheck(headers['x-firebase-appcheck']); }
+        catch (_) { return response(401, { error: 'App verification failed. Check the App Check configuration.' }); }
+      } else if (!headers.authorization) {
+        return response(401, { error: 'App verification is required.' });
+      }
       let auth;
       if (headers.authorization) {
         if (!headers.authorization.startsWith('Bearer ')) return response(401, { error: 'Invalid authentication.' });

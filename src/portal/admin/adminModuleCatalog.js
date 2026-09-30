@@ -81,6 +81,18 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     aliases: ['admRegisterSuite', 'admissionRegister'],
   },
   {
+    id: 'jkboseSubjectRolls',
+    label: 'JKBOSE Subject Roll Return',
+    shortLabel: 'Subject Rolls',
+    description: 'Official JKBOSE subject-wise roll return statement with roll series compression (TO / Comma) and exam dropped manager',
+    category: 'Records & Registers',
+    maturity: 'optimized',
+    maturityNote: 'Official JKBOSE circular format, continuous roll series compression, class-wise groupings for any class, and exam dropped examinee filtering.',
+    launcher: true,
+    isNew: true,
+    aliases: ['jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls'],
+  },
+  {
     id: 'customRoster',
     label: 'Student Rosters & Registers',
     shortLabel: 'Rosters',

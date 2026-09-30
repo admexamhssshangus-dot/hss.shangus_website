@@ -15,6 +15,7 @@ import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 const MODULE_ICONS = {
   reports: BarChart2,
   admRegisterSuite: BookOpen,
+  jkboseSubjectRolls: FileText,
   customRoster: FileSpreadsheet,
   officialLetter: FileText,
   certStudio: Award,

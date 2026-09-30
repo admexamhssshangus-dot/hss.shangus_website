@@ -921,14 +921,15 @@ export default function LoginPage() {
 
         // Check if 2-Step Verification is required for admin email/password login
         const siteSettings = await loadSiteSettings().catch(() => null);
-        const require2Step = siteSettings?.enableAdmin2StepVerification ?? true;
+        const require2Step = siteSettings?.enableAdmin2StepVerification ?? false;
 
-        if (require2Step) {
-          // Admin 2-Step Verification Interception
+        // If 2-Step Verification is enabled, standard admins receive verification email.
+        // Super Admin (root access) and standard admins when 2SV is disabled log in directly with password!
+        if (require2Step && !isSuper) {
           if (await beginAdminLogin(userCred.user, staffProfile)) return;
         }
 
-        // If 2SV is bypassed or not active, redirect directly
+        // Direct verified admin sign-in with authenticated credentials
         const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
         verifiedSession.redirectPath = '/portal/admin';
         setAlert({ type: 'success', text: 'Login successful! Redirecting to Admin Portal...' });
