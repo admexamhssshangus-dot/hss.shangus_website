@@ -2074,6 +2074,12 @@ export default function BulkFieldOverwriteModal({
     setSelectedRowIds(initialSelectedIds);
     setFileName(sourceTitle);
     setIsProcessingRows(false);
+    // If all records are identical/already updated (0 detected changes), show 'all' so admin immediately sees all matched records
+    if (initialSelectedIds.size === 0 && correlated.length > 0) {
+      setPreviewFilter('all');
+    } else {
+      setPreviewFilter('changed');
+    }
     setStep('preview');
   };
 
@@ -2190,7 +2196,7 @@ export default function BulkFieldOverwriteModal({
     setSelectedRowIds(prev => {
       const next = new Set(prev);
       filteredPreview.forEach(r => {
-        if (selectAll && (r.hasChanges || r.isUnmatched)) next.add(r.id);
+        if (selectAll && r.matchedStudent) next.add(r.id);
         else next.delete(r.id);
       });
       return next;
@@ -3536,6 +3542,49 @@ export default function BulkFieldOverwriteModal({
                             </tr>
                           );
                         })}
+
+                        {filteredPreview.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="p-8 text-center">
+                              <div className="flex flex-col items-center justify-center gap-2 max-w-md mx-auto">
+                                {previewFilter === 'changed' ? (
+                                  <>
+                                    <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950/80 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                      <CheckCircle2 size={24} />
+                                    </div>
+                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                                      All {stats.total} Records Are Already Up to Date!
+                                    </span>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                      All {stats.total} student records in this file matched the database with <strong>0 differences</strong>. The exam roll numbers and selected fields already match the database exactly.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewFilter('all')}
+                                      className="mt-2 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer border border-blue-200 dark:border-blue-800"
+                                    >
+                                      View All {stats.total} Matched Records
+                                    </button>
+                                  </>
+                                ) : previewFilter === 'unmatched' ? (
+                                  <>
+                                    <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950/80 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                      <CheckCircle2 size={24} />
+                                    </div>
+                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                                      0 Unmatched Candidates
+                                    </span>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                      Every candidate in this file was successfully matched to a database record.
+                                    </p>
+                                  </>
+                                ) : (
+                                  <span className="text-slate-400 text-xs">No records found for the selected filter.</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
