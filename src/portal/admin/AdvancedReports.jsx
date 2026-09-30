@@ -5634,7 +5634,26 @@ const COLUMN_DEFS = [
   { key: 'prevSchool', label: 'Previous School' },
   { key: 'prevCcDc', label: 'CC/DC No. & Date (Prev. insitution)' },
   { key: 'prevExamMode', label: 'Exam Mode (Prev.)' },
-  { key: 'prevExamRollNo', label: 'Exam R.No. (Prev.)', className: 'font-mono' },
+  {
+    key: 'prevExamRollNo',
+    label: 'Exam R.No. (Prev.)',
+    className: 'font-mono text-center whitespace-nowrap',
+    render: (val, student) => {
+      const status = student?._getJkboseStatus?.('prevExamRollNo');
+      const roll = (val && val !== '—' && val !== '-') ? String(val).trim() : (student?.prevExamRollNo || '');
+      if (!roll) {
+        return <span className="text-slate-400 dark:text-slate-600 font-normal select-none">—</span>;
+      }
+      return (
+        <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+          <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 tracking-wide whitespace-nowrap">
+            {roll}
+          </span>
+          {status && <JkboseFieldBadge info={status} className="flex-shrink-0" />}
+        </span>
+      );
+    }
+  },
   { key: 'prevMarksObt', label: 'Marks Obt. (Prev.)', className: 'font-mono' },
   { key: 'prevMaxMarks', label: 'Max. Marks (Prev.)', className: 'font-mono' },
   { key: 'prevPercentage', label: '%age (Prev.)', className: 'font-mono' },
@@ -5643,7 +5662,7 @@ const COLUMN_DEFS = [
   {
     key: 'currExamRollNo',
     label: 'Exam R.No. (Current)',
-    className: 'font-mono text-center',
+    className: 'font-mono text-center whitespace-nowrap',
     render: (val, student) => {
       const status = student?._getJkboseStatus?.('currExamRollNo');
       const directEdit = student?.directEditHistory?.currExamRollNo?.newValue || student?.fieldEditHistory?.currExamRollNo?.newValue;
@@ -5651,11 +5670,14 @@ const COLUMN_DEFS = [
         ? String(val).trim()
         : (directEdit || student?.currExamRollNo || student?.boardRollNo || student?.examRollNo || student?.['Exam R.No. (Current)'] || status?.newValue || '');
       if (!roll) {
-        return <span className="text-slate-400 dark:text-slate-600 font-normal">—</span>;
+        return <span className="text-slate-400 dark:text-slate-600 font-normal select-none">—</span>;
       }
       return (
-        <span className="font-mono font-black text-slate-900 dark:text-white tracking-wide">
-          {roll}
+        <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+          <span className="font-mono font-black text-slate-900 dark:text-white tracking-wide whitespace-nowrap">
+            {roll}
+          </span>
+          {status && <JkboseFieldBadge info={status} className="flex-shrink-0" />}
         </span>
       );
     }
@@ -5753,13 +5775,13 @@ const DEFAULT_1_WIDTHS = {
   prevSchool: 130,
   prevCcDc: 120,
   prevExamMode: 90,
-  prevExamRollNo: 90,
+  prevExamRollNo: 120,
   prevMarksObt: 85,
   prevMaxMarks: 85,
   prevPercentage: 80,
   prevDivision: 90,
   currExamMode: 90,
-  currExamRollNo: 90,
+  currExamRollNo: 145,
   currResult: 85,
   currMarksReapp: 90,
   withdrawalDate: 95,
@@ -7438,7 +7460,18 @@ export default function AdvancedReports({
   const [colWidths, setColWidths] = useState(() => {
     try {
       const savedWidths = localStorage.getItem('hss_admin_table_widths_v2');
-      if (savedWidths) return JSON.parse(savedWidths);
+      if (savedWidths) {
+        const parsed = JSON.parse(savedWidths);
+        if (parsed && typeof parsed === 'object') {
+          if (!parsed.currExamRollNo || parsed.currExamRollNo < 145) {
+            parsed.currExamRollNo = 145;
+          }
+          if (!parsed.prevExamRollNo || parsed.prevExamRollNo < 120) {
+            parsed.prevExamRollNo = 120;
+          }
+          return parsed;
+        }
+      }
     } catch (e) {
       console.warn('Could not load saved Default 2 widths', e);
     }
@@ -7457,7 +7490,7 @@ export default function AdvancedReports({
 
     const onMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      const minColWidth = colKey === 'sno' ? 65 : colKey === 'remarks' ? 140 : 1;
+      const minColWidth = colKey === 'sno' ? 65 : colKey === 'remarks' ? 140 : colKey === 'currExamRollNo' ? 135 : colKey === 'prevExamRollNo' ? 110 : 50;
       const newWidth = Math.max(minColWidth, startWidth + deltaX);
       latestWidths = { ...latestWidths, [colKey]: newWidth };
       setColWidths(prev => ({
@@ -13713,7 +13746,7 @@ export default function AdvancedReports({
                 )}
                 {orderedVisibleColumns.map((col, idx) => {
                   const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
-                  const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : col.key === 'remarks' ? Math.max(configuredWidth, 170) : configuredWidth;
+                  const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : col.key === 'currExamRollNo' ? Math.max(configuredWidth, 145) : col.key === 'prevExamRollNo' ? Math.max(configuredWidth, 120) : col.key === 'remarks' ? Math.max(configuredWidth, 170) : configuredWidth;
                   const stickyClasses = col.isSticky
                     ? `${hasSnoColumn ? 'sticky left-0' : 'sticky left-9'} top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700`
                     : 'sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black';
@@ -13857,7 +13890,7 @@ export default function AdvancedReports({
                         const isCopied = copiedCellId === cellId;
                         const isRowCopied = copiedCellId === `row_${s.id || s.sno}`;
                         const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
-                        const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : col.key === 'remarks' ? Math.max(configuredWidth, 170) : configuredWidth;
+                        const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : col.key === 'currExamRollNo' ? Math.max(configuredWidth, 145) : col.key === 'prevExamRollNo' ? Math.max(configuredWidth, 120) : col.key === 'remarks' ? Math.max(configuredWidth, 170) : configuredWidth;
 
                         const stickyBg = col.isSticky
                           ? ` ${hasSnoColumn ? 'sticky left-0' : 'sticky left-9'} z-20 border-r border-slate-200 dark:border-slate-800/50 transition-colors ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} group-hover:bg-amber-50 dark:group-hover:bg-amber-900/30`
@@ -13908,10 +13941,10 @@ export default function AdvancedReports({
                               </div>
                             ) : (
                               <div className="flex items-center justify-between gap-1.5 min-w-0">
-                                <div className={`flex-1 min-w-0 ${['boardRegNo', 'formNo', 'admNo', 'classRollNo', 'session', 'class'].includes(col.key) ? 'whitespace-nowrap' : 'whitespace-normal break-words'}`}>
+                                <div className={`flex-1 min-w-0 ${['boardRegNo', 'regNo', 'formNo', 'admNo', 'classRollNo', 'currExamRollNo', 'prevExamRollNo', 'session', 'class', 'dob', 'mobile', 'parentContact', 'aadhar', 'penNo', 'apaarId'].includes(col.key) ? 'whitespace-nowrap overflow-hidden' : 'whitespace-normal break-words'}`}>
                                   {col.render ? col.render(val, studentWithModal) : val}
                                 </div>
-                                {(!['studentName', 'fatherName', 'subs', 'aadhar', 'dob', 'sno', 'remarks', 'boardRegNo', 'regNo', 'formNo', 'admNo', 'classRollNo', 'session', 'class', 'photoId'].includes(col.key)) &&
+                                {(!['studentName', 'fatherName', 'subs', 'aadhar', 'dob', 'sno', 'remarks', 'boardRegNo', 'regNo', 'formNo', 'admNo', 'classRollNo', 'currExamRollNo', 'prevExamRollNo', 'session', 'class', 'photoId'].includes(col.key)) &&
                                   studentWithModal._getJkboseStatus?.(col.key) && (
                                     <JkboseFieldBadge info={studentWithModal._getJkboseStatus(col.key)} className="ml-1 flex-shrink-0" />
                                   )}
