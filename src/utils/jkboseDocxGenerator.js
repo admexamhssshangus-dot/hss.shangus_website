@@ -390,8 +390,10 @@ export async function generateJkboseDocx(exportData = {}, options = {}) {
             new Paragraph({
               alignment: AlignmentType.CENTER,
               children: [
-                new TextRun({ text: 'Page ' }),
-                new PageNumber(),
+                new TextRun({ text: 'Page ', size: 16, color: '666666' }),
+                new TextRun({ children: [PageNumber.CURRENT], size: 16, color: '666666' }),
+                new TextRun({ text: ' of ', size: 16, color: '666666' }),
+                new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, color: '666666' }),
               ],
             }),
           ],
