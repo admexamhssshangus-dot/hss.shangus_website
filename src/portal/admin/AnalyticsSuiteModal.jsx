@@ -1453,8 +1453,11 @@ export default function AnalyticsSuiteModal({
   // Handle Clean PDF Export (Direct Browser Print via Hidden Iframe)
   const handlePrintPDF = () => {
     if (analysisMode === 'jkbose_subject_rolls') {
+      const autoCentre = jkboseRollData?.detectedCentreNo ||
+        Object.values(jkboseRollData?.classWiseData || {})[0]?.centreNo || '';
       printJkboseStatement(jkboseRollData, {
         institutionName: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
+        centreNo: autoCentre,
         session: selectedSessions.length === 1 ? `Session ${selectedSessions[0]}` : 'Session 2025-26',
       });
       return;
@@ -1672,8 +1675,11 @@ export default function AnalyticsSuiteModal({
 
   // Handle Word Export for JKBOSE Statement
   const handleExportDocx = () => {
+    const autoCentre = jkboseRollData?.detectedCentreNo ||
+      Object.values(jkboseRollData?.classWiseData || {})[0]?.centreNo || '';
     generateJkboseDocx(jkboseRollData, {
       institutionName: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
+      centreNo: autoCentre,
       session: selectedSessions.length === 1 ? `Session ${selectedSessions[0]}` : 'Session 2025-26',
     });
   };
@@ -1681,8 +1687,11 @@ export default function AnalyticsSuiteModal({
   // Handle Clean Excel / CSV Export
   const handleExportExcel = () => {
     if (analysisMode === 'jkbose_subject_rolls') {
+      const autoCentre = jkboseRollData?.detectedCentreNo ||
+        Object.values(jkboseRollData?.classWiseData || {})[0]?.centreNo || '';
       generateJkboseExcel(jkboseRollData, {
         institutionName: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
+        centreNo: autoCentre,
         session: selectedSessions.length === 1 ? `Session ${selectedSessions[0]}` : 'Session 2025-26',
       });
       return;

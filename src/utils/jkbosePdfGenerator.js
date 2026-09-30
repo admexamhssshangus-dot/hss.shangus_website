@@ -5,18 +5,22 @@
  * to Save as PDF or print directly, matching the JKBOSE sub-office circular.
  */
 
+import { cleanCentreNoDisplay } from './jkboseRollSeriesFormatter';
+
 /**
  * Generates the complete HTML string for the JKBOSE statement.
  */
-export function generateJkboseHtml(exportData = {}) {
+export function generateJkboseHtml(exportData = {}, options = {}) {
+  const merged = { ...exportData, ...options };
   const {
     classWiseData = {},
     selectedClass = '12th',
     institutionName = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
     examName = 'ANNUAL REGULAR 2026',
-    centreNo = 'Centre No. 31601',
+    centreNo = '',
+    detectedCentreNo = '',
     session = 'Session 2025-26',
-  } = exportData;
+  } = merged;
 
   const classesToRender = selectedClass === 'all'
     ? Object.keys(classWiseData)
@@ -30,6 +34,9 @@ export function generateJkboseHtml(exportData = {}) {
 
     const subjects = classInfo.subjects || [];
     const totalExaminees = classInfo.kpis.activeExaminees || 0;
+    const cleanCentre = cleanCentreNoDisplay(
+      classInfo.centreNo || centreNo || detectedCentreNo || exportData.detectedCentreNo || ''
+    );
 
     const rowsHtml = subjects.length === 0
       ? `<tr><td colspan="4" style="text-align: center; padding: 20px; font-style: italic; color: #6b7280;">No approved examinee data found for this class.</td></tr>`
@@ -52,7 +59,7 @@ export function generateJkboseHtml(exportData = {}) {
           <div class="doc-title">SUBJECT-WISE ROLL NUMBER RETURN STATEMENT FOR EXAMINEES</div>
           <div class="exam-subtitle">
             <span><strong>EXAMINATION:</strong> ${classInfo.label.toUpperCase()} — ${examName} (${session})</span>
-            <span class="centre-badge"><strong>CENTRE NO:</strong> ${centreNo.toUpperCase()}</span>
+            <span class="centre-badge"><strong>CENTRE NO:</strong> ${cleanCentre ? cleanCentre.toUpperCase() : 'NIL'}</span>
           </div>
           <div class="notice-meta">
             <span>Official Return Statement as per JKBOSE Guidelines & Circular.</span>
@@ -72,8 +79,6 @@ export function generateJkboseHtml(exportData = {}) {
           </thead>
           <tbody>
             ${rowsHtml}
-          </tbody>
-          <tfoot>
             <tr class="total-row">
               <td colspan="3" style="text-align: right; font-weight: 800; font-size: 12px; padding: 7px 12px;">
                 TOTAL UNIQUE EXAMINEES IN RETURN:
@@ -82,7 +87,7 @@ export function generateJkboseHtml(exportData = {}) {
                 ${totalExaminees}
               </td>
             </tr>
-          </tfoot>
+          </tbody>
         </table>
 
         <!-- SIGNATORY FOOTER -->
@@ -94,7 +99,6 @@ export function generateJkboseHtml(exportData = {}) {
           <div class="sign-right">
             <div class="sign-title">Principal / Head of Institution</div>
             <div class="sign-inst">${institutionName}</div>
-            <div class="sign-seal">(Official Seal & Signature)</div>
           </div>
         </div>
       </div>
@@ -192,15 +196,26 @@ export function generateJkboseHtml(exportData = {}) {
         .statement-table tbody tr:nth-child(even) {
           background-color: #fafafa;
         }
+        .statement-table thead {
+          display: table-header-group;
+        }
         .total-row {
           background-color: #f8fafc;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        .total-row td {
+          border-top: 2px solid #0f172a;
+          border-bottom: 2px solid #0f172a;
         }
         .signatory-grid {
           display: flex;
           justify-content: space-between;
           align-items: flex-end;
-          margin-top: 24px;
+          margin-top: 36px;
           padding-top: 10px;
+          page-break-inside: avoid;
+          break-inside: avoid;
         }
         .sign-left {
           font-size: 11px;
@@ -217,11 +232,6 @@ export function generateJkboseHtml(exportData = {}) {
           font-weight: 600;
           color: #334155;
         }
-        .sign-seal {
-          font-size: 10px;
-          color: #64748b;
-          margin-top: 25px;
-        }
       </style>
     </head>
     <body>
@@ -234,8 +244,9 @@ export function generateJkboseHtml(exportData = {}) {
 /**
  * Renders the HTML in an offscreen iframe and triggers the native browser print/save-as-pdf dialog.
  */
-export function printJkboseStatement(exportData = {}) {
-  const html = generateJkboseHtml(exportData);
+export function printJkboseStatement(exportData = {}, options = {}) {
+  const merged = { ...exportData, ...options };
+  const html = generateJkboseHtml(merged);
 
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';

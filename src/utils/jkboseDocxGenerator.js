@@ -21,6 +21,7 @@ import {
   PageNumber,
   PageOrientation
 } from 'docx';
+import { cleanCentreNoDisplay } from './jkboseRollSeriesFormatter';
 
 const BORDER_STYLE = {
   style: BorderStyle.SINGLE,
@@ -38,15 +39,17 @@ const CELL_BORDERS = {
 /**
  * Generates and triggers download of the official JKBOSE Subject Roll Return document in Word (.docx) format.
  */
-export async function generateJkboseDocx(exportData = {}) {
+export async function generateJkboseDocx(exportData = {}, options = {}) {
+  const merged = { ...exportData, ...options };
   const {
     classWiseData = {},
     selectedClass = '12th',
     institutionName = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
     examName = 'ANNUAL REGULAR 2026',
-    centreNo = 'Centre No. 31601',
+    centreNo = '',
+    detectedCentreNo = '',
     session = 'Session 2025-26',
-  } = exportData;
+  } = merged;
 
   const classesToRender = selectedClass === 'all'
     ? Object.keys(classWiseData)
@@ -60,6 +63,9 @@ export async function generateJkboseDocx(exportData = {}) {
 
     const subjects = classInfo.subjects || [];
     const totalExaminees = classInfo.kpis.activeExaminees || 0;
+    const cleanCentre = cleanCentreNoDisplay(
+      classInfo.centreNo || centreNo || detectedCentreNo || exportData.detectedCentreNo || ''
+    );
 
     const children = [];
 
@@ -103,7 +109,7 @@ export async function generateJkboseDocx(exportData = {}) {
             color: '374151',
           }),
           new TextRun({
-            text: `   |   CENTRE NUMBER: ${centreNo.toUpperCase()}`,
+            text: `   |   CENTRE NO: ${cleanCentre ? cleanCentre.toUpperCase() : 'NIL'}`,
             bold: true,
             size: 20,
             font: 'Arial',
@@ -342,13 +348,6 @@ export async function generateJkboseDocx(exportData = {}) {
                     alignment: AlignmentType.RIGHT,
                     children: [
                       new TextRun({ text: institutionName, size: 18, font: 'Arial' }),
-                    ],
-                  }),
-                  new Paragraph({
-                    alignment: AlignmentType.RIGHT,
-                    spacing: { before: 40 },
-                    children: [
-                      new TextRun({ text: '(Official Seal & Signature)', italics: true, size: 17, font: 'Arial', color: '6B7280' }),
                     ],
                   }),
                 ],

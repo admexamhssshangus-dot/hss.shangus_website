@@ -14,6 +14,10 @@ export const BOARD_ROLL_KEYS = Object.freeze([
   'currExamRoll',
   'Exam R.No. (Current)',
   'Exam R. No. (Current)',
+  'Exam Roll No. (Board)',
+  'Exam Roll No.(Board)',
+  'Exam Roll No (Board)',
+  'Exam Roll (Board)',
   'boardRollNo',
   'boardRoll',
   'Board Roll No',
@@ -449,11 +453,76 @@ export function buildJkboseSubjectRollData(students = [], options = {}) {
     });
 
     data.kpis.totalSubjects = data.subjects.length;
+    data.centreNo = detectExamineeCentreNo(data.examinees, cleanCentreNoDisplay(options.centreNo || ''));
   });
 
   return {
     selectedClass,
     classWiseData,
+    detectedCentreNo: detectExamineeCentreNo(students, cleanCentreNoDisplay(options.centreNo || '')),
     activeClasses: Object.keys(classWiseData).filter((k) => classWiseData[k].kpis.totalApproved > 0 || classWiseData[k].subjects.length > 0),
   };
+}
+
+/**
+ * Strips duplicate prefixes like "Centre No:", "Centre No.", "Centre Code:" from a centre string.
+ */
+export function cleanCentreNoDisplay(val) {
+  if (!val) return '';
+  return String(val)
+    .replace(/^centre\s*(?:no\.?|code|num)?[:\s-]*/i, '')
+    .trim();
+}
+
+/**
+ * Automatically detects the JKBOSE examination centre number(s) from student records
+ * or derives it from 9-digit (first 6 digits) or 8-digit (first 5 digits) examinee roll numbers.
+ */
+export function detectExamineeCentreNo(students = [], fallback = '') {
+  if (!Array.isArray(students) || students.length === 0) return cleanCentreNoDisplay(fallback);
+
+  // 1. Check for explicit centre number in student records
+  const explicitCentres = new Set();
+  students.forEach((st) => {
+    if (!st || typeof st !== 'object') return;
+    const raw = st.raw || st._rawStudent || st;
+    const explicit = st.centreNo || raw.centreNo ||
+                     st['Centre No.'] || raw['Centre No.'] ||
+                     st['Centre No'] || raw['Centre No'] ||
+                     st['Centre'] || raw['Centre'] ||
+                     st.examCentre || raw.examCentre ||
+                     st['Exam Centre'] || raw['Exam Centre'] || '';
+    if (explicit && !/^(?:n\/?a|nil|null|none|—|-)$/i.test(String(explicit).trim())) {
+      const clean = cleanCentreNoDisplay(explicit);
+      if (clean) explicitCentres.add(clean);
+    }
+  });
+
+  if (explicitCentres.size > 0) {
+    return Array.from(explicitCentres).sort().join(', ');
+  }
+
+  // 2. Automatically derive from Board Exam Roll Numbers
+  const derivedCentres = new Set();
+  students.forEach((st) => {
+    const roll = extractExamineeRollNumber(st, 'auto');
+    const digits = String(roll || '').replace(/\D/g, '');
+    if (digits.length === 9) {
+      // 9-digit roll (e.g. 301003001) -> First 6 digits indicate centre (301003)
+      derivedCentres.add(digits.slice(0, 6));
+    } else if (digits.length === 8) {
+      // 8-digit roll (e.g. 31601201) -> First 5 digits indicate centre (31601)
+      derivedCentres.add(digits.slice(0, 5));
+    } else if (digits.length >= 7) {
+      derivedCentres.add(digits.slice(0, 6));
+    } else if (digits.length === 5 || digits.length === 6) {
+      derivedCentres.add(digits);
+    }
+  });
+
+  if (derivedCentres.size > 0) {
+    return Array.from(derivedCentres).sort().join(', ');
+  }
+
+  return cleanCentreNoDisplay(fallback);
 }
