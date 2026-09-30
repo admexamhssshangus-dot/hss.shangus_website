@@ -41,7 +41,7 @@ export async function beginMutationJob(fileName, totalCount, reasonCategory = 'F
   return reference.id;
 }
 
-export async function applyRecordPatch(student, patch, { jobId, entryId = '0', force = false } = {}) {
+export async function applyRecordPatch(student, patch, { jobId, entryId = '0', force = false, skipCacheInvalidation = false } = {}) {
   const locator = recordLocator(student);
   const reference = doc(db, locator.collection, locator.documentId);
   // An entry is committed in the SAME transaction as the edit. Even interrupted
@@ -102,8 +102,10 @@ export async function applyRecordPatch(student, patch, { jobId, entryId = '0', f
       identity: locator.nested ? recordIdentity({ Session: data.session || data.Session, Class: data.class || data.Class, ...updated }) : locator.identity },
       before, after, status: 'applied', createdAt: serverTimestamp() }));
   });
-  invalidateCache(locator.collection);
-  invalidateStudentCaches(locator.collection);
+  if (!skipCacheInvalidation) {
+    invalidateCache(locator.collection);
+    invalidateStudentCaches(locator.collection);
+  }
   return effectiveJob;
 }
 export async function completeMutationJob(jobId) {

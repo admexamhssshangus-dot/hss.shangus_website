@@ -4,7 +4,7 @@ import {
   BarChart2, PieChart, Printer, Download, X, Filter, Users, CheckCircle2,
   Sparkles, BookOpen, Layers, ShieldCheck, FileSpreadsheet, ChevronDown,
   CheckSquare, Square, ArrowLeft, FileText, ExternalLink,
-  UserX, UserCheck, Search, AlertTriangle, ChevronUp, Check, HelpCircle
+  UserX, UserCheck, Search, AlertTriangle, ChevronUp, Check, HelpCircle, RefreshCw
 } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -192,7 +192,7 @@ export default function AnalyticsSuiteModal({
   const [selectedGenders, setSelectedGenders] = useState([]);
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
-  const [selectedStatuses, setSelectedStatuses] = useState([]); // Default: All statuses
+  const [selectedStatuses, setSelectedStatuses] = useState(['Approved']); // Default: Approved
 
   // Dropped Examinees Drawer & Management State
   const [isDroppedDrawerOpen, setIsDroppedDrawerOpen] = useState(false);
@@ -1328,58 +1328,92 @@ export default function AnalyticsSuiteModal({
   };
 
   const handleBulkExamStatus = async (shouldDrop, reasonText = '') => {
-    if (selectedStudentIds.size === 0) return;
-    const targets = drawerStudents.filter((s) => selectedStudentIds.has(s.id || s._id || s.docId));
-    if (targets.length === 0) return;
+    if (selectedStudentIds.size === 0) {
+      setIsBulkDropPending(false);
+      return;
+    }
 
     if (shouldDrop && !reasonText) {
       setIsBulkDropPending(true);
       return;
     }
 
-    let updatedCount = 0;
-    for (const st of targets) {
-      const docId = st.id || st._id || st.docId;
-      if (!docId) continue;
-      try {
-        const updates = {
-          isExamDropped: shouldDrop,
-          examStatus: shouldDrop ? 'dropped' : 'active',
-          examDroppedReason: shouldDrop ? (reasonText || 'Administrative exclusion') : null,
-          examDroppedAt: shouldDrop ? new Date().toISOString() : null,
-          examDroppedBy: user?.email || 'admin',
-          updatedAt: new Date().toISOString(),
-        };
+    setSavingStudentId('bulk');
+    try {
+      const allCandidates = [
+        ...(deduplicatedStudents || []),
+        ...(students || []),
+        ...(allStudents || []),
+        ...(onDemandStudents || [])
+      ];
 
-        await updateDoc(doc(db, 'admissions', docId), updates);
-        const updated = { ...st, ...updates };
-        updateCachedItem('admissions', updated);
-        setDroppedOverrides((prev) => {
-          const next = new Map(prev);
-          next.set(docId, updates);
-          return next;
-        });
-        if (onDataUpdated) onDataUpdated(updated);
-        updatedCount++;
-      } catch (e) {
-        console.error('Bulk update error for doc:', docId, e);
+      const targets = [];
+      const seenIds = new Set();
+      for (const rawId of selectedStudentIds) {
+        if (!rawId || seenIds.has(rawId)) continue;
+        seenIds.add(rawId);
+        const match = allCandidates.find((s) => (s.id || s._id || s.docId || s._docId) === rawId);
+        if (match) {
+          targets.push(match);
+        } else {
+          targets.push({ id: rawId, docId: rawId });
+        }
       }
+
+      if (targets.length === 0) {
+        setIsBulkDropPending(false);
+        return;
+      }
+
+      let updatedCount = 0;
+      for (const st of targets) {
+        const docId = st.id || st._id || st.docId || st._docId;
+        if (!docId) continue;
+        try {
+          const updates = {
+            isExamDropped: shouldDrop,
+            examStatus: shouldDrop ? 'dropped' : 'active',
+            examDroppedReason: shouldDrop ? (reasonText || 'Administrative exclusion') : null,
+            examDroppedAt: shouldDrop ? new Date().toISOString() : null,
+            examDroppedBy: user?.email || 'admin',
+            updatedAt: new Date().toISOString(),
+          };
+
+          await updateDoc(doc(db, 'admissions', docId), updates);
+          const updated = { ...st, ...updates };
+          updateCachedItem('admissions', updated);
+          setDroppedOverrides((prev) => {
+            const next = new Map(prev);
+            next.set(docId, updates);
+            return next;
+          });
+          if (onDataUpdated) onDataUpdated(updated);
+          updatedCount++;
+        } catch (e) {
+          console.error('Bulk update error for doc:', docId, e);
+        }
+      }
+
+      logAdminActivity({
+        action: shouldDrop ? 'EXAMINEES_BULK_DROPPED' : 'EXAMINEES_BULK_RESTORED',
+        details: `${shouldDrop ? 'Bulk marked dropped' : 'Bulk restored'} ${updatedCount} examinees (${reasonText || ''})`,
+        adminEmail: user?.email || 'admin',
+      });
+
+      setSelectedStudentIds(new Set());
+      setIsBulkDropPending(false);
+      setCustomDropReason('');
+      setDropReason(COMMON_DROPPED_REASONS[0]);
+      showToast(
+        shouldDrop
+          ? `🚫 ${updatedCount} examinee(s) marked as dropped from examination.`
+          : `✅ ${updatedCount} examinee(s) restored to active exam return.`,
+        'success'
+      );
+    } finally {
+      setSavingStudentId(null);
+      setIsBulkDropPending(false);
     }
-
-    logAdminActivity({
-      action: shouldDrop ? 'EXAMINEES_BULK_DROPPED' : 'EXAMINEES_BULK_RESTORED',
-      details: `${shouldDrop ? 'Bulk marked dropped' : 'Bulk restored'} ${updatedCount} examinees (${reasonText || ''})`,
-      adminEmail: user?.email || 'admin',
-    });
-
-    setSelectedStudentIds(new Set());
-    setIsBulkDropPending(false);
-    showToast(
-      shouldDrop
-        ? `🚫 ${updatedCount} examinee(s) marked as dropped from examination.`
-        : `✅ ${updatedCount} examinee(s) restored to active exam return.`,
-      'success'
-    );
   };
 
   // Handle Clean PDF Export (Direct Browser Print via Hidden Iframe)
@@ -2782,22 +2816,26 @@ export default function AnalyticsSuiteModal({
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        disabled={savingStudentId === 'bulk'}
                         onClick={() => setIsBulkDropPending(true)}
-                        className="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-500 transition-all cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-500 disabled:opacity-50 transition-all cursor-pointer"
                       >
                         Mark Dropped
                       </button>
                       <button
                         type="button"
+                        disabled={savingStudentId === 'bulk'}
                         onClick={() => handleBulkExamStatus(false)}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-500 transition-all cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-500 disabled:opacity-50 transition-all cursor-pointer flex items-center gap-1"
                       >
-                        Restore to Exam
+                        {savingStudentId === 'bulk' && <RefreshCw size={11} className="animate-spin" />}
+                        <span>Restore to Exam</span>
                       </button>
                       <button
                         type="button"
+                        disabled={savingStudentId === 'bulk'}
                         onClick={() => setSelectedStudentIds(new Set())}
-                        className="text-slate-500 hover:underline cursor-pointer"
+                        className="text-slate-500 hover:underline cursor-pointer disabled:opacity-40"
                       >
                         Clear
                       </button>
@@ -2972,26 +3010,30 @@ export default function AnalyticsSuiteModal({
                   onClick={() => {
                     setPendingDropStudent(null);
                     setIsBulkDropPending(false);
+                    setCustomDropReason('');
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  disabled={savingStudentId === 'bulk'}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-40"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
+                  disabled={savingStudentId === 'bulk'}
+                  onClick={async () => {
                     const reason = customDropReason.trim()
                       ? `${dropReason} (${customDropReason.trim()})`
                       : dropReason;
                     if (isBulkDropPending) {
-                      handleBulkExamStatus(true, reason);
+                      await handleBulkExamStatus(true, reason);
                     } else if (pendingDropStudent) {
-                      handleToggleExamDropped(pendingDropStudent, true, reason);
+                      await handleToggleExamDropped(pendingDropStudent, true, reason);
                     }
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-md cursor-pointer transition-all"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white shadow-md cursor-pointer transition-all flex items-center gap-1.5"
                 >
-                  Confirm Drop from Exam
+                  {savingStudentId === 'bulk' && <RefreshCw size={12} className="animate-spin" />}
+                  <span>{savingStudentId === 'bulk' ? 'Excluding...' : 'Confirm Drop from Exam'}</span>
                 </button>
               </div>
             </div>
