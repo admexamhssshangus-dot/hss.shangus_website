@@ -2,50 +2,48 @@
 
 ## Current Working Changes
 
-### 1. Fix Strange Vertical Digit Wrapping on Exam Roll Numbers & JKBOSE Overwrites
+### 1. Make Administrative Modules Popup Taller & Wider
 - **User Request Addressed:**
-  - *"whenever such jkbose update is done, it shall not be strange wrapping"*
-  - In Admin Table (`localhost:3000/portal/admin`), candidate exam roll numbers (e.g. `301004029` and `101060026`) were wrapping vertically digit-by-digit:
-    ```
-    3
-    0
-    1
-    0
-    0
-    4
-    0
-    2
-    9  [● JKBOSE]
-    ```
-- **Root Cause:**
-  1. In `src/portal/admin/AdvancedReports.jsx`, `currExamRollNo` and `prevExamRollNo` were not included in the table cell `whitespace-nowrap` whitelist, giving their wrapper div `whitespace-normal break-words`.
-  2. Because the wrapper had `min-w-0 flex-1 break-words`, when screen/column space became constrained, the browser broke the number at every single character.
-  3. Default column width for `currExamRollNo` was previously set to only `90px` in `DEFAULT_1_WIDTHS`, and any saved widths in `localStorage` were also stuck at `90px`.
-  4. The `<JkboseFieldBadge>` icon occupied ~48px in the cell, leaving only ~34px for a 9-digit roll number.
-- **Fixes Applied in `src/portal/admin/AdvancedReports.jsx`:**
-  1. **Strict `whitespace-nowrap` Protection:**
-     - Added `currExamRollNo` and `prevExamRollNo` to `isNowrapCol` on line 13899 (`overflow-hidden whitespace-nowrap`).
-     - Applied `whitespace-nowrap` to the inner span containing the roll number.
-  2. **Integrated Inline Badge Layout:**
-     - In `COLUMN_DEFS`, updated the `currExamRollNo` and `prevExamRollNo` render functions to lay out the roll number and the `<JkboseFieldBadge>` in an `inline-flex items-center justify-center gap-1.5 whitespace-nowrap` container.
-     - Excluded `currExamRollNo` and `prevExamRollNo` from the outer flex-between badge check so the badge and roll number are permanently anchored together on the same horizontal line.
-  3. **Expanded Minimum Column Width:**
-     - Increased default width from `90px` to `145px` in `DEFAULT_1_WIDTHS.currExamRollNo` (and `120px` for `prevExamRollNo`).
-     - Added hard floor enforcement in table header `<th>` and cell `<td>` via `Math.max(configuredWidth, 145)` (and `120px` for `prevExamRollNo`).
-     - In `useState` for `colWidths`, added automatic self-healing logic so any legacy widths stored in the user's `localStorage` below 145px are instantly upgraded.
-     - Updated column resize drag limits (`minColWidth = 135` for `currExamRollNo`, `110` for `prevExamRollNo`).
+  - *"make the modules popup taller as more modules now than earlier"*
+- **Enhancements Implemented in `src/portal/admin/AdminToolsDropdown.jsx`:**
+  - **Significantly Expanded Modal Height:**
+    - Replaced the rigid, cramped `sm:h-[500px]` and `sm:max-h-[540px]` with responsive, generous heights: `sm:h-[680px] md:h-[720px] lg:h-[760px]` bounded safely by `max-h-[calc(100vh-20px)] sm:max-h-[calc(100vh-48px)]`.
+    - This allows all 9 modules in Categories like Operations & Automation and Records & Registers to display cleanly with minimal or zero vertical scrolling.
+  - **Expanded Modal Width:**
+    - Increased width from `sm:w-[680px] md:w-[720px]` to `sm:w-[760px] md:w-[840px] lg:w-[920px]`, giving descriptions and action buttons ample breathing space.
+  - **Wider Left Category Navigation Sidebar:**
+    - Expanded desktop sidebar width from `w-52` to `w-56 md:w-60`.
+    - Eliminated ellipsis truncation on long category titles (`Records & Regis...` -> `Records & Registers`, `Academics & C...` -> `Academics & Controls`, `Operations & A...` -> `Operations & Automation`).
+  - **Optimized Viewport Positioning:**
+    - Adjusted top placement to `top-2.5 sm:top-5 md:top-6` for balanced vertical centering across varied laptop and desktop displays.
+
+### 2. Administrative Modules Catalog Reclassification & Streamlining
+- **Enhancements Implemented in `src/portal/admin/adminModuleCatalog.js` & `src/portal/admin/AdminToolsDropdown.jsx`:**
+  - **Promoted Express Direct Record Entry (`directEntry`):**
+    - Established as a first-class, standalone launcher module in **Records & Registers** (`launcher: true`, `aliases: ['directEntry', 'directEntryAction', 'ingestion']`).
+    - Configured with `PlusCircle` icon and direct launch handling in `AdminToolsDropdown.jsx`.
+    - Removed `'directEntry'` from `boardSync` aliases to avoid search collisions.
+  - **Consolidated JKBOSE Subject Roll Return:**
+    - Retired standalone `jkboseSubjectRolls` launcher; mapped its aliases (`['jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls']`) directly to `analyticsReports` (`Analytics & Statistical Reports Suite`), where Tab 2 houses the official circular statement with compression.
+  - **Streamlined Quick Actions (Category 4):**
+    - Removed redundant duplicate items (`analyticsReports` and `directEntryAction`) from Quick Actions.
+    - Quick Actions now strictly hosts rapid operational tools: `quickCellEdit` (inline cell edit toggle) and `bulkToolsAction` (Bulk Tools & Ingestion Suite drawer).
+    - Updated `getCategoryCount` so Quick Actions accurately reports 2 available tools.
+  - **Role Governance Updates:**
+    - Added `directEntry` permission to `academic_incharge` and `records_incharge` in `ROLE_PRESETS`.
 
 ---
 
 ## Files Added / Modified
-- `src/portal/admin/AdvancedReports.jsx` (Modified)
+- `src/portal/admin/AdminToolsDropdown.jsx` (Modified: modal height, width, sidebar width, icon mapping, click routing, and Quick Actions cleanup)
+- `src/portal/admin/adminModuleCatalog.js` (Modified: promoted directEntry to Records & Registers, aliases consolidation, Quick Actions cleanup, role presets)
 - `CHANGES_SINCE_LAST_COMMIT.md` (Modified)
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(reports): eliminate vertical digit wrapping on exam roll numbers with inline jkbose badge layout
+feat(portal): expand administrative modules modal height and streamline module catalog with dedicated direct entry launcher
 ```
 
 ---
@@ -63,7 +61,7 @@ git show HEAD
 ```bash
 git reset --soft HEAD~1
 # Make any additional changes if needed
-git commit -m "fix(reports): eliminate vertical digit wrapping on exam roll numbers with inline jkbose badge layout"
+git commit -m "feat(portal): expand administrative modules modal height and streamline module catalog with dedicated direct entry launcher"
 ```
 
 ### Manual Push (Mandatory Policy):
