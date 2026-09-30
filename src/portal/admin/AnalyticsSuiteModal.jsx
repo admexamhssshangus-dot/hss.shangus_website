@@ -649,7 +649,13 @@ export default function AnalyticsSuiteModal({
       norm.includes('math') ||
       /\b(it|ites|it and ites|information technology)\b/i.test(norm) ||
       norm.includes('healthcare') ||
-      norm.includes('environmental')
+      norm === 'htc' ||
+      norm === 'h.t.c' ||
+      norm.includes('health') ||
+      norm.includes('environmental') ||
+      norm === 'es' ||
+      norm === 'e.s' ||
+      norm === 'evs'
     ) {
       return 'Science / Humanities';
     }
@@ -661,6 +667,7 @@ export default function AnalyticsSuiteModal({
   const normalizeSubjectName = (name, studentClass = '') => {
     if (!name) return '';
     const str = String(name).trim();
+    if (!str || /^(?:-|—|–|none|nil|na|n\/a|null|undefined)$/i.test(str)) return '';
     const upper = str.toUpperCase();
     const is9or10 = String(studentClass).toLowerCase().includes('9') || String(studentClass).toLowerCase().includes('10');
 
@@ -716,8 +723,35 @@ export default function AnalyticsSuiteModal({
     if (upper === 'UR' || upper === 'URDU') {
       return 'Urdu';
     }
-    if (upper === 'EVS' || upper === 'ENV' || upper.includes('ENVIRON')) {
+    // Environmental Science & ES Consolidation
+    if (
+      upper === 'ES' ||
+      upper === 'E.S' ||
+      upper === 'E.S.' ||
+      upper === 'EVS' ||
+      upper === 'E.V.S' ||
+      upper === 'ENV' ||
+      upper === 'ENV.' ||
+      upper === 'ENV SC' ||
+      upper === 'ENV. SC' ||
+      upper === 'ENV SCIENCE' ||
+      upper === 'ENVIRONMENTAL SCIENCE' ||
+      upper.includes('ENVIRON')
+    ) {
       return 'Environmental Science';
+    }
+    // Healthcare & HTC Consolidation
+    if (
+      upper === 'HTC' ||
+      upper === 'H.T.C' ||
+      upper === 'H.T.C.' ||
+      upper === 'HC' ||
+      upper === 'HEALTHCARE' ||
+      upper === 'HEALTH CARE' ||
+      upper.includes('HEALTHCARE') ||
+      upper.includes('HEALTH CARE')
+    ) {
+      return 'Healthcare';
     }
     if (upper === 'PR' || upper === 'PERS' || upper === 'PERSIAN') {
       return 'Persian';
@@ -773,7 +807,7 @@ export default function AnalyticsSuiteModal({
 
     if (Array.isArray(raw)) {
       parts = raw;
-    } else if (typeof raw === 'string' && raw.trim() && raw.trim() !== '—' && raw.trim() !== '-') {
+    } else if (typeof raw === 'string' && raw.trim() && !/^(?:-|—|–|none|nil|na|n\/a|null|undefined)$/i.test(raw.trim())) {
       // Protect "IT and ITES", "IT & ITES", "IT/ITES", etc. so symbols (+, &, /) do not fragment it into two separate subjects
       const protectedRaw = raw
         .replace(/\bIT\s*(?:&|and|\/|\+)\s*ITe?S\b/gi, '###IT_AND_ITES###')
@@ -795,9 +829,9 @@ export default function AnalyticsSuiteModal({
     const list = [];
     parts.forEach((p) => {
       const clean = String(p).trim();
-      if (clean && clean !== '—' && clean !== '-' && clean.length > 1) {
+      if (clean && !/^(?:-|—|–|none|nil|na|n\/a|null|undefined)$/i.test(clean) && clean.length > 1) {
         const norm = normalizeSubjectName(clean, stClass);
-        if (norm && norm !== '—' && norm !== '-' && norm.length > 1) {
+        if (norm && !/^(?:-|—|–|none|nil|na|n\/a|null|undefined)$/i.test(norm) && norm.length > 1) {
           // Deduplicate so a student who has both IT and ITES in the raw record is counted only once for "IT and ITES"
           if (!list.includes(norm)) {
             list.push(norm);
@@ -2456,63 +2490,65 @@ export default function AnalyticsSuiteModal({
           ? "overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 custom-scrollbar max-h-[650px] min-h-[400px]"
           : "overflow-auto flex-1 min-h-0 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 custom-scrollbar"
         }>
-          <table className="w-full text-left text-[10.5px] sm:text-xs font-medium border-collapse min-w-[480px]">
+          <table className={`w-full text-left text-[10.5px] sm:text-xs font-medium border-collapse ${
+            analysisMode === 'jkbose_subject_rolls' ? 'min-w-[960px]' : 'min-w-[780px]'
+          }`}>
             <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-black uppercase text-[9.5px] sm:text-[10.5px] border-b border-slate-200 dark:border-slate-700 z-10">
               {analysisMode === 'jkbose_subject_rolls' && (
                 <tr>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 w-8 text-center">#</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Subject Name</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Class</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Roll Number Series (Range Compressed with "TO" and ",")</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Examinees</th>
+                  <th className="py-2.5 px-3 w-14 min-w-[56px] text-center whitespace-nowrap">#</th>
+                  <th className="py-2.5 px-4 w-60 min-w-[220px] whitespace-nowrap">Subject Name</th>
+                  <th className="py-2.5 px-3 w-32 min-w-[110px] text-center whitespace-nowrap">Class</th>
+                  <th className="py-2.5 px-4 min-w-[460px] whitespace-nowrap">Roll Number Series (Range Compressed with "TO" and ",")</th>
+                  <th className="py-2.5 px-3 w-32 min-w-[110px] text-center whitespace-nowrap">Examinees</th>
                 </tr>
               )}
 
               {analysisMode === 'subject' && (
                 <tr>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 w-8 text-center">#</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Subject Name</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Stream</th>
-                  {showMaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Male (M)</th>}
-                  {showFemaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Female (F)</th>}
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Enrolled</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right">% Share</th>
+                  <th className="py-2 px-3 w-14 min-w-[56px] text-center whitespace-nowrap">#</th>
+                  <th className="py-2 px-4 w-60 min-w-[200px] whitespace-nowrap">Subject Name</th>
+                  <th className="py-2 px-3 w-44 min-w-[140px] whitespace-nowrap">Stream</th>
+                  {showMaleCol && <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Male (M)</th>}
+                  {showFemaleCol && <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Female (F)</th>}
+                  <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Enrolled</th>
+                  <th className="py-2 px-4 w-28 min-w-[90px] text-right whitespace-nowrap">% Share</th>
                 </tr>
               )}
 
               {analysisMode === 'stream_gender' && (
                 <tr>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 w-8 text-center">#</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Stream Bracket</th>
-                  {showMaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Male</th>}
-                  {showFemaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Female</th>}
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Total Strength</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right">Gender Split (M / F)</th>
+                  <th className="py-2 px-3 w-14 min-w-[56px] text-center whitespace-nowrap">#</th>
+                  <th className="py-2 px-4 min-w-[240px] whitespace-nowrap">Stream Bracket</th>
+                  {showMaleCol && <th className="py-2 px-3 w-32 min-w-[100px] text-center whitespace-nowrap">Male</th>}
+                  {showFemaleCol && <th className="py-2 px-3 w-32 min-w-[100px] text-center whitespace-nowrap">Female</th>}
+                  <th className="py-2 px-3 w-36 min-w-[110px] text-center whitespace-nowrap">Total Strength</th>
+                  <th className="py-2 px-4 w-44 min-w-[130px] text-right whitespace-nowrap">Gender Split (M / F)</th>
                 </tr>
               )}
 
               {analysisMode === 'roll_stmt' && (
                 <tr>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 w-8 text-center">#</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Class & Stream</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Roll Range</th>
-                  {showMaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Male (M)</th>}
-                  {showFemaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Female (F)</th>}
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Reg. Count</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right">Total</th>
+                  <th className="py-2 px-3 w-14 min-w-[56px] text-center whitespace-nowrap">#</th>
+                  <th className="py-2 px-4 min-w-[220px] whitespace-nowrap">Class & Stream</th>
+                  <th className="py-2 px-3 min-w-[160px] whitespace-nowrap">Roll Range</th>
+                  {showMaleCol && <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Male (M)</th>}
+                  {showFemaleCol && <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Female (F)</th>}
+                  <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Reg. Count</th>
+                  <th className="py-2 px-4 w-28 min-w-[90px] text-right whitespace-nowrap">Total</th>
                 </tr>
               )}
 
               {analysisMode === 'enrollment' && (
                 <tr>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 w-8 text-center">#</th>
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Class</th>
-                  {showApprovedCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Approved</th>}
-                  {showSubmittedCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Submitted</th>}
-                  {showDraftCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Draft</th>}
-                  {showMaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Male (M)</th>}
-                  {showFemaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Female (F)</th>}
-                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right">Total</th>
+                  <th className="py-2 px-3 w-14 min-w-[56px] text-center whitespace-nowrap">#</th>
+                  <th className="py-2 px-4 min-w-[180px] whitespace-nowrap">Class</th>
+                  {showApprovedCol && <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Approved</th>}
+                  {showSubmittedCol && <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Submitted</th>}
+                  {showDraftCol && <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Draft</th>}
+                  {showMaleCol && <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Male (M)</th>}
+                  {showFemaleCol && <th className="py-2 px-3 w-28 min-w-[90px] text-center whitespace-nowrap">Female (F)</th>}
+                  <th className="py-2 px-4 w-28 min-w-[90px] text-right whitespace-nowrap">Total</th>
                 </tr>
               )}
             </thead>
@@ -2530,38 +2566,40 @@ export default function AnalyticsSuiteModal({
                         }`}
                         title="Click to view/hide examinee roll numbers list"
                       >
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono text-xs">{r.globalIdx}</td>
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white text-xs flex items-center justify-between gap-1">
-                          <span>{r.subject}</span>
-                          <span className="text-slate-400">
-                            {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                          </span>
+                        <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-xs whitespace-nowrap">{r.globalIdx}</td>
+                        <td className="py-2.5 px-4 font-bold text-slate-900 dark:text-white text-xs whitespace-nowrap">
+                          <div className="flex items-center justify-between gap-2">
+                            <span>{r.subject}</span>
+                            <span className="text-slate-400">
+                              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            </span>
+                          </div>
                         </td>
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 inline-block">
                             {formatClassDisplay(r.className)}
                           </span>
                         </td>
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-mono font-bold text-indigo-950 dark:text-indigo-200 text-xs tracking-tight break-all">
+                        <td className="py-2.5 px-4 font-mono font-bold text-indigo-950 dark:text-indigo-200 text-xs tracking-tight leading-relaxed">
                           {r.rollNumbersSeries || <span className="text-slate-400 font-normal italic">No examinees</span>}
                         </td>
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-black text-xs text-slate-900 dark:text-white">
+                        <td className="py-2.5 px-3 text-center font-black text-xs text-slate-900 dark:text-white whitespace-nowrap">
                           {r.candidateCount}
                         </td>
                       </tr>
                       {isExpanded && Array.isArray(r.rawRollNumbers) && r.rawRollNumbers.length > 0 && (
                         <tr className="bg-slate-50/80 dark:bg-slate-950/60">
-                          <td colSpan={5} className="p-2 sm:p-3 border-y border-indigo-100 dark:border-indigo-900/40">
-                            <div className="space-y-1">
+                          <td colSpan={5} className="p-3 sm:p-4 border-y border-indigo-100 dark:border-indigo-900/40">
+                            <div className="space-y-1.5">
                               <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-300">
                                 <span>Enrolled Examinees in {r.subject} ({r.candidateCount} candidates):</span>
                                 <span className="text-[10px] text-slate-400 font-normal">Click row to collapse</span>
                               </div>
-                              <div className="flex flex-wrap gap-1 max-h-36 overflow-y-auto p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 custom-scrollbar">
+                              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 custom-scrollbar">
                                 {r.rawRollNumbers.map((rollNum, rollIdx) => (
                                   <span
                                     key={rollIdx}
-                                    className="px-1.5 py-0.5 rounded text-[10.5px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                                    className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
                                   >
                                     #{rollNum}
                                   </span>
@@ -2580,17 +2618,17 @@ export default function AnalyticsSuiteModal({
                   const share = stats.totalStudents > 0 ? ((sub.total / stats.totalStudents) * 100).toFixed(1) : '0';
                   return (
                     <tr key={sub.name} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
-                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
-                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white">{sub.name}</td>
-                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[9.5px]">
+                      <td className="py-2 px-3 text-center text-slate-400 font-mono whitespace-nowrap">{idx + 1}</td>
+                      <td className="py-2 px-4 font-bold text-slate-900 dark:text-white whitespace-nowrap">{sub.name}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[9.5px]">
                           {sub.stream}
                         </span>
                       </td>
-                      {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{sub.male}</td>}
-                      {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{sub.female}</td>}
-                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-bold text-slate-900 dark:text-white">{sub.total}</td>
-                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-bold text-indigo-600 dark:text-indigo-400">{share}%</td>
+                      {showMaleCol && <td className="py-2 px-3 text-center text-sky-600 font-bold whitespace-nowrap">{sub.male}</td>}
+                      {showFemaleCol && <td className="py-2 px-3 text-center text-rose-600 font-bold whitespace-nowrap">{sub.female}</td>}
+                      <td className="py-2 px-3 text-center font-bold text-slate-900 dark:text-white whitespace-nowrap">{sub.total}</td>
+                      <td className="py-2 px-4 text-right font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{share}%</td>
                     </tr>
                   );
                 })}
@@ -2601,12 +2639,12 @@ export default function AnalyticsSuiteModal({
                   const fPct = stm.total > 0 ? ((stm.female / stm.total) * 100).toFixed(1) : '0';
                   return (
                     <tr key={stm.name} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
-                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
-                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white">{stm.name}</td>
-                      {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{stm.male}</td>}
-                      {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{stm.female}</td>}
-                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-bold text-slate-900 dark:text-white">{stm.total}</td>
-                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-bold text-[10px] sm:text-xs">
+                      <td className="py-2 px-3 text-center text-slate-400 font-mono whitespace-nowrap">{idx + 1}</td>
+                      <td className="py-2 px-4 font-bold text-slate-900 dark:text-white whitespace-nowrap">{stm.name}</td>
+                      {showMaleCol && <td className="py-2 px-3 text-center text-sky-600 font-bold whitespace-nowrap">{stm.male}</td>}
+                      {showFemaleCol && <td className="py-2 px-3 text-center text-rose-600 font-bold whitespace-nowrap">{stm.female}</td>}
+                      <td className="py-2 px-3 text-center font-bold text-slate-900 dark:text-white whitespace-nowrap">{stm.total}</td>
+                      <td className="py-2 px-4 text-right font-bold text-[10px] sm:text-xs whitespace-nowrap">
                         <span className="text-sky-600">{mPct}% M</span> / <span className="text-rose-600">{fPct}% F</span>
                       </td>
                     </tr>
@@ -2618,13 +2656,13 @@ export default function AnalyticsSuiteModal({
                   <React.Fragment key={`grp_${grp.className}`}>
                     {grp.items.map((r) => (
                       <tr key={r.key} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono">{r.globalIdx}</td>
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white">{r.key}</td>
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-mono font-bold text-amber-700 dark:text-amber-400">{r.rollRange}</td>
-                        {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{r.male}</td>}
-                        {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{r.female}</td>}
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-medium">{r.regCount}</td>
-                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-bold text-slate-900 dark:text-white">{r.total}</td>
+                        <td className="py-2 px-3 text-center text-slate-400 font-mono whitespace-nowrap">{r.globalIdx}</td>
+                        <td className="py-2 px-4 font-bold text-slate-900 dark:text-white whitespace-nowrap">{r.key}</td>
+                        <td className="py-2 px-3 font-mono font-bold text-amber-700 dark:text-amber-400 whitespace-nowrap">{r.rollRange}</td>
+                        {showMaleCol && <td className="py-2 px-3 text-center text-sky-600 font-bold whitespace-nowrap">{r.male}</td>}
+                        {showFemaleCol && <td className="py-2 px-3 text-center text-rose-600 font-bold whitespace-nowrap">{r.female}</td>}
+                        <td className="py-2 px-3 text-center font-medium whitespace-nowrap">{r.regCount}</td>
+                        <td className="py-2 px-4 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">{r.total}</td>
                       </tr>
                     ))}
 

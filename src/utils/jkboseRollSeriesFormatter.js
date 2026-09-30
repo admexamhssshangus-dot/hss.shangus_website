@@ -10,22 +10,29 @@ import { isStudentAdmissionApproved, isStudentExamDropped, getAssignedClassRollN
 
 // Board exam roll number keys in priority order
 export const BOARD_ROLL_KEYS = Object.freeze([
+  'currExamRollNo',
+  'currExamRoll',
+  'Exam R.No. (Current)',
+  'Exam R. No. (Current)',
+  'boardRollNo',
+  'boardRoll',
+  'Board Roll No',
+  'Board Roll No.',
+  'Board Roll Number',
+  'Board Roll',
   'examRollNo',
   'Exam Roll No',
   'Exam Roll No.',
   'Exam Roll Number',
   'Exam R.No.',
   'Exam R.No',
-  'boardRollNo',
-  'Board Roll No',
-  'Board Roll No.',
-  'Board Roll Number',
+  'Exam R. No.',
+  'Exam R. No',
   'jkboseRollNo',
   'jkboseRoll',
   'jkbose_roll_no',
   'board_roll_no',
   'exam_roll_no',
-  'Exam R.No. (Current)',
 ]);
 
 // Canonical subject sort order for Higher Secondary and Secondary
@@ -54,6 +61,8 @@ export const CANONICAL_SUBJECT_ORDER = Object.freeze([
   'Hindi',
   'Arabic',
   'Persian',
+  'Healthcare',
+  'IT and ITES',
   'General Science',
   'Science',
   'Social Science',
@@ -127,8 +136,13 @@ export function extractStudentSubjects(student) {
 
   // Individual subject columns fallback (Subject 1, Subject 2, etc.)
   for (let i = 1; i <= 6; i++) {
-    const val = student[`subject${i}`] || raw[`subject${i}`] || student[`Subject ${i}`] || raw[`Subject ${i}`];
-    if (typeof val === 'string' && val.trim()) collected.push(val.trim());
+    const val = student[`subject${i}`] || raw[`subject${i}`] || student[`Subject ${i}`] || raw[`Subject ${i}`] || student[`Subjects${i}`] || raw[`Subjects${i}`];
+    if (typeof val === 'string' && val.trim()) {
+      const trimmed = val.trim();
+      if (!/^(?:-|—|–|none|nil|na|n\/a|null|undefined)$/i.test(trimmed)) {
+        collected.push(trimmed);
+      }
+    }
   }
 
   // Compulsory subject defaults if empty
@@ -150,7 +164,7 @@ export function extractStudentSubjects(student) {
   const result = [];
   collected.forEach((sub) => {
     const normalized = normalizeSubjectName(sub);
-    if (normalized && !seen.has(normalized.toLowerCase())) {
+    if (normalized && !/^(?:-|—|–|none|nil|na|n\/a|null|undefined)$/i.test(normalized) && !seen.has(normalized.toLowerCase())) {
       seen.add(normalized.toLowerCase());
       result.push(normalized);
     }
@@ -165,13 +179,25 @@ export function extractStudentSubjects(student) {
 export function normalizeSubjectName(name) {
   if (!name || typeof name !== 'string') return '';
   const clean = name.trim();
+  if (!clean || /^(?:-|—|–|none|nil|na|n\/a|null|undefined)$/i.test(clean)) return '';
   const lower = clean.toLowerCase();
 
   if (/^(?:gen(?:eral)?\.?\s*eng(?:lish)?|eng\b)/i.test(lower)) {
     if (lower.includes('10th') || lower.includes('9th') || lower === 'english') return 'English';
     return 'General English';
   }
-  if (/^e(?:nv(?:ironmental)?)?\.?\s*sc(?:i(?:ence)?)?/i.test(lower)) return 'Environmental Science';
+  // Environmental Science & ES Consolidation
+  if (/^(?:e(?:nv(?:ironmental)?)?\.?\s*sc(?:i(?:ence)?)?|es|e\.s|e\.s\.|evs|e\.v\.s)$/i.test(lower) || lower.includes('environmental')) {
+    return 'Environmental Science';
+  }
+  // Healthcare & HTC Consolidation
+  if (/^(?:htc|h\.t\.c|h\.t\.c\.|hc|healthcare|health\s*care)/i.test(lower) || lower.includes('healthcare') || lower.includes('health care')) {
+    return 'Healthcare';
+  }
+  // IT & ITES Consolidation
+  if (/^(?:it\s*(?:&|and|\/|\+)?\s*ites?|information\s*technology)/i.test(lower) || lower.includes('ites') || lower.includes('it & ites')) {
+    return 'IT and ITES';
+  }
   if (/^phy(?:sics)?\b/i.test(lower)) return 'Physics';
   if (/^chem(?:istry)?\b/i.test(lower)) return 'Chemistry';
   if (/^bio(?:logy)?\b/i.test(lower)) return 'Biology';

@@ -1012,6 +1012,23 @@ export default function BulkFieldOverwriteModal({
         const mergedStream = (existing.stream && existing.stream !== 'Unknown') ? existing.stream : (s.stream && s.stream !== 'Unknown' ? s.stream : existing.stream);
         const mergedPhoto = existing.photoUrl || existing.photo_id || existing.photo || s.photoUrl || s.photo_id || s.photo;
 
+        // Keep track of all distinct physical records across admissions and masterRegisters
+        const existingLinked = Array.isArray(existing._linkedRecords) ? existing._linkedRecords : [existing];
+        const isSamePhysical = (a, b) => {
+          const colA = a._srcCollection || a._sourceCollection || a._source || (a._parentDocId || a.parentDocId || a._isHistorical ? 'masterRegisters' : 'admissions');
+          const docA = a._parentDocId || a.parentDocId || a._docId || a.docId || a.id;
+          const idxA = a._arrayIndex !== undefined ? a._arrayIndex : a.arrayIndex;
+
+          const colB = b._srcCollection || b._sourceCollection || b._source || (b._parentDocId || b.parentDocId || b._isHistorical ? 'masterRegisters' : 'admissions');
+          const docB = b._parentDocId || b.parentDocId || b._docId || b.docId || b.id;
+          const idxB = b._arrayIndex !== undefined ? b._arrayIndex : b.arrayIndex;
+
+          return colA === colB && docA === docB && idxA === idxB;
+        };
+        const updatedLinked = existingLinked.some(item => isSamePhysical(item, s))
+          ? existingLinked
+          : [...existingLinked, s];
+
         const merged = {
           ...s,
           ...existing,
@@ -1021,7 +1038,8 @@ export default function BulkFieldOverwriteModal({
           photoUrl: mergedPhoto || existing.photoUrl || s.photoUrl,
           classRollNo: mergedRoll || existing.classRollNo || roll,
           status: effStatus,
-          Status: effStatus
+          Status: effStatus,
+          _linkedRecords: updatedLinked
         };
         list[existingIdx] = merged;
         keys.forEach(k => indexMap.set(k, existingIdx));
@@ -1032,7 +1050,8 @@ export default function BulkFieldOverwriteModal({
           ...s,
           classRollNo: roll,
           status: effStatus,
-          Status: effStatus
+          Status: effStatus,
+          _linkedRecords: [s]
         };
         list.push(newRec);
         keys.forEach(k => indexMap.set(k, newIdx));
@@ -2510,24 +2529,30 @@ export default function BulkFieldOverwriteModal({
         payload.lastBoardSyncAt = syncTimestamp;
         payload.boardSyncSource = syncSource;
 
-        let docKey = 'admissions_single';
-        try {
-          const loc = recordLocator(st);
-          docKey = `${loc.collection}_${loc.documentId}`;
-        } catch {
-          docKey = String(st.docId || st.id || st.formNo || i);
-        }
+        const targets = Array.isArray(st._linkedRecords) && st._linkedRecords.length > 0 ? st._linkedRecords : [st];
 
-        return {
-          index: i,
-          item,
-          student: st,
-          payload,
-          docKey,
-          sName,
-          sRoll,
-          sReg
-        };
+        return targets.map((targetStudent, tIdx) => {
+          let docKey = 'admissions_single';
+          try {
+            const loc = recordLocator(targetStudent);
+            docKey = `${loc.collection}_${loc.documentId}`;
+          } catch {
+            docKey = String(targetStudent.docId || targetStudent.id || targetStudent.formNo || i);
+          }
+
+          return {
+            index: i,
+            entryId: `${i}_${tIdx}`,
+            item,
+            student: targetStudent,
+            payload,
+            docKey,
+            sName,
+            sRoll,
+            sReg,
+            isPrimary: tIdx === 0
+          };
+        });
       };
 
       // Group tasks by physical database document
@@ -2535,11 +2560,13 @@ export default function BulkFieldOverwriteModal({
       // while distinct documents run concurrently across parallel workers)
       const docQueuesMap = new Map();
       rowsToExecute.forEach((item, idx) => {
-        const task = buildTaskPayload(item, idx);
-        if (!docQueuesMap.has(task.docKey)) {
-          docQueuesMap.set(task.docKey, []);
-        }
-        docQueuesMap.get(task.docKey).push(task);
+        const tasks = buildTaskPayload(item, idx);
+        tasks.forEach(task => {
+          if (!docQueuesMap.has(task.docKey)) {
+            docQueuesMap.set(task.docKey, []);
+          }
+          docQueuesMap.get(task.docKey).push(task);
+        });
       });
 
       const docQueues = Array.from(docQueuesMap.values());
@@ -2555,28 +2582,30 @@ export default function BulkFieldOverwriteModal({
 
             await applyRecordPatch(task.student, task.payload, {
               jobId,
-              entryId: String(task.index),
+              entryId: task.entryId || String(task.index),
               force: true,
               skipCacheInvalidation: true
             });
 
-            updatedCount++;
-            const pct = Math.round((updatedCount / rowsToExecute.length) * 100);
-            setProgressPercent(pct);
-            setProgressStage(`Overwriting records (${updatedCount} of ${rowsToExecute.length}): ${task.sName}...`);
+            if (task.isPrimary) {
+              updatedCount++;
+              const pct = Math.round((updatedCount / rowsToExecute.length) * 100);
+              setProgressPercent(pct);
+              setProgressStage(`Overwriting records (${updatedCount} of ${rowsToExecute.length}): ${task.sName}...`);
 
-            const fieldsChanged = Object.keys(task.item.diffs || {}).length;
-            setExecutionLogs(prev => [
-              {
-                id: `log_${task.index}_${Date.now()}`,
-                name: task.sName,
-                roll: task.sRoll,
-                reg: task.sReg,
-                fieldsCount: fieldsChanged,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-              },
-              ...prev.slice(0, 8)
-            ]);
+              const fieldsChanged = Object.keys(task.item.diffs || {}).length;
+              setExecutionLogs(prev => [
+                {
+                  id: `log_${task.index}_${Date.now()}`,
+                  name: task.sName,
+                  roll: task.sRoll,
+                  reg: task.sReg,
+                  fieldsCount: fieldsChanged,
+                  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                },
+                ...prev.slice(0, 8)
+              ]);
+            }
 
             // Yield to event loop
             await new Promise(r => setTimeout(r, 0));
