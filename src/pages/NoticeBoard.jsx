@@ -121,13 +121,7 @@ export default function NoticeBoard() {
   useEffect(() => {
     let active = true;
     async function loadNotices() {
-      const noticeTsKey = 'site_notices_ts';
-      const lastTs = Number(localStorage.getItem(noticeTsKey) || 0);
-      const isFresh = (Date.now() - lastTs) < 15 * 60 * 1000;
-      if (isFresh && notices.length > 0) {
-        setLoading(false);
-        return;
-      }
+      // Live Cloud Data check across all devices
       // 1. Try Firestore first (Live Cloud Data across all devices)
       try {
         const snap = await getDoc(doc(db, 'site', 'notices'));
@@ -191,25 +185,41 @@ export default function NoticeBoard() {
     return () => { active = false; };
   }, []);
 
-  // Listen to cross-tab data sync broadcasts
+  // Listen to cross-tab data sync broadcasts & custom events
   useEffect(() => {
+    let channel = null;
     try {
-      const channel = new BroadcastChannel('hss_data_sync');
+      channel = new BroadcastChannel('hss_data_sync');
       channel.onmessage = (e) => {
         if (e.data && e.data.type === 'UPDATE_DATA') {
           import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
             loadSiteSettings().then(setSettings);
           });
-          const local = localStorage.getItem('site_notices');
-          if (local) {
-            setNotices(parseNotices(local));
+          if (e.data.notices) {
+            setNotices(parseNotices(e.data.notices));
+          } else {
+            const local = localStorage.getItem('site_notices');
+            if (local) {
+              setNotices(parseNotices(local));
+            }
           }
         }
       };
-      return () => channel.close();
     } catch (err) {
       // ignore
     }
+
+    const handleCustomNotice = (e) => {
+      if (e.detail?.text) {
+        setNotices(parseNotices(e.detail.text));
+      }
+    };
+    window.addEventListener('hss-notices-updated', handleCustomNotice);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('hss-notices-updated', handleCustomNotice);
+    };
   }, []);
 
   const filteredNotices = notices.filter(
