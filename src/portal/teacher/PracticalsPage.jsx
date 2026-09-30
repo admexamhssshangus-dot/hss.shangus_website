@@ -1550,31 +1550,6 @@ export default function PracticalsPage() {
     );
   }, [existingAwardInfo?.canonical]);
 
-  // Smart Switcher: Detect if current teacher has submissions in another evaluation type for this class & subject
-  const otherEvalSubmission = useMemo(() => {
-    if (!submissionHistory || submissionHistory.length === 0) return null;
-    const currentEvalNorm = String(practicalType || '').toLowerCase().trim();
-    const currentClassNorm = String(selectedClass || '').toLowerCase().trim();
-    const currentSubjNorm = String(selectedSubject || '').toLowerCase().trim();
-
-    // Only show hint if current roster has 0 marks entered
-    const hasCurrentMarks = studentMarks && studentMarks.some(s => s.practicalMarks !== '' || s.vivaMarks !== '');
-    if (hasCurrentMarks) return null;
-
-    return submissionHistory.find(item => {
-      if (!item) return false;
-      const itemCls = String(item.className || '').toLowerCase().trim();
-      const itemSubj = String(item.subject || '').toLowerCase().trim();
-      const itemEval = String(item.practicalType || item.evaluationType || '').toLowerCase().trim();
-
-      const classMatch = itemCls.includes(currentClassNorm) || currentClassNorm.includes(itemCls);
-      const subjMatch = itemSubj === currentSubjNorm;
-      const diffEval = itemEval && itemEval !== currentEvalNorm;
-
-      const recCount = item.recordsCount || (Array.isArray(item.records) ? item.records.length : 0);
-      return classMatch && subjMatch && diffEval && recCount > 0;
-    });
-  }, [submissionHistory, practicalType, selectedClass, selectedSubject, studentMarks]);
 
   // Detect past session years from masterRegisters and practicalsData records
   useEffect(() => {
@@ -1761,7 +1736,11 @@ export default function PracticalsPage() {
           const isMatchingCanonical = (dId === docId || isLegacyDocMatch || (String(data.docId || '') === docId && !dId.startsWith('pending_') && !dId.startsWith('history_') && !dId.startsWith('bin_'))) && Array.isArray(data.records) && data.records.length > 0;
           if (isMatchingCanonical) {
             if (canAccessAward) {
-              foundCanonical = { id: dId, ...data };
+              const cleanData = { ...data };
+              delete cleanData.rejectionReason;
+              delete cleanData.rejectedAt;
+              delete cleanData.rejectedBy;
+              foundCanonical = { id: dId, ...cleanData };
             } else if (!lockedOtherTeacherAward) {
               lockedOtherTeacherAward = {
                 id: dId,
@@ -2491,10 +2470,17 @@ export default function PracticalsPage() {
     }
 
     const itemId = String(item.id || item.docId || '');
-    const isPending = itemId.startsWith('pending_') || item.status === 'pending_approval' || item.status === 'draft' || item.status === 'rejected';
+    const isApprovedItem = item.status === 'approved' || item.isPendingApproval === false;
+    const isPending = !isApprovedItem && (itemId.startsWith('pending_') || item.status === 'pending_approval' || item.status === 'draft' || item.status === 'rejected');
+    const cleanItem = { ...item };
+    if (isApprovedItem) {
+      delete cleanItem.rejectionReason;
+      delete cleanItem.rejectedAt;
+      delete cleanItem.rejectedBy;
+    }
     setExistingAwardInfo({
-      canonical: isPending ? null : item,
-      pending: isPending ? item : null,
+      canonical: isPending ? null : cleanItem,
+      pending: isPending ? cleanItem : null,
       lockedOtherTeacherAward: null
     });
 
@@ -3800,7 +3786,11 @@ export default function PracticalsPage() {
                 </p>
               </div>
             </div>
-          ) : existingAwardInfo?.pending?.status === 'rejected' ? (
+          ) : (existingAwardInfo?.pending?.status === 'rejected' && !existingAwardInfo?.canonical && (
+            !existingAwardInfo.pending.practicalType ||
+            String(existingAwardInfo.pending.practicalType).toLowerCase().trim() === String(practicalType).toLowerCase().trim() ||
+            String(existingAwardInfo.pending.evaluationType).toLowerCase().trim() === String(practicalType).toLowerCase().trim()
+          )) ? (
             <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/60 flex items-start gap-2.5 text-rose-900 dark:text-rose-200 animate-in fade-in duration-200 shadow-xs">
               <span className="w-7 h-7 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
                 <AlertCircle size={16} />
@@ -4029,7 +4019,11 @@ export default function PracticalsPage() {
                   <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Eval. Type</label>
                   <select
                     value={practicalType}
-                    onChange={(e) => setPracticalType(e.target.value)}
+                    onChange={(e) => {
+                      setExistingAwardInfo({ canonical: null, pending: null, lockedOtherTeacherAward: null });
+                      setTeacherCustomMax(null);
+                      setPracticalType(e.target.value);
+                    }}
                     className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors"
                   >
                     {availableEvalTypes.map(et => (
@@ -4201,7 +4195,11 @@ export default function PracticalsPage() {
                       <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Evaluation Type</label>
                       <select
                         value={practicalType}
-                        onChange={(e) => setPracticalType(e.target.value)}
+                        onChange={(e) => {
+                          setExistingAwardInfo({ canonical: null, pending: null, lockedOtherTeacherAward: null });
+                          setTeacherCustomMax(null);
+                          setPracticalType(e.target.value);
+                        }}
                         className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
                       >
                         {availableEvalTypes.map(et => (
@@ -4662,34 +4660,7 @@ export default function PracticalsPage() {
             )}
 
 
-          {/* Smart Evaluation Type Switcher Banner */}
-          {otherEvalSubmission && !loading && (
-            <div className="mb-2.5 p-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-amber-500/10 border border-amber-300 dark:border-amber-700/60 flex flex-wrap items-center justify-between gap-2.5 text-xs shadow-2xs animate-fadeIn">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
-                  <Sparkles size={14} />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-bold text-slate-900 dark:text-white text-xs m-0 truncate">
-                    Saved awards found under another evaluation type!
-                  </p>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300 m-0 truncate">
-                    Currently viewing <strong>{practicalType}</strong>, but you have awards saved under <strong>{otherEvalSubmission.practicalType || otherEvalSubmission.evaluationType}</strong> ({otherEvalSubmission.recordsCount || otherEvalSubmission.records?.length || 0} candidates).
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPracticalType(otherEvalSubmission.practicalType || otherEvalSubmission.evaluationType);
-                }}
-                className="w-full sm:w-auto h-7 sm:h-7.5 px-3 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1 shrink-0"
-              >
-                <span>Switch to {otherEvalSubmission.practicalType || otherEvalSubmission.evaluationType}</span>
-                <ChevronRight size={13} />
-              </button>
-            </div>
-          )}
+
 
           {/* Student Roster Marks Entry Table - Ultra Compact */}
           {loading ? (
