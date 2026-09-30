@@ -1081,11 +1081,16 @@ export default function AdminPracticals() {
             }
           }
 
-          // 2. Prepare clean canonical document (sanitized to remove any undefined fields)
+          // 2. Prepare clean canonical document (sanitized to remove any undefined or rejection fields)
           const { id: _ignoreId, ...pendingData } = pendingDoc;
+          delete pendingData.rejectionReason;
+          delete pendingData.rejectedAt;
+          delete pendingData.rejectedBy;
+
           const canonicalRecord = sanitizeForFirestore({
             ...pendingData,
             id: targetDocId,
+            docId: targetDocId,
             status: 'approved',
             isDraft: false,
             isPendingApproval: false,
@@ -2355,6 +2360,17 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   }`}
                 >
                   Internal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocalPrintOpts(p => ({ ...p, practicalType: 'pre-board test' }))}
+                  className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
+                    String(localPrintOpts.practicalType || '').toLowerCase().includes('pre-board') || String(localPrintOpts.practicalType || '').toLowerCase().includes('preboard')
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Pre-Board
                 </button>
                 <button
                   type="button"
