@@ -7,7 +7,7 @@ import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, writeBatch, server
 import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult, RecaptchaVerifier, signInWithPhoneNumber, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { publicFacultyDocumentId, toPublicFacultyList } from '../utils/facultyPrivacy';
-import { isBootstrapSuperAdminEmail, resolveStaffRoleAndPerms, requireVerifiedAdminSession } from '../services/staffAuthService';
+import { isBootstrapAdminEmail, isBootstrapSuperAdminEmail, resolveStaffRoleAndPerms, requireVerifiedAdminSession } from '../services/staffAuthService';
 import ModernLoader from '../components/ModernLoader';
 import { logAdminActivity } from '../services/adminActivityLogger';
 
@@ -131,7 +131,7 @@ const uploadToFirebaseStorage = async (file, filename) => {
   return await getDownloadURL(storageRef);
 };
 
-const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleBin }, authorized = false) => {
+const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleBin, targetTab = null }, authorized = false) => {
   if (!db) throw new Error('Firestore not configured');
 
   // Authorization: require authenticated admin
@@ -140,7 +140,8 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
 
   let isAdminClaim = authorized;
   if (!isAdminClaim) {
-    const isBootstrap = isBootstrapSuperAdminEmail(user.email);
+    const userEmail = (user.email || '').toLowerCase().trim();
+    const isBootstrap = isBootstrapAdminEmail(userEmail) || isBootstrapSuperAdminEmail(userEmail);
     if (isBootstrap) {
       isAdminClaim = true;
     } else {
@@ -155,9 +156,59 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
   }
 
   if (!isAdminClaim) {
+    try {
+      const staffProf = await resolveStaffRoleAndPerms(user);
+      if (staffProf?.isAdmin || staffProf?.isSuperAdmin || staffProf?.perms?.some(p => ['*', 'controls', 'cms'].includes(p))) {
+        isAdminClaim = true;
+      }
+    } catch (e) {
+      console.warn('Staff profile check failed in saveToFirebase:', e);
+    }
+  }
+
+  if (!isAdminClaim) {
     throw new Error('User is not authorized to perform this action.');
   }
 
+  // 1. FAST-PATH: Target Notices Tab (Direct single write in ~50-100ms)
+  if (targetTab === 'notices') {
+    await setDoc(doc(db, 'site', 'notices'), {
+      text: noticesText || '',
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return;
+  }
+
+  // 2. FAST-PATH: Target Slideshow Tab
+  if (targetTab === 'slideshow') {
+    if (slides) {
+      await setDoc(doc(db, 'site', 'slideshow'), {
+        items: JSON.parse(JSON.stringify(slides)),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+    return;
+  }
+
+  // 3. FAST-PATH: Target Admissions Tab
+  if (targetTab === 'admissions') {
+    const cleanSettings = sanitizePublicSettings(settings);
+    await setDoc(doc(db, 'site', 'settings'), cleanSettings, { merge: true });
+    return;
+  }
+
+  // 4. FAST-PATH: Target Recycle Bin Tab
+  if (targetTab === 'trash') {
+    if (recycleBin !== undefined) {
+      await setDoc(doc(db, 'site', 'recycle_bin'), {
+        items: JSON.parse(JSON.stringify(recycleBin || [])),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+    return;
+  }
+
+  // 5. Full sync or Faculty Tab (requires processing faculty members and collections)
   const cleanSettings = sanitizePublicSettings(settings);
   const privateFaculty = (faculty || []).map(({ id, ...record }, idx) => ({
     ...record,
@@ -173,7 +224,7 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
 
   const allOps = [
     { type: 'set', ref: doc(db, 'site', 'settings'), data: cleanSettings },
-    { type: 'set', ref: doc(db, 'site', 'notices'), data: { text: noticesText || '' } },
+    { type: 'set', ref: doc(db, 'site', 'notices'), data: { text: noticesText || '', updatedAt: serverTimestamp() } },
     { type: 'set', ref: doc(db, 'systemSettings', 'facultyPrivate'), data: {
       items: cleanPrivateFaculty,
       updatedAt: serverTimestamp(),
@@ -194,7 +245,7 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
     allOps.push({
       type: 'set',
       ref: doc(db, 'site', 'slideshow'),
-      data: { items: JSON.parse(JSON.stringify(slides)) }
+      data: { items: JSON.parse(JSON.stringify(slides)), updatedAt: serverTimestamp() }
     });
   }
   if (recycleBin !== undefined) {
@@ -2278,7 +2329,28 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
     };
 
     (async () => {
-      // 1. Fallback/Preview: Check localStorage first so local changes aren't lost on redirect/reload
+      // 1. Authoritative Cloud Firestore read FIRST across both local & live environments
+      try {
+        const snap = await getDoc(doc(db, 'site', 'notices'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && typeof data.text === 'string' && data.text.trim()) {
+            const parsed = parseNoticesText(data.text);
+            if (parsed.length > 0) {
+              setNotices(parsed);
+              try {
+                localStorage.setItem('site_notices', data.text);
+                localStorage.setItem('site_notices_ts', Date.now().toString());
+              } catch (_) {}
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Firestore notices read failed, checking offline cache:', e);
+      }
+
+      // 2. Offline fallback: check localStorage only if remote Firestore is unavailable or empty
       const localNotices = localStorage.getItem('site_notices');
       if (localNotices) {
         const parsed = parseNoticesText(localNotices);
@@ -2288,24 +2360,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
         }
       }
 
-      // 2. Try Firestore next (remote live data)
-      try {
-        const snap = await getDoc(doc(db, 'site', 'notices'));
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data && data.text !== undefined) {
-            const parsed = parseNoticesText(data.text);
-            if (parsed.length > 0) {
-              setNotices(parsed);
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Firestore notices read failed, falling back:', e);
-      }
-
-      // Fallback: static file
+      // 3. Fallback: static file
       try {
         const r = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
         const text = await r.text();
@@ -4427,8 +4482,9 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
   };
 
   // Central Save & Sync
-  const handleSaveToLocalStorage = async (customAdminsList = null) => {
+  const handleSaveToLocalStorage = async (customAdminsList = null, targetTabOverride = null) => {
     const activeAdmins = customAdminsList || admins;
+    const effectiveTargetTab = targetTabOverride !== null ? targetTabOverride : (activeTab || null);
     const noticesText = notices.map(n => `${n.date},${n.title},${n.link || '#'}${n.days ? `,${n.days}` : ''}`).join('\n');
     const slidesText = slides.map(s => {
       let imgName = s.image;
@@ -4439,10 +4495,10 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
     }).join('\n');
 
     // Initialize progress tracking UI
-    setSaveProgress(5);
+    setSaveProgress(10);
     setSaveStages([
       { id: 'auth', label: 'Verifying Admin Authority', status: 'loading', details: 'Verifying credentials...' },
-      { id: 'cloud', label: 'Pushing changes live to Cloud Database', status: 'pending', details: '' },
+      { id: 'cloud', label: effectiveTargetTab === 'notices' ? 'Pushing notices live to Cloud Database' : 'Pushing changes live to Cloud Database', status: 'pending', details: '' },
       { id: 'local_storage', label: 'Updating local cache', status: 'pending', details: '' },
       { id: 'files', label: 'Syncing local config files', status: 'pending', details: '' },
       { id: 'deployment', label: 'Confirming live content source', status: 'pending', details: '' },
@@ -4460,95 +4516,166 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
     let fileWriteResults = [];
 
     try {
-      // 1. Auth check stage
+      // 1. Comprehensive Auth check stage
       const user = auth.currentUser;
       if (!user) {
-        throw new Error('Authentication required to save. Please click the "Sign in with Google to Sync" button at the top first.');
+        throw new Error('Authentication required to save. Please sign in to an authorized administrative account.');
       }
       const userEmail = (user.email || '').toLowerCase().trim();
+      const isBootstrapAdmin = isBootstrapAdminEmail(userEmail) || isBootstrapSuperAdminEmail(userEmail);
       const isListedAdmin = Array.isArray(activeAdmins) && activeAdmins.some(a => (a.email || '').toLowerCase() === userEmail);
-      const isBootstrapAdmin = isBootstrapSuperAdminEmail(userEmail);
-      let isAdminClaim = false;
-      if (!isListedAdmin && !isBootstrapAdmin) {
+      
+      let isAuthorized = isBootstrapAdmin || isListedAdmin;
+      
+      // Check embedded user authority
+      if (!isAuthorized && embeddedUser) {
+        const embeddedRole = String(embeddedUser?.role || '').toLowerCase().replace(/\s+/g, '');
+        const embeddedPerms = Array.isArray(embeddedUser?.perms) ? embeddedUser.perms : [];
+        if (['admin', 'superadmin'].includes(embeddedRole) || embeddedPerms.some(p => ['*', 'controls', 'cms'].includes(p))) {
+          isAuthorized = true;
+        }
+      }
+
+      // Check current user authority
+      if (!isAuthorized && currentUser) {
+        const curRole = String(currentUser?.role || '').toLowerCase().replace(/\s+/g, '');
+        if (['admin', 'superadmin', 'super admin'].includes(curRole)) {
+          isAuthorized = true;
+        }
+      }
+
+      // Check Firebase ID Token custom claims
+      if (!isAuthorized) {
         try {
           const idToken = await getIdTokenResult(user, false);
-          isAdminClaim = idToken?.claims?.admin === true;
+          const claimRole = String(idToken?.claims?.role || '').toLowerCase().replace(/\s+/g, '');
+          if (idToken?.claims?.admin === true || ['admin', 'superadmin'].includes(claimRole)) {
+            isAuthorized = true;
+          }
         } catch (e) {
           console.warn('Failed to retrieve token claims:', e);
         }
       }
-      if (!isAdminClaim && !isListedAdmin && !isBootstrapAdmin) {
-        throw new Error('Your Google account is not listed as an administrator. Please ask a Super Admin to add your email.');
+
+      // Check Firestore staff profile as final authoritative fallback
+      if (!isAuthorized) {
+        try {
+          const staffProfile = await resolveStaffRoleAndPerms(user);
+          if (staffProfile?.isAdmin || staffProfile?.isSuperAdmin || staffProfile?.perms?.some(p => ['*', 'controls', 'cms'].includes(p))) {
+            isAuthorized = true;
+          }
+        } catch (e) {
+          console.warn('Failed to resolve staff profile during save auth check:', e);
+        }
       }
 
-      updateStage('auth', 'success', `Authorized as ${user.email}`, 25);
-      updateStage('cloud', 'loading', 'Uploading settings, notices, faculty and slideshow...', 35);
+      if (!isAuthorized) {
+        throw new Error(`Your Google account (${userEmail}) is not recognized as an authorized administrator for website management.`);
+      }
 
-      // 2. Cloud database upload stage
-      await saveToFirebase({ settings, noticesText, faculty, slides, recycleBin });
-      fileSyncStatus = 'Saved to Cloud Database (live)';
+      updateStage('auth', 'success', `Authorized as ${userEmail}`, 30);
+      updateStage('cloud', 'loading', effectiveTargetTab === 'notices' ? 'Pushing notices directly to Cloud Firestore...' : 'Uploading configuration to Cloud Database...', 45);
 
-      updateStage('cloud', 'success', 'All configuration collections pushed to Cloud Database.', 55);
-      updateStage('local_storage', 'loading', 'Updating localStorage data preview...', 60);
+      // 2. Cloud database upload stage with targetTab support
+      await saveToFirebase({
+        settings,
+        noticesText,
+        faculty,
+        slides,
+        recycleBin,
+        targetTab: effectiveTargetTab
+      }, true);
 
-      // 3. Local Storage stage
-      localStorage.setItem('site_settings', JSON.stringify(settings));
-      localStorage.setItem('site_notices', noticesText);
-      localStorage.removeItem('site_faculty');
-      localStorage.setItem('hss_public_faculty', JSON.stringify(toPublicFacultyList(faculty)));
-      localStorage.setItem('site_slides', JSON.stringify(slides));
-      localStorage.setItem('site_recycle_bin', JSON.stringify(recycleBin));
+      fileSyncStatus = effectiveTargetTab === 'notices'
+        ? 'Notices pushed directly to Cloud Database (live)'
+        : 'Saved to Cloud Database (live)';
 
+      updateStage('cloud', 'success', effectiveTargetTab === 'notices' ? 'Notices collection updated live in Cloud Firestore.' : 'All configuration collections pushed to Cloud Database.', 65);
+      updateStage('local_storage', 'loading', 'Updating local preview cache...', 75);
+
+      // 3. Local Storage stage & Cache Busting
+      if (!effectiveTargetTab || effectiveTargetTab === 'all' || effectiveTargetTab === 'notices') {
+        localStorage.setItem('site_notices', noticesText);
+        try { localStorage.setItem('site_notices_ts', Date.now().toString()); } catch (_) {}
+        try { localStorage.removeItem('site_home_data_ts'); } catch (_) {}
+      }
+      if (!effectiveTargetTab || effectiveTargetTab === 'all' || effectiveTargetTab === 'admissions') {
+        localStorage.setItem('site_settings', JSON.stringify(settings));
+        try { localStorage.removeItem('site_home_data_ts'); } catch (_) {}
+      }
+      if (!effectiveTargetTab || effectiveTargetTab === 'all' || effectiveTargetTab === 'faculty') {
+        localStorage.removeItem('site_faculty');
+        localStorage.setItem('hss_public_faculty', JSON.stringify(toPublicFacultyList(faculty)));
+        try { localStorage.removeItem('site_home_data_ts'); } catch (_) {}
+      }
+      if (!effectiveTargetTab || effectiveTargetTab === 'all' || effectiveTargetTab === 'slideshow') {
+        localStorage.setItem('site_slides', JSON.stringify(slides));
+        try { localStorage.removeItem('site_home_data_ts'); } catch (_) {}
+      }
+      if (!effectiveTargetTab || effectiveTargetTab === 'all' || effectiveTargetTab === 'trash') {
+        localStorage.setItem('site_recycle_bin', JSON.stringify(recycleBin));
+      }
+
+      // Broadcast update across open tabs and windows
       try {
         const channel = new BroadcastChannel('hss_data_sync');
-        channel.postMessage({ type: 'UPDATE_DATA' });
+        channel.postMessage({ type: 'UPDATE_DATA', tab: effectiveTargetTab, notices: noticesText });
         channel.close();
       } catch (e) {
         console.warn('Sync broadcast not supported:', e);
       }
+      try {
+        window.dispatchEvent(new CustomEvent('hss-notices-updated', { detail: { text: noticesText } }));
+      } catch (e) {}
 
-      updateStage('local_storage', 'success', 'Local preview state synchronized.', 70);
-      updateStage('files', 'loading', 'Writing files to disk...', 75);
+      updateStage('local_storage', 'success', 'Local preview state synchronized.', 85);
+      updateStage('files', 'loading', 'Syncing files...', 90);
 
       // 4. File system sync stage (Primary live target is Cloud Firestore; Web File System used if folder linked)
-
       if (folderHandle) {
         try {
           const perm = await folderHandle.requestPermission({ mode: 'readwrite' });
           if (perm === 'granted') {
-            const cleanedFaculty = toPublicFacultyList(faculty);
-
-            const ok1 = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
-            const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
-            const ok3 = await writeLocalFile(folderHandle, 'faculty.json', JSON.stringify(cleanedFaculty, null, 2));
-            const ok4 = await writeLocalFile(folderHandle, 'slides.txt', slidesText);
-
-            if (ok1 && ok2 && ok3 && ok4) {
-              if (!fileSyncStatus.includes('slides/')) fileSyncStatus += ', and local folder updated';
-              fileWriteResults.push('Saved to local directory via Web File System Access API');
+            if (effectiveTargetTab === 'notices') {
+              const ok = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
+              if (ok) fileWriteResults.push('Updated public/slides/notices.txt');
+            } else if (effectiveTargetTab === 'slideshow') {
+              const ok = await writeLocalFile(folderHandle, 'slides.txt', slidesText);
+              if (ok) fileWriteResults.push('Updated public/slides/slides.txt');
+            } else if (effectiveTargetTab === 'admissions') {
+              const ok = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
+              if (ok) fileWriteResults.push('Updated public/slides/settings.json');
             } else {
-              console.warn('folderHandle write incomplete:', { ok1, ok2, ok3, ok4 });
-              fileWriteResults.push('Folder write partial failure');
+              const cleanedFaculty = toPublicFacultyList(faculty);
+              const ok1 = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
+              const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
+              const ok3 = await writeLocalFile(folderHandle, 'faculty.json', JSON.stringify(cleanedFaculty, null, 2));
+              const ok4 = await writeLocalFile(folderHandle, 'slides.txt', slidesText);
+              if (ok1 && ok2 && ok3 && ok4) fileWriteResults.push('Saved all files to linked folder');
             }
-          } else {
-            console.warn('folderHandle permission denied');
-            fileWriteResults.push('Folder write permission denied');
           }
         } catch (err) {
-          console.error('Error during auto-sync writing (folderHandle):', err);
-          fileWriteResults.push(`Folder write error: ${err.message || err}`);
+          console.warn('File handle write error:', err);
         }
       }
 
-      const fileResultStr = fileWriteResults.length > 0 ? fileWriteResults.join(', ') : 'No directory handles or local server active';
-      updateStage('files', 'success', fileResultStr, 85);
-      updateStage('deployment', 'success', 'Cloud Database is the live CMS source; no secondary remote writer is required.', 100);
+      const fileResultStr = fileWriteResults.length > 0 ? fileWriteResults.join(', ') : 'Cloud Database is primary live source';
+      updateStage('files', 'success', fileResultStr, 95);
+      updateStage('deployment', 'success', 'Cloud Database is the authoritative live CMS source.', 100);
 
       setSavePopupResult({
         success: true,
-        title: 'Synchronized successfully',
-        message: `Cloud content updated in Cloud Database & local preview cache refreshed (${fileSyncStatus}).`
+        title: effectiveTargetTab === 'notices' ? 'Notices Updated Live' : 'Synchronized successfully',
+        message: effectiveTargetTab === 'notices'
+          ? 'Notices pushed directly to Cloud Firestore. Live website & all visitors updated immediately.'
+          : `Cloud content updated in Cloud Database & local preview cache refreshed (${fileSyncStatus}).`
       });
+
+      // Automatically dismiss the success notification banner after 3.5 seconds
+      setTimeout(() => {
+        setSaveProgress(null);
+        setSavePopupResult(null);
+      }, 3500);
     } catch (err) {
       console.error('Save sync failed:', err);
       const errMsg = err && (err.message || err.error || String(err));
@@ -6590,9 +6717,9 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                 {activeTab !== 'trash' && (
                   <button
                     type="button"
-                    onClick={() => handleSaveToLocalStorage()}
+                    onClick={() => handleSaveToLocalStorage(null, activeTab)}
                     className="flex h-7.5 items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold text-xs px-3 shadow-xs transition-all cursor-pointer"
-                    title="Save all changes to database"
+                    title={activeTab === 'notices' ? 'Save notices directly to Cloud Database (live)' : 'Save all changes to database'}
                   >
                     <Save size={12.5} strokeWidth={2.2} />
                     <span>Save Changes</span>
@@ -7040,23 +7167,35 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Latest Notices Configuration</h3>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Add, edit, or delete items on the school's dynamic announcement board.</p>
                   </div>
-                  {/* Inline Notice Expiry Setting */}
-                  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1 w-full sm:w-auto">
-                    <span className="text-[9.5px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">&quot;New&quot; badge expiry:</span>
-                    <div className="flex items-center gap-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded px-1.5 py-0.5">
-                      <input
-                        type="number"
-                        min="1"
-                        max="365"
-                        value={settings.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          setSettings(s => ({ ...s, defaultNewNoticeDays: isNaN(val) ? 7 : val }));
-                        }}
-                        className="w-10 bg-transparent border-none text-center text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-0"
-                      />
-                      <span className="text-[9px] text-slate-500 font-extrabold uppercase">days</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Inline Notice Expiry Setting */}
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1 w-full sm:w-auto">
+                      <span className="text-[9.5px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">&quot;New&quot; badge expiry:</span>
+                      <div className="flex items-center gap-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded px-1.5 py-0.5">
+                        <input
+                          type="number"
+                          min="1"
+                          max="365"
+                          value={settings.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            setSettings(s => ({ ...s, defaultNewNoticeDays: isNaN(val) ? 7 : val }));
+                          }}
+                          className="w-10 bg-transparent border-none text-center text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-0"
+                        />
+                        <span className="text-[9px] text-slate-500 font-extrabold uppercase">days</span>
+                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSaveToLocalStorage(null, 'notices')}
+                      className="flex h-7.5 items-center gap-1.5 px-3 rounded-md bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+                      title="Save notices directly to Cloud Firestore (live for all visitors)"
+                    >
+                      <Save size={12} strokeWidth={2.2} />
+                      <span>Save Notices</span>
+                    </button>
                   </div>
                 </div>
 

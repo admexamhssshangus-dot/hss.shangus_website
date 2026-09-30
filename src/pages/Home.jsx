@@ -482,7 +482,8 @@ export default function Home() {
       // 2. High-speed SWR Firebase Firestore fetch with 15-minute TTL
       const homeTimestampKey = 'site_home_data_ts';
       const lastHomeTs = Number(localStorage.getItem(homeTimestampKey) || 0);
-      const isHomeFresh = (Date.now() - lastHomeTs) < 15 * 60 * 1000; // 15 mins TTL
+      const noticesTs = Number(localStorage.getItem('site_notices_ts') || 0);
+      const isHomeFresh = (Date.now() - lastHomeTs) < 15 * 60 * 1000 && lastHomeTs >= noticesTs;
 
       if (isHomeFresh) {
         return; // Cache is already fresh; zero reads consumed
@@ -565,16 +566,21 @@ export default function Home() {
 
   // Listen to cross-tab data sync broadcasts
   useEffect(() => {
+    let channel = null;
     try {
-      const channel = new BroadcastChannel('hss_data_sync');
+      channel = new BroadcastChannel('hss_data_sync');
       channel.onmessage = (e) => {
         if (e.data && e.data.type === 'UPDATE_DATA') {
           import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
             loadSiteSettings({ forceFirestore: true }).then(setSettings);
           });
-          const local = localStorage.getItem('site_notices');
-          if (local) {
-            setNotices(parseNotices(local));
+          if (e.data.notices) {
+            setNotices(parseNotices(e.data.notices));
+          } else {
+            const local = localStorage.getItem('site_notices');
+            if (local) {
+              setNotices(parseNotices(local));
+            }
           }
           const localFaculty = localStorage.getItem('hss_public_faculty');
           if (localFaculty) {
@@ -603,10 +609,21 @@ export default function Home() {
           }
         }
       };
-      return () => channel.close();
     } catch (err) {
       // ignore
     }
+
+    const handleCustomNotice = (e) => {
+      if (e.detail?.text) {
+        setNotices(parseNotices(e.detail.text));
+      }
+    };
+    window.addEventListener('hss-notices-updated', handleCustomNotice);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('hss-notices-updated', handleCustomNotice);
+    };
   }, []);
 
   return (
