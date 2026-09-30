@@ -12,7 +12,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { 
   X, AlertTriangle, CheckSquare, Square, FileSpreadsheet, 
   Upload, Copy, CheckCircle2, User, BookOpen, Award, Hash,
-  ArrowRight, Sparkles, RefreshCw, Eye, EyeOff, Plus, Trash2,
+  ArrowRight, ArrowLeft, Sparkles, RefreshCw, Eye, EyeOff, Plus, Trash2,
   ChevronDown, ChevronUp, Database, Sliders, Download, Search,
   Phone, Landmark, Layers, Check, Terminal, ExternalLink, RotateCcw,
   Minimize2, Maximize2, Lock, BookmarkCheck, Save
@@ -120,11 +120,14 @@ export const STANDARD_DB_CATEGORIES = [
     icon: User,
     fields: [
       { key: 'studentName', label: "Student's Name", defaultChecked: true, dbKeys: ["Student's Name (as per school records)", "Student's Name", 'Student Name', 'studentName', 'name', 'candidatename', 'Candidate Name'], excelKeys: ['studentname', 'name', 'candidatename', 'nameofstudent', 'candidate', 'nameofcandidate', 'nameofthecandidate', 'nameofthestudent', 'studentsname', 'student', 'candidatesname', 'sname', 'childname', 'student_name', 'candidate_name', 'stdname'] },
-      { key: 'fatherName', label: "Father's Name", defaultChecked: true, dbKeys: ["Father's/Guardian's Name (as per school records)", "Father's Name", 'Father Name', 'fatherName', "Parent's Name", 'parentName', 'parentage', "Father's/Guardian's Name"], excelKeys: ['fathername', 'fathersname', 'parentname', 'parentage', 'father', 'fathersguardiansname', 'guardianname', 'fatherguardian'] },
-      { key: 'motherName', label: "Mother's Name", defaultChecked: true, dbKeys: ["Mother's Name (as per school records)", "Mother's Name", 'Mother Name', 'motherName', 'Mother'], excelKeys: ['mothername', 'mothersname', 'mother'] },
-      { key: 'dob', label: "Date of Birth (DoB)", defaultChecked: true, dbKeys: ['DoB (figures)', 'DoB (as per school records)', 'dob', 'DoB', 'dateOfBirth'], excelKeys: ['dob', 'dateofbirth', 'dobfigures', 'birthdate'] },
-      { key: 'dobWords', label: "DoB (in words)", defaultChecked: false, dbKeys: ['DoB (words)', 'dobWords', 'dateOfBirthInWords'], excelKeys: ['dobwords', 'dateofbirthinwords'] },
+      { key: 'fatherName', label: "Father's Name", defaultChecked: true, dbKeys: ["Father's/Guardian's Name (as per school records)", "Father's Name", 'Father Name', 'fatherName', "Parent's Name", 'parentName', 'parentage', "Father's/Guardian's Name", "Father's/Guardian's"], excelKeys: ['fathername', 'fathersname', 'parentname', 'parentage', 'father', 'fathersguardiansname', 'guardianname', 'fatherguardian'] },
+      { key: 'motherName', label: "Mother's Name", defaultChecked: true, dbKeys: ["Mother's Name (as per school records)", "Mother's Name", 'Mother Name', 'motherName', 'Mother', 'mother'], excelKeys: ['mothername', 'mothersname', 'mother'] },
+      { key: 'dob', label: "Date of Birth (DoB)", defaultChecked: true, dbKeys: ['DoB (figures)', 'DoB (as per school records)', 'dob', 'DoB', 'dateOfBirth', 'DOB', 'Date of Birth'], excelKeys: ['dob', 'dateofbirth', 'dobfigures', 'birthdate'] },
+      { key: 'dobWords', label: "DoB (in words)", defaultChecked: false, dbKeys: ['DoB (words)', 'dobWords', 'dateOfBirthInWords', 'DOB in words', 'DoB in words'], excelKeys: ['dobwords', 'dateofbirthinwords'] },
       { key: 'gender', label: "Gender", defaultChecked: true, dbKeys: ['Gender', 'gender', 'Sex', 'sex'], excelKeys: ['gender', 'sex'] },
+      { key: 'fatherOccupation', label: "Father's Occupation", defaultChecked: false, dbKeys: ["Father's/Guardian's Occupation", "Father's Occupation", 'fatherOccupation', 'guardianOccupation', 'occupation'], excelKeys: ['fatheroccupation', 'occupation', 'guardiansoccupation', 'parentsoccupation'] },
+      { key: 'motherTongue', label: "Mother Tongue", defaultChecked: false, dbKeys: ['Your Mother Tongue', 'Mother Tongue', 'motherTongue', 'mother_tongue'], excelKeys: ['mothertongue', 'yourmothertongue', 'language'] },
+      { key: 'identificationMark', label: "Identification Mark", defaultChecked: false, dbKeys: ['Identification Mark (if any)', 'Identification Mark', 'identificationMark', 'identityMark'], excelKeys: ['identificationmark', 'identitymark', 'markofidentification'] },
       { key: 'bloodGroup', label: "Blood Group", defaultChecked: false, dbKeys: ['Blood Group', 'bloodGroup', 'blood_group'], excelKeys: ['bloodgroup', 'blood'] },
       { key: 'religion', label: "Religion", defaultChecked: false, dbKeys: ['Religion', 'religion'], excelKeys: ['religion'] },
     ]
@@ -137,7 +140,12 @@ export const STANDARD_DB_CATEGORIES = [
     color: 'blue',
     icon: BookOpen,
     fields: [
+      { key: 'formNo', label: "Form Number", defaultChecked: false, dbKeys: ['Form Number', 'Form No.', 'Form No', 'formNo', 'fNo', 'form_no', 'formNumber'], excelKeys: ['formnumber', 'formno', 'fno', 'applicationno', 'applicationnumber'] },
+      { key: 'admDate', label: "Date of Admission", defaultChecked: false, dbKeys: ['Date of Admission', 'Admission Date', 'admissionDate', 'admDate', 'Date of admission', 'approvedAt'], excelKeys: ['admissiondate', 'dateofadmission', 'admdate'] },
+      { key: 'className', label: "Class", defaultChecked: false, dbKeys: ['Admission sought for class', 'Class', 'class', 'className'], excelKeys: ['class', 'classname', 'admissionsoughtforclass'] },
+      { key: 'session', label: "Session", defaultChecked: false, dbKeys: ['Session', 'session', 'Academic Session'], excelKeys: ['session', 'academicsession'] },
       { key: 'stream', label: "Stream", defaultChecked: true, dbKeys: ['Stream', 'stream', 'Stream for Class 11th', 'Stream opted in Class 11th', 'Stream & Subjects for Class 12th', 'faculty'], excelKeys: ['stream', 'faculty'] },
+      { key: 'classRollNo', label: "Class Roll No.", defaultChecked: false, dbKeys: ['Class Roll No', 'Class Roll No.', 'rollNo', 'classRollNo', 'RL. NO.', 'RL. NO', 'Class R.No.', 'Class R.No', 'roll'], excelKeys: ['classrollno', 'classroll', 'rno', 'rollno'] },
       { key: 'subjects', label: "Subjects (Auto-Expand)", defaultChecked: true, dbKeys: ['Subjects', 'subjects', 'selectedSubjects', 'Subjects to be taken in Class 12th', 'Subjects to be taken in Class 11th', 'Subjects to be taken in Class 10th', 'Subjects to be taken in Class 9th', 'Subjects Studied in Class 10th', 'Subjects Studied in Class 9th', 'subs', 'Subs', 'Subjects Offered'], excelKeys: ['subjects', 'subs', 'subjectsoffered', 'subjectcomb', 'subjectcombination'] },
       { key: 'subjects1', label: "Subject 1", defaultChecked: false, dbKeys: ['Subjects1', 'subjects1', 'Subject 1', 'Subject1', 'sub1', 'Sub1', 'subject1'], excelKeys: ['subjects1', 'subject1', 'sub1', 'subject_1', 'subjects_1'] },
       { key: 'subjects2', label: "Subject 2", defaultChecked: false, dbKeys: ['Subjects2', 'subjects2', 'Subject 2', 'Subject2', 'sub2', 'Sub2', 'subject2'], excelKeys: ['subjects2', 'subject2', 'sub2', 'subject_2', 'subjects_2'] },
@@ -145,16 +153,22 @@ export const STANDARD_DB_CATEGORIES = [
       { key: 'subjects4', label: "Subject 4", defaultChecked: false, dbKeys: ['Subjects4', 'subjects4', 'Subject 4', 'Subject4', 'sub4', 'Sub4', 'subject4'], excelKeys: ['subjects4', 'subject4', 'sub4', 'subject_4', 'subjects_4'] },
       { key: 'subjects5', label: "Subject 5", defaultChecked: false, dbKeys: ['Subjects5', 'subjects5', 'Subject 5', 'Subject5', 'sub5', 'Sub5', 'subject5'], excelKeys: ['subjects5', 'subject5', 'sub5', 'subject_5', 'subjects_5'] },
       { key: 'subjects6', label: "Subject 6 (Voc / Addl)", defaultChecked: false, dbKeys: ['Subject6', 'Subjects6', 'subjects6', 'Subject 6', 'sub6', 'Sub6', 'subject6'], excelKeys: ['subjects6', 'subject6', 'sub6', 'subject_6', 'subjects_6', 'additionalsubject', 'vocational'] },
-      { key: 'classRollNo', label: "Class Roll No.", defaultChecked: false, dbKeys: ['Class Roll No', 'Class Roll No.', 'rollNo', 'classRollNo', 'RL. NO.', 'RL. NO', 'Class R.No.', 'Class R.No'], excelKeys: ['classrollno', 'classroll', 'rno'] },
-      { key: 'className', label: "Class", defaultChecked: false, dbKeys: ['Admission sought for class', 'Class', 'class', 'className'], excelKeys: ['class', 'classname', 'admissionsoughtforclass'] },
-      { key: 'session', label: "Session", defaultChecked: false, dbKeys: ['Session', 'session'], excelKeys: ['session', 'academicsession'] },
-      { key: 'admissionType', label: "Admission Type", defaultChecked: false, dbKeys: ['Admission Type', 'admissionType', 'Type of Admission'], excelKeys: ['admissiontype', 'typeofadmission'] },
-      { key: 'prevSchool', label: "Previous School", defaultChecked: false, dbKeys: ['Previous School', 'prevSchool', 'Name of the Institution last attended', 'Name of the institution last attended', 'School last attended'], excelKeys: ['previousschool', 'prevschool', 'lastschool'] },
-      { key: 'prevExamRollNo', label: "10th Exam Roll No.", defaultChecked: false, dbKeys: ['Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'prevExamRollNo', 'examRollPrev', 'Exam R.no. (Prev.)'], excelKeys: ['prevexamrollno', '10thexamrollno', 'rollnoclass10th', 'prevrollno'] },
-      { key: 'prevMarks', label: "10th Marks Obtained", defaultChecked: false, dbKeys: ['10th/11th Marks', 'Marks Obt. (Prev.)', 'Marks Obtained (Class 10th)', 'prevMarks', 'Marks obtained in previous examination'], excelKeys: ['prevmarks', '10thmarks', 'marks10th', 'previousmarks', 'marksobtprev'] },
-      { key: 'prevMaxMarks', label: "10th Max Marks", defaultChecked: false, dbKeys: ['Max. Marks (Prev.)', 'Max Marks (Class 10th)', 'prevMaxMarks'], excelKeys: ['prevmaxmarks', '10thmaxmarks', 'maxmarksprev'] },
+      { key: 'admissionType', label: "Admission Type", defaultChecked: false, dbKeys: ['Admission Type', 'admissionType', 'Type of Admission', 'Admission Type (Class 11th)', 'Admission Type (Class 12th)'], excelKeys: ['admissiontype', 'typeofadmission'] },
+      { key: 'reasonProvisional', label: "Reason for Provisional", defaultChecked: false, dbKeys: ['Reason for Provisional (Class 11th)', 'Reason for Provisional (Class 12th)', 'Reason for Provisional', 'reasonProvisional'], excelKeys: ['reasonforprovisional', 'provisionalreason', 'reasonprovisional'] },
+      { key: 'prevSchool', label: "Previous School", defaultChecked: false, dbKeys: ['Name of Previous School (Class 10th)', 'Previous School', 'prevSchool', 'Name of the Institution last attended', 'Name of the institution last attended', 'School last attended'], excelKeys: ['previousschool', 'prevschool', 'lastschool', 'schoollastattended', 'nameofpreviousschool'] },
+      { key: 'prevBoard', label: "Previous Board", defaultChecked: false, dbKeys: ['Board (Class 10th)', 'Board Class 10th', 'prevBoard', 'Board (Class 8th)'], excelKeys: ['board', 'prevboard', 'boardclass10th', 'board10th'] },
+      { key: 'prevPassingYear', label: "10th Passing Year", defaultChecked: false, dbKeys: ['Year of Passing Class 10th', 'Year of Passing (Class 10th)', 'prevPassingYear', 'Year of Appearing (Class 10th)'], excelKeys: ['yearofpassing', 'passingyear', 'prevpassingyear', '10thpassingyear'] },
+      { key: 'prevExamRollNo', label: "10th Exam Roll No.", defaultChecked: false, dbKeys: ['Exam Roll Number of Class 10th', 'Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'prevExamRollNo', 'examRollPrev', 'Exam R.no. (Prev.)'], excelKeys: ['prevexamrollno', '10thexamrollno', 'rollnoclass10th', 'prevrollno', 'examrollnumberofclass10th'] },
+      { key: 'prevMarks', label: "10th Marks Obtained", defaultChecked: false, dbKeys: ['Total Marks Obtained in Class 10th', '10th/11th Marks', 'Marks Obt. (Prev.)', 'Marks Obtained (Class 10th)', 'prevMarks', 'Marks obtained in previous examination'], excelKeys: ['prevmarks', '10thmarks', 'marks10th', 'previousmarks', 'marksobtprev', 'totalmarksobtainedinclass10th'] },
+      { key: 'prevMaxMarks', label: "10th Max Marks", defaultChecked: false, dbKeys: ['Total Max. Marks in Class 10th', 'Max. Marks (Prev.)', 'Max Marks (Class 10th)', 'prevMaxMarks'], excelKeys: ['prevmaxmarks', '10thmaxmarks', 'maxmarksprev', 'totalmaxmarksinclass10th'] },
       { key: 'prevPercentage', label: "10th Percentage (%)", defaultChecked: false, dbKeys: ['%age (Prev.)', 'Percentage (Class 10th)', 'prevPercentage'], excelKeys: ['prevpercentage', '10thpercentage', 'prevpercent'] },
       { key: 'prevDivision', label: "10th Division / Grade", defaultChecked: false, dbKeys: ['Div/Distinc (Prev.)', 'prevDivision'], excelKeys: ['prevdivision', '10thdivision', 'prevgrade'] },
+      { key: 'reappearSubjects10th', label: "Subjects to Reappear (10th)", defaultChecked: false, dbKeys: ['Subjects to Reappear (Class 10th)', 'Subjects to Reappear', 'reappearSubjects10th'], excelKeys: ['subjectstoreappear', 'reappearslevels', 'reappears'] },
+      { key: 'class11ExamRollNo', label: "11th Exam Roll No.", defaultChecked: false, dbKeys: ['Exam Roll Number of Class 11th', 'class11ExamRollNo'], excelKeys: ['11thexamrollno', 'examrollnumberofclass11th'] },
+      { key: 'class11Marks', label: "11th Marks Obtained", defaultChecked: false, dbKeys: ['Total Marks Obtained in Class 11th', 'class11Marks'], excelKeys: ['11thmarksobtained', 'totalmarksobtainedinclass11th'] },
+      { key: 'class11MaxMarks', label: "11th Max Marks", defaultChecked: false, dbKeys: ['Total Max. Marks in Class 11th', 'class11MaxMarks'], excelKeys: ['11thmaxmarks', 'totalmaxmarksinclass11th'] },
+      { key: 'class11School', label: "11th School Attended", defaultChecked: false, dbKeys: ['Name of Previous School (Class 11th)', 'class11School'], excelKeys: ['11thschool', 'nameofpreviousschoolclass11th'] },
+      { key: 'class11Board', label: "11th Board", defaultChecked: false, dbKeys: ['Board (Class 11th)', 'class11Board'], excelKeys: ['11thboard', 'boardclass11th'] },
     ]
   },
   {
@@ -165,12 +179,15 @@ export const STANDARD_DB_CATEGORIES = [
     color: 'amber',
     icon: Award,
     fields: [
-      { key: 'boardRollNo', label: "Exam Roll No. (Board)", defaultChecked: false, dbKeys: ['Exam R.No. (Current)', 'Exam R. No. (Current)', 'boardRollNo', 'currExamRollNo', 'examRollNo', 'currExamRoll', 'Board Roll Number', 'Board Roll No.', 'Board Roll No', 'Exam R.No.', 'Exam R. No.'], excelKeys: ['boardrollno', 'examrollno', 'boardrollnumber', 'boardroll', 'examroll'] },
+      { key: 'boardRollNo', label: "Exam Roll No. (Board)", defaultChecked: false, dbKeys: ['Exam R.No. (Current)', 'Exam R. No. (Current)', 'boardRollNo', 'currExamRollNo', 'examRollNo', 'currExamRoll', 'Board Roll Number', 'Board Roll No.', 'Board Roll No', 'Exam R.No.', 'Exam R. No.', 'Board Roll'], excelKeys: ['boardrollno', 'examrollno', 'boardrollnumber', 'boardroll', 'examroll', 'rollno'] },
       { key: 'result', label: "Board Result Status", defaultChecked: false, dbKeys: ['Result (Current)', 'Board Result', 'Result', 'result', 'boardResult', 'currResult', 'statusResult'], excelKeys: ['boardresult', 'result', 'resultstatus', 'examresult', 'status'] },
       { key: 'marks', label: "Marks Obtained", defaultChecked: false, dbKeys: ['Marks/Reapp (Current)', 'Marks Obtained', 'Marks', 'marks', 'totalMarks', 'marksObtained', 'currMarksReapp'], excelKeys: ['marksobtained', 'marks', 'totalmarks', 'securedmarks', 'obtmarks'] },
       { key: 'maxMarks', label: "Max Marks", defaultChecked: false, dbKeys: ['Max Marks', 'Maximum Marks', 'maxMarks', 'totalMaxMarks'], excelKeys: ['maxmarks', 'maximummarks', 'totalmax', 'outof'] },
       { key: 'percentage', label: "Percentage (%)", defaultChecked: false, dbKeys: ['Percentage', 'percentage', 'percent', 'pct', '%age', '%age (Current)'], excelKeys: ['percentage', 'percent', 'pct', 'markspercentage', 'percentage%'] },
       { key: 'grade', label: "Grade / Division", defaultChecked: false, dbKeys: ['Div/Distinc (Current)', 'Division', 'division', 'Grade', 'grade', 'Distinction', 'currDiv'], excelKeys: ['grade', 'division', 'divdistinc', 'distinction', 'gradeawarded'] },
+      { key: 'currExamMode', label: "Exam Mode (Current)", defaultChecked: false, dbKeys: ['Exam Mode (Current)', 'currExamMode', 'examMode'], excelKeys: ['exammode', 'currexammode', 'mode'] },
+      { key: 'withdrawalDate', label: "Date of Withdrawal", defaultChecked: false, dbKeys: ['Date of withdrawl', 'withdrawalDate', 'dateOfWithdrawal'], excelKeys: ['dateofwithdrawal', 'dateofwithdrawl', 'withdrawaldate'] },
+      { key: 'ccDcIssued', label: "CC/DC Issued", defaultChecked: false, dbKeys: ['No. & Date of CC/DC Issued (This Institution)', 'currCcDc', 'ccDcIssued'], excelKeys: ['ccdcissued', 'currccdc', 'ccdc'] },
     ]
   },
   {
@@ -181,34 +198,48 @@ export const STANDARD_DB_CATEGORIES = [
     color: 'purple',
     icon: Hash,
     fields: [
-      { key: 'category', label: "Social Category", defaultChecked: false, dbKeys: ['Cat._JKBOSE', 'Category', 'Social Category', 'Social category', 'category'], excelKeys: ['category', 'socialcategory', 'catjkbose', 'caste'] },
+      { key: 'category', label: "Social Category", defaultChecked: false, dbKeys: ['Social category', 'Social Category', 'Cat._JKBOSE', 'Category', 'category'], excelKeys: ['category', 'socialcategory', 'catjkbose', 'caste'] },
+      { key: 'socioEconomicCategory', label: "Socio-Economic Category", defaultChecked: false, dbKeys: ['Socio-economic category', 'Socio-Economic Category', 'socioEconomicCategory'], excelKeys: ['socioeconomiccategory', 'socioeconomic', 'bplcategory'] },
       { key: 'boardRegNo', label: "Board Reg. No.", defaultChecked: false, dbKeys: ['Board Registration Number', 'Board Registration No. (Class 11th)', 'Board Registration No. (Class 10th)', 'Board Registration No. (Class 9th)', 'Board Registration No. (Class 8th)', 'DIET Registration No.', 'DIET/Board Reg. No.', 'DIET Reg. No.', 'DIET Registration Number', 'Board Reg. No.', 'boardRegNo', 'regNo', 'Registration No. (allotted by JKBOSE)', 'Registration No. (allotted by DIET)', 'REG. NO.'], excelKeys: ['registrationno', 'regno', 'boardregno', 'boardregistrationno', 'dietregno', 'dietregistrationno'] },
       { key: 'admNo', label: "Admission No.", defaultChecked: false, dbKeys: ['Admission No.', 'Adm. No.', 'admNo', 'admissionNo'], excelKeys: ['admissionno', 'admno', 'admissionnumber'] },
       { key: 'apaarId', label: "APAAR ID (12-Digit)", defaultChecked: false, dbKeys: ['APAAR ID', 'apaarId', 'apaar', 'apaarNumber'], excelKeys: ['apaarid', 'apaar', 'apaarnumber'] },
-      { key: 'penNo', label: "Student PEN No.", defaultChecked: false, dbKeys: ['Permanent Education Number (PEN)', 'PEN No', 'PEN No.', 'pen', 'penNo'], excelKeys: ['penno', 'pen', 'pennumber', 'studentpen'] },
-      { key: 'aadhaarNo', label: "Aadhaar Card No.", defaultChecked: false, dbKeys: ['Aadhaar Number (12 Digits)', 'Aadhaar Number', 'Aadhaar No', 'aadhaarNo', 'aadhaar', 'aadhar', 'Aadhar No.'], excelKeys: ['aadhaarno', 'aadhaar', 'aadharnumber', 'uid', 'aadhar'] },
-      { key: 'fatherAadhar', label: "Father's Aadhaar No.", defaultChecked: false, dbKeys: ["Father's Aadhar No.", "Father's Aadhaar No.", 'fatherAadhar'], excelKeys: ['fatheraadhar', 'fatheraadhaar', 'fatheraadharno'] },
+      { key: 'penNo', label: "Student PEN No.", defaultChecked: false, dbKeys: ['Permanent Education Number (PEN)', 'PEN number (given by UDISE portal)', 'PEN No', 'PEN No.', 'pen', 'penNo', 'Student PEN No.'], excelKeys: ['penno', 'pen', 'pennumber', 'studentpen', 'pennumbergivenbyudiseportal'] },
+      { key: 'aadhaarNo', label: "Aadhaar Card No.", defaultChecked: false, dbKeys: ['Student Aadhaar Number', 'Aadhaar Number (12 Digits)', 'Aadhaar Number', 'Aadhaar No', 'aadhaarNo', 'aadhaar', 'aadhar', 'Aadhar No.'], excelKeys: ['studentaadhaarnumber', 'aadhaarno', 'aadhaar', 'aadharnumber', 'uid', 'aadhar', 'aadharno'] },
+      { key: 'fatherAadhar', label: "Father's Aadhaar No.", defaultChecked: false, dbKeys: ["Father's Aadhar No.", "Father's Aadhaar No.", 'fatherAadhar', "Father's Aadhaar Number", "Father Aadhaar"], excelKeys: ['fatheraadhar', 'fatheraadhaar', 'fatheraadharno'] },
       { key: 'phone', label: "Mobile No.", defaultChecked: false, dbKeys: ['Mobile No. (with working WhatsApp)', 'Mobile No.', 'Mobile Number', 'phone', 'mobileNo', 'contactNo', 'mobile'], excelKeys: ['mobileno', 'mobilenumber', 'phone', 'contactno', 'mobile'] },
       { key: 'parentMobile', label: "Parent's Mobile", defaultChecked: false, dbKeys: ["Parent's Contact", "Parent's Mobile No. (must be working)", "Parent's Mobile No.", "Father's Mobile No.", 'parentMobile', 'parentContact'], excelKeys: ['parentmobile', 'parentscontact', 'fathermobile'] },
-      { key: 'email', label: "Email Address", defaultChecked: false, dbKeys: ['Email', 'Email Address', 'email', 'email1'], excelKeys: ['email', 'emailaddress'] },
+      { key: 'email', label: "Email Address", defaultChecked: false, dbKeys: ['Email Address', 'Email', 'email', 'email1'], excelKeys: ['email', 'emailaddress'] },
       { key: 'address', label: "Village / Address", defaultChecked: false, dbKeys: ['Name of your village', 'Permanent Address', 'Village / Town', 'Village/Town', 'village', 'address', 'Residence (Village, District)'], excelKeys: ['village', 'nameofyourvillage', 'town', 'address', 'locality'] },
+      { key: 'houseNo', label: "House No.", defaultChecked: false, dbKeys: ['House No.', 'houseNo', 'House Number'], excelKeys: ['houseno', 'housenumber'] },
       { key: 'block', label: "Block", defaultChecked: false, dbKeys: ['Block', 'block'], excelKeys: ['block'] },
       { key: 'tehsil', label: "Tehsil", defaultChecked: false, dbKeys: ['Tehsil', 'tehsil'], excelKeys: ['tehsil'] },
       { key: 'district', label: "District", defaultChecked: false, dbKeys: ['District', 'district'], excelKeys: ['district'] },
-      { key: 'pinCode', label: "PIN Code", defaultChecked: false, dbKeys: ['PIN code', 'Pin Code', 'pinCode'], excelKeys: ['pincode', 'pin'] },
+      { key: 'pinCode', label: "PIN Code", defaultChecked: false, dbKeys: ['PIN code', 'Pin Code', 'pinCode', 'pincode'], excelKeys: ['pincode', 'pin'] },
       { key: 'state', label: "State / UT", defaultChecked: false, dbKeys: ['State/UT', 'State', 'state'], excelKeys: ['state', 'stateut'] },
       { key: 'bankAccount', label: "Bank Account No.", defaultChecked: false, dbKeys: ['Bank Account Number', 'Bank Account No.', 'bankAccount', 'bankAccountNo', 'bank'], excelKeys: ['bankaccount', 'bankaccountno', 'accountno', 'accno'] },
       { key: 'bankName', label: "Bank Name", defaultChecked: false, dbKeys: ['Name of the Bank', 'Name of Bank', 'Bank Name', 'bankName'], excelKeys: ['bankname', 'bank'] },
       { key: 'ifsc', label: "IFSC Code", defaultChecked: false, dbKeys: ['IFSC Code of the Bank Branch', 'IFSC Code', 'IFSC code', 'ifsc', 'ifscCode'], excelKeys: ['ifsc', 'ifsccode'] },
-      { key: 'disability', label: "Disability Status", defaultChecked: false, dbKeys: ['Whether specially-abled (PwD)', 'Disability Status', 'disability', 'pwd'], excelKeys: ['disability', 'pwd', 'speciallyabled'] },
-      { key: 'remarks', label: "Remarks", defaultChecked: false, dbKeys: ['Remarks', 'remarks'], excelKeys: ['remarks', 'remark'] },
+      { key: 'height', label: "Height (cm)", defaultChecked: false, dbKeys: ['Height (cm)', 'Height', 'height'], excelKeys: ['height', 'heightcm'] },
+      { key: 'weight', label: "Weight (kg)", defaultChecked: false, dbKeys: ['Weight (kg)', 'Weight', 'weight'], excelKeys: ['weight', 'weightkg'] },
+      { key: 'disability', label: "Disability Status", defaultChecked: false, dbKeys: ['Whether Any Disability', 'Whether specially-abled (PwD)', 'Disability Status', 'disability', 'pwd'], excelKeys: ['whetheranydisability', 'disability', 'pwd', 'speciallyabled'] },
+      { key: 'disabilityType', label: "Type of Disability", defaultChecked: false, dbKeys: ['Type of Disability', 'disabilityType'], excelKeys: ['typeofdisability', 'disabilitytype'] },
+      { key: 'sportsParticipation', label: "Sports Participation", defaultChecked: false, dbKeys: ['Previous participation in sports (if any)', 'Previous participation in sports', 'sportsParticipation'], excelKeys: ['previousparticipationinsports', 'sportsparticipation', 'sports'] },
+      { key: 'gamesToParticipate', label: "Games to Participate", defaultChecked: false, dbKeys: ['Games to participate', 'gamesToParticipate'], excelKeys: ['gamestoparticipate', 'games'] },
+      { key: 'passportNo', label: "Passport No.", defaultChecked: false, dbKeys: ['Passport No. (if available)', 'Passport No.', 'passportNo'], excelKeys: ['passportno', 'passportnumber'] },
+      { key: 'scholarshipReceived', label: "Scholarship Received", defaultChecked: false, dbKeys: ['Whether scholarship received in previous academic year', 'scholarshipReceived'], excelKeys: ['whetherscholarshipreceivedinpreviousacademicyear', 'scholarshipreceived', 'scholarship'] },
+      { key: 'scholarshipType', label: "Scholarship Type", defaultChecked: false, dbKeys: ['Type of scholarship received', 'scholarshipType'], excelKeys: ['typeofscholarshipreceived', 'scholarshiptype'] },
+      { key: 'scholarshipAmount', label: "Scholarship Amount", defaultChecked: false, dbKeys: ['Amount received (INR)', 'scholarshipAmount'], excelKeys: ['amountreceived', 'scholarshipamount'] },
+      { key: 'vocationalSubject', label: "Vocational Subject", defaultChecked: false, dbKeys: ['Vocational subject in previous class', 'vocationalSubject'], excelKeys: ['vocationalsubjectinpreviousclass', 'vocationalsubject'] },
+      { key: 'vocationalPercentage', label: "Vocational %age", defaultChecked: false, dbKeys: ['Percentage Obtained in Vocational Subject', 'vocationalPercentage'], excelKeys: ['percentageobtainedinvocationalsubject', 'vocationalpercentage'] },
+      { key: 'remarks', label: "Remarks", defaultChecked: false, dbKeys: ['Remarks/Feedback (if any)', 'Remarks', 'remarks'], excelKeys: ['remarks', 'remark', 'feedback'] },
     ]
   }
 ];
 
 export default function BulkFieldOverwriteModal({
-  isOpen,
+  isOpen = true,
   onClose,
+  isPage = false,
   allStudents = [],
   currentSession = '2025-26',
   onComplete,
@@ -717,19 +748,21 @@ export default function BulkFieldOverwriteModal({
       'subs11th', 'optedstream12th', 'optedsubs12th', 'photo_id', 'photourl',
       'photoid', 'photo_url', 'studentphoto', 'signature', 'signatureurl', 'pdfurl',
       'raw', 'items', 'students', 'records', 'data', 'groupkey', 'arrayindex',
-      'arraykey', 'srccollection', 'source', 'parentdocid', 'ishistorical', 'currentscope'
+      'arraykey', 'srccollection', 'source', 'parentdocid', 'ishistorical', 'currentscope',
+      'declaration', 'editunlocked', 'unlockexpiry', 'rejectionreason', 'searchtokens',
+      'keywords', 'auditlog', 'logs', 'history', 'mutationjob', 'lastmodified', 'formstatus'
     ]);
 
     const discoveredFields = [];
     const discoveredKeysSeen = new Set();
     const sampleStudents = Array.isArray(universalStudents) ? universalStudents : [];
     
-    sampleStudents.slice(0, 80).forEach(st => {
+    sampleStudents.forEach(st => {
       if (!st || typeof st !== 'object') return;
       Object.keys(st).forEach(rawK => {
         if (rawK.startsWith('_') || rawK.startsWith('$')) return;
         const cKey = cleanKey(rawK);
-        if (!cKey || cKey.length < 2 || cKey.length > 30) return;
+        if (!cKey || cKey.length < 2 || cKey.length > 80) return;
         if (/^\d+$/.test(cKey) || /^[a-f0-9]{8,}$/i.test(cKey)) return;
         if (knownDbKeysSet.has(cKey) || discoveredKeysSeen.has(cKey) || internalBlacklist.has(cKey)) return;
 
@@ -748,22 +781,21 @@ export default function BulkFieldOverwriteModal({
       });
     });
 
-    // Only surface genuine discovered student fields, capped at 8 to keep UI elegant
+    // Only surface genuine discovered student fields
     if (discoveredFields.length === 0) {
       return STANDARD_DB_CATEGORIES;
     }
 
-    const cappedFields = discoveredFields.slice(0, 8);
     return [
       ...STANDARD_DB_CATEGORIES,
       {
         id: 'discovered_db',
-        title: `Discovered in Database (${cappedFields.length})`,
+        title: `Discovered in Database (${discoveredFields.length})`,
         badge: 'Live Database',
         badgeClass: 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-teal-800',
         color: 'teal',
         icon: Database,
-        fields: cappedFields
+        fields: discoveredFields
       }
     ];
   }, [universalStudents]);
@@ -1216,7 +1248,13 @@ export default function BulkFieldOverwriteModal({
         const incomingFields = {};
         allFieldDefinitions.forEach(f => {
           let extracted = '';
-          for (const ek of [...new Set([cleanKey(f.label), cleanKey(f.key), ...(f.excelKeys || [])])]) {
+          const searchKeys = [
+            cleanKey(f.label),
+            cleanKey(f.key),
+            ...(f.excelKeys || []).map(cleanKey),
+            ...(f.dbKeys || []).map(cleanKey)
+          ];
+          for (const ek of [...new Set(searchKeys)]) {
             const val = normalizedRow[ek];
             if (val !== undefined && val !== '') {
               extracted = val;
@@ -1603,6 +1641,63 @@ export default function BulkFieldOverwriteModal({
           payload['Mother Name'] = cleanMotherName;
         }
 
+        // Ensure Form Number is synchronized across all database key variations
+        if (selectedFields['formNo'] && inc['formNo']) {
+          const cleanFormNo = String(inc['formNo']).replace(/^'/, '').trim();
+          payload['formNo'] = cleanFormNo;
+          payload['Form Number'] = cleanFormNo;
+          payload['Form No.'] = cleanFormNo;
+          payload['Form No'] = cleanFormNo;
+          payload['fNo'] = cleanFormNo;
+        }
+
+        // Ensure Class Roll Number is synchronized across all database key variations
+        if (selectedFields['classRollNo'] && inc['classRollNo']) {
+          const cleanRoll = String(inc['classRollNo']).trim();
+          payload['classRollNo'] = cleanRoll;
+          payload['Class Roll No'] = cleanRoll;
+          payload['Class Roll No.'] = cleanRoll;
+          payload['rollNo'] = cleanRoll;
+          payload['RL. NO.'] = cleanRoll;
+          payload['Class R.No.'] = cleanRoll;
+        }
+
+        // Ensure Board Registration Number is synchronized across all database key variations
+        if (selectedFields['boardRegNo'] && inc['boardRegNo']) {
+          const cleanReg = String(inc['boardRegNo']).trim();
+          payload['boardRegNo'] = cleanReg;
+          payload['regNo'] = cleanReg;
+          payload['Board Registration Number'] = cleanReg;
+          payload['Board Reg. No.'] = cleanReg;
+          payload['REG. NO.'] = cleanReg;
+          payload['Registration No. (allotted by JKBOSE)'] = cleanReg;
+        }
+
+        // Ensure Board Examination Roll Number is synchronized across all database key variations
+        if (selectedFields['boardRollNo'] && inc['boardRollNo']) {
+          const cleanExamRoll = String(inc['boardRollNo']).replace(/\.0+$/, '').trim();
+          payload['boardRollNo'] = cleanExamRoll;
+          payload['currExamRollNo'] = cleanExamRoll;
+          payload['examRollNo'] = cleanExamRoll;
+          payload['Exam R.No. (Current)'] = cleanExamRoll;
+          payload['Exam R. No. (Current)'] = cleanExamRoll;
+          payload['Board Roll Number'] = cleanExamRoll;
+          payload['Board Roll No.'] = cleanExamRoll;
+        }
+
+        // Ensure Student Aadhaar Number is synchronized across all database key variations
+        if (selectedFields['aadhaarNo'] && inc['aadhaarNo']) {
+          const cleanAadhaar = String(inc['aadhaarNo']).replace(/\D/g, '').trim();
+          payload['aadhaarNo'] = cleanAadhaar;
+          payload['aadhaar'] = cleanAadhaar;
+          payload['aadhar'] = cleanAadhaar;
+          payload['Aadhaar Number (12 Digits)'] = cleanAadhaar;
+          payload['Aadhaar Number'] = cleanAadhaar;
+          payload['Aadhaar No'] = cleanAadhaar;
+          payload['Aadhar No.'] = cleanAadhaar;
+          payload['Student Aadhaar Number'] = cleanAadhaar;
+        }
+
         // End-to-End Bidirectional Synchronize Subject Slots, Composite Strings & Tier Fields
         const hasSubjOverwrite = 
           selectedFields['subjects'] || selectedFields['Subjects'] ||
@@ -1839,7 +1934,7 @@ export default function BulkFieldOverwriteModal({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !isPage) return null;
 
   // Floating Minimized Background Dock Widget (leaves website 100% interactive in View-Only mode)
   if (isMinimized && (isProcessingRows || step === 'executing')) {
@@ -1907,9 +2002,8 @@ export default function BulkFieldOverwriteModal({
     );
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-1 sm:p-3 overflow-y-auto animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-5xl lg:max-w-6xl xl:max-w-7xl rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[96vh] sm:h-auto max-h-[96vh] sm:max-h-[92vh]">
+  const hubContent = (
+    <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full ${isPage ? 'rounded-2xl shadow-sm overflow-hidden flex flex-col' : 'max-w-5xl lg:max-w-6xl xl:max-w-7xl rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[96vh] sm:h-auto max-h-[96vh] sm:max-h-[92vh]'}`}>
         
         {/* Master Modal Header - Minimal & Slim */}
         <div className="px-3.5 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-950/80 flex-shrink-0">
@@ -1999,7 +2093,7 @@ export default function BulkFieldOverwriteModal({
         </div>
 
         {/* Modal Body Content */}
-        <div className="p-2 sm:p-4 overflow-y-auto flex-1 custom-scrollbar space-y-3 text-xs max-h-[calc(98vh-115px)] sm:max-h-[calc(94vh-130px)]">
+        <div className={`p-2 sm:p-4 flex-1 space-y-3 text-xs ${isPage ? '' : 'overflow-y-auto custom-scrollbar max-h-[calc(98vh-115px)] sm:max-h-[calc(94vh-130px)]'}`}>
           
           {/* ═════════ TAB 2: EXPRESS DIRECT INGESTION (SINGLE RECORD) ═════════ */}
           {modalMode === 'express' && (
@@ -2793,9 +2887,10 @@ export default function BulkFieldOverwriteModal({
         )}
 
       </div>
+  );
 
-      {/* Inspect Student Profile Diff Modal */}
-      {inspectStudent && (
+  // Inspect Student Profile Diff Modal
+  const inspectModalNode = inspectStudent ? (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
@@ -2857,10 +2952,10 @@ export default function BulkFieldOverwriteModal({
             </div>
           </div>
         </div>
-      )}
+  ) : null;
 
-      {/* Non-Blocking Async Processing & Overwrite Progress Overlay */}
-      {(isProcessingRows || step === 'executing') && (
+  // Non-Blocking Async Processing & Overwrite Progress Overlay
+  const progressOverlayNode = (isProcessingRows || step === 'executing') ? (
         <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col p-6 space-y-5">
             
@@ -2999,7 +3094,43 @@ export default function BulkFieldOverwriteModal({
 
           </div>
         </div>
-      )}
+  ) : null;
+
+  if (isPage) {
+    return (
+      <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 p-2 sm:p-6 space-y-4 animate-fadeIn">
+        {/* Top Navigation & Breadcrumbs Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950 hover:text-emerald-600 dark:hover:text-emerald-400 border border-slate-200/60 dark:border-slate-700 transition-all cursor-pointer"
+            >
+              <ArrowLeft size={14} />
+              <span>Return to Student Records & Reports</span>
+            </button>
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+              <span>/</span>
+              <span>Operations & Automation</span>
+              <span>/</span>
+              <span className="text-slate-800 dark:text-slate-200 font-bold">Student Data & Board Ingestion Hub</span>
+            </div>
+          </div>
+        </div>
+
+        {hubContent}
+        {inspectModalNode}
+        {progressOverlayNode}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-1 sm:p-3 overflow-y-auto animate-fadeIn">
+      {hubContent}
+      {inspectModalNode}
+      {progressOverlayNode}
     </div>
   );
 }

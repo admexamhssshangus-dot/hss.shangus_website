@@ -6410,13 +6410,23 @@ export default function AdvancedReports({
         setShowAnalyticsModal(true);
       }
     } else if (triggerAction === 'directEntry') {
-      setBulkOverwriteMode('express');
-      setShowBulkOverwriteModal(true);
+      if (setActiveTab) {
+        setActiveTab('directEntry');
+        if (onTriggerActionHandled) onTriggerActionHandled();
+      } else {
+        setBulkOverwriteMode('express');
+        setShowBulkOverwriteModal(true);
+      }
     } else if (triggerAction === 'bulkTools') {
       setShowToolsModal(true);
     } else if (triggerAction === 'boardSync') {
-      setBulkOverwriteMode('overwrite');
-      setShowBulkOverwriteModal(true);
+      if (setActiveTab) {
+        setActiveTab('boardSync');
+        if (onTriggerActionHandled) onTriggerActionHandled();
+      } else {
+        setBulkOverwriteMode('overwrite');
+        setShowBulkOverwriteModal(true);
+      }
     } else if (triggerAction === 'archival' || triggerAction === 'rollover') {
       setShowArchivalModal(true);
     } else if (triggerAction === 'recycleBin') {
@@ -13412,13 +13422,21 @@ export default function AdvancedReports({
                   }
                 }}
                 onOpenDirectEntry={() => {
-                  setBulkOverwriteMode('express');
-                  setShowBulkOverwriteModal(true);
+                  if (setActiveTab) {
+                    setActiveTab('directEntry');
+                  } else {
+                    setBulkOverwriteMode('express');
+                    setShowBulkOverwriteModal(true);
+                  }
                 }}
                 onOpenBulkTools={() => setShowToolsModal(true)}
                 onOpenBoardSync={() => {
-                  setBulkOverwriteMode('overwrite');
-                  setShowBulkOverwriteModal(true);
+                  if (setActiveTab) {
+                    setActiveTab('boardSync');
+                  } else {
+                    setBulkOverwriteMode('overwrite');
+                    setShowBulkOverwriteModal(true);
+                  }
                 }}
                 onOpenRecycleBin={() => setShowRecycleBinModal(true)}
                 onOpenGoogleContacts={() => {
