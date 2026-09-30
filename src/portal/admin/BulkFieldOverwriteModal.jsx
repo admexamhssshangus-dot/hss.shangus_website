@@ -1,4 +1,4 @@
-import { uniqueStudentMatch, sameCohort, classKey, sessionKey, formatConsistentName } from '../../utils/recordIdentity';
+import { uniqueStudentMatch, sameCohort, classKey, sessionKey, formatConsistentName, recordLocator } from '../../utils/recordIdentity';
 import { beginMutationJob, applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
 import { 
   resolveCertificateStream, 
@@ -32,7 +32,7 @@ import {
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, getDocs, collection } from 'firebase/firestore';
-import { updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped } from '../../services/dbCache';
+import { updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, invalidateCache, invalidateStudentCaches } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { saveCsvImportBatch } from '../../services/csvBatchManager';
 import { toTitleCase } from '../../utils/textFormatting';
@@ -2224,13 +2224,8 @@ export default function BulkFieldOverwriteModal({
       const jobId = await beginMutationJob(`Board Data Overwrite: ${fileName || 'JKBOSE Sync'}`, rowsToExecute.length, 'Board Data Sync & Field Overwrite');
       let updatedCount = 0;
 
-      for (let i = 0; i < rowsToExecute.length; i++) {
-        if (abortExecutionRef.current) {
-          setProgressStage(`Execution safely stopped by admin after updating ${updatedCount} records.`);
-          break;
-        }
-
-        const item = rowsToExecute[i];
+      // Helper to construct full normalized payload for a single student row
+      const buildTaskPayload = (item, i) => {
         const st = item.matchedStudent;
         const inc = item.incomingFields;
         const sName = String(st.studentName || st["Student's Name"] || 'Candidate');
@@ -2509,31 +2504,97 @@ export default function BulkFieldOverwriteModal({
         payload.lastBoardSyncAt = syncTimestamp;
         payload.boardSyncSource = syncSource;
 
-        await applyRecordPatch(st, payload, { jobId, entryId: String(i), force: true });
+        let docKey = 'admissions_single';
+        try {
+          const loc = recordLocator(st);
+          docKey = `${loc.collection}_${loc.documentId}`;
+        } catch {
+          docKey = String(st.docId || st.id || st.formNo || i);
+        }
 
-        updatedCount++;
-        const pct = Math.round(((i + 1) / rowsToExecute.length) * 100);
-        setProgressPercent(pct);
-        setProgressStage(`Overwriting records (${i + 1} of ${rowsToExecute.length}): ${sName}...`);
+        return {
+          index: i,
+          item,
+          student: st,
+          payload,
+          docKey,
+          sName,
+          sRoll,
+          sReg
+        };
+      };
 
-        const fieldsChanged = Object.keys(item.diffs || {}).length;
-        setExecutionLogs(prev => [
-          {
-            id: `log_${i}_${Date.now()}`,
-            name: sName,
-            roll: sRoll,
-            reg: sReg,
-            fieldsCount: fieldsChanged,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          },
-          ...prev.slice(0, 8)
-        ]);
+      // Group tasks by physical database document
+      // (ensures chunked documents are patched sequentially to prevent transaction collisions,
+      // while distinct documents run concurrently across parallel workers)
+      const docQueuesMap = new Map();
+      rowsToExecute.forEach((item, idx) => {
+        const task = buildTaskPayload(item, idx);
+        if (!docQueuesMap.has(task.docKey)) {
+          docQueuesMap.set(task.docKey, []);
+        }
+        docQueuesMap.get(task.docKey).push(task);
+      });
 
-        // Yield to event loop
-        await new Promise(r => setTimeout(r, 0));
+      const docQueues = Array.from(docQueuesMap.values());
+      let queueIdx = 0;
+      const CONCURRENCY = 5;
+
+      const runWorker = async () => {
+        while (queueIdx < docQueues.length) {
+          if (abortExecutionRef.current) break;
+          const currentQueue = docQueues[queueIdx++];
+          for (const task of currentQueue) {
+            if (abortExecutionRef.current) break;
+
+            await applyRecordPatch(task.student, task.payload, {
+              jobId,
+              entryId: String(task.index),
+              force: true,
+              skipCacheInvalidation: true
+            });
+
+            updatedCount++;
+            const pct = Math.round((updatedCount / rowsToExecute.length) * 100);
+            setProgressPercent(pct);
+            setProgressStage(`Overwriting records (${updatedCount} of ${rowsToExecute.length}): ${task.sName}...`);
+
+            const fieldsChanged = Object.keys(task.item.diffs || {}).length;
+            setExecutionLogs(prev => [
+              {
+                id: `log_${task.index}_${Date.now()}`,
+                name: task.sName,
+                roll: task.sRoll,
+                reg: task.sReg,
+                fieldsCount: fieldsChanged,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              },
+              ...prev.slice(0, 8)
+            ]);
+
+            // Yield to event loop
+            await new Promise(r => setTimeout(r, 0));
+          }
+        }
+      };
+
+      const workerPromises = [];
+      const numWorkers = Math.min(CONCURRENCY, docQueues.length);
+      for (let w = 0; w < numWorkers; w++) {
+        workerPromises.push(runWorker());
       }
+      await Promise.all(workerPromises);
 
       await completeMutationJob(jobId);
+
+      // Invalidate memory & persistent multi-tier caches once at the end of the batch
+      try {
+        invalidateCache('admissions');
+        invalidateCache('masterRegisters');
+        invalidateStudentCaches();
+      } catch (cacheErr) {
+        console.warn('Cache invalidation warning after bulk overwrite:', cacheErr);
+      }
 
       // Log Admin Activity
       await logAdminActivity({
