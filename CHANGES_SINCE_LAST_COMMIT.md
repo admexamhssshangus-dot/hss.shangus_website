@@ -2,37 +2,35 @@
 
 ## Current Working Changes
 
-### 1. Fix Student Identification and Uniqueness in Bulk Ingestion Hub (`BulkFieldOverwriteModal.jsx`)
+### 1. Fix Minimized Floating Progress Widget Visibility and Tab Persistence
 - **User Requests Addressed:**
-  - *"why still shows 197 instead of 198"* (in the Student Data & Board Ingestion Hub / Bulk Overwrite screen)
-  - *"use reg no-session-class to find student uniquely"*
+  - *"is overwrite functioning now...i minimised and now cannot see ...it is aborted automatically by swithing moduleor ui issue..."*
 - **Root Cause Identified:**
-  - In `src/portal/admin/BulkFieldOverwriteModal.jsx`, `buildUniversalPool` previously indexed examinees using `reg_${cls}_${reg}` (omitting academic session) and also generated a loose name key `name_${cls}_${sess}_${sName}_${fName.slice(0, 8)}`.
-  - When candidates shared common patronymic prefixes starting with `"Mohammad"` (e.g., *Mohammad Hussain Bhat* and *Mohmmad Sideeeq Mir* for students named *Mehvish Jan*), or when records were merged across pools, distinct examinees with different assigned Class Roll Numbers were erroneously merged into a single entry, causing the cohort count for Class 11th 2025-26 to drop from 198 to 197 on the Bulk Overwrite and Template Download screens.
+  - The bulk overwrite process **was not aborted**; the write loop ran continuously in the background because the component remained mounted in `mountedTabs`.
+  - However, when the user clicked "Minimize" and navigated to another tab/module, the parent tab container (`AdminDashboard.jsx`) was set to `display: 'none'` / `hidden`. In CSS, any ancestor with `display: 'none'` completely hides all descendants, including `fixed` elements.
+  - Furthermore, upon completing the sync, the component previously set `isMinimized(false)`, which caused the widget to disappear into the hidden tab rather than presenting a completed floating status.
 - **Fix Implemented:**
-  - **Authoritative Uniqueness Keying (`reg no - session - class`)**:
-    - Registration numbers are strictly indexed with academic session and class: `reg_${reg}_${sess}_${cls}`.
-    - Form numbers are keyed with session and class: `form_${fNo}_${sess}_${cls}`.
-    - Admission numbers are keyed with session and class: `adm_${adm}_${sess}_${cls}`.
-    - Assigned Class Roll Numbers are keyed with session and class: `roll_${roll}_${sess}_${cls}`.
-  - **Class Roll Collision Invariant**:
-    - When checking candidate keys in `indexMap`, two records that both have assigned Class Roll Numbers in the same session and class (`roll && exRoll && roll !== exRoll`) are **never merged**. Distinct roll numbers are treated as distinct students.
-  - **Spreadsheet Row Matching**:
-    - Updated `uniqueStudentMatch` calls in `BulkFieldOverwriteModal.jsx` to pass `targetSession` and `targetClass` rather than `'All', 'All'`, strictly enforcing `reg no - session - class` lookup.
-  - **Verification**:
-    - Simulated universal pool generation against the full dataset (active admissions, master registers, and verified catalog): verified all 198 approved Class 11th 2025-26 candidates (Rolls 1 to 189 and 201 to 209) are uniquely loaded with zero collisions and zero missing rolls.
+  1. **Global Portal Rendering via `createPortal`**:
+     - The minimized background dock widget in `src/portal/admin/BulkFieldOverwriteModal.jsx` is now rendered directly into `document.body` using `createPortal(widgetContent, document.body)`.
+     - It stays visible, interactive, and animated across **all dashboard modules, views, and tabs** at `z-[99999]`.
+  2. **Completion State in Minimized Dock**:
+     - When background write operations complete while minimized, the widget switches to an explicit completion banner (`✓ Overwrite Completed • X student record(s) synchronized`) with an **Expand** button and a dismiss button.
+  3. **Seamless Module Navigation (`handleMaximize`)**:
+     - Clicking **Expand** on the minimized widget automatically restores the dialog and dispatches `hss-switch-tab` / calls `onOpenHub`, immediately bringing the user back to the Ingestion Hub (`tab=directEntry`) from whichever tab they are currently viewing.
+     - Added global event listener `hss-switch-tab` in `AdminDashboard.jsx` to switch tabs instantly.
 
 ---
 
 ## Files Added / Modified
 - `src/portal/admin/BulkFieldOverwriteModal.jsx` (Modified)
+- `src/portal/admin/AdminDashboard.jsx` (Modified)
 - `CHANGES_SINCE_LAST_COMMIT.md` (Modified)
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(ingestion-hub): use reg no-session-class to find student uniquely and preserve 198 Class 11th candidates
+fix(ingestion-hub): portal minimized progress dock to body and persist across dashboard tab switches
 ```
 
 ---
@@ -50,7 +48,7 @@ git show HEAD
 ```bash
 git reset --soft HEAD~1
 # Make any additional changes if needed
-git commit -m "fix(ingestion-hub): use reg no-session-class to find student uniquely and preserve 198 Class 11th candidates"
+git commit -m "fix(ingestion-hub): portal minimized progress dock to body and persist across dashboard tab switches"
 ```
 
 ### Manual Push (Mandatory Policy):
