@@ -2,49 +2,50 @@
 
 ## Current Working Changes
 
-### 1. Show "Poor Performance in ()" Instead of "REAP ()"
+### 1. Eliminate Duplicate Labels & Compact Student Data & Board Ingestion Hub Layout
 - **User Request Addressed:**
-  - *"instead of reap we shall show poor performance in () ...."*
+  - *"avoid duplicate labels and make design comapct...eg Student Data & Board Ingestion Hub"*
 - **Context & Rationale:**
-  - In internal school assessments, GK evaluation tests, and pre-board examinations, using the harsh board examination label `"REAP"` (re-appear) is discouraged for student encouragement and internal diagnostics.
-  - The requirement was to replace `"REAP (PH, CH)"` with `"Poor Performance in (PH, CH)"`.
+  - On the Student Data & Board Ingestion Hub (`AdminDashboard.jsx`), four separate stacked levels of headers were displayed:
+    1. Top navigation breadcrumbs: `< Records / [Database] Student Data & Board Ingestion Hub`.
+    2. Card master header: `[Database] Student Data & Board Ingestion Hub [Master Hub] [X]` (100% redundant with #1).
+    3. Mode switcher tabs bar: `[Bulk Overwrite] [+ Express Entry] [Gazette AI] [Admit AI]`.
+    4. Express entry header: A massive ~90px gradient banner `⚡ Direct Student Ingestion (Express Admin Entry) [Admin Privileged Ingestion]` repeating the tab name.
+  - This pushed the actual registration form far down the screen, forcing extensive vertical scrolling and duplicating titles across the view.
 - **Key Changes Implemented:**
-  1. **Consolidated Gazette Result Logic (`ConsolidatedGazetteView.jsx`)**:
-     - Updated result display calculation:
-       ```javascript
-       } else if (hasFail) {
-         resultStatus = 'REAP';
-         resultDisplay = reappearSubjects.length > 0 ? `Poor Performance in (${reappearSubjects.join(', ')})` : 'Poor Performance';
-         division = '-';
-       }
-       ```
-     - Export to Excel, CSV, and HTML PDF printouts automatically propagate `Poor Performance in (...)` via `row.resultDisplay || row.resultStatus`.
-  2. **Filter Labels & Filter Compatibility**:
-     - Updated `RESULT_FILTERS` label from `'Re-Appear / REAP'` to `'Poor Performance (< 36%)'`.
-     - Updated `SUBJECT_RESULT_FILTERS` label from `'Re-Appear / REAP (< 36%)'` to `'Poor Performance (< 36%)'`.
-     - Filter checking maintains backwards compatibility with both `REAP`, `RE-APPEAR`, and `poor`.
-  3. **UI Table & Badge Formatting**:
-     - Expanded table header min-width from `w-20 min-w-[75px]` to `w-28 min-w-[110px]` to cleanly display `Poor Performance in (...)`.
-     - Adjusted badge CSS styling to remove blanket uppercase text transformation, ensuring clean case display: `Poor Performance in (PH, CH)`.
-  4. **Admin Gazette Record Edit Modal (`AdminGazetteRecordEditModal.jsx`)**:
-     - Updated live evaluation engine to compute:
-       ```javascript
-       result = failedCodes.length > 0 ? `Poor Performance in (${failedCodes.join(', ')})` : 'Poor Performance';
-       ```
-     - Updated live result badge preview styling.
+  1. **Master Modal Header Redundancy Elimination (`BulkFieldOverwriteModal.jsx`)**:
+     - Wrapped the internal modal header `Student Data & Board Ingestion Hub [Master Hub] [X]` in `{!isPage && (...)}`.
+     - In full-page dashboard mode (`isPage={true}`), the redundant header is suppressed because the dashboard toolbar already displays the active module title and `< Records` navigation.
+     - Preserved the header and close button for floating dialog modal mode (`!isPage`).
+     - Compacted mode tabs bar padding (`px-2.5 py-1 sm:px-3 sm:py-1.5`) and tightened body content container padding.
+  2. **Express Ingestion Banner & Layout Optimization (`ExpressDirectIngestionTab.jsx`)**:
+     - Completely removed the redundant oversized gradient title banner.
+     - Implemented a clean, slim single-line confirmation badge (`px-3 py-1.5 rounded-lg text-xs`) displayed only when records have been added (`addedCount > 0`).
+     - Compacted subtab navigation pills (`Personal`, `Academic`, `Contact`, `Bank & ID`, `Photo & Status`) into a sleek mini toolbar (`p-0.5 rounded-lg`, `px-2.5 py-1 text-[11px]`).
+     - Compacted form container (`p-3 sm:p-3.5 space-y-2.5 rounded-xl`).
+     - Reduced input and select field padding from `px-3 py-2 rounded-xl` to `px-2.5 py-1.5 rounded-lg text-xs font-bold`.
+     - Tightened grid spacing from `gap-3.5` to `gap-2 sm:gap-2.5`.
+     - Compacted bottom action bar (`Cancel`, `Save & Add Another`, `Save & Close`) to `py-1.5 px-3.5 rounded-lg text-xs`.
+  3. **Multimodal Vision AI Toolbar Streamlining (`GazetteAndAdmitAiTab.jsx`)**:
+     - Replaced the bulky 100px gradient banner with a sleek 1-line control bar with model selector and Keys button.
+     - Compacted file dropzone container padding (`p-3 rounded-xl space-y-2`).
+  4. **Excel Tabular Grid Styling Tightening (`ExcelSpreadsheetGrid.jsx`)**:
+     - Compacted ribbon header, icons, and container padding to `rounded-xl p-3 space-y-2.5`.
 
 ---
 
 ## Files Added / Modified
-- `src/portal/admin/ConsolidatedGazetteView.jsx` (Modified)
-- `src/portal/admin/AdminGazetteRecordEditModal.jsx` (Modified)
+- `src/portal/admin/BulkFieldOverwriteModal.jsx` (Modified)
+- `src/portal/admin/bulkOverwrite/ExpressDirectIngestionTab.jsx` (Modified)
+- `src/portal/admin/bulkOverwrite/GazetteAndAdmitAiTab.jsx` (Modified)
+- `src/portal/admin/bulkOverwrite/ExcelSpreadsheetGrid.jsx` (Modified)
 - `CHANGES_SINCE_LAST_COMMIT.md` (Modified)
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(gazette): display 'Poor Performance in ()' instead of 'REAP ()' in assessment gazette
+fix(ingestion-hub): eliminate duplicate header labels and compact layout across tabs
 ```
 
 ---
@@ -58,13 +59,15 @@ git log -1 --stat
 ```
 
 ### How to Amend or Re-commit (if desired):
+If you wish to modify the commit message or add more files before pushing:
 ```bash
 git reset --soft HEAD~1
-git commit -m "fix(gazette): display 'Poor Performance in ()' instead of 'REAP ()' in assessment gazette"
+git add .
+git commit -m "your customized commit message"
 ```
 
-### How to Push to Remote (Manual Step):
-As per strict workspace policy, remote git push is never performed by the assistant. When you are ready, run:
+### How to Push to Remote:
+The assistant is strictly forbidden from pushing to remote repositories. When you are satisfied with the changes:
 ```bash
 git push origin main
 ```

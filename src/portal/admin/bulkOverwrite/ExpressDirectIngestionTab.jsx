@@ -402,45 +402,26 @@ export default function ExpressDirectIngestionTab({
   ];
 
   return (
-    <div className="space-y-4">
-      {/* Banner / Title Matching Screenshot */}
-      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-purple-950/30 border border-blue-200 dark:border-blue-900/60 flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black shadow-xs">
-            <Sparkles size={18} />
+    <div className="space-y-2.5">
+      {addedCount > 0 && (
+        <div className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-between animate-fadeIn">
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
+            <span>{addedCount} student record(s) persisted to live registry</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-black text-slate-900 dark:text-white">
-                ⚡ Direct Student Ingestion (Express Admin Entry)
-              </h3>
-              <span className="text-[9px] px-2 py-0.5 rounded-full font-black bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
-                Admin Privileged Ingestion
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              Quickly register and persist verified student records directly into the live admission registry with immediate confirmation.
-            </p>
-          </div>
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Ready for next entry</span>
         </div>
-
-        {addedCount > 0 && (
-          <div className="text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100/70 dark:bg-emerald-950/80 px-3 py-1 rounded-xl border border-emerald-300 dark:border-emerald-800 flex items-center gap-1.5">
-            <CheckCircle2 size={13} />
-            <span>{addedCount} student(s) added this session</span>
-          </div>
-        )}
-      </div>
+      )}
 
       {errorMsg && (
-        <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-bold flex items-center gap-2">
-          <AlertTriangle size={15} className="shrink-0" />
+        <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-bold flex items-center gap-2">
+          <AlertTriangle size={14} className="shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* Subtab Navigation Pills */}
-      <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/70 rounded-xl overflow-x-auto">
+      <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800/70 rounded-lg overflow-x-auto no-scrollbar">
         {subTabs.map(t => {
           const Icon = t.icon;
           const isActive = subTab === t.id;
@@ -449,13 +430,13 @@ export default function ExpressDirectIngestionTab({
               key={t.id}
               type="button"
               onClick={() => setSubTab(t.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
                 isActive
-                  ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-xs font-black'
+                  ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-2xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Icon size={14} />
+              <Icon size={12} />
               <span>{t.label}</span>
             </button>
           );
@@ -463,13 +444,13 @@ export default function ExpressDirectIngestionTab({
       </div>
 
       {/* Subtab Contents */}
-      <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
+      <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-3 sm:p-3.5 space-y-2.5 shadow-2xs">
         
         {/* 1. PERSONAL DETAILS */}
         {subTab === 'personal' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
             <div className="sm:col-span-2 lg:col-span-1">
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Student's Full Name <span className="text-rose-500">*</span>
               </label>
               <input
@@ -477,12 +458,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.studentName}
                 onChange={(e) => handleChange('studentName', e.target.value)}
                 placeholder="e.g. Danish Ahmad Bhat"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Father's / Guardian's Name
               </label>
               <input
@@ -490,12 +471,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.fatherName}
                 onChange={(e) => handleChange('fatherName', e.target.value)}
                 placeholder="e.g. Ghulam Hassan Bhat"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Mother's Name
               </label>
               <input
@@ -503,30 +484,30 @@ export default function ExpressDirectIngestionTab({
                 value={formData.motherName}
                 onChange={(e) => handleChange('motherName', e.target.value)}
                 placeholder="e.g. Naseema Banoo"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Date of Birth (DoB)
               </label>
               <input
                 type="date"
                 value={formData.dob}
                 onChange={(e) => handleChange('dob', e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Gender
               </label>
               <select
                 value={formData.gender}
                 onChange={(e) => handleChange('gender', e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
               >
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
@@ -535,13 +516,13 @@ export default function ExpressDirectIngestionTab({
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Social Category
               </label>
               <select
                 value={formData.category}
                 onChange={(e) => handleChange('category', e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
               >
                 <option value="General">General / OM</option>
                 <option value="RBA">RBA</option>
@@ -554,7 +535,7 @@ export default function ExpressDirectIngestionTab({
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Religion
               </label>
               <input
@@ -562,12 +543,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.religion}
                 onChange={(e) => handleChange('religion', e.target.value)}
                 placeholder="Islam / Hinduism / etc."
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Blood Group
               </label>
               <input
@@ -575,7 +556,7 @@ export default function ExpressDirectIngestionTab({
                 value={formData.bloodGroup}
                 onChange={(e) => handleChange('bloodGroup', e.target.value)}
                 placeholder="e.g. O+, B+, A+"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
           </div>
@@ -583,23 +564,23 @@ export default function ExpressDirectIngestionTab({
 
         {/* 2. ACADEMIC DETAILS */}
         {subTab === 'academic' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Admission Class
                 </label>
                 <select
                   value={formData.class}
                   onChange={(e) => handleChange('class', e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                 >
                   {DEFAULT_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Academic Session
                 </label>
                 <select
@@ -608,27 +589,27 @@ export default function ExpressDirectIngestionTab({
                     handleChange('session', e.target.value);
                     fetchNextFormNo(e.target.value);
                   }}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                 >
                   {DEFAULT_SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Stream / Faculty
                 </label>
                 <select
                   value={formData.stream}
                   onChange={(e) => handleChange('stream', e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                 >
                   {DEFAULT_STREAMS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Form Number
                 </label>
                 <input
@@ -636,12 +617,12 @@ export default function ExpressDirectIngestionTab({
                   value={formData.formNo}
                   onChange={(e) => handleChange('formNo', e.target.value)}
                   placeholder="Auto-generated"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Class Roll No.
                 </label>
                 <input
@@ -649,12 +630,12 @@ export default function ExpressDirectIngestionTab({
                   value={formData.classRollNo}
                   onChange={(e) => handleChange('classRollNo', e.target.value)}
                   placeholder="e.g. 101"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Board Reg. No. (JKBOSE)
                 </label>
                 <input
@@ -662,12 +643,12 @@ export default function ExpressDirectIngestionTab({
                   value={formData.boardRegNo}
                   onChange={(e) => handleChange('boardRegNo', e.target.value)}
                   placeholder="e.g. 2161234-2024-0012"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-emerald-800 dark:text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-emerald-800 dark:text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Admission No. (Adm No.)
                 </label>
                 <input
@@ -675,12 +656,12 @@ export default function ExpressDirectIngestionTab({
                   value={formData.admNo}
                   onChange={(e) => handleChange('admNo', e.target.value)}
                   placeholder="e.g. ADM-842"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Previous School
                 </label>
                 <input
@@ -688,15 +669,15 @@ export default function ExpressDirectIngestionTab({
                   value={formData.prevSchool}
                   onChange={(e) => handleChange('prevSchool', e.target.value)}
                   placeholder="e.g. BHS Shangus"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
             </div>
 
             {/* Subjects Offered */}
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2">
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-black text-slate-700 dark:text-slate-300">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
                   Subjects Offered / Combination
                 </label>
                 <span className="text-[10px] text-slate-400">Click tags below or type directly</span>
@@ -707,11 +688,11 @@ export default function ExpressDirectIngestionTab({
                 value={formData.subs}
                 onChange={(e) => handleChange('subs', e.target.value)}
                 placeholder="Comma-separated subjects"
-                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
 
               {/* Quick Subject Tags */}
-              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              <div className="flex items-center gap-1 flex-wrap pt-0.5">
                 {availableQuickSubjects.map(s => {
                   const isSelected = formData.subs?.toLowerCase().includes(s.toLowerCase());
                   return (
@@ -719,7 +700,7 @@ export default function ExpressDirectIngestionTab({
                       key={s}
                       type="button"
                       onClick={() => toggleSubject(s)}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
                         isSelected
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-blue-400'
@@ -733,9 +714,9 @@ export default function ExpressDirectIngestionTab({
             </div>
 
             {/* Previous Qualifying Exam Results */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-2.5">
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   10th Roll No.
                 </label>
                 <input
@@ -743,12 +724,12 @@ export default function ExpressDirectIngestionTab({
                   value={formData.prevExamRollNo}
                   onChange={(e) => handleChange('prevExamRollNo', e.target.value)}
                   placeholder="e.g. 21612450"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Marks Obtained
                 </label>
                 <input
@@ -756,12 +737,12 @@ export default function ExpressDirectIngestionTab({
                   value={formData.prevMarks}
                   onChange={(e) => handleChange('prevMarks', e.target.value)}
                   placeholder="e.g. 430"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Maximum Marks
                 </label>
                 <input
@@ -769,12 +750,12 @@ export default function ExpressDirectIngestionTab({
                   value={formData.prevMaxMarks}
                   onChange={(e) => handleChange('prevMaxMarks', e.target.value)}
                   placeholder="500"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Percentage (%)
                 </label>
                 <input
@@ -782,7 +763,7 @@ export default function ExpressDirectIngestionTab({
                   readOnly
                   value={formData.prevPercentage ? `${formData.prevPercentage}%` : ''}
                   placeholder="Auto-calculated"
-                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 outline-none"
+                  className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 outline-none"
                 />
               </div>
             </div>
@@ -791,9 +772,9 @@ export default function ExpressDirectIngestionTab({
 
         {/* 3. CONTACT & RESIDENCE */}
         {subTab === 'contact' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Student Mobile No. (WhatsApp)
               </label>
               <input
@@ -801,12 +782,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.mobile}
                 onChange={(e) => handleChange('mobile', e.target.value)}
                 placeholder="10-digit mobile number"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Parent's Contact No.
               </label>
               <input
@@ -814,12 +795,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.parentMobile}
                 onChange={(e) => handleChange('parentMobile', e.target.value)}
                 placeholder="Father/Guardian Mobile"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Email Address
               </label>
               <input
@@ -827,12 +808,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
                 placeholder="student@example.com"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Permanent Village / Town Address
               </label>
               <input
@@ -840,12 +821,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.village}
                 onChange={(e) => handleChange('village', e.target.value)}
                 placeholder="e.g. Shangus, Nowgam, Chittergul"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Tehsil
               </label>
               <input
@@ -853,12 +834,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.tehsil}
                 onChange={(e) => handleChange('tehsil', e.target.value)}
                 placeholder="e.g. Shangus"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 District
               </label>
               <input
@@ -866,12 +847,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.district}
                 onChange={(e) => handleChange('district', e.target.value)}
                 placeholder="Anantnag"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 PIN Code
               </label>
               <input
@@ -879,7 +860,7 @@ export default function ExpressDirectIngestionTab({
                 value={formData.pinCode}
                 onChange={(e) => handleChange('pinCode', e.target.value)}
                 placeholder="192201"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
           </div>
@@ -887,9 +868,9 @@ export default function ExpressDirectIngestionTab({
 
         {/* 4. BANK & OFFICIAL IDS */}
         {subTab === 'bank' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Aadhaar Number (12 Digits)
               </label>
               <input
@@ -898,12 +879,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.aadhar}
                 onChange={(e) => handleChange('aadhar', e.target.value)}
                 placeholder="xxxx-xxxx-xxxx"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Father's Aadhaar No.
               </label>
               <input
@@ -912,12 +893,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.fatherAadhar}
                 onChange={(e) => handleChange('fatherAadhar', e.target.value)}
                 placeholder="xxxx-xxxx-xxxx"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 APAAR ID (12 Digits)
               </label>
               <input
@@ -926,12 +907,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.apaarId}
                 onChange={(e) => handleChange('apaarId', e.target.value)}
                 placeholder="12-digit APAAR"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Student PEN No. (Permanent Education Number)
               </label>
               <input
@@ -939,12 +920,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.penNo}
                 onChange={(e) => handleChange('penNo', e.target.value)}
                 placeholder="11-digit PEN"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Bank Account Number
               </label>
               <input
@@ -952,12 +933,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.bankAccount}
                 onChange={(e) => handleChange('bankAccount', e.target.value)}
                 placeholder="e.g. 0244040100012345"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 Bank Name & Branch
               </label>
               <input
@@ -965,12 +946,12 @@ export default function ExpressDirectIngestionTab({
                 value={formData.bankName}
                 onChange={(e) => handleChange('bankName', e.target.value)}
                 placeholder="e.g. J&K Bank Shangus"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                 IFSC Code
               </label>
               <input
@@ -978,7 +959,7 @@ export default function ExpressDirectIngestionTab({
                 value={formData.ifsc}
                 onChange={(e) => handleChange('ifsc', e.target.value.toUpperCase())}
                 placeholder="JAKA0SHANGU"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
           </div>
@@ -986,39 +967,39 @@ export default function ExpressDirectIngestionTab({
 
         {/* 5. PHOTO & REGISTRY STATUS */}
         {subTab === 'photo' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
             {/* Photo Dropzone */}
-            <div className="p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-center space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
-              <label className="block text-xs font-black text-slate-700 dark:text-slate-300">
+            <div className="p-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 text-center space-y-2 bg-slate-50/50 dark:bg-slate-800/30">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
                 Passport Size Photograph
               </label>
 
               {photoPreview ? (
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-1.5">
                   <img 
                     src={photoPreview} 
                     alt="Student Preview" 
-                    className="w-24 h-28 object-cover rounded-lg border-2 border-emerald-500 shadow-md"
+                    className="w-20 h-24 object-cover rounded-md border-2 border-emerald-500 shadow-sm"
                   />
                   <button
                     type="button"
                     onClick={handleRemovePhoto}
-                    className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                   >
-                    <Trash2 size={12} />
+                    <Trash2 size={11} />
                     <span>Remove Photo</span>
                   </button>
                 </div>
               ) : (
                 <div 
                   onClick={() => photoInputRef.current?.click()}
-                  className="cursor-pointer py-4 flex flex-col items-center justify-center space-y-1 hover:text-blue-600 transition-colors"
+                  className="cursor-pointer py-3 flex flex-col items-center justify-center space-y-1 hover:text-blue-600 transition-colors"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                    <Camera size={22} />
+                  <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                    <Camera size={18} />
                   </div>
                   <span className="text-xs font-bold">Click to upload photo</span>
-                  <span className="text-[10px] text-slate-400">Auto-compressed JPG/PNG under 100KB</span>
+                  <span className="text-[10px] text-slate-400">JPG/PNG under 100KB</span>
                 </div>
               )}
 
@@ -1032,15 +1013,15 @@ export default function ExpressDirectIngestionTab({
             </div>
 
             {/* Status & Remarks */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Admission Registry Status
                 </label>
                 <select
                   value={formData.status}
                   onChange={(e) => handleChange('status', e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                 >
                   <option value="Approved">Approved (Confirmed Student)</option>
                   <option value="Provisional">Provisional Admission</option>
@@ -1049,15 +1030,15 @@ export default function ExpressDirectIngestionTab({
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                   Registry Remarks
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={formData.remarks}
                   onChange={(e) => handleChange('remarks', e.target.value)}
-                  placeholder="Additional notes, board documents submitted, or admission details"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Additional notes or admission details"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
             </div>
@@ -1066,11 +1047,11 @@ export default function ExpressDirectIngestionTab({
       </div>
 
       {/* Action Buttons Matching Screenshot */}
-      <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+      <div className="flex items-center justify-between flex-wrap gap-2 pt-1.5 border-t border-slate-200 dark:border-slate-800">
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs cursor-pointer transition-colors"
+          className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs cursor-pointer transition-colors"
         >
           Cancel
         </button>
@@ -1080,9 +1061,9 @@ export default function ExpressDirectIngestionTab({
             type="button"
             disabled={isSaving}
             onClick={() => saveStudentRecord(false)}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50 active:scale-98"
+            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50 active:scale-98"
           >
-            {isSaving ? <RefreshCw size={13} className="animate-spin" /> : <PlusCircle size={14} />}
+            {isSaving ? <RefreshCw size={12} className="animate-spin" /> : <PlusCircle size={13} />}
             <span>Save & Add Another</span>
           </button>
 
@@ -1090,9 +1071,9 @@ export default function ExpressDirectIngestionTab({
             type="button"
             disabled={isSaving}
             onClick={() => saveStudentRecord(true)}
-            className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50 active:scale-98"
+            className="px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50 active:scale-98"
           >
-            {isSaving ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={14} />}
+            {isSaving ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle2 size={13} />}
             <span>Save & Close</span>
           </button>
         </div>
