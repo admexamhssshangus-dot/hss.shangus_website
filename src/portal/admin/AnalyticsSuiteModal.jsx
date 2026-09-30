@@ -3,8 +3,13 @@ import { createPortal } from 'react-dom';
 import {
   BarChart2, PieChart, Printer, Download, X, Filter, Users, CheckCircle2,
   Sparkles, BookOpen, Layers, ShieldCheck, FileSpreadsheet, ChevronDown,
-  CheckSquare, Square, ArrowLeft, FileText, ExternalLink
+  CheckSquare, Square, ArrowLeft, FileText, ExternalLink,
+  UserX, UserCheck, Search, AlertTriangle, ChevronUp, Check, HelpCircle
 } from 'lucide-react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { updateCachedItem } from '../../services/dbCache';
+import { logAdminActivity } from '../../services/adminActivityLogger';
 
 import { normalizeClassVal, normalizeSessionVal } from './AdvancedReports';
 import {
@@ -32,6 +37,16 @@ import { generateJkboseDocx } from '../../utils/jkboseDocxGenerator';
 import { generateJkboseExcel } from '../../utils/jkboseExcelGenerator';
 import { printJkboseStatement } from '../../utils/jkbosePdfGenerator';
 import { showToast } from '../../components/common/GlobalToast';
+
+const COMMON_DROPPED_REASONS = [
+  'Shortage of attendance',
+  'Did not register with board',
+  'Fee default / unpaid admission',
+  'Discontinued / left institution',
+  'Failed institutional pre-board',
+  'Medical grounds',
+  'Other / administrative reason',
+];
 
 // ─── Reusable Multi-Select Checkbox Dropdown Component for Analytics Suite ───
 function MultiSelectDropdown({ label, options = [], selected = [], onChange, align = 'left', customAllLabel }) {
@@ -167,7 +182,8 @@ export default function AnalyticsSuiteModal({
   allKnownSessions = [],
   isLoadingHistory = false,
   user,
-  onNavigateTab
+  onNavigateTab,
+  onDataUpdated
 }) {
   // Filter States matching the user's reference layout
   const [analysisMode, setAnalysisMode] = useState('enrollment'); // Default: 'enrollment' (Class Enrollment Summary)
@@ -177,6 +193,25 @@ export default function AnalyticsSuiteModal({
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [selectedStatuses, setSelectedStatuses] = useState([]); // Default: All statuses
+
+  // Dropped Examinees Drawer & Management State
+  const [isDroppedDrawerOpen, setIsDroppedDrawerOpen] = useState(false);
+  const [drawerFilter, setDrawerFilter] = useState('all'); // 'all' | 'active' | 'dropped'
+  const [drawerSearch, setDrawerSearch] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
+  const [savingStudentId, setSavingStudentId] = useState(null);
+
+  // Drop Reason Prompt Modal State
+  const [pendingDropStudent, setPendingDropStudent] = useState(null);
+  const [isBulkDropPending, setIsBulkDropPending] = useState(false);
+  const [dropReason, setDropReason] = useState(COMMON_DROPPED_REASONS[0]);
+  const [customDropReason, setCustomDropReason] = useState('');
+
+  // Expandable Subject Rows in Table
+  const [expandedSubject, setExpandedSubject] = useState(null);
+
+  // In-memory overrides map for instantaneous UI updates when dropping / restoring
+  const [droppedOverrides, setDroppedOverrides] = useState(new Map());
 
   // On-demand session hydration
   const [onDemandStudents, setOnDemandStudents] = useState([]);
@@ -236,37 +271,86 @@ export default function AnalyticsSuiteModal({
   // Combine live active admissions + allStudents + onDemand + historical registers + seed fallback
   const combinedRawStudents = useMemo(() => {
     const list = [];
-    const seen = new Set();
-    const addUnique = (item) => {
+    const indexMap = new Map();
+
+    const addOrMerge = (item, isCurrent = false) => {
       if (!item) return;
-      const key = String(
-        item.id || item._id || item.docId || item.formNo ||
-        `${getStudentDisplayName(item)}_${getAssignedClassRollNumber(item) || ''}`
-      ).toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        list.push(item);
+      const docId = String(item.id || item._id || item.docId || '').trim();
+      const formNo = String(item.formNo || item['Form No'] || item['Form Number'] || item['Form No.'] || item.fNo || '').trim();
+      const sName = getStudentDisplayName(item).trim().toLowerCase();
+      const fName = getStudentFatherName(item).trim().toLowerCase();
+      const sClass = normalizeClassVal(getStudentClass(item) || item.class || item.Class || item['Admission sought for class']);
+      const sSess = normalizeSessionVal(getStudentSession(item) || item.session || item.Session);
+      const roll = getAssignedClassRollNumber(item);
+
+      const keys = [];
+      if (docId) keys.push(`id_${docId.toLowerCase()}`);
+      if (formNo && formNo !== '—' && formNo !== '0') keys.push(`fno_${sSess}_${sClass}_${formNo.toLowerCase()}`);
+      if (roll) keys.push(`roll_${sSess}_${sClass}_${String(roll).toLowerCase()}`);
+      if (sName && sName !== 'student' && fName && fName !== '—') {
+        keys.push(`name_${sSess}_${sClass}_${sName}_${fName}`);
+      }
+
+      let existingIdx = -1;
+      for (const k of keys) {
+        if (indexMap.has(k)) {
+          existingIdx = indexMap.get(k);
+          break;
+        }
+      }
+
+      const overrideUpdates = (docId && droppedOverrides.has(docId)) ? droppedOverrides.get(docId) : {};
+      const enrichedItem = {
+        ...item,
+        ...overrideUpdates,
+        _isCurrentScope: isCurrent ? true : item._isCurrentScope,
+      };
+
+      if (existingIdx !== -1) {
+        const existing = list[existingIdx];
+        const existingHasRoll = Boolean(getAssignedClassRollNumber(existing));
+        const newHasRoll = Boolean(roll);
+
+        // If existing record was unassigned/draft and incoming has an assigned roll number, upgrade it!
+        const merged = {
+          ...item,
+          ...existing,
+          ...overrideUpdates,
+          ...(newHasRoll && !existingHasRoll ? {
+            classRollNo: roll,
+            rollNo: roll,
+            status: resolveStudentAdmissionStatus(enrichedItem),
+            Status: resolveStudentAdmissionStatus(enrichedItem)
+          } : {}),
+          _isCurrentScope: existing._isCurrentScope || enrichedItem._isCurrentScope,
+        };
+        list[existingIdx] = merged;
+        keys.forEach(k => indexMap.set(k, existingIdx));
+      } else {
+        const newIdx = list.length;
+        list.push(enrichedItem);
+        keys.forEach(k => indexMap.set(k, newIdx));
       }
     };
 
-    if (Array.isArray(allStudents) && allStudents.length > 0) {
-      allStudents.forEach(addUnique);
-    }
     if (Array.isArray(students) && students.length > 0) {
-      students.forEach(addUnique);
+      students.forEach(s => addOrMerge(s, true));
+    }
+    if (Array.isArray(allStudents) && allStudents.length > 0) {
+      allStudents.forEach(s => addOrMerge(s, true));
     }
     if (Array.isArray(onDemandStudents) && onDemandStudents.length > 0) {
-      onDemandStudents.forEach(addUnique);
+      onDemandStudents.forEach(s => addOrMerge(s, false));
     }
     if (Array.isArray(historicalRecords) && historicalRecords.length > 0) {
-      historicalRecords.forEach(addUnique);
+      historicalRecords.forEach(s => addOrMerge(s, false));
     }
 
     if (list.length > 0) return list;
 
     // Check window cache
     if (typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
-      window._hssMasterRegistersCache.forEach(addUnique);
+      window._hssMasterRegistersCache.forEach(s => addOrMerge(s, false));
       if (list.length > 0) return list;
     }
 
@@ -276,7 +360,7 @@ export default function AnalyticsSuiteModal({
     }
 
     return list;
-  }, [allStudents, students, onDemandStudents, historicalRecords, internalSeedRecords]);
+  }, [allStudents, students, onDemandStudents, historicalRecords, internalSeedRecords, droppedOverrides]);
 
   // Batch Report Generation States
   const [showBatchMenu, setShowBatchMenu] = useState(false);
@@ -409,38 +493,51 @@ export default function AnalyticsSuiteModal({
       const hasRollY = isValidUniqueVal(getAssignedRollNo(y));
       if (hasRollX && !hasRollY) return -1;
       if (!hasRollX && hasRollY) return 1;
-      const fA = parseInt(String(x.formNo || x['Form No'] || x['Form Number'] || '0').replace(/\D/g, ''), 10) || 0;
-      const fB = parseInt(String(y.formNo || y['Form No'] || y['Form Number'] || '0').replace(/\D/g, ''), 10) || 0;
+      const fA = parseInt(String(x.formNo || x['Form No'] || x['Form Number'] || x.fNo || '0').replace(/\D/g, ''), 10) || 0;
+      const fB = parseInt(String(y.formNo || y['Form No'] || y['Form Number'] || y.fNo || '0').replace(/\D/g, ''), 10) || 0;
       return fB - fA;
     });
 
     const seenCurrentSessionKeys = new Set();
+    const seenRollScopeKeys = new Set();
 
     sorted.forEach((s, idx) => {
-      const formNo = String(s['Form No'] || s['Form Number'] || s['Form No.'] || s.formNo || s['F.NO.'] || '').trim();
+      const roll = getAssignedRollNo(s);
+      const hasValidRoll = isValidUniqueVal(roll);
+      const formNo = String(s['Form No'] || s['Form Number'] || s['Form No.'] || s.formNo || s['F.NO.'] || s.fNo || '').trim();
       const regNoRaw = String(s['Board Registration Number'] || s['Board Registration No. (Class 11th)'] || s['Board Registration No. (Class 10th)'] || s['Board Registration No. (Class 9th)'] || s['DIET Registration No.'] || s['DIET/Board Reg. No.'] || s['DIET Reg. No.'] || s['Board Reg. No.'] || s.boardRegNo || s.regNo || s['Registration No. (allotted by JKBOSE)'] || s['Registration No. (allotted by DIET)'] || s['REG. NO.'] || '').trim();
       const regNo = isValidRegNoA(regNoRaw.replace(/[^a-z0-9]/gi, '').toLowerCase()) ? regNoRaw : '';
       const sClass = normalizeClassVal(s.class || s.Class || s['Class'] || s['Admission sought for class']);
       const sSession = normalizeSessionVal(s.Session || s.session || s['Session']);
-      const docId = String(s.id || s.docId || '').trim();
+      const docId = String(s.id || s._id || s.docId || '').trim();
 
       const sName = String(s['Candidate Name'] || s.name || s.studentName || s["Student's Name (as per school records)"] || s["Student's Name"] || s['STUDENT\'S NAME'] || s.Name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
       const fName = String(s['Father Name'] || s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s['FATHER\'S NAME'] || s.FatherName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
       const scope = `${sSession}_${sClass}`;
 
-      // Prevent historical/seed duplicates against active 2025-26 living workspace
-      if (sSession.includes('2025-26') && !s._isCurrentScope) {
-        if (regNo && seenCurrentSessionKeys.has(`reg_${scope}_${regNo}`)) return;
-        if (formNo && seenCurrentSessionKeys.has(`fno_${scope}_${formNo}`)) return;
-        if (sName && seenCurrentSessionKeys.has(`name_${scope}_${sName}_${fName.slice(0, 8)}`)) return;
+      // Invariant: A student with an assigned Class Roll Number is authoritative within their class and session.
+      // Distinct examinees with different roll numbers (e.g. Roll 67 vs Roll 97) must NEVER suppress one another!
+      if (hasValidRoll) {
+        const rollKey = `roll_${scope}_${roll}`;
+        if (seenRollScopeKeys.has(rollKey)) {
+          return; // Duplicate entry for the same roll number in the same session and class
+        }
+        seenRollScopeKeys.add(rollKey);
+      } else {
+        // Only for unassigned / draft / pending records, check for duplicate formNo, regNo, or identical full name + full father name
+        if (sSession.includes('2025-26') && !s._isCurrentScope) {
+          if (regNo && seenCurrentSessionKeys.has(`reg_${scope}_${regNo}`)) return;
+          if (formNo && isValidUniqueVal(formNo) && seenCurrentSessionKeys.has(`fno_${scope}_${formNo}`)) return;
+          if (sName && fName && seenCurrentSessionKeys.has(`name_${scope}_${sName}_${fName}`)) return;
+        }
       }
 
       if (regNo) seenCurrentSessionKeys.add(`reg_${scope}_${regNo}`);
-      if (formNo) seenCurrentSessionKeys.add(`fno_${scope}_${formNo}`);
-      if (sName) seenCurrentSessionKeys.add(`name_${scope}_${sName}_${fName.slice(0, 8)}`);
+      if (formNo && isValidUniqueVal(formNo)) seenCurrentSessionKeys.add(`fno_${scope}_${formNo}`);
+      if (sName && fName) seenCurrentSessionKeys.add(`name_${scope}_${sName}_${fName}`);
 
-      const primaryKey = `item_${docId || regNo || formNo || sName || Math.random()}_${idx}`;
+      const primaryKey = `item_${docId || (hasValidRoll ? `roll_${scope}_${roll}` : '') || formNo || regNo || sName || Math.random()}_${idx}`;
       map.set(primaryKey, s);
     });
 
@@ -1107,6 +1204,25 @@ export default function AnalyticsSuiteModal({
     });
   }, [filteredStudents, selectedClasses]);
 
+  const jkboseKpis = useMemo(() => {
+    let approved = 0;
+    let dropped = 0;
+    let active = 0;
+    if (!jkboseRollData || !jkboseRollData.classWiseData) {
+      return { approved: 0, dropped: 0, active: 0 };
+    }
+    const classes = jkboseRollData.activeClasses || Object.keys(jkboseRollData.classWiseData);
+    classes.forEach((cls) => {
+      const data = jkboseRollData.classWiseData[cls];
+      if (data && data.kpis) {
+        approved += data.kpis.totalApproved || 0;
+        dropped += data.kpis.totalDropped || 0;
+        active += data.kpis.activeExaminees || 0;
+      }
+    });
+    return { approved, dropped, active };
+  }, [jkboseRollData]);
+
   const jkboseSubjectRows = useMemo(() => {
     if (!jkboseRollData || !jkboseRollData.classWiseData) return [];
     const rows = [];
@@ -1126,6 +1242,145 @@ export default function AnalyticsSuiteModal({
     });
     return rows;
   }, [jkboseRollData]);
+
+  // Filter students for the Dropped Examinees Drawer
+  const drawerStudents = useMemo(() => {
+    return deduplicatedStudents.filter((s) => {
+      const normClass = normalizeExamineeClass(getStudentClass(s) || s.class || s.Class || '');
+      if (selectedClasses.length === 1 && !selectedClasses.includes('All')) {
+        const selNorm = normalizeExamineeClass(selectedClasses[0]);
+        if (normClass !== selNorm) return false;
+      }
+      if (!isStudentAdmissionApproved(s)) return false;
+
+      const isDropped = isStudentExamDropped(s);
+      if (drawerFilter === 'active' && isDropped) return false;
+      if (drawerFilter === 'dropped' && !isDropped) return false;
+
+      if (drawerSearch.trim()) {
+        const q = drawerSearch.trim().toLowerCase();
+        const name = getStudentDisplayName(s).toLowerCase();
+        const roll = String(getAssignedClassRollNumber(s) || s.rollNo || s.classRollNo || '').toLowerCase();
+        const reg = String(s['Board Registration Number'] || s['Board Reg. No.'] || s.boardRegNo || s.regNo || '').toLowerCase();
+        const father = getStudentFatherName(s).toLowerCase();
+        if (!name.includes(q) && !roll.includes(q) && !reg.includes(q) && !father.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [deduplicatedStudents, selectedClasses, drawerFilter, drawerSearch]);
+
+  // Mark a student as dropped or active in Firestore
+  const handleToggleExamDropped = async (student, shouldDrop, reasonText = '') => {
+    const docId = student.id || student._id || student.docId;
+    if (!docId) {
+      showToast('Cannot update student: missing document ID.', 'error');
+      return;
+    }
+
+    setSavingStudentId(docId);
+    try {
+      const updates = {
+        isExamDropped: shouldDrop,
+        examStatus: shouldDrop ? 'dropped' : 'active',
+        examDroppedReason: shouldDrop ? (reasonText || 'Administrative exclusion') : null,
+        examDroppedAt: shouldDrop ? new Date().toISOString() : null,
+        examDroppedBy: user?.email || 'admin',
+        updatedAt: new Date().toISOString(),
+      };
+
+      await updateDoc(doc(db, 'admissions', docId), updates);
+
+      // Update local cache
+      const updatedStudent = { ...student, ...updates };
+      updateCachedItem('admissions', updatedStudent);
+
+      setDroppedOverrides((prev) => {
+        const next = new Map(prev);
+        next.set(docId, updates);
+        return next;
+      });
+
+      if (onDataUpdated) {
+        onDataUpdated(updatedStudent);
+      }
+
+      logAdminActivity({
+        action: shouldDrop ? 'EXAMINEE_DROPPED' : 'EXAMINEE_RESTORED',
+        details: `${shouldDrop ? 'Marked as dropped from exam' : 'Restored to exam return'}: ${getStudentDisplayName(student)} (${updates.examDroppedReason || ''})`,
+        adminEmail: user?.email || 'admin',
+      });
+
+      showToast(
+        shouldDrop
+          ? `🚫 ${getStudentDisplayName(student)} marked as dropped from examination.`
+          : `✅ ${getStudentDisplayName(student)} restored to active examinee return.`,
+        'success'
+      );
+    } catch (err) {
+      console.error('Error updating examinee drop status:', err);
+      showToast('Failed to update student exam status in database.', 'error');
+    } finally {
+      setSavingStudentId(null);
+      setPendingDropStudent(null);
+    }
+  };
+
+  const handleBulkExamStatus = async (shouldDrop, reasonText = '') => {
+    if (selectedStudentIds.size === 0) return;
+    const targets = drawerStudents.filter((s) => selectedStudentIds.has(s.id || s._id || s.docId));
+    if (targets.length === 0) return;
+
+    if (shouldDrop && !reasonText) {
+      setIsBulkDropPending(true);
+      return;
+    }
+
+    let updatedCount = 0;
+    for (const st of targets) {
+      const docId = st.id || st._id || st.docId;
+      if (!docId) continue;
+      try {
+        const updates = {
+          isExamDropped: shouldDrop,
+          examStatus: shouldDrop ? 'dropped' : 'active',
+          examDroppedReason: shouldDrop ? (reasonText || 'Administrative exclusion') : null,
+          examDroppedAt: shouldDrop ? new Date().toISOString() : null,
+          examDroppedBy: user?.email || 'admin',
+          updatedAt: new Date().toISOString(),
+        };
+
+        await updateDoc(doc(db, 'admissions', docId), updates);
+        const updated = { ...st, ...updates };
+        updateCachedItem('admissions', updated);
+        setDroppedOverrides((prev) => {
+          const next = new Map(prev);
+          next.set(docId, updates);
+          return next;
+        });
+        if (onDataUpdated) onDataUpdated(updated);
+        updatedCount++;
+      } catch (e) {
+        console.error('Bulk update error for doc:', docId, e);
+      }
+    }
+
+    logAdminActivity({
+      action: shouldDrop ? 'EXAMINEES_BULK_DROPPED' : 'EXAMINEES_BULK_RESTORED',
+      details: `${shouldDrop ? 'Bulk marked dropped' : 'Bulk restored'} ${updatedCount} examinees (${reasonText || ''})`,
+      adminEmail: user?.email || 'admin',
+    });
+
+    setSelectedStudentIds(new Set());
+    setIsBulkDropPending(false);
+    showToast(
+      shouldDrop
+        ? `🚫 ${updatedCount} examinee(s) marked as dropped from examination.`
+        : `✅ ${updatedCount} examinee(s) restored to active exam return.`,
+      'success'
+    );
+  };
 
   // Handle Clean PDF Export (Direct Browser Print via Hidden Iframe)
   const handlePrintPDF = () => {
@@ -1861,15 +2116,27 @@ export default function AnalyticsSuiteModal({
               </div>
 
               {analysisMode === 'jkbose_subject_rolls' && (
-                <button
-                  type="button"
-                  onClick={handleExportDocx}
-                  className="px-2.5 py-1.5 rounded-lg font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-1 cursor-pointer transition-all shadow-xs"
-                  title="Export official statement in Microsoft Word (.docx)"
-                >
-                  <FileText size={13} />
-                  <span>Word (.docx)</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsDroppedDrawerOpen(true)}
+                    className="px-2.5 py-1.5 rounded-lg font-bold text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                    title="Manage dropped examinees to exclude them from the JKBOSE statement"
+                  >
+                    <UserX size={13} />
+                    <span>Manage Dropped ({jkboseKpis.dropped})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportDocx}
+                    className="px-2.5 py-1.5 rounded-lg font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-1 cursor-pointer transition-all shadow-xs"
+                    title="Export official statement in Microsoft Word (.docx)"
+                  >
+                    <FileText size={13} />
+                    <span>Word (.docx)</span>
+                  </button>
+                </>
               )}
 
               <button
@@ -2089,7 +2356,7 @@ export default function AnalyticsSuiteModal({
             </span>
             <div className="text-xs sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-1">
               <Users size={12} className="text-indigo-600 flex-shrink-0" />
-              <span>{analysisMode === 'jkbose_subject_rolls' ? stats.approvedCount : stats.totalStudents}</span>
+              <span>{analysisMode === 'jkbose_subject_rolls' ? jkboseKpis.approved : stats.totalStudents}</span>
             </div>
           </div>
 
@@ -2099,7 +2366,7 @@ export default function AnalyticsSuiteModal({
             </span>
             <div className="text-xs sm:text-base font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
               {analysisMode === 'jkbose_subject_rolls' ? (
-                <span>{jkboseSubjectRows.reduce((sum, r) => sum + (r.candidateCount || 0), 0)}</span>
+                <span>{jkboseKpis.active}</span>
               ) : (
                 <>
                   <span className="text-sky-600">{stats.maleCount}</span>
@@ -2111,13 +2378,24 @@ export default function AnalyticsSuiteModal({
             </div>
           </div>
 
-          <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              {analysisMode === 'jkbose_subject_rolls' ? 'Dropped from Exam' : 'Female Strength'}
-            </span>
+          <div
+            onClick={analysisMode === 'jkbose_subject_rolls' ? () => setIsDroppedDrawerOpen(true) : undefined}
+            className={`p-1 sm:p-2 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 transition-all ${
+              analysisMode === 'jkbose_subject_rolls' ? 'cursor-pointer hover:border-rose-400 hover:bg-rose-50/40 dark:hover:bg-rose-950/30' : ''
+            }`}
+            title={analysisMode === 'jkbose_subject_rolls' ? 'Click to open Dropped Examinees Manager' : undefined}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                {analysisMode === 'jkbose_subject_rolls' ? 'Dropped from Exam' : 'Female Strength'}
+              </span>
+              {analysisMode === 'jkbose_subject_rolls' && (
+                <span className="text-[9px] font-bold text-rose-500 underline hidden sm:inline">Manage</span>
+              )}
+            </div>
             <div className="text-xs sm:text-base font-black text-rose-600 flex items-center gap-1">
               {analysisMode === 'jkbose_subject_rolls' ? (
-                <span>{stats.droppedCount || 0}</span>
+                <span>{jkboseKpis.dropped}</span>
               ) : (
                 <>
                   <span>{stats.femaleCount}</span>
@@ -2207,23 +2485,61 @@ export default function AnalyticsSuiteModal({
 
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
               {analysisMode === 'jkbose_subject_rolls' &&
-                jkboseSubjectRows.map((r) => (
-                  <tr key={`${r.className}_${r.subject}`} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
-                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono text-xs">{r.globalIdx}</td>
-                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white text-xs">{r.subject}</td>
-                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                        {formatClassDisplay(r.className)}
-                      </span>
-                    </td>
-                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-mono font-bold text-indigo-950 dark:text-indigo-200 text-xs tracking-tight break-all">
-                      {r.rollNumbersSeries || <span className="text-slate-400 font-normal italic">No examinees</span>}
-                    </td>
-                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-black text-xs text-slate-900 dark:text-white">
-                      {r.candidateCount}
-                    </td>
-                  </tr>
-                ))}
+                jkboseSubjectRows.map((r) => {
+                  const isExpanded = expandedSubject === `${r.className}_${r.subject}`;
+                  return (
+                    <React.Fragment key={`${r.className}_${r.subject}`}>
+                      <tr
+                        onClick={() => setExpandedSubject(isExpanded ? null : `${r.className}_${r.subject}`)}
+                        className={`hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors cursor-pointer ${
+                          isExpanded ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''
+                        }`}
+                        title="Click to view/hide examinee roll numbers list"
+                      >
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono text-xs">{r.globalIdx}</td>
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white text-xs flex items-center justify-between gap-1">
+                          <span>{r.subject}</span>
+                          <span className="text-slate-400">
+                            {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                          </span>
+                        </td>
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            {formatClassDisplay(r.className)}
+                          </span>
+                        </td>
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-mono font-bold text-indigo-950 dark:text-indigo-200 text-xs tracking-tight break-all">
+                          {r.rollNumbersSeries || <span className="text-slate-400 font-normal italic">No examinees</span>}
+                        </td>
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-black text-xs text-slate-900 dark:text-white">
+                          {r.candidateCount}
+                        </td>
+                      </tr>
+                      {isExpanded && Array.isArray(r.rawRollNumbers) && r.rawRollNumbers.length > 0 && (
+                        <tr className="bg-slate-50/80 dark:bg-slate-950/60">
+                          <td colSpan={5} className="p-2 sm:p-3 border-y border-indigo-100 dark:border-indigo-900/40">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                <span>Enrolled Examinees in {r.subject} ({r.candidateCount} candidates):</span>
+                                <span className="text-[10px] text-slate-400 font-normal">Click row to collapse</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 max-h-36 overflow-y-auto p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 custom-scrollbar">
+                                {r.rawRollNumbers.map((rollNum, rollIdx) => (
+                                  <span
+                                    key={rollIdx}
+                                    className="px-1.5 py-0.5 rounded text-[10.5px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                                  >
+                                    #{rollNum}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
 
               {analysisMode === 'subject' &&
                 stats.sortedSubjects.map((sub, idx) => {
@@ -2328,10 +2644,10 @@ export default function AnalyticsSuiteModal({
                 {analysisMode === 'jkbose_subject_rolls' && (
                   <tr>
                     <td colSpan="4" className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 uppercase font-bold text-slate-700 dark:text-slate-300">
-                      TOTAL UNIQUE EXAMINEE RETURNS ({jkboseSubjectRows.length} SUBJECTS)
+                      TOTAL UNIQUE ACTIVE EXAMINEES IN RETURN ({jkboseSubjectRows.length} SUBJECTS)
                     </td>
                     <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-black text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm">
-                      {jkboseSubjectRows.reduce((sum, r) => sum + (r.candidateCount || 0), 0)}
+                      {jkboseKpis.active}
                     </td>
                   </tr>
                 )}
@@ -2381,6 +2697,307 @@ export default function AnalyticsSuiteModal({
             )}
           </table>
         </div>
+
+        {/* ========================================================================= */}
+        {/* DROPPED EXAMINEES MANAGEMENT DRAWER (SLIDE-OVER MODAL)                     */}
+        {/* ========================================================================= */}
+        {isDroppedDrawerOpen && createPortal(
+          <div className="fixed inset-0 z-[100000] bg-black/60 backdrop-blur-xs flex justify-end animate-fadeIn">
+            <div className="w-full max-w-xl bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col border-l border-slate-200 dark:border-slate-800">
+              {/* Drawer Header */}
+              <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                    <UserX size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                      Examinee Dropped Manager
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Label students who dropped out so they are excluded from JKBOSE returns.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDroppedDrawerOpen(false)}
+                  className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Filter & Search Bar */}
+              <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 space-y-2.5">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={drawerSearch}
+                      onChange={(e) => setDrawerSearch(e.target.value)}
+                      placeholder="Search examinee by name, roll no, or father name..."
+                      className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                    {drawerSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setDrawerSearch('')}
+                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                    {[
+                      { id: 'all', label: 'All' },
+                      { id: 'active', label: 'Active' },
+                      { id: 'dropped', label: 'Dropped' },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setDrawerFilter(f.id)}
+                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                          drawerFilter === f.id
+                            ? 'bg-amber-600 text-white shadow-2xs'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bulk Action Controls */}
+                {selectedStudentIds.size > 0 && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 flex items-center justify-between text-xs">
+                    <span className="font-bold text-amber-800 dark:text-amber-200">
+                      {selectedStudentIds.size} student(s) selected
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsBulkDropPending(true)}
+                        className="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-500 transition-all cursor-pointer"
+                      >
+                        Mark Dropped
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBulkExamStatus(false)}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-500 transition-all cursor-pointer"
+                      >
+                        Restore to Exam
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStudentIds(new Set())}
+                        className="text-slate-500 hover:underline cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Students List in Drawer */}
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 custom-scrollbar">
+                {drawerStudents.length === 0 ? (
+                  <div className="py-16 text-center text-slate-400 italic text-xs">
+                    No matching examinees found in {selectedClasses.length === 1 ? `Class ${selectedClasses[0]}` : 'any class'}.
+                  </div>
+                ) : (
+                  drawerStudents.map((st) => {
+                    const sId = st.id || st._id || st.docId;
+                    const isDropped = isStudentExamDropped(st);
+                    const isSaving = savingStudentId === sId;
+                    const rollNo = getAssignedClassRollNumber(st) || st.rollNo || st.classRollNo;
+                    const isSelected = selectedStudentIds.has(sId);
+
+                    return (
+                      <div
+                        key={sId}
+                        className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                          isDropped
+                            ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/60'
+                            : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-indigo-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const next = new Set(selectedStudentIds);
+                              if (e.target.checked) next.add(sId);
+                              else next.delete(sId);
+                              setSelectedStudentIds(next);
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-slate-900 dark:text-white truncate">
+                                {getStudentDisplayName(st)}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                Roll: {rollNo || 'Pending'}
+                              </span>
+                            </div>
+                            <div className="text-[10.5px] text-slate-500 truncate flex items-center gap-2 mt-0.5">
+                              <span>F: {getStudentFatherName(st)}</span>
+                              <span>•</span>
+                              <span>Class: {getStudentClass(st) || st.class || 'N/A'}</span>
+                              <span>•</span>
+                              <span>{getStudentStream(st) || st.stream || 'General'}</span>
+                            </div>
+                            {isDropped && st.examDroppedReason && (
+                              <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold mt-1 flex items-center gap-1">
+                                <AlertTriangle size={11} />
+                                <span>Reason: {st.examDroppedReason}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Toggle */}
+                        <div>
+                          {isDropped ? (
+                            <button
+                              type="button"
+                              disabled={isSaving}
+                              onClick={() => handleToggleExamDropped(st, false)}
+                              className="px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                            >
+                              <UserCheck size={13} />
+                              <span>Restore</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isSaving}
+                              onClick={() => setPendingDropStudent(st)}
+                              className="px-2.5 py-1 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-700 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                            >
+                              <UserX size={13} />
+                              <span>Drop</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Drawer Footer */}
+              <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between text-xs text-slate-500">
+                <span className="font-medium">
+                  Showing <strong className="text-slate-900 dark:text-white font-bold">{drawerStudents.length}</strong> examinee(s)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsDroppedDrawerOpen(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-bold text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  Close Drawer
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* ========================================================================= */}
+        {/* DROPPED REASON PROMPT MODAL                                               */}
+        {/* ========================================================================= */}
+        {(pendingDropStudent || isBulkDropPending) && createPortal(
+          <div className="fixed inset-0 z-[100010] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 animate-scaleUp">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold">
+                  <AlertTriangle size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {isBulkDropPending ? `Drop ${selectedStudentIds.size} Examinees` : 'Drop Examinee from Return'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {isBulkDropPending
+                      ? 'All selected students will be marked as dropped and excluded from the JKBOSE statement.'
+                      : `Excluding ${getStudentDisplayName(pendingDropStudent)} from official examination statement.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                    Reason for Dropping:
+                  </label>
+                  <select
+                    value={dropReason}
+                    onChange={(e) => setDropReason(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500/20 cursor-pointer"
+                  >
+                    {COMMON_DROPPED_REASONS.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                    Custom Notes / Administrative Remarks (Optional):
+                  </label>
+                  <textarea
+                    value={customDropReason}
+                    onChange={(e) => setCustomDropReason(e.target.value)}
+                    placeholder="Additional order number, circular, or reason details..."
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500/20"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingDropStudent(null);
+                    setIsBulkDropPending(false);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const reason = customDropReason.trim()
+                      ? `${dropReason} (${customDropReason.trim()})`
+                      : dropReason;
+                    if (isBulkDropPending) {
+                      handleBulkExamStatus(true, reason);
+                    } else if (pendingDropStudent) {
+                      handleToggleExamDropped(pendingDropStudent, true, reason);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-md cursor-pointer transition-all"
+                >
+                  Confirm Drop from Exam
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
   );
 
