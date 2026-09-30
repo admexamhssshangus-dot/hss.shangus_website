@@ -25,7 +25,8 @@ import {
   extractExamineeRollNumber,
   formatRollNumberSeries,
   normalizeExamineeClass,
-  CANONICAL_SUBJECT_ORDER
+  CANONICAL_SUBJECT_ORDER,
+  cleanCentreNoDisplay
 } from '../../utils/jkboseRollSeriesFormatter';
 import { isStudentAdmissionApproved, isStudentExamDropped, getAssignedClassRollNumber } from '../../utils/studentApprovalStatus';
 import {
@@ -67,7 +68,8 @@ export default function JkboseSubjectRollReturnView({
   const [selectedClass, setSelectedClass] = useState('12th'); // '12th' | '11th' | '10th' | 'all'
   const [institutionName, setInstitutionName] = useState('GOVT. HIGHER SECONDARY SCHOOL SHANGUS');
   const [examName, setExamName] = useState('ANNUAL REGULAR 2026');
-  const [centreNo, setCentreNo] = useState('Centre No. 31601');
+  const [centreNo, setCentreNo] = useState('');
+  const [isCentreManuallyEdited, setIsCentreManuallyEdited] = useState(false);
   const [session, setSession] = useState('Session 2025-26');
   const [rollType, setRollType] = useState('auto'); // 'auto' | 'board' | 'class'
 
@@ -150,8 +152,8 @@ export default function JkboseSubjectRollReturnView({
 
   // Compile subject-wise return data
   const returnData = useMemo(() => {
-    return buildJkboseSubjectRollData(dataset, { selectedClass, rollType });
-  }, [dataset, selectedClass, rollType]);
+    return buildJkboseSubjectRollData(dataset, { selectedClass, rollType, centreNo });
+  }, [dataset, selectedClass, rollType, centreNo]);
 
   const activeClassData = useMemo(() => {
     if (selectedClass === 'all') {
@@ -159,6 +161,16 @@ export default function JkboseSubjectRollReturnView({
     }
     return returnData.classWiseData[selectedClass] || null;
   }, [returnData, selectedClass]);
+
+  // Auto-detect & synchronize Centre Number when returnData updates
+  useEffect(() => {
+    if (!isCentreManuallyEdited) {
+      const detected = returnData?.detectedCentreNo || activeClassData?.centreNo || '';
+      if (detected) {
+        setCentreNo(cleanCentreNoDisplay(detected));
+      }
+    }
+  }, [returnData?.detectedCentreNo, activeClassData?.centreNo, isCentreManuallyEdited]);
 
   // Overall KPIs
   const aggregateKpis = useMemo(() => {
@@ -298,12 +310,13 @@ export default function JkboseSubjectRollReturnView({
   const handleExportDocx = async () => {
     try {
       showToast('info', 'Generating Word (.docx) document...');
+      const resolvedCentre = cleanCentreNoDisplay(centreNo || returnData.detectedCentreNo || activeClassData?.centreNo || '');
       await generateJkboseDocx({
         classWiseData: returnData.classWiseData,
         selectedClass,
         institutionName,
         examName,
-        centreNo,
+        centreNo: resolvedCentre,
         session,
       });
       showToast('success', 'Word (.docx) return statement downloaded successfully!');
@@ -315,12 +328,13 @@ export default function JkboseSubjectRollReturnView({
   const handleExportExcel = () => {
     try {
       showToast('info', 'Generating Excel (.xlsx) workbook...');
+      const resolvedCentre = cleanCentreNoDisplay(centreNo || returnData.detectedCentreNo || activeClassData?.centreNo || '');
       generateJkboseExcel({
         classWiseData: returnData.classWiseData,
         selectedClass,
         institutionName,
         examName,
-        centreNo,
+        centreNo: resolvedCentre,
         session,
       });
       showToast('success', 'Excel (.xlsx) return statement downloaded successfully!');
@@ -331,12 +345,13 @@ export default function JkboseSubjectRollReturnView({
 
   const handlePrintPdf = () => {
     try {
+      const resolvedCentre = cleanCentreNoDisplay(centreNo || returnData.detectedCentreNo || activeClassData?.centreNo || '');
       printJkboseStatement({
         classWiseData: returnData.classWiseData,
         selectedClass,
         institutionName,
         examName,
-        centreNo,
+        centreNo: resolvedCentre,
         session,
       });
     } catch (err) {
@@ -496,13 +511,22 @@ export default function JkboseSubjectRollReturnView({
           </div>
 
           <div>
-            <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-500 mb-1">
-              Centre Number
+            <label className="text-[10.5px] font-black uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
+              <span>Centre Number</span>
+              {returnData?.detectedCentreNo && (
+                <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold lowercase">
+                  auto-detected
+                </span>
+              )}
             </label>
             <input
               type="text"
               value={centreNo}
-              onChange={(e) => setCentreNo(e.target.value)}
+              placeholder={returnData?.detectedCentreNo ? cleanCentreNoDisplay(returnData.detectedCentreNo) : 'e.g. 301003, 301004'}
+              onChange={(e) => {
+                setCentreNo(e.target.value);
+                setIsCentreManuallyEdited(true);
+              }}
               className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
@@ -723,7 +747,6 @@ export default function JkboseSubjectRollReturnView({
           <div className="text-right space-y-1 text-xs">
             <div className="font-black text-slate-900 dark:text-white">Principal / Head of Institution</div>
             <div className="font-semibold text-slate-600 dark:text-slate-400">{institutionName}</div>
-            <div className="text-[10.5px] text-slate-400 italic pt-4">(Official Seal & Signature)</div>
           </div>
         </div>
       </div>

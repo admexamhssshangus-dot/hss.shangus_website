@@ -6,19 +6,22 @@
  */
 
 import * as XLSX from 'xlsx';
+import { cleanCentreNoDisplay } from './jkboseRollSeriesFormatter';
 
 /**
  * Generates and triggers download of the official JKBOSE Subject Roll Return in Excel format.
  */
-export function generateJkboseExcel(exportData = {}) {
+export function generateJkboseExcel(exportData = {}, options = {}) {
+  const merged = { ...exportData, ...options };
   const {
     classWiseData = {},
     selectedClass = '12th',
     institutionName = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
     examName = 'ANNUAL REGULAR 2026',
-    centreNo = 'Centre No. 31601',
+    centreNo = '',
+    detectedCentreNo = '',
     session = 'Session 2025-26',
-  } = exportData;
+  } = merged;
 
   const classesToRender = selectedClass === 'all'
     ? Object.keys(classWiseData)
@@ -33,11 +36,14 @@ export function generateJkboseExcel(exportData = {}) {
 
     const subjects = classInfo.subjects || [];
     const totalExaminees = classInfo.kpis.activeExaminees || 0;
+    const cleanCentre = cleanCentreNoDisplay(
+      classInfo.centreNo || centreNo || detectedCentreNo || exportData.detectedCentreNo || ''
+    );
 
     const aoa = [
       [institutionName.toUpperCase()],
       ['SUBJECT-WISE ROLL NUMBER RETURN STATEMENT FOR EXAMINEES'],
-      [`${classInfo.label.toUpperCase()} — ${examName.toUpperCase()} (${session})`, '', '', `CENTRE NO: ${centreNo.toUpperCase()}`],
+      [`${classInfo.label.toUpperCase()} — ${examName.toUpperCase()} (${session})`, '', '', `CENTRE NO: ${cleanCentre ? cleanCentre.toUpperCase() : 'NIL'}`],
       ['Statement of Candidates appearing under examination centre. Continuous series separated by "TO" & single Roll Numbers by Comma.'],
       [],
       ['S.No', 'Subject', 'Roll Numbers ( separate continuous series by "TO" & single Roll No\'s by "Comma" )', 'Total Candidates'],
@@ -60,7 +66,7 @@ export function generateJkboseExcel(exportData = {}) {
     aoa.push(['', 'TOTAL UNIQUE EXAMINEES IN RETURN:', '', totalExaminees]);
     aoa.push([]);
     aoa.push(['Verified from Enrollment Register: ____________________', '', 'Principal / Head of Institution: ____________________']);
-    aoa.push([`Date of Submission: ${new Date().toLocaleDateString('en-GB')}`, '', 'Official Seal & Signature: ____________________']);
+    aoa.push([`Date of Submission: ${new Date().toLocaleDateString('en-GB')}`, '', '']);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
