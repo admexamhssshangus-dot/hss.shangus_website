@@ -2,40 +2,32 @@
 
 ## Current Working Changes
 
-### 1. Fix Student Pool Deduplication & On-Demand Ingestion for Class 11th and 12th
+### 1. Class Order Progression: Show Class 11th First, Followed by Class 12th
 - **User Request Addressed:**
-  - *"seems not to show all approved students for 11th and 12th that may cause issue in import data"*
-  - In the Student Data & Board Ingestion Hub (`BulkFieldOverwriteModal.jsx`), selecting Class 12th for Session 2025-26 (Approved) previously showed only 189 students, and Class 11th showed only 190 students.
-  - This count deficit caused legitimate enrolled students to be omitted during batch spreadsheet import/overwrite or flagged as out-of-cohort/unmatched.
-
-- **Root Cause Analysis:**
-  1. **Premature Record Suppression in `buildUniversalPool`:**
-     - Many students submit an initial unassigned draft/form before being officially allotted an assigned Class Roll Number on their approved application.
-     - `buildUniversalPool` iterated over student records in linear order, encountering the preliminary unassigned draft first and registering its name in `seenNames` or `seenForms`.
-     - When the official application with the assigned Class Roll Number and Approved status was subsequently reached, `seenNames.has(...)` returned true, causing `buildUniversalPool` to drop the approved record!
-     - As a result, the student remained in the pool with `classRollNo: ''` and status `'Submitted'`, causing them to be excluded when filtering by `'Approved'`.
-  2. **Non-Prioritized Pool Assembly:**
-     - `buildUniversalPool` did not sort incoming records before deduplication. Records with verified assigned roll numbers were not prioritized over blank drafts.
-  3. **Narrow Status Evaluator:**
-     - The component used a localized `getEffectiveStatus` function rather than the authoritative `resolveStudentAdmissionStatus` and `hasAssignedClassRollNumber` from `src/utils/studentApprovalStatus.js`.
-  4. **Missing On-Demand Session Hydration:**
-     - `BulkFieldOverwriteModal` previously relied solely on in-memory `allStudents` passed via props or synchronous cache. If full session records in Firestore were not pre-cached, background hydration was skipped.
-  5. **Session String Matching Discrepancies:**
-     - `isStudentInSelectedCohort` relied on simple string inclusion (`stSess.includes(sess)`) rather than the flexible `isStudentInSession(st, sess)` from `src/utils/studentDataFetcher.js`.
+  - *"allow to show first class 11th, then 12th and so on"*
+- **Context & Problem:**
+  - In the Correlated Preview diff table, sorting by Class Roll No previously sorted purely by roll number (`numA - numB`) across the entire combined cohort.
+  - As a result, Class 11th and Class 12th students with identical roll numbers (e.g. Roll 1 of 12th and Roll 1 of 11th) appeared interleaved together in the table.
+  - In the Class dropdown and presets, Class 12th was previously listed before Class 11th (`['12th', '11th']`).
 
 - **Key Implementations:**
-  1. **Intelligent Deduplication with Record Merging (`buildUniversalPool`)**:
-     - Pre-sorts records so records with assigned Class Roll Numbers (`hasAssignedClassRollNumber(s)`) and higher source priority are processed first.
-     - When a matching candidate is found across ID, Board Reg No, Form No, Admission No, or Student + Father Name:
-       - Merges into the existing record rather than dropping the incoming record.
-       - Guarantees that assigned class roll numbers, approved status, board registration numbers, streams, photos, and subjects are fully preserved.
-  2. **On-Demand Background Session Fetching**:
-     - Imported `fetchStudentsForSessionOnDemand` and integrated an active effect fetching complete session records for all `selectedSessions` (or default `2025-26`).
-     - Merges on-demand Firestore records into `universalStudents`.
-  3. **Authoritative Status & Session Integration**:
-     - Integrated `resolveStudentAdmissionStatus(st)`, `isStudentAdmissionApproved(st)`, and `hasAssignedClassRollNumber(st)`.
-     - Integrated `isStudentInSession(st, sess)` in `isStudentInSelectedCohort` for bulletproof session matching.
-     - Aligned `availableStatuses` and `matchingCohortStudents` to accurately classify approved students.
+  1. **Canonical Class Progression Rank (`getClassRank`)**:
+     - Added authoritative class rank resolver in `BulkFieldOverwriteModal.jsx`:
+       - **Class 11th** -> Rank 1 (Primary)
+       - **Class 12th** -> Rank 2 (Secondary)
+       - **Class 10th** -> Rank 3
+       - **Class 9th** -> Rank 4
+       - Other / Unknown -> Rank 10+
+  2. **Preview Diff Table Sorting (`filteredPreview`)**:
+     - Updated sort comparator to prioritize Class Rank before Class Roll Number / Student Name / Reg Number.
+     - All Class 11th students (Roll 1, 2, 3... 198) now render continuously first in the preview table.
+     - All Class 12th students (Roll 1, 2, 3... 196+) render continuously immediately after Class 11th.
+  3. **Class Dropdown & Preset Progression**:
+     - Updated `availableClasses` to sort Class 11th first, then Class 12th.
+     - Updated default selected classes from `['12th', '11th']` to `['11th', '12th']`.
+     - Updated preset values for `11th & 12th (Sr Sec)` to `['11th', '12th']` and `9th & 10th (Secondary)` to `['9th', '10th']`.
+  4. **Excel Template Export Ordering**:
+     - Updated `handleDownloadExcelTemplate` to sort cohort students primarily by Class progression (11th, then 12th), followed by natural numeric Class Roll No.
 
 ---
 
@@ -47,7 +39,7 @@
 
 ## Local Commit Message
 ```bash
-fix(ingestion-hub): preserve all approved students in universal pool with prioritized deduplication merging and on-demand session loading
+feat(ingestion-hub): prioritize Class 11th before Class 12th across preview sorting, dropdowns, and template downloads
 ```
 
 ---
@@ -65,7 +57,7 @@ git show HEAD
 ```bash
 git reset --soft HEAD~1
 # Make any additional changes if needed
-git commit -m "fix(ingestion-hub): preserve all approved students in universal pool with prioritized deduplication merging and on-demand session loading"
+git commit -m "feat(ingestion-hub): prioritize Class 11th before Class 12th across preview sorting, dropdowns, and template downloads"
 ```
 
 ### Manual Push (Mandatory Policy):
