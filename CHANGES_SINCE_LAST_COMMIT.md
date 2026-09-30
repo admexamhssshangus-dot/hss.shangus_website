@@ -2,53 +2,66 @@
 
 ## Current Working Changes
 
-### 1. Fix Registration Number False "JKBOSE Overwrite" Badge & Immutable Board Identity Handling
-- **User Request Addressed:**
-  - *"seems bug here reg no is never overwritten. why showing jkbose update icon"*
-  - Candidate table in Gazette / Advanced Reports showed a green `<JkboseFieldBadge>` icon next to the student's Board Registration Number (`2101003000300030`) with a tooltip indicating:
-    - `● JKBOSE Verified • Board Reg No [BOARD SYNC]`
-    - `PREVIOUS: (blank)`
-    - `MASTER: 2101003000300030`
-    - `Board Data Overwrite: HSS_... Sep 30, 2026`
-- **Root Cause Analysis:**
-  1. **Bulk Field Overwrite Scope:** `BulkFieldOverwriteModal.jsx` previously had `boardRegNo` listed in `STANDARD_DB_CATEGORIES` under `ids_demographics`. During bulk overwrite, `f.dbKeys` performed a top-level lookup on `matchedStudent` without checking nested raw data or `getStudentDisplayRegNo`, falsely calculating `currVal` as blank (`—`), and therefore registering a diff (`currentValue: '—', incomingValue: regNo`).
-  2. **Audit & Traceability Map:** When executed, `boardRegNo` was written into `jkboseFieldUpdates` and `jkboseUpdatedFields`.
-  3. **Traceability Lookup Map:** `src/utils/jkboseTraceability.js` had `boardRegNo` in `JKBOSE_FIELD_MAPPING`, meaning `computeStudentJkboseStatusMap` mapped `boardRegNo` to a valid update status object.
-  4. **Generic Fallback Badge in Table:** In `src/portal/admin/AdvancedReports.jsx`, line 13889 had a fallback badge check for columns not explicitly rendered in earlier custom blocks. Since `boardRegNo` was not excluded, it rendered `<JkboseFieldBadge>` beside the registration number.
-  5. **Core Domain Principle:** In school ERP and board gazettes, Board Registration Number is an immutable identity key (used for matching student records and uniquely identifying candidates) — it is never an overwritten field.
+### 1. Database Audit: Zero Previous Sessions Overwritten
+- **Audit Findings (Verified Against Live Firestore REST API via `scripts/deep_audit_previous_sessions.mjs`):**
+  - **`masterRegisters`**:
+    - Updates executed on Sep 30, 2026 for Session 2025-26: **399** (Class 12th: 203, Class 11th: 196).
+    - Updates executed on Sep 30, 2026 for Previous Sessions: **0**.
+    - **Confirmed**: ZERO previous session records in `masterRegisters` were overwritten.
+  - **`admissions`**:
+    - Updates executed on Sep 30, 2026 for Previous Sessions: **0**.
+    - **Confirmed**: ZERO previous session admissions documents were overwritten.
+  - **Inspection of `Umair Bin Shabir Lone` (Session 2024-25 Oct-Nov, Class 9th, Roll 19, `docId: chunk_003`)**:
+    - In Firestore database, his fields were completely untouched: `currExamRollNo: undefined`, `boardRollNo: undefined`, `examRollNo: undefined`, `updatedAt: undefined`.
+    - His physical Firestore document was never modified.
 
-- **Fixes Implemented:**
-  1. **`src/utils/jkboseTraceability.js`:**
-     - Removed `boardRegNo` from `JKBOSE_FIELD_MAPPING`.
-     - Defined and exported `IMMUTABLE_IDENTITY_FIELDS` (`boardregno`, `regno`, `boardregistrationnumber`, `boardreg`, `registrationno`, `formno`, `admno`, `admissionno`, `classrollno`, `rollno`, `session`, `class`, `sno`, `photoid`).
-     - In `computeStudentJkboseStatusMap`, filtered out any key matching `IMMUTABLE_IDENTITY_FIELDS` across batch matches, direct field lists, direct field update objects, and direct admin edit history.
-     - In `getJkboseFieldStatus`, immediately returns `null` if queried for `boardRegNo`, `regNo`, or any identity field.
-  2. **`src/portal/admin/AdvancedReports.jsx`:**
-     - In `_getJkboseStatus(colKey, subKey)`, returns `null` for any `boardRegNo`, `regNo`, or identity column.
-     - In the generic column badge renderer (line 13889), excluded `boardRegNo`, `regNo`, `formNo`, `admNo`, `classRollNo`, `session`, `class`, `photoId` so identity columns never render a badge.
-  3. **`src/portal/admin/BulkFieldOverwriteModal.jsx`:**
-     - Removed `boardRegNo` from `STANDARD_DB_CATEGORIES` so it cannot be selected or overwritten.
-     - Added registration number keys to `internalBlacklist` to prevent dynamic database discovery as an over-writable field.
-     - In `diffs` calculation, explicitly skips registration number fields (`['boardregno', 'regno', 'boardregistrationnumber', 'boardreg', 'registrationno']`).
-     - Removed `boardRegNo` payload assignment logic.
-     - In `executeBulkOverwrite`, filtered out registration number keys from `fieldsChangedKeys` and `mergedJkboseFields`, and purged any legacy `boardRegNo`/`regNo` entries from `mergedUpdates`.
-  4. **`src/utils/jkboseTraceability.test.js`:**
-     - Added comprehensive unit test ensuring `boardRegNo` and `regNo` always return `null` and are never flagged as updated fields.
+### 2. Root Cause & Fix for False Tooltip on Previous Session Students
+- **Root Cause:**
+  - In `src/utils/jkboseTraceability.js`:
+    - `loadRecentJkboseBatchTraceability` extracted candidate identifiers from batch entry locators, including `entry.locator?.identity?.roll` (e.g. `'19'`).
+    - `computeStudentJkboseStatusMap` looked up `batchTraceabilityMap` using an array of student identifiers that included un-scoped `student.classRollNo` (`'19'`).
+    - Umair Bin Shabir Lone in 9th class (2024-25) has class roll number `19`. Candidate #19 in the 2025-26 12th class batch update had exam roll `301003046`.
+    - Because `classRollNo` was compared as a plain un-scoped string, the badge for candidate 19 in 9th class collided with the batch audit log entry for candidate 19 in 12th class.
+- **Fix in `src/utils/jkboseTraceability.js`:**
+  - Removed plain un-scoped `student.classRollNo` and `entry.locator?.identity?.roll` from global batch matching.
+  - Replaced roll matching with strictly cohort-scoped key: `${session}_${className}_${roll}` (using canonical session and class normalizers from `recordIdentity`).
+  - Scoped matching strictly to immutable authorities: `documentId`, `regNo` / `boardRegNo`, `formNo`, `admNo`, and scoped roll.
+  - Completely eliminated cross-session and cross-class badge collisions.
+
+### 3. Root Cause & Fix for Blank `EXAM R.NO.` in Admin Table for 2025-26 Students
+- **Root Cause:**
+  - The 399 exam roll numbers for 2025-26 were originally saved into the `masterRegisters` collection.
+  - In `localhost:3000/portal/admin`, the student list displays active `admissions` records (`APPR (ADM)`).
+  - In `admissions` for 2025-26, the documents had `currExamRollNo: null`.
+  - In `src/portal/admin/AdvancedReports.jsx`, `COLUMN_DEFS` did not have a custom `render` function for `currExamRollNo`, causing it to simply render `s['currExamRollNo'] ?? '—'`.
+  - The admissions mapping in `AdvancedReports.jsx` mapped `currExamRollNo` from active record `a` without checking `masterMatch`.
+  - Consequently, the cell showed `—`, while the badge next to it displayed the tooltip with `MASTER: 301004037`.
+- **Fix in `src/portal/admin/AdvancedReports.jsx`:**
+  - Added a dedicated `render` function to `currExamRollNo` in `COLUMN_DEFS` that formats the roll number in bold monospace and automatically falls back to `student?.currExamRollNo || student?.boardRollNo || student?.examRollNo || student?.['Exam R.No. (Current)'] || status?.newValue`.
+  - Enriched the active admissions mapper to check `masterMatch?.currExamRollNo || masterMatch?.boardRollNo || masterMatch?.examRollNo || masterMatch?.['Exam R.No. (Current)'] || masterMatch?.['Board Roll Number']`.
+  - Also enriched `currResult` and `currMarksReapp` with fallback to `masterMatch`.
+- **Database Synchronization to `admissions` Collection:**
+  - Executed `scripts/sync_rolls_to_admissions.mjs` using Firestore REST API `batchWrite`.
+  - Matched 448 active 2025-26 admissions candidates (446 by Board Registration Number, 2 by verified Name + Class).
+  - Wrote `currExamRollNo`, `boardRollNo`, `examRollNo`, `lastBoardSyncAt`, and `boardSyncSource` directly into each student's admission document in Firestore.
+  - Verified on student `Faizan Bilal Najar` (`adm_250402`): roll `301004015` is now stored directly in his Firestore record.
 
 ---
 
 ## Files Added / Modified
 - `src/utils/jkboseTraceability.js` (Modified)
 - `src/portal/admin/AdvancedReports.jsx` (Modified)
-- `src/portal/admin/BulkFieldOverwriteModal.jsx` (Modified)
-- `src/utils/jkboseTraceability.test.js` (Modified)
+- `scripts/sync_rolls_to_admissions.mjs` (Added)
+- `scripts/deep_audit_previous_sessions.mjs` (Added)
+- `scripts/audit_database_sessions.mjs` (Added)
+- `scripts/inspect_adm_fields.mjs` (Added)
 - `CHANGES_SINCE_LAST_COMMIT.md` (Modified)
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(reports): prevent registration number from flagging as overwritten jkbose field
+fix(records): resolve cross-session tooltip collision and sync 2025-26 exam roll numbers into admissions
 ```
 
 ---
@@ -66,7 +79,7 @@ git show HEAD
 ```bash
 git reset --soft HEAD~1
 # Make any additional changes if needed
-git commit -m "fix(reports): prevent registration number from flagging as overwritten jkbose field"
+git commit -m "fix(records): resolve cross-session tooltip collision and sync 2025-26 exam roll numbers into admissions"
 ```
 
 ### Manual Push (Mandatory Policy):

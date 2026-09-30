@@ -1,5 +1,6 @@
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { recordIdentity } from './recordIdentity';
 
 /**
  * Mapping of Dashboard column keys and sub-elements to known database and overwrite keys.
@@ -279,6 +280,11 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
 
   let batchMatch = null;
   if (batchTraceabilityMap && typeof batchTraceabilityMap === 'object') {
+    const recIdent = recordIdentity(student);
+    const scopedRoll = (recIdent.session && recIdent.className && recIdent.roll)
+      ? `${recIdent.session}_${recIdent.className}_${recIdent.roll}`
+      : null;
+
     const ids = [
       student.id,
       student.docId,
@@ -286,7 +292,10 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
       student.formNo,
       student.boardRegNo,
       student.regNo,
-      student.classRollNo
+      recIdent.reg,
+      recIdent.form,
+      recIdent.adm,
+      scopedRoll
     ].filter(Boolean);
 
     for (const id of ids) {
@@ -562,11 +571,17 @@ export async function loadRecentJkboseBatchTraceability(forceRefresh = false) {
           }
 
           if (changedFields.size > 0) {
+            const ident = entry.locator?.identity || {};
+            const scopedRoll = (ident.session && ident.className && ident.roll)
+              ? `${ident.session}_${ident.className}_${ident.roll}`
+              : null;
+
             const identifiers = [
               entry.locator?.documentId,
-              entry.locator?.identity?.form,
-              entry.locator?.identity?.reg,
-              entry.locator?.identity?.roll
+              ident.reg,
+              ident.form,
+              ident.adm,
+              scopedRoll
             ].filter(Boolean).map(String);
 
             identifiers.forEach(id => {
