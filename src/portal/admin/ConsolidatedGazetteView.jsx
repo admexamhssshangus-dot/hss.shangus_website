@@ -15,6 +15,7 @@ import verifiedCatalog from '../../data/verifiedStudentsCatalog.json';
 import { showToast } from '../../components/common/GlobalToast';
 import { isStudentEnrolledInSubject } from './AdminPracticals';
 import AdminGazetteRecordEditModal from './AdminGazetteRecordEditModal';
+import { resolveCertificateStream, streamMatches } from '../../utils/certificateStudentResolution';
 
 const SESSIONS = ['2025-26', '2024-25', '2023-24'];
 const CLASSES = ['12th', '11th', '10th'];
@@ -421,19 +422,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         ''
       ).toString().trim();
 
-      const rawStream = (
-        student.stream ||
-        student.Stream ||
-        student['Stream for Class 11th'] ||
-        student['Stream for Class 12th'] ||
-        student['Stream & Subjects for Class 12th'] ||
-        student['Stream'] ||
-        ''
-      ).toString().trim();
-
-      let resolvedRegNo = (rawReg && rawReg !== '-' && rawReg !== '—' && rawReg !== 'null' && rawReg !== 'undefined') ? rawReg : '';
-      let resolvedStream = (rawStream && rawStream.toLowerCase() !== 'general' && rawStream !== '-' && rawStream !== '—') ? rawStream : '';
-
+      // ── Comprehensive Academic Stream & Reg No Resolution ──
       const fNo = identityKey(student.formNo || student['Form Number'] || student.form);
       const rNo = identityKey(student.classRollNo || student['Class Roll No'] || student.rollNo);
       const sName = (student.studentName || student.name || student["Student's Name (as per school records)"] || student["Student's Name"] || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
@@ -449,35 +438,91 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         return false;
       });
 
-      if (catalogMatch) {
-        if (!resolvedRegNo && catalogMatch.boardRegNo && catalogMatch.boardRegNo.trim()) {
-          resolvedRegNo = catalogMatch.boardRegNo.trim();
-        }
-        if (!resolvedStream && catalogMatch.stream && catalogMatch.stream.trim()) {
-          resolvedStream = catalogMatch.stream.trim();
+      let resolvedRegNo = (rawReg && rawReg !== '-' && rawReg !== '—' && rawReg !== 'null' && rawReg !== 'undefined') ? rawReg : '';
+      if (!resolvedRegNo && catalogMatch?.boardRegNo && catalogMatch.boardRegNo.trim()) {
+        resolvedRegNo = catalogMatch.boardRegNo.trim();
+      }
+
+      // In Class 12th admissions, students often had the form selection "Same as in class 11th".
+      // We resolve the true academic stream using resolveCertificateStream, explicit stream keys,
+      // catalog matches, enrolled subjects, and examination subject marks.
+      let resolvedStream = resolveCertificateStream(student, allStudents, selectedClass);
+
+      if (!resolvedStream || resolvedStream === 'General' || resolvedStream.toLowerCase().includes('same as')) {
+        const streamCandidates = [
+          student.stream,
+          student.Stream,
+          student.selectedStream,
+          student['Stream'],
+          student['Stream for Class 12th'],
+          student['Stream opted in Class 11th'],
+          student['Stream for Class 11th'],
+          student['Stream Studied in Class 11th'],
+          student['Stream & Subjects for Class 12th'],
+          student['Stream / Faculty'],
+          student.Faculty,
+          student.faculty,
+          catalogMatch?.stream
+        ];
+
+        for (const cand of streamCandidates) {
+          if (!cand) continue;
+          const str = String(cand).trim();
+          const lower = str.toLowerCase();
+          if (
+            !lower ||
+            lower.includes('same as') ||
+            lower === '—' ||
+            lower === '-' ||
+            lower === 'null' ||
+            lower === 'undefined' ||
+            lower === 'n/a'
+          ) {
+            continue;
+          }
+          if (lower.includes('sci') || lower.includes('med')) { resolvedStream = 'Science'; break; }
+          if (lower.includes('art') || lower.includes('hum') || lower.includes('soc')) { resolvedStream = 'Humanities'; break; }
+          if (lower.includes('comm')) { resolvedStream = 'Commerce'; break; }
+          if (lower !== 'general') { resolvedStream = str; break; }
         }
       }
 
       // Infer stream from enrolled/studied subjects if still empty or 'General'
-      if (!resolvedStream || resolvedStream.toLowerCase() === 'general') {
+      if (!resolvedStream || resolvedStream === 'General' || resolvedStream.toLowerCase().includes('same as')) {
         const subStr = String(
           student['Subjects to be taken in Class 11th'] ||
           student['Subjects Studied in Class 11th'] ||
           student['Subjects to be taken in Class 12th'] ||
           student['Subjects Studied in Class 12th'] ||
           student.subjects ||
+          student.selectedSubjects ||
+          student.subjectCombination ||
           ''
         ).toLowerCase();
 
-        if (subStr.includes('physic') || subStr.includes('chemist') || subStr.includes('biolog')) {
+        if (
+          subStr.includes('physic') || subStr.includes('chemist') || subStr.includes('biolog') ||
+          subStr.includes('botany') || subStr.includes('zoology') || subStr.includes('mathematics') ||
+          subStr.includes('math')
+        ) {
           resolvedStream = 'Science';
-        } else if (subStr.includes('history') || subStr.includes('political') || subStr.includes('education') || subStr.includes('urdu') || subStr.includes('econom')) {
+        } else if (
+          subStr.includes('history') || subStr.includes('political') || subStr.includes('education') ||
+          subStr.includes('urdu') || subStr.includes('econom') || subStr.includes('sociolog') ||
+          subStr.includes('arabic') || subStr.includes('kashmiri')
+        ) {
           resolvedStream = 'Humanities';
+        } else if (
+          subStr.includes('account') || subStr.includes('business') || subStr.includes('commerce')
+        ) {
+          resolvedStream = 'Commerce';
         }
       }
 
       if (!resolvedRegNo) resolvedRegNo = '—';
-      if (!resolvedStream) resolvedStream = 'General';
+      if (!resolvedStream || resolvedStream.toLowerCase().includes('same as')) {
+        resolvedStream = (selectedClass === '9th' || selectedClass === '10th') ? 'General' : '';
+      }
 
       const subjectMarks = {};
       let totalObtained = 0;
@@ -664,13 +709,35 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         }
       });
 
-      // Further stream inference from recorded subject marks if still 'General'
-      if (resolvedStream === 'General') {
-        if (subjectMarks.PH?.obtained !== null || subjectMarks.CH?.obtained !== null || subjectMarks.BO?.obtained !== null || subjectMarks.ZO?.obtained !== null) {
+      // Further stream inference from recorded subject marks if still 'General', empty, or placeholder
+      if (!resolvedStream || resolvedStream === 'General' || resolvedStream.toLowerCase().includes('same as')) {
+        if (
+          subjectMarks.PH?.obtained !== null ||
+          subjectMarks.CH?.obtained !== null ||
+          subjectMarks.BO?.obtained !== null ||
+          subjectMarks.ZO?.obtained !== null ||
+          subjectMarks.MA?.obtained !== null
+        ) {
           resolvedStream = 'Science';
-        } else if (subjectMarks.HT?.obtained !== null || subjectMarks.PS?.obtained !== null || subjectMarks.ED?.obtained !== null || subjectMarks.UR?.obtained !== null || subjectMarks.EC?.obtained !== null) {
+        } else if (
+          subjectMarks.HT?.obtained !== null ||
+          subjectMarks.PS?.obtained !== null ||
+          subjectMarks.ED?.obtained !== null ||
+          subjectMarks.UR?.obtained !== null ||
+          subjectMarks.EC?.obtained !== null ||
+          subjectMarks.SO?.obtained !== null
+        ) {
           resolvedStream = 'Humanities';
+        } else if (
+          subjectMarks.AC?.obtained !== null ||
+          subjectMarks.BS?.obtained !== null
+        ) {
+          resolvedStream = 'Commerce';
         }
+      }
+
+      if (!resolvedStream || resolvedStream.toLowerCase().includes('same as')) {
+        resolvedStream = (selectedClass === '9th' || selectedClass === '10th') ? 'General' : 'Science';
       }
 
       // Calculate totals, percentage, result status, and grade
@@ -820,8 +887,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     // 1. Stream Filter
     if (selectedStream !== 'All') {
       rows = rows.filter(r => {
-        const stStream = String(r.stream || '').toLowerCase();
-        return stStream.includes(selectedStream.toLowerCase());
+        return streamMatches(r.stream, selectedStream);
       });
     }
 

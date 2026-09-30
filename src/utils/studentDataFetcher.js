@@ -74,9 +74,16 @@ const STREAM_KEYS = Object.freeze([
   'stream',
   'Stream',
   'STREAM',
+  'selectedStream',
+  'Stream for Class 12th',
+  'Stream for Class 11th',
+  'Stream opted in Class 11th',
+  'Stream Studied in Class 11th',
+  'Stream & Subjects for Class 12th',
   'subject_stream',
   'Stream / Faculty',
   'Faculty',
+  'faculty',
   'stream_name'
 ]);
 
@@ -160,12 +167,54 @@ export function getStudentStream(s) {
     const val = s[k] !== undefined && s[k] !== null ? s[k] : raw[k];
     if (val && typeof val === 'string' && val.trim() && !/^(n\/?a|—|-|null|undefined)$/i.test(val.trim())) {
       const clean = val.trim();
-      if (/sci/i.test(clean)) return 'Science';
-      if (/art|hum/i.test(clean)) return 'Humanities';
+      if (/same as/i.test(clean)) continue;
+      if (/sci|med/i.test(clean)) return 'Science';
+      if (/art|hum|soc/i.test(clean)) return 'Humanities';
       if (/com/i.test(clean)) return 'Commerce';
+      if (/general/i.test(clean)) continue;
       return clean;
     }
   }
+
+  // Infer from enrolled / studied subjects
+  const subStr = String(
+    s['Subjects to be taken in Class 11th'] ||
+    s['Subjects Studied in Class 11th'] ||
+    s['Subjects to be taken in Class 12th'] ||
+    s['Subjects Studied in Class 12th'] ||
+    s.subjects ||
+    s.selectedSubjects ||
+    s.subjectCombination ||
+    raw['Subjects to be taken in Class 11th'] ||
+    raw['Subjects Studied in Class 11th'] ||
+    raw['Subjects to be taken in Class 12th'] ||
+    raw['Subjects Studied in Class 12th'] ||
+    raw.subjects ||
+    raw.selectedSubjects ||
+    raw.subjectCombination ||
+    ''
+  ).toLowerCase();
+
+  if (
+    subStr.includes('physic') || subStr.includes('chemist') || subStr.includes('biolog') ||
+    subStr.includes('botany') || subStr.includes('zoology') || subStr.includes('mathematics') ||
+    subStr.includes('math')
+  ) {
+    return 'Science';
+  }
+  if (
+    subStr.includes('history') || subStr.includes('political') || subStr.includes('education') ||
+    subStr.includes('urdu') || subStr.includes('econom') || subStr.includes('sociolog') ||
+    subStr.includes('arabic') || subStr.includes('kashmiri')
+  ) {
+    return 'Humanities';
+  }
+  if (subStr.includes('account') || subStr.includes('business') || subStr.includes('commerce')) {
+    return 'Commerce';
+  }
+
+  const cls = String(s.Class || s.class || s['Admission sought for class'] || raw.Class || raw.class || '').toLowerCase();
+  if (cls.includes('9') || cls.includes('10')) return 'General';
 
   return 'General';
 }
