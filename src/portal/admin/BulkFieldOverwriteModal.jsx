@@ -953,17 +953,38 @@ export default function BulkFieldOverwriteModal({
       const fName = String(s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s.fatherName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
       const rawId = s.id || s.docId || s._docId;
 
+      const roll = getAssignedClassRollNumber(s);
+
+      // Uniquely identify student using reg no - session - class
       const keys = [];
       if (rawId) keys.push(`id_${rawId}`);
-      if (reg && reg.length > 5 && !reg.endsWith('00000000')) keys.push(`reg_${cls}_${reg}`);
-      if (fNo && fNo !== '—' && fNo.length > 1) keys.push(`form_${cls}_${sess}_${fNo}`);
-      if (adm && adm !== '—' && adm.length > 1) keys.push(`adm_${cls}_${adm}`);
-      if (sName && sName.length > 2 && fName) keys.push(`name_${cls}_${sess}_${sName}_${fName.slice(0, 8)}`);
+      if (reg && reg.length > 5 && !reg.endsWith('00000000')) {
+        keys.push(`reg_${reg}_${sess}_${cls}`);
+      }
+      if (fNo && fNo !== '—' && fNo.length > 1) {
+        keys.push(`form_${fNo}_${sess}_${cls}`);
+      }
+      if (adm && adm !== '—' && adm.length > 1) {
+        keys.push(`adm_${adm}_${sess}_${cls}`);
+      }
+      if (roll && roll !== '—') {
+        keys.push(`roll_${roll}_${sess}_${cls}`);
+      }
+      if (sName && sName.length > 2 && fName && fName.length > 2 && !roll && !reg && !fNo) {
+        keys.push(`name_${sName}_${fName}_${sess}_${cls}`);
+      }
 
       let existingIdx = -1;
       for (const k of keys) {
         if (indexMap.has(k)) {
-          existingIdx = indexMap.get(k);
+          const candidateIdx = indexMap.get(k);
+          const existing = list[candidateIdx];
+          const exRoll = getAssignedClassRollNumber(existing);
+          // Two students with different assigned Class Roll Numbers in the same session and class cannot be merged
+          if (roll && exRoll && roll !== exRoll) {
+            continue;
+          }
+          existingIdx = candidateIdx;
           break;
         }
       }
@@ -971,7 +992,7 @@ export default function BulkFieldOverwriteModal({
       if (existingIdx !== -1) {
         // Merge into existing record rather than discarding
         const existing = list[existingIdx];
-        const mergedRoll = getAssignedClassRollNumber(existing) || getAssignedClassRollNumber(s);
+        const mergedRoll = getAssignedClassRollNumber(existing) || roll;
         const isApproved = isStudentAdmissionApproved(existing) || isStudentAdmissionApproved(s);
         const effStatus = isApproved ? 'Approved' : (resolveStudentAdmissionStatus(existing) || resolveStudentAdmissionStatus(s));
 
@@ -986,7 +1007,7 @@ export default function BulkFieldOverwriteModal({
           regNo: mergedReg || existing.regNo || s.regNo,
           stream: mergedStream || existing.stream || s.stream,
           photoUrl: mergedPhoto || existing.photoUrl || s.photoUrl,
-          classRollNo: mergedRoll || existing.classRollNo || s.classRollNo,
+          classRollNo: mergedRoll || existing.classRollNo || roll,
           status: effStatus,
           Status: effStatus
         };
@@ -997,7 +1018,7 @@ export default function BulkFieldOverwriteModal({
         const newIdx = list.length;
         const newRec = {
           ...s,
-          classRollNo: getAssignedClassRollNumber(s),
+          classRollNo: roll,
           status: effStatus,
           Status: effStatus
         };
@@ -1739,11 +1760,11 @@ export default function BulkFieldOverwriteModal({
         // Authoritative multi-tier matching strictly within selected cohort:
         // Tier 1: Try strict multi-identifier match within selected cohort
         let matchedStudent = uniqueStudentMatch(cohortStudents,
-          { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, 'All', 'All');
+          { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, targetSession, targetClass);
 
-        // Tier 2: Match strictly by Registration Number within cohort
+        // Tier 2: Match strictly by Registration Number within cohort (reg no - session - class)
         if (!matchedStudent && cleanReg) {
-          matchedStudent = uniqueStudentMatch(cohortStudents, { reg: rawReg }, 'All', 'All') ||
+          matchedStudent = uniqueStudentMatch(cohortStudents, { reg: rawReg }, targetSession, targetClass) ||
             cohortStudents.find(st => {
               const stReg = cleanKey(getStudentDisplayRegNo(st));
               return stReg && stReg === cleanReg;
