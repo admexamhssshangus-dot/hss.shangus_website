@@ -258,23 +258,23 @@ export default function Footer() {
             <LazyFooterMap />
 
             {/* 3. Address & Direct Navigation - Clean, Borderless & Integrated */}
-            <div className="mt-3.5 flex items-start gap-2.5 text-left w-full">
-              <MapPin size={17} className="text-teal-400 shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <div className="text-slate-300 text-[13.5px] leading-relaxed font-sans">
-                  Main Road, Shangus,<br />
-                  Anantnag, J&amp;K &mdash; 192201
+            <div className="mt-3.5 flex flex-col items-center md:items-start text-center md:text-left w-full">
+              <div className="flex items-center md:items-start justify-center md:justify-start gap-2 md:gap-2.5">
+                <MapPin size={17} className="text-teal-400 shrink-0 mt-0.5" />
+                <div className="text-slate-300 text-[13.5px] leading-relaxed font-sans text-center md:text-left">
+                  Main Road, Shangus,<br className="hidden md:inline" />
+                  {' '}Anantnag, J&amp;K &mdash; 192201
                 </div>
-                <a
-                  href="https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus+Anantnag"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-400 hover:text-teal-300 mt-2 transition-colors group/dir cursor-pointer"
-                >
-                  <span>Get Directions</span>
-                  <ExternalLink size={12} className="transition-transform group-hover/dir:translate-x-0.5 group-hover/dir:-translate-y-0.5" />
-                </a>
               </div>
+              <a
+                href="https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus+Anantnag"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center md:justify-start gap-1.5 text-xs font-semibold text-teal-400 hover:text-teal-300 mt-2 transition-colors group/dir cursor-pointer"
+              >
+                <span>Get Directions</span>
+                <ExternalLink size={12} className="transition-transform group-hover/dir:translate-x-0.5 group-hover/dir:-translate-y-0.5" />
+              </a>
             </div>
           </div>
 

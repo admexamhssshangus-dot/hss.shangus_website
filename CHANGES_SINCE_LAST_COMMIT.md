@@ -2,35 +2,31 @@
 
 ## Current Working Changes
 
-### 1. Fix Minimized Floating Progress Widget Visibility and Tab Persistence
-- **User Requests Addressed:**
-  - *"is overwrite functioning now...i minimised and now cannot see ...it is aborted automatically by swithing moduleor ui issue..."*
-- **Root Cause Identified:**
-  - The bulk overwrite process **was not aborted**; the write loop ran continuously in the background because the component remained mounted in `mountedTabs`.
-  - However, when the user clicked "Minimize" and navigated to another tab/module, the parent tab container (`AdminDashboard.jsx`) was set to `display: 'none'` / `hidden`. In CSS, any ancestor with `display: 'none'` completely hides all descendants, including `fixed` elements.
-  - Furthermore, upon completing the sync, the component previously set `isMinimized(false)`, which caused the widget to disappear into the hidden tab rather than presenting a completed floating status.
+### 1. Centralize Address and "Get Directions" Link on Mobile in Footer
+- **User Request Addressed:**
+  - `Main Road, Shangus,Anantnag, J&K — 192201`
+  - `[Get Directions](https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus+Anantnag).....show it centralised like other menu items on mobile`
+- **Root Cause & Layout Enhancement:**
+  - In `src/components/Footer.jsx`, the "Contact Us" column previously had `items-start text-left gap-2.5` applied unconditionally to the Address block and `Get Directions` anchor.
+  - While other footer sections (Quick Links, Legal & Compliance) were centered on mobile via `items-center text-center md:items-start md:text-left`, the school's postal address and maps link remained left-aligned on mobile devices.
 - **Fix Implemented:**
-  1. **Global Portal Rendering via `createPortal`**:
-     - The minimized background dock widget in `src/portal/admin/BulkFieldOverwriteModal.jsx` is now rendered directly into `document.body` using `createPortal(widgetContent, document.body)`.
-     - It stays visible, interactive, and animated across **all dashboard modules, views, and tabs** at `z-[99999]`.
-  2. **Completion State in Minimized Dock**:
-     - When background write operations complete while minimized, the widget switches to an explicit completion banner (`✓ Overwrite Completed • X student record(s) synchronized`) with an **Expand** button and a dismiss button.
-  3. **Seamless Module Navigation (`handleMaximize`)**:
-     - Clicking **Expand** on the minimized widget automatically restores the dialog and dispatches `hss-switch-tab` / calls `onOpenHub`, immediately bringing the user back to the Ingestion Hub (`tab=directEntry`) from whichever tab they are currently viewing.
-     - Added global event listener `hss-switch-tab` in `AdminDashboard.jsx` to switch tabs instantly.
+  - Updated the Address and "Get Directions" navigation block in `src/components/Footer.jsx`:
+    - Responsive flex alignment: `flex flex-col items-center md:items-start text-center md:text-left w-full`.
+    - Centered icon and address wrapper: `flex items-center md:items-start justify-center md:justify-start gap-2 md:gap-2.5`.
+    - Centered "Get Directions" link: `inline-flex items-center justify-center md:justify-start gap-1.5 text-xs font-semibold text-teal-400 hover:text-teal-300 mt-2 transition-colors group/dir cursor-pointer`.
+    - Preserved exact left-aligned layout for desktop screens (`md:` breakpoint).
 
 ---
 
 ## Files Added / Modified
-- `src/portal/admin/BulkFieldOverwriteModal.jsx` (Modified)
-- `src/portal/admin/AdminDashboard.jsx` (Modified)
+- `src/components/Footer.jsx` (Modified)
 - `CHANGES_SINCE_LAST_COMMIT.md` (Modified)
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(ingestion-hub): portal minimized progress dock to body and persist across dashboard tab switches
+style(footer): center address and get directions link on mobile screens
 ```
 
 ---
@@ -48,7 +44,7 @@ git show HEAD
 ```bash
 git reset --soft HEAD~1
 # Make any additional changes if needed
-git commit -m "fix(ingestion-hub): portal minimized progress dock to body and persist across dashboard tab switches"
+git commit -m "style(footer): center address and get directions link on mobile screens"
 ```
 
 ### Manual Push (Mandatory Policy):
