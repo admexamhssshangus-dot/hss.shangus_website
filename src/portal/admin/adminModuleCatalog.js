@@ -93,6 +93,18 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     aliases: ['jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls'],
   },
   {
+    id: 'analyticsReports',
+    label: 'Analytics & Statistical Reports Suite',
+    shortLabel: 'Analytics',
+    description: 'Enrollment analysis, JKBOSE subject roll statement, gender breakdown, and stream intake stats across all sessions',
+    category: 'Records & Registers',
+    maturity: 'optimized',
+    maturityNote: 'Interactive statistical dashboard, JKBOSE subject-wise roll series compression, full page navigation, and on-demand session student fetching.',
+    launcher: true,
+    isNew: true,
+    aliases: ['analyticsReports', 'analytics', 'statisticalReports'],
+  },
+  {
     id: 'customRoster',
     label: 'Student Rosters & Registers',
     shortLabel: 'Rosters',
@@ -325,7 +337,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     aliases: ['staff', 'staffPermissions', 'permissions', 'adminMgmt'],
   },
 
-  // CATEGORY 4: Quick Actions & Ingestion Tools (4 Tools)
+  // CATEGORY 4: Quick Actions & Ingestion Tools (3 Tools)
   {
     id: 'quickCellEdit',
     label: 'Quick Cell Edit Mode',
@@ -338,19 +350,6 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     isQuickAction: true,
     isNew: true,
     aliases: ['quickCellEdit'],
-  },
-  {
-    id: 'analyticsReports',
-    label: 'Analytics & Statistical Reports',
-    shortLabel: 'Analytics',
-    description: 'View gender breakdown, stream stats and intake reports',
-    category: 'Quick Actions',
-    maturity: 'optimized',
-    maturityNote: 'Interactive statistical dashboard and visual demographic charts.',
-    launcher: false,
-    isQuickAction: true,
-    isNew: false,
-    aliases: ['analyticsReports', 'analytics'],
   },
   {
     id: 'directEntryAction',
