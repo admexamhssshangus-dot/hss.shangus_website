@@ -85,4 +85,31 @@ describe('jkboseTraceability', () => {
     const dobStatus = getJkboseFieldStatus(student, 'dob', null, batchMap);
     expect(dobStatus).toBeNull();
   });
+
+  it('guarantees boardRegNo and regNo are never flagged as updated fields or given badges', () => {
+    const studentWithRegUpdate = {
+      id: 'st_4',
+      boardRegNo: '2101003000300030',
+      regNo: '2101003000300030',
+      jkboseUpdatedFields: ['boardRegNo', 'regNo', 'studentName'],
+      jkboseFieldUpdates: {
+        boardRegNo: {
+          label: 'Board Reg No',
+          oldValue: '(blank)',
+          newValue: '2101003000300030',
+          source: 'Board Data Overwrite'
+        },
+        studentName: {
+          label: "Student's Name",
+          oldValue: 'MOHD',
+          newValue: 'MOHAMMAD',
+          source: 'Board Data Overwrite'
+        }
+      }
+    };
+
+    expect(getJkboseFieldStatus(studentWithRegUpdate, 'boardRegNo')).toBeNull();
+    expect(getJkboseFieldStatus(studentWithRegUpdate, 'regNo')).toBeNull();
+    expect(getJkboseFieldStatus(studentWithRegUpdate, 'studentName')).not.toBeNull();
+  });
 });

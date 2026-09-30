@@ -108,16 +108,6 @@ export const JKBOSE_FIELD_MAPPING = {
     'Adm. No.',
     'Admission No'
   ],
-  boardRegNo: [
-    'boardRegNo',
-    'regNo',
-    'Board Registration Number',
-    'Board Reg. No.',
-    'Board Registration No. (Class 11th)',
-    'Board Registration No. (Class 10th)',
-    'Registration No. (allotted by JKBOSE)',
-    'REG. NO.'
-  ],
   currExamRollNo: [
     'boardRollNo',
     'currExamRollNo',
@@ -245,6 +235,15 @@ export const JKBOSE_FIELD_MAPPING = {
 export const normalizeKey = (k) => String(k || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /**
+ * Immutable Identity Keys that are fixed student identifiers and must NEVER be treated
+ * as mutable/overwritten JKBOSE fields or display update badge icons.
+ */
+export const IMMUTABLE_IDENTITY_FIELDS = new Set([
+  'boardregno', 'regno', 'boardregistrationnumber', 'boardreg', 'registrationno',
+  'formno', 'admno', 'admissionno', 'classrollno', 'rollno', 'session', 'class', 'sno', 'photoid'
+]);
+
+/**
  * Static Precomputed Maps (Calculated once at module load - zero runtime overhead)
  */
 const NORMALIZED_FIELD_MAP = {};
@@ -315,6 +314,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
     const src = batchMatch.source || 'JKBOSE Board Overwrite';
     const ts = batchMatch.timestamp || '';
     batchMatch.fields.forEach(f => {
+      if (IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(f))) return;
       const detail = batchMatch.details?.[f];
       const statusObj = {
         isUpdated: true,
@@ -327,7 +327,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
       };
       statusMap[f] = statusObj;
       const canonicalCol = REVERSE_LOOKUP_MAP[normalizeKey(f)];
-      if (canonicalCol) {
+      if (canonicalCol && !IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(canonicalCol))) {
         statusMap[canonicalCol] = statusObj;
       }
     });
@@ -341,6 +341,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
 
   if (Array.isArray(fieldsList)) {
     fieldsList.forEach(f => {
+      if (IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(f))) return;
       const detail = fieldUpdates[f];
       const statusObj = {
         isUpdated: true,
@@ -353,7 +354,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
       };
       statusMap[f] = statusObj;
       const canonicalCol = REVERSE_LOOKUP_MAP[normalizeKey(f)];
-      if (canonicalCol) {
+      if (canonicalCol && !IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(canonicalCol))) {
         statusMap[canonicalCol] = statusObj;
       }
     });
@@ -361,6 +362,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
 
   if (fieldUpdates && typeof fieldUpdates === 'object') {
     Object.entries(fieldUpdates).forEach(([k, detail]) => {
+      if (IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(k))) return;
       const statusObj = {
         isUpdated: true,
         key: k,
@@ -372,7 +374,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
       };
       statusMap[k] = statusObj;
       const canonicalCol = REVERSE_LOOKUP_MAP[normalizeKey(k)];
-      if (canonicalCol) {
+      if (canonicalCol && !IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(canonicalCol))) {
         statusMap[canonicalCol] = statusObj;
       }
     });
@@ -381,6 +383,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
   // 3. Fallback: if student has boardSyncFields list
   if (Array.isArray(student.boardSyncFields)) {
     student.boardSyncFields.forEach(f => {
+      if (IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(f))) return;
       const statusObj = {
         isUpdated: true,
         key: f,
@@ -390,7 +393,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
       };
       statusMap[f] = statusObj;
       const canonicalCol = REVERSE_LOOKUP_MAP[normalizeKey(f)];
-      if (canonicalCol) {
+      if (canonicalCol && !IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(canonicalCol))) {
         statusMap[canonicalCol] = statusObj;
       }
     });
@@ -402,6 +405,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
     Object.entries(directEdits).forEach(([f, detail]) => {
       if (!detail) return;
       const normKey = normalizeKey(f);
+      if (IMMUTABLE_IDENTITY_FIELDS.has(normKey)) return;
       const canonicalCol = REVERSE_LOOKUP_MAP[normKey];
       const existingBoard = statusMap[f] || statusMap[normKey] || (canonicalCol ? statusMap[canonicalCol] : null);
       const statusObj = {
@@ -426,7 +430,7 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
 
       statusMap[f] = statusObj;
       statusMap[normKey] = statusObj;
-      if (canonicalCol) {
+      if (canonicalCol && !IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(canonicalCol))) {
         statusMap[canonicalCol] = statusObj;
       }
     });
@@ -447,6 +451,8 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
  */
 export function getJkboseFieldStatus(student, colKey, subKey = null, batchTraceabilityMap = null) {
   if (!student) return null;
+  if (colKey && IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(colKey))) return null;
+  if (subKey && IMMUTABLE_IDENTITY_FIELDS.has(normalizeKey(subKey))) return null;
 
   // Fast Path 1: Check precomputed status map on student (O(1) instant lookup)
   if (student._jkboseStatusMap) {
