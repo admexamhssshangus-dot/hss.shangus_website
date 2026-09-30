@@ -165,7 +165,7 @@ export default function AdminGazetteRecordEditModal({
       } else if (absentCount === evalCount) {
         result = 'ABSENT';
       } else {
-        result = `REAP (${failedCodes.join(', ')})`;
+        result = failedCodes.length > 0 ? `Poor Performance in (${failedCodes.join(', ')})` : 'Poor Performance';
       }
     }
 
@@ -615,7 +615,7 @@ export default function AdminGazetteRecordEditModal({
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
                   <Award size={12} className="text-indigo-500" /> Result Engine
                 </span>
-                <span className={`px-2 py-0.5 rounded text-[10.5px] font-black uppercase tracking-wider inline-block ${
+                <span className={`px-2 py-0.5 rounded text-[10.5px] font-black tracking-tight inline-block ${
                   assessmentSummary.result === 'PASS'
                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300'
                     : assessmentSummary.result === 'ABSENT'

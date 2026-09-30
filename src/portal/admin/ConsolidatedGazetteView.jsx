@@ -34,7 +34,7 @@ const STATUS_CATEGORIES = [
 const RESULT_FILTERS = [
   { value: 'All', label: 'All Results' },
   { value: 'PASS', label: 'Passed (PASS)' },
-  { value: 'REAP', label: 'Re-Appear / REAP' },
+  { value: 'REAP', label: 'Poor Performance (< 36%)' },
   { value: 'ABSENT', label: 'Absent' },
   { value: 'PENDING', label: 'Pending / Incomplete' },
 ];
@@ -43,7 +43,7 @@ export const SUBJECT_RESULT_FILTERS = [
   { value: 'All', label: 'All Candidates' },
   { value: 'EVALUATED', label: 'Evaluated / Appeared' },
   { value: 'PASS', label: 'Passed (≥ 36%)' },
-  { value: 'REAP', label: 'Re-Appear / REAP (< 36%)' },
+  { value: 'REAP', label: 'Poor Performance (< 36%)' },
   { value: 'ABSENT', label: 'Absent (AB)' },
   { value: 'NOT_EVALUATED', label: 'Pending / Not Evaluated' },
 ];
@@ -766,7 +766,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           division = 'Absent';
         } else if (hasFail) {
           resultStatus = 'REAP';
-          resultDisplay = reappearSubjects.length > 0 ? `REAP (${reappearSubjects.join(', ')})` : 'REAP';
+          resultDisplay = reappearSubjects.length > 0 ? `Poor Performance in (${reappearSubjects.join(', ')})` : 'Poor Performance';
           division = '-';
         } else {
           resultStatus = 'PASS';
@@ -906,11 +906,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       });
     }
 
-    // 3. Overall Result Status Filter (Pass, Re-Appear / REAP, Absent, Pending)
+    // 3. Overall Result Status Filter (Pass, Poor Performance / REAP, Absent, Pending)
     if (selectedResultFilter !== 'All') {
       rows = rows.filter(r => {
-        if (selectedResultFilter === 'REAP' || selectedResultFilter === 'RE-APPEAR') {
-          return r.resultStatus === 'REAP' || r.resultStatus === 'RE-APPEAR';
+        if (selectedResultFilter === 'REAP' || selectedResultFilter === 'RE-APPEAR' || selectedResultFilter === 'POOR_PERFORMANCE') {
+          return r.resultStatus === 'REAP' || r.resultStatus === 'RE-APPEAR' || String(r.resultDisplay).toLowerCase().includes('poor');
         }
         return r.resultStatus === selectedResultFilter;
       });
@@ -2065,7 +2065,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
                 <th className="py-2 px-1.5 text-center w-14 min-w-[50px]">Total</th>
                 <th className="py-2 px-1 text-center w-12 min-w-[44px]">%</th>
-                <th className="py-2 px-1 text-center w-20 min-w-[75px] whitespace-nowrap">Result</th>
+                <th className="py-2 px-1 text-center w-28 min-w-[110px] whitespace-nowrap">Result</th>
                 <th className="py-2 px-1.5 text-center w-20 min-w-[70px]">Grade</th>
                 <th className="py-2 px-1 text-center w-12 min-w-[42px] no-print print:hidden">Action</th>
               </tr>
@@ -2074,7 +2074,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               {filteredRows.map((row, idx) => {
                 const isPass = row.resultStatus === 'PASS';
                 const isAbsent = row.resultStatus === 'ABSENT';
-                const isReappear = row.resultStatus === 'REAP' || row.resultStatus === 'RE-APPEAR';
+                const isReappear = row.resultStatus === 'REAP' || row.resultStatus === 'RE-APPEAR' || String(row.resultDisplay).toLowerCase().includes('poor');
                 const isSelected = selectedRowKeys.has(row.key);
 
                 return (
@@ -2187,7 +2187,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                               ? 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30'
                               : 'text-slate-900 dark:text-slate-100'
                           } ${isAdmMod ? 'bg-amber-50/70 dark:bg-amber-950/30' : ''}`}
-                          title={`${s.name} (${s.code}): ${val}/${s.maxMarks} (${markObj.isPass ? 'Passed' : 'Re-Appear / Failed'})${isAdmMod ? ` • [Admin Override by ${markObj.updatedBy} (${markObj.editReason})]` : ''} — Click to edit`}
+                          title={`${s.name} (${s.code}): ${val}/${s.maxMarks} (${markObj.isPass ? 'Passed' : 'Poor Performance / Needs Improvement'})${isAdmMod ? ` • [Admin Override by ${markObj.updatedBy} (${markObj.editReason})]` : ''} — Click to edit`}
                         >
                           <span>{val}</span>
                           {isAdmMod && (
@@ -2210,7 +2210,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                     {/* Calculated Result Status */}
                     <td className="py-1 px-1 text-center font-sans whitespace-nowrap">
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-tight inline-block whitespace-nowrap leading-none ${
+                        className={`px-1.5 py-0.5 rounded text-[8.5px] font-extrabold tracking-tight inline-block whitespace-nowrap leading-none ${
                           isPass
                             ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                             : isReappear
