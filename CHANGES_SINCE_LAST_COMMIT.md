@@ -2,66 +2,50 @@
 
 ## Current Working Changes
 
-### 1. Database Audit: Zero Previous Sessions Overwritten
-- **Audit Findings (Verified Against Live Firestore REST API via `scripts/deep_audit_previous_sessions.mjs`):**
-  - **`masterRegisters`**:
-    - Updates executed on Sep 30, 2026 for Session 2025-26: **399** (Class 12th: 203, Class 11th: 196).
-    - Updates executed on Sep 30, 2026 for Previous Sessions: **0**.
-    - **Confirmed**: ZERO previous session records in `masterRegisters` were overwritten.
-  - **`admissions`**:
-    - Updates executed on Sep 30, 2026 for Previous Sessions: **0**.
-    - **Confirmed**: ZERO previous session admissions documents were overwritten.
-  - **Inspection of `Umair Bin Shabir Lone` (Session 2024-25 Oct-Nov, Class 9th, Roll 19, `docId: chunk_003`)**:
-    - In Firestore database, his fields were completely untouched: `currExamRollNo: undefined`, `boardRollNo: undefined`, `examRollNo: undefined`, `updatedAt: undefined`.
-    - His physical Firestore document was never modified.
-
-### 2. Root Cause & Fix for False Tooltip on Previous Session Students
+### 1. Fix Strange Vertical Digit Wrapping on Exam Roll Numbers & JKBOSE Overwrites
+- **User Request Addressed:**
+  - *"whenever such jkbose update is done, it shall not be strange wrapping"*
+  - In Admin Table (`localhost:3000/portal/admin`), candidate exam roll numbers (e.g. `301004029` and `101060026`) were wrapping vertically digit-by-digit:
+    ```
+    3
+    0
+    1
+    0
+    0
+    4
+    0
+    2
+    9  [● JKBOSE]
+    ```
 - **Root Cause:**
-  - In `src/utils/jkboseTraceability.js`:
-    - `loadRecentJkboseBatchTraceability` extracted candidate identifiers from batch entry locators, including `entry.locator?.identity?.roll` (e.g. `'19'`).
-    - `computeStudentJkboseStatusMap` looked up `batchTraceabilityMap` using an array of student identifiers that included un-scoped `student.classRollNo` (`'19'`).
-    - Umair Bin Shabir Lone in 9th class (2024-25) has class roll number `19`. Candidate #19 in the 2025-26 12th class batch update had exam roll `301003046`.
-    - Because `classRollNo` was compared as a plain un-scoped string, the badge for candidate 19 in 9th class collided with the batch audit log entry for candidate 19 in 12th class.
-- **Fix in `src/utils/jkboseTraceability.js`:**
-  - Removed plain un-scoped `student.classRollNo` and `entry.locator?.identity?.roll` from global batch matching.
-  - Replaced roll matching with strictly cohort-scoped key: `${session}_${className}_${roll}` (using canonical session and class normalizers from `recordIdentity`).
-  - Scoped matching strictly to immutable authorities: `documentId`, `regNo` / `boardRegNo`, `formNo`, `admNo`, and scoped roll.
-  - Completely eliminated cross-session and cross-class badge collisions.
-
-### 3. Root Cause & Fix for Blank `EXAM R.NO.` in Admin Table for 2025-26 Students
-- **Root Cause:**
-  - The 399 exam roll numbers for 2025-26 were originally saved into the `masterRegisters` collection.
-  - In `localhost:3000/portal/admin`, the student list displays active `admissions` records (`APPR (ADM)`).
-  - In `admissions` for 2025-26, the documents had `currExamRollNo: null`.
-  - In `src/portal/admin/AdvancedReports.jsx`, `COLUMN_DEFS` did not have a custom `render` function for `currExamRollNo`, causing it to simply render `s['currExamRollNo'] ?? '—'`.
-  - The admissions mapping in `AdvancedReports.jsx` mapped `currExamRollNo` from active record `a` without checking `masterMatch`.
-  - Consequently, the cell showed `—`, while the badge next to it displayed the tooltip with `MASTER: 301004037`.
-- **Fix in `src/portal/admin/AdvancedReports.jsx`:**
-  - Added a dedicated `render` function to `currExamRollNo` in `COLUMN_DEFS` that formats the roll number in bold monospace and automatically falls back to `student?.currExamRollNo || student?.boardRollNo || student?.examRollNo || student?.['Exam R.No. (Current)'] || status?.newValue`.
-  - Enriched the active admissions mapper to check `masterMatch?.currExamRollNo || masterMatch?.boardRollNo || masterMatch?.examRollNo || masterMatch?.['Exam R.No. (Current)'] || masterMatch?.['Board Roll Number']`.
-  - Also enriched `currResult` and `currMarksReapp` with fallback to `masterMatch`.
-- **Database Synchronization to `admissions` Collection:**
-  - Executed `scripts/sync_rolls_to_admissions.mjs` using Firestore REST API `batchWrite`.
-  - Matched 448 active 2025-26 admissions candidates (446 by Board Registration Number, 2 by verified Name + Class).
-  - Wrote `currExamRollNo`, `boardRollNo`, `examRollNo`, `lastBoardSyncAt`, and `boardSyncSource` directly into each student's admission document in Firestore.
-  - Verified on student `Faizan Bilal Najar` (`adm_250402`): roll `301004015` is now stored directly in his Firestore record.
+  1. In `src/portal/admin/AdvancedReports.jsx`, `currExamRollNo` and `prevExamRollNo` were not included in the table cell `whitespace-nowrap` whitelist, giving their wrapper div `whitespace-normal break-words`.
+  2. Because the wrapper had `min-w-0 flex-1 break-words`, when screen/column space became constrained, the browser broke the number at every single character.
+  3. Default column width for `currExamRollNo` was previously set to only `90px` in `DEFAULT_1_WIDTHS`, and any saved widths in `localStorage` were also stuck at `90px`.
+  4. The `<JkboseFieldBadge>` icon occupied ~48px in the cell, leaving only ~34px for a 9-digit roll number.
+- **Fixes Applied in `src/portal/admin/AdvancedReports.jsx`:**
+  1. **Strict `whitespace-nowrap` Protection:**
+     - Added `currExamRollNo` and `prevExamRollNo` to `isNowrapCol` on line 13899 (`overflow-hidden whitespace-nowrap`).
+     - Applied `whitespace-nowrap` to the inner span containing the roll number.
+  2. **Integrated Inline Badge Layout:**
+     - In `COLUMN_DEFS`, updated the `currExamRollNo` and `prevExamRollNo` render functions to lay out the roll number and the `<JkboseFieldBadge>` in an `inline-flex items-center justify-center gap-1.5 whitespace-nowrap` container.
+     - Excluded `currExamRollNo` and `prevExamRollNo` from the outer flex-between badge check so the badge and roll number are permanently anchored together on the same horizontal line.
+  3. **Expanded Minimum Column Width:**
+     - Increased default width from `90px` to `145px` in `DEFAULT_1_WIDTHS.currExamRollNo` (and `120px` for `prevExamRollNo`).
+     - Added hard floor enforcement in table header `<th>` and cell `<td>` via `Math.max(configuredWidth, 145)` (and `120px` for `prevExamRollNo`).
+     - In `useState` for `colWidths`, added automatic self-healing logic so any legacy widths stored in the user's `localStorage` below 145px are instantly upgraded.
+     - Updated column resize drag limits (`minColWidth = 135` for `currExamRollNo`, `110` for `prevExamRollNo`).
 
 ---
 
 ## Files Added / Modified
-- `src/utils/jkboseTraceability.js` (Modified)
 - `src/portal/admin/AdvancedReports.jsx` (Modified)
-- `scripts/sync_rolls_to_admissions.mjs` (Added)
-- `scripts/deep_audit_previous_sessions.mjs` (Added)
-- `scripts/audit_database_sessions.mjs` (Added)
-- `scripts/inspect_adm_fields.mjs` (Added)
 - `CHANGES_SINCE_LAST_COMMIT.md` (Modified)
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(records): resolve cross-session tooltip collision and sync 2025-26 exam roll numbers into admissions
+fix(reports): eliminate vertical digit wrapping on exam roll numbers with inline jkbose badge layout
 ```
 
 ---
@@ -79,7 +63,7 @@ git show HEAD
 ```bash
 git reset --soft HEAD~1
 # Make any additional changes if needed
-git commit -m "fix(records): resolve cross-session tooltip collision and sync 2025-26 exam roll numbers into admissions"
+git commit -m "fix(reports): eliminate vertical digit wrapping on exam roll numbers with inline jkbose badge layout"
 ```
 
 ### Manual Push (Mandatory Policy):
