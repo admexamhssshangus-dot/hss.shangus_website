@@ -18,6 +18,7 @@ import SchoolAssessmentsHub from './SchoolAssessmentsHub';
 import ConsolidatedGazetteView from './ConsolidatedGazetteView';
 import { showToast } from '../../components/common/GlobalToast';
 import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
+import { getStudentStream } from '../../utils/studentDataFetcher';
 
 const HUB_TABS = [
   { id: 'school', label: 'School Assessments & Pre-Board Hub', mobileLabel: 'Assessments', icon: Award },
@@ -1700,7 +1701,7 @@ function BulkImportCandidatesModal({ allStudents = [], existingRegistrations = [
   const eligibleDirectoryList = useMemo(() => {
     return (allStudents || []).filter(st => {
       const sClass = (st.className || st.class || st.classGrade || '').toLowerCase();
-      const sStream = (st.stream || st.subjectCombination || '').toLowerCase();
+      const sStream = getStudentStream(st).toLowerCase();
 
       let matchClass = true;
       if (selectedClassFilter !== 'ALL') {
@@ -1709,7 +1710,12 @@ function BulkImportCandidatesModal({ allStudents = [], existingRegistrations = [
 
       let matchStream = true;
       if (selectedStreamFilter !== 'ALL') {
-        matchStream = sStream.includes(selectedStreamFilter.toLowerCase());
+        const isHum = selectedStreamFilter.toLowerCase().includes('art') || selectedStreamFilter.toLowerCase().includes('hum');
+        if (isHum) {
+          matchStream = sStream.includes('art') || sStream.includes('hum');
+        } else {
+          matchStream = sStream.includes(selectedStreamFilter.toLowerCase());
+        }
       }
 
       return matchClass && matchStream;
