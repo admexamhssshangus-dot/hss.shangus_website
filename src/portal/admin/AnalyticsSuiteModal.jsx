@@ -315,6 +315,51 @@ export default function AnalyticsSuiteModal({
   const streamGenderColsCount = 2 + (showMaleCol ? 1 : 0) + (showFemaleCol ? 1 : 0) + 2;
   const subjectColsCount = 3 + (showMaleCol ? 1 : 0) + (showFemaleCol ? 1 : 0) + 2;
 
+  // Helper to format class display cleanly without duplicate "Class Class"
+  const formatClassDisplay = (cls) => {
+    if (!cls) return 'Class N/A';
+    const str = String(cls).trim();
+    if (/^class\b/i.test(str)) {
+      return str.replace(/^class\s*/i, 'Class ');
+    }
+    return `Class ${str}`;
+  };
+
+  // Direct Browser Print via Hidden Iframe (Directly triggers native print settings dialog with ZERO double popups)
+  const printViaHiddenIframe = (htmlContent) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.print();
+      } catch (e) {
+        console.error('Print trigger error:', e);
+      } finally {
+        setTimeout(() => {
+          try {
+            if (iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          } catch (_) {}
+        }, 3000);
+      }
+    }, 350);
+  };
+
   // Helper to extract assigned Class Roll No cell value across all possible database keys
   const getAssignedRollNo = (s) => {
     return getAssignedClassRollNumber(s);
@@ -1082,19 +1127,13 @@ export default function AnalyticsSuiteModal({
     return rows;
   }, [jkboseRollData]);
 
-  // Handle Clean PDF Export (HTML Window Print)
+  // Handle Clean PDF Export (Direct Browser Print via Hidden Iframe)
   const handlePrintPDF = () => {
     if (analysisMode === 'jkbose_subject_rolls') {
       printJkboseStatement(jkboseRollData, {
         institutionName: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
         session: selectedSessions.length === 1 ? `Session ${selectedSessions[0]}` : 'Session 2025-26',
       });
-      return;
-    }
-
-    const printWindow = window.open('', '_blank', 'width=1100,height=850');
-    if (!printWindow) {
-      showToast('Please allow popups in your browser to generate the PDF print report.', 'warning');
       return;
     }
 
@@ -1215,7 +1254,7 @@ export default function AnalyticsSuiteModal({
         .map((c, idx) => `
           <tr>
             <td>${idx + 1}</td>
-            <td><strong>Class ${c.className}</strong></td>
+            <td><strong>${formatClassDisplay(c.className)}</strong></td>
             <td>${c.approved}</td>
             <td>${c.submitted}</td>
             <td>${c.draft}</td>
@@ -1301,18 +1340,11 @@ export default function AnalyticsSuiteModal({
           <div class="sig-box">Verified By<br><span style="font-size:9px;font-weight:normal;">Admission Committee Incharge</span></div>
           <div class="sig-box">Approved By<br><span style="font-size:9px;font-weight:normal;">Principal HSS Shangus</span></div>
         </div>
-
-        <script>
-          window.onload = function() {
-            setTimeout(function() { window.print(); }, 500);
-          }
-        </script>
       </body>
       </html>
     `;
 
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    printViaHiddenIframe(htmlContent);
   };
 
   // Handle Word Export for JKBOSE Statement
@@ -1370,7 +1402,7 @@ export default function AnalyticsSuiteModal({
     } else {
       csvRows.push(['S.No', 'Class', 'Approved', 'Submitted', 'Draft', 'Male', 'Female', 'Total Enrolled']);
       stats.sortedClasses.forEach((c, idx) => {
-        csvRows.push([idx + 1, `Class ${c.className}`, c.approved, c.submitted, c.draft, c.male, c.female, c.total]);
+        csvRows.push([idx + 1, formatClassDisplay(c.className), c.approved, c.submitted, c.draft, c.male, c.female, c.total]);
       });
     }
     // Totals row
@@ -1387,13 +1419,8 @@ export default function AnalyticsSuiteModal({
     document.body.removeChild(link);
   };
 
-  // Batch PDF Print Generator (Multi-Report Packet)
+  // Batch PDF Print Generator (Multi-Report Packet via Hidden Iframe)
   const handleBatchPDFPrint = () => {
-    const printWindow = window.open('', '_blank', 'width=1100,height=850');
-    if (!printWindow) {
-      showToast('Please allow popups in your browser to generate the batch PDF packet.', 'warning');
-      return;
-    }
 
     const modeTitles = {
       enrollment: 'Class-wise Admission & Enrollment Summary',
@@ -1425,7 +1452,7 @@ export default function AnalyticsSuiteModal({
             .map((c, idx) => `
               <tr>
                 <td>${idx + 1}</td>
-                <td><strong>${c.className}</strong></td>
+                <td><strong>${formatClassDisplay(c.className)}</strong></td>
                 <td style="color:#059669;">${c.approved}</td>
                 <td style="color:#d97706;">${c.submitted}</td>
                 <td style="color:#64748b;">${c.draft}</td>
@@ -1463,7 +1490,7 @@ export default function AnalyticsSuiteModal({
                 .map((r) => `
                   <tr>
                     <td>${r.globalIdx}</td>
-                    <td><strong>${r.className} (${r.stream})</strong></td>
+                    <td><strong>${formatClassDisplay(r.className)} (${r.stream})</strong></td>
                     <td style="color:#d97706; font-weight:bold;">${r.rollRange}</td>
                     <td style="color:#2563eb;">${r.male}</td>
                     <td style="color:#e11d48;">${r.female}</td>
@@ -1476,7 +1503,7 @@ export default function AnalyticsSuiteModal({
               const subtotalRow = `
                 <tr style="background:#f1f5f9; font-weight:bold;">
                   <td style="color:#4f46e5;">&Sigma;</td>
-                  <td style="color:#4f46e5;">COMBINED ${grp.className.toUpperCase()} TOTAL (${grp.items.length} ${grp.items.length === 1 ? 'STREAM' : 'STREAMS'})</td>
+                  <td style="color:#4f46e5;">COMBINED ${formatClassDisplay(grp.className).toUpperCase()} TOTAL (${grp.items.length} ${grp.items.length === 1 ? 'STREAM' : 'STREAMS'})</td>
                   <td style="color:#4f46e5;">All Streams Combined</td>
                   <td style="color:#2563eb;">${grp.male}</td>
                   <td style="color:#e11d48;">${grp.female}</td>
@@ -1581,7 +1608,7 @@ export default function AnalyticsSuiteModal({
               <tr>
                 <td style="text-align:center;">${r.globalIdx}</td>
                 <td><strong>${r.subject}</strong></td>
-                <td style="text-align:center;">Class ${r.className}</td>
+                <td style="text-align:center;">${formatClassDisplay(r.className)}</td>
                 <td style="font-family:monospace; font-size:10px; font-weight:bold; color:#1e1b4b;">${r.rollNumbersSeries || 'No examinees'}</td>
                 <td style="text-align:center; font-weight:bold;">${r.candidateCount}</td>
               </tr>
@@ -1623,7 +1650,7 @@ export default function AnalyticsSuiteModal({
       })
       .join('');
 
-    printWindow.document.write(`
+    const packetHtml = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -1654,13 +1681,11 @@ export default function AnalyticsSuiteModal({
             <div class="sig-box">Verified by Admission Committee</div>
             <div class="sig-box">Principal, BHSS Shangus</div>
           </div>
-          <script>
-            window.onload = () => { window.print(); };
-          </script>
         </body>
       </html>
-    `);
-    printWindow.document.close();
+    `;
+
+    printViaHiddenIframe(packetHtml);
   };
 
   // Batch Excel Export Generator
@@ -1675,7 +1700,7 @@ export default function AnalyticsSuiteModal({
         csvContent += '--- CLASS ENROLLMENT SUMMARY ---\n';
         csvContent += '#,Class Bracket,Approved,Submitted,Draft,Male (M),Female (F),Total Strength\n';
         stats.sortedClasses.forEach((c, idx) => {
-          csvContent += `"${idx + 1}","${c.className}","${c.approved}","${c.submitted}","${c.draft}","${c.male}","${c.female}","${c.total}"\n`;
+          csvContent += `"${idx + 1}","${formatClassDisplay(c.className)}","${c.approved}","${c.submitted}","${c.draft}","${c.male}","${c.female}","${c.total}"\n`;
         });
         csvContent += `SUMMARY TOTALS,All Classes,"${stats.approvedCount}","${stats.submittedCount}","${stats.draftCount}","${stats.maleCount}","${stats.femaleCount}","${stats.totalStudents}"\n\n`;
       } else if (mode === 'roll_stmt') {
@@ -1683,9 +1708,9 @@ export default function AnalyticsSuiteModal({
         csvContent += '#,Class & Stream Bracket,Assigned Roll Range,Male (M),Female (F),Board Reg. Count,Total Candidates\n';
         classGroupedRollStmts.forEach((grp) => {
           grp.items.forEach((r) => {
-            csvContent += `"${r.globalIdx}","${r.className} (${r.stream})","${r.rollRange}","${r.male}","${r.female}","${r.regCount}","${r.total}"\n`;
+            csvContent += `"${r.globalIdx}","${formatClassDisplay(r.className)} (${r.stream})","${r.rollRange}","${r.male}","${r.female}","${r.regCount}","${r.total}"\n`;
           });
-          csvContent += `COMBINED TOTAL,${grp.className} (${grp.items.length} STREAMS),All Streams Combined,"${grp.male}","${grp.female}","${grp.regCount}","${grp.total}"\n`;
+          csvContent += `COMBINED TOTAL,${formatClassDisplay(grp.className)} (${grp.items.length} STREAMS),All Streams Combined,"${grp.male}","${grp.female}","${grp.regCount}","${grp.total}"\n`;
         });
         csvContent += `SUMMARY TOTALS,All Streams Combined,Total Enrolled,"${stats.maleCount}","${stats.femaleCount}","${stats.regCount}","${stats.totalStudents}"\n\n`;
       } else if (mode === 'stream_gender') {
@@ -1709,7 +1734,7 @@ export default function AnalyticsSuiteModal({
         csvContent += '--- JKBOSE SUBJECT-WISE ROLL NUMBER RETURN STATEMENT ---\n';
         csvContent += '#,Subject Name,Class,Compressed Roll Number Series,Total Candidates\n';
         jkboseSubjectRows.forEach((r) => {
-          csvContent += `"${r.globalIdx}","${r.subject}","Class ${r.className}","${(r.rollNumbersSeries || '').replace(/"/g, '""')}","${r.candidateCount}"\n`;
+          csvContent += `"${r.globalIdx}","${r.subject}","${formatClassDisplay(r.className)}","${(r.rollNumbersSeries || '').replace(/"/g, '""')}","${r.candidateCount}"\n`;
         });
         const totalCandidates = jkboseSubjectRows.reduce((sum, r) => sum + (r.candidateCount || 0), 0);
         csvContent += `TOTAL UNIQUE MAPPINGS,All Subjects,${jkboseSubjectRows.length} Subjects,"-","${totalCandidates}"\n\n`;
@@ -1729,8 +1754,8 @@ export default function AnalyticsSuiteModal({
 
   const modalContent = (
     <div className={isPage
-      ? "bg-white dark:bg-slate-900 rounded-2xl w-full p-3 sm:p-5 shadow-sm border border-slate-200/80 dark:border-slate-800 space-y-2 sm:space-y-3 flex flex-col"
-      : "bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl max-w-6xl w-full p-2 sm:p-5 shadow-xl border border-slate-200 dark:border-slate-800 space-y-1.5 sm:space-y-3 h-[98vh] sm:h-auto max-h-[98vh] sm:max-h-[92vh] flex flex-col overflow-hidden"
+      ? "bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl w-full p-2 sm:p-3.5 shadow-xs border border-slate-200/80 dark:border-slate-800 space-y-1.5 sm:space-y-2.5 flex flex-col"
+      : "bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl max-w-6xl w-full p-2 sm:p-4 shadow-xl border border-slate-200 dark:border-slate-800 space-y-1.5 sm:space-y-2.5 h-[98vh] sm:h-auto max-h-[98vh] sm:max-h-[92vh] flex flex-col overflow-hidden"
     }>
         {/* Top Title Bar: Single Row on All Devices */}
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5 sm:pb-2.5 gap-2 flex-shrink-0">
@@ -1847,18 +1872,6 @@ export default function AnalyticsSuiteModal({
                 </button>
               )}
 
-              {analysisMode === 'jkbose_subject_rolls' && onNavigateTab && (
-                <button
-                  type="button"
-                  onClick={() => onNavigateTab('jkboseSubjectRolls')}
-                  className="px-2.5 py-1.5 rounded-lg font-bold text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center gap-1 cursor-pointer transition-all"
-                  title="Open Examinee Dropped Manager & full circular statement view"
-                >
-                  <ExternalLink size={13} />
-                  <span>Dropped Manager</span>
-                </button>
-              )}
-
               <button
                 type="button"
                 onClick={handlePrintPDF}
@@ -1878,16 +1891,18 @@ export default function AnalyticsSuiteModal({
               </button>
             </div>
 
-            {/* Pinned Close / Back Button: ALWAYS in the Top-Right */}
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1 sm:p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors"
-              aria-label={isPage ? "Return to Student Records & Reports" : "Close"}
-              title={isPage ? "Return to Student Records & Reports" : "Close"}
-            >
-              {isPage ? <ArrowLeft size={16} /> : <X size={16} />}
-            </button>
+            {/* Pinned Close Button: shown only in Modal mode (in Full Page mode, dashboard header bar has authoritative back button) */}
+            {!isPage && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 sm:p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors"
+                aria-label="Close"
+                title="Close"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -2198,7 +2213,7 @@ export default function AnalyticsSuiteModal({
                     <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white text-xs">{r.subject}</td>
                     <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                        Class {r.className}
+                        {formatClassDisplay(r.className)}
                       </span>
                     </td>
                     <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-mono font-bold text-indigo-950 dark:text-indigo-200 text-xs tracking-tight break-all">
@@ -2284,7 +2299,7 @@ export default function AnalyticsSuiteModal({
                 stats.sortedClasses.map((c, idx) => (
                   <tr key={c.className} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
                     <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
-                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white">Class {c.className}</td>
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white">{formatClassDisplay(c.className)}</td>
                     {showApprovedCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-emerald-600 font-bold">{c.approved}</td>}
                     {showSubmittedCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-amber-600 font-bold">{c.submitted}</td>}
                     {showDraftCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-500 font-bold">{c.draft}</td>}
@@ -2371,41 +2386,7 @@ export default function AnalyticsSuiteModal({
 
   if (isPage) {
     return (
-      <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 p-2 sm:p-6 space-y-4 animate-fadeIn">
-        {/* Top Navigation & Breadcrumbs Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200/60 dark:border-slate-700 transition-all cursor-pointer"
-            >
-              <ArrowLeft size={14} />
-              <span>Return to Student Records & Reports</span>
-            </button>
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-              <span>/</span>
-              <span>Records & Registers</span>
-              <span>/</span>
-              <span className="text-slate-800 dark:text-slate-200 font-bold">Analytics & Statistical Reports</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {onNavigateTab && (
-              <button
-                type="button"
-                onClick={() => onNavigateTab('jkboseSubjectRolls')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 transition-all cursor-pointer"
-              >
-                <BookOpen size={13} />
-                <span>JKBOSE Roll Return View</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Main Content Card */}
+      <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 p-1 sm:p-2.5 space-y-2 animate-fadeIn">
         {modalContent}
       </div>
     );
