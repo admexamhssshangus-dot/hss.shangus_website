@@ -684,7 +684,7 @@ export default function BulkFieldOverwriteModal({
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (_) {}
-    return ['12th', '11th']; // Senior Secondary default so both 11th & 12th are included simultaneously!
+    return ['11th', '12th']; // Senior Secondary default: Class 11th first, then Class 12th!
   });
 
   const [selectedSessions, setSelectedSessions] = useState(() => {
@@ -861,6 +861,17 @@ export default function BulkFieldOverwriteModal({
 
   // Helper to normalize alphanumeric keys
   const cleanKey = (val) => String(val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+
+  // Helper to canonically prioritize class progression: Class 11th first, then 12th, 10th, 9th
+  const getClassRank = (clsStr) => {
+    const str = String(clsStr || '').trim().toLowerCase();
+    if (str.includes('11')) return 1;
+    if (str.includes('12')) return 2;
+    if (str.includes('10')) return 3;
+    if (str.includes('9')) return 4;
+    const num = str.match(/\d+/);
+    return num ? parseInt(num[0], 10) + 10 : 99;
+  };
 
   // Helper to canonically normalize subjects for diff comparison
   // Ensures 'IT & ITES', 'IT and ITES', 'IT & ITeS', 'ITES', 'ITE' are recognized as identical
@@ -1092,9 +1103,9 @@ export default function BulkFieldOverwriteModal({
     return () => { isCancelled = true; };
   }, [isOpen, allStudents, onDemandStudents, buildUniversalPool]);
 
-  // Dynamic discovery of sessions, classes, streams, and statuses from active database
+  // Dynamic discovery of sessions, classes, streams, and statuses from active database (11th, then 12th)
   const availableClasses = useMemo(() => {
-    const classSet = new Set(['12th', '11th', '10th', '9th']);
+    const classSet = new Set(['11th', '12th', '10th', '9th']);
     (universalStudents || []).forEach(st => {
       const cls = String(st.selectedClass || st.className || st.Class || st.class || st['Admission sought for class'] || '').trim();
       if (cls && cls !== '—' && cls !== 'undefined' && cls !== 'null') {
@@ -1103,7 +1114,7 @@ export default function BulkFieldOverwriteModal({
       }
     });
 
-    const classOrder = { '12th': 1, '11th': 2, '10th': 3, '9th': 4 };
+    const classOrder = { '11th': 1, '12th': 2, '10th': 3, '9th': 4 };
     return Array.from(classSet).sort((a, b) => {
       const orderA = classOrder[a] || 99;
       const orderB = classOrder[b] || 99;
@@ -1462,8 +1473,14 @@ export default function BulkFieldOverwriteModal({
   const handleDownloadExcelTemplate = () => {
     const cohortStudents = [...matchingCohortStudents];
 
-    // Default sort cohort students by Class Roll No in natural numeric ascending order
+    // Default sort cohort students by Class (11th first, then 12th) and natural numeric Class Roll No
     cohortStudents.sort((a, b) => {
+      const clsA = getStudentDisplayClass(a);
+      const clsB = getStudentDisplayClass(b);
+      const rankA = getClassRank(clsA);
+      const rankB = getClassRank(clsB);
+      if (rankA !== rankB) return rankA - rankB;
+
       const getRollNum = (st) => {
         const rollVal = String(
           st.classRollNo || 
@@ -2072,6 +2089,16 @@ export default function BulkFieldOverwriteModal({
     });
 
     list.sort((a, b) => {
+      // Primary class grouping: Class 11th first (1), then Class 12th (2), then 10th (3), 9th (4)
+      const clsA = getStudentDisplayClass(a.matchedStudent) || a.incomingFields?.class || a.incomingFields?.className || '';
+      const clsB = getStudentDisplayClass(b.matchedStudent) || b.incomingFields?.class || b.incomingFields?.className || '';
+      const rankA = getClassRank(clsA);
+      const rankB = getClassRank(clsB);
+
+      if (rankA !== rankB) {
+        return previewSortDirection === 'asc' ? rankA - rankB : rankB - rankA;
+      }
+
       if (previewSortColumn === 'rollNo') {
         const getRollNum = (item) => {
           if (!item.matchedStudent) return 999999;
@@ -2729,8 +2756,8 @@ export default function BulkFieldOverwriteModal({
                           try { sessionStorage.setItem('hss_last_selected_classes', JSON.stringify(vals)); } catch (_) {}
                         }}
                         presets={[
-                          { label: '11th & 12th (Sr Sec)', values: ['12th', '11th'] },
-                          { label: '9th & 10th (Secondary)', values: ['10th', '9th'] }
+                          { label: '11th & 12th (Sr Sec)', values: ['11th', '12th'] },
+                          { label: '9th & 10th (Secondary)', values: ['9th', '10th'] }
                         ]}
                         studentCounts={classStudentCounts}
                       />
