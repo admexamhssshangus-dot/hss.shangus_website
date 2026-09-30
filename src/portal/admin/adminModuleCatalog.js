@@ -47,7 +47,7 @@ export const ADMIN_CATEGORIES = Object.freeze([
   {
     key: 'Quick Actions',
     title: 'Quick Actions',
-    desc: 'Rapid inline cell edit, statistical analytics, express record creation and bulk data ingestion',
+    desc: 'Rapid inline cell edit toggle and bulk data ingestion & photo suite',
     iconName: 'Zap',
     color: 'text-violet-500 dark:text-violet-400',
     bg: 'bg-violet-500/10 dark:bg-violet-500/20',
@@ -81,18 +81,6 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     aliases: ['admRegisterSuite', 'admissionRegister'],
   },
   {
-    id: 'jkboseSubjectRolls',
-    label: 'JKBOSE Subject Roll Return',
-    shortLabel: 'Subject Rolls',
-    description: 'Official JKBOSE subject-wise roll return statement with roll series compression (TO / Comma) and exam dropped manager',
-    category: 'Records & Registers',
-    maturity: 'optimized',
-    maturityNote: 'Official JKBOSE circular format, continuous roll series compression, class-wise groupings for any class, and exam dropped examinee filtering.',
-    launcher: false,
-    isNew: false,
-    aliases: ['jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls'],
-  },
-  {
     id: 'analyticsReports',
     label: 'Analytics & Statistical Reports Suite',
     shortLabel: 'Analytics',
@@ -102,7 +90,19 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturityNote: 'Interactive statistical dashboard, JKBOSE subject-wise roll series compression, full page navigation, and on-demand session student fetching.',
     launcher: true,
     isNew: true,
-    aliases: ['analyticsReports', 'analytics', 'statisticalReports'],
+    aliases: ['analyticsReports', 'analytics', 'statisticalReports', 'jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls'],
+  },
+  {
+    id: 'directEntry',
+    label: 'Express Direct Record Entry',
+    shortLabel: 'Direct Entry',
+    description: 'Add a single student application directly into active intake with immediate validation & duplicate guard',
+    category: 'Records & Registers',
+    maturity: 'optimized',
+    maturityNote: 'Single-record immediate ingestion with instant validation, live duplicate checking and direct intake registry insertion.',
+    launcher: true,
+    isNew: true,
+    aliases: ['directEntry', 'directEntryAction', 'ingestion'],
   },
   {
     id: 'customRoster',
@@ -298,7 +298,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturityNote: 'End-to-end full page workspace with authoritative field classification, Board Reg matching, protected class roll numbers, and 30-day rollback memory.',
     launcher: true,
     isNew: true,
-    aliases: ['boardSync', 'jkboseSync', 'ingestionHub', 'bulkOverwrite', 'directEntry'],
+    aliases: ['boardSync', 'jkboseSync', 'ingestionHub', 'bulkOverwrite'],
   },
   {
     id: 'activityAudit',
@@ -337,7 +337,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     aliases: ['staff', 'staffPermissions', 'permissions', 'adminMgmt'],
   },
 
-  // CATEGORY 4: Quick Actions & Ingestion Tools (3 Tools)
+  // CATEGORY 4: Quick Actions & Ingestion Tools (2 Tools)
   {
     id: 'quickCellEdit',
     label: 'Quick Cell Edit Mode',
@@ -352,23 +352,10 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     aliases: ['quickCellEdit'],
   },
   {
-    id: 'directEntryAction',
-    label: 'Express Direct Record Entry',
-    shortLabel: 'Direct Entry',
-    description: 'Add a single student application directly into active intake',
-    category: 'Quick Actions',
-    maturity: 'optimized',
-    maturityNote: 'Single-record immediate ingestion with instant validation.',
-    launcher: false,
-    isQuickAction: true,
-    isNew: false,
-    aliases: ['directEntryAction', 'directEntry', 'ingestion'],
-  },
-  {
     id: 'bulkToolsAction',
-    label: 'Bulk Ingestion & Field Update',
+    label: 'Bulk Tools & Ingestion Suite',
     shortLabel: 'Bulk Tools',
-    description: 'Batch upload records or overwrite fields via Excel/CSV',
+    description: 'Bulk table actions, status updates, photo batch exports and data tools',
     category: 'Quick Actions',
     maturity: 'optimized',
     maturityNote: 'Bulk batch updater with column mapping and rollback protection.',
@@ -395,7 +382,7 @@ export const ROLE_PRESETS = Object.freeze([
     badgeClass: 'bg-emerald-600 text-white',
     desc: 'Student Records, Admission Register, Rosters, Curriculum, Practicals, Attendance, Roll Numbers & Board Sync.',
     perms: () => [
-      'reports', 'admRegisterSuite', 'customRoster', 'gkTest',
+      'reports', 'admRegisterSuite', 'customRoster', 'gkTest', 'directEntry',
       'controls', 'curriculum', 'practicals', 'attendanceMgmt', 'rollNo', 'boardSync',
       'analyticsReports', 'quickCellEdit'
     ],
@@ -407,7 +394,7 @@ export const ROLE_PRESETS = Object.freeze([
     badgeClass: 'bg-amber-600 text-white',
     desc: 'Student Records, Rosters, ID Cards, Certificates, Letterhead, and Quick Cell Edit.',
     perms: () => [
-      'reports', 'customRoster', 'officialLetter', 'certStudio',
+      'reports', 'customRoster', 'officialLetter', 'certStudio', 'directEntry',
       'idCards', 'analyticsReports', 'quickCellEdit'
     ],
   },

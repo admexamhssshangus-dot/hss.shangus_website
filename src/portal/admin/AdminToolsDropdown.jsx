@@ -17,6 +17,7 @@ const MODULE_ICONS = {
   analyticsReports: BarChart2,
   analytics: BarChart2,
   admRegisterSuite: BookOpen,
+  directEntry: PlusCircle,
   jkboseSubjectRolls: FileText,
   customRoster: FileSpreadsheet,
   officialLetter: FileText,
@@ -119,8 +120,6 @@ export default function AdminToolsDropdown({
   const isSuper = user?.role?.toLowerCase() === 'superadmin' || isBootstrapSuperAdminEmail(user?.email);
   const perms = Array.isArray(user?.perms) ? user.perms : [];
   const canQuickCellEdit = isSuper || perms.includes('*') || isUserPermittedForModule(user, 'quickCellEdit');
-  const canAnalytics = isSuper || perms.includes('*') || isUserPermittedForModule(user, 'analyticsReports');
-  const canDirectEntry = isSuper || perms.includes('*') || isUserPermittedForModule(user, 'directEntryAction') || isUserPermittedForModule(user, 'directEntry') || isUserPermittedForModule(user, 'ingestion');
   const canBulk = isSuper || perms.includes('*') || isUserPermittedForModule(user, 'bulkToolsAction') || isUserPermittedForModule(user, 'bulkTools') || isUserPermittedForModule(user, 'bulk');
 
   const categories = useMemo(() => [
@@ -134,13 +133,11 @@ export default function AdminToolsDropdown({
     if (catKey === 'Quick Actions') {
       return (
         (canQuickCellEdit && setEnableQuickCellEdit !== undefined ? 1 : 0) +
-        (canAnalytics ? 1 : 0) +
-        (canDirectEntry ? 1 : 0) +
         (canBulk ? 1 : 0)
       );
     }
     return permittedModules.filter(m => m.category === catKey).length;
-  }, [setEnableQuickCellEdit, canQuickCellEdit, canAnalytics, canDirectEntry, canBulk, permittedModules]);
+  }, [setEnableQuickCellEdit, canQuickCellEdit, canBulk, permittedModules]);
 
   const visibleCategories = useMemo(() => {
     const activeList = categories.filter(cat => getCategoryCount(cat.key) > 0);
@@ -175,6 +172,12 @@ export default function AdminToolsDropdown({
           } else if (m.id === 'boardSync') {
             if (setActiveTab) setActiveTab('boardSync');
             else if (onOpenBoardSync) onOpenBoardSync();
+          } else if (m.id === 'directEntry') {
+            if (setActiveTab) setActiveTab('directEntry');
+            else if (onOpenDirectEntry) onOpenDirectEntry();
+          } else if (m.id === 'analyticsReports') {
+            if (setActiveTab) setActiveTab('analyticsReports');
+            else if (onOpenAnalytics) onOpenAnalytics();
           } else if (setActiveTab) {
             setActiveTab(m.id);
           } else if (onOpenCustomRoster) {
@@ -196,38 +199,6 @@ export default function AdminToolsDropdown({
         icon: Edit3,
         isChecked: enableQuickCellEdit,
         onToggle: (val) => setEnableQuickCellEdit(val),
-      });
-    }
-    if (canAnalytics) {
-      items.push({
-        type: 'action',
-        id: 'analyticsReports',
-        label: 'Analytics & Statistical Reports',
-        desc: 'View gender breakdown, stream stats and intake reports',
-        category: 'Quick Actions',
-        icon: BarChart2,
-        onMouseEnter: () => onPrefetchModule && (onPrefetchModule('analyticsReports') || onPrefetchModule('reports')),
-        onClick: () => {
-          if (setActiveTab) setActiveTab('analyticsReports');
-          else if (onOpenAnalytics) onOpenAnalytics();
-          setIsOpen(false);
-        },
-      });
-    }
-    if (canDirectEntry) {
-      items.push({
-        type: 'action',
-        id: 'directEntryAction',
-        label: 'Express Direct Record Entry',
-        desc: 'Add a single student application directly into active intake',
-        category: 'Quick Actions',
-        icon: PlusCircle,
-        onMouseEnter: () => onPrefetchModule && onPrefetchModule('boardSync'),
-        onClick: () => {
-          if (setActiveTab) setActiveTab('directEntry');
-          else if (onOpenDirectEntry) onOpenDirectEntry();
-          setIsOpen(false);
-        },
       });
     }
     if (canBulk) {
@@ -252,15 +223,14 @@ export default function AdminToolsDropdown({
     permittedModules,
     activeTab,
     onOpenBoardSync,
+    onOpenDirectEntry,
+    onOpenAnalytics,
+    onOpenGoogleContacts,
     setActiveTab,
     onOpenCustomRoster,
     setEnableQuickCellEdit,
     enableQuickCellEdit,
     canQuickCellEdit,
-    canAnalytics,
-    onOpenAnalytics,
-    canDirectEntry,
-    onOpenDirectEntry,
     canBulk,
     onOpenBulkTools,
     onPrefetchModule,
@@ -483,9 +453,9 @@ export default function AdminToolsDropdown({
         role="dialog"
         aria-modal="true"
         aria-label="Administrative modules"
-        className={`fixed inset-x-2.5 sm:inset-x-auto top-3 sm:top-14 bottom-3 sm:bottom-auto ${
-          align === 'right' ? 'sm:right-4 sm:left-auto' : 'sm:left-4 sm:right-auto'
-        } w-auto sm:w-[680px] md:w-[720px] max-w-[calc(100vw-20px)] sm:max-w-[calc(100vw-32px)] max-h-[calc(100vh-24px)] sm:max-h-[540px] sm:h-[500px] flex flex-col rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-slate-900 shadow-2xl z-[1000000] p-2.5 sm:p-4 text-xs overflow-hidden animate-fadeIn`}
+        className={`fixed inset-x-2 sm:inset-x-auto top-2.5 sm:top-5 md:top-6 bottom-2.5 sm:bottom-auto ${
+          align === 'right' ? 'sm:right-4 md:right-6 sm:left-auto' : 'sm:left-4 md:left-6 sm:right-auto'
+        } w-auto sm:w-[760px] md:w-[840px] lg:w-[920px] max-w-[calc(100vw-16px)] sm:max-w-[calc(100vw-36px)] max-h-[calc(100vh-20px)] sm:max-h-[calc(100vh-48px)] sm:h-[680px] md:h-[720px] lg:h-[760px] flex flex-col rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-slate-900 shadow-2xl z-[1000000] p-2.5 sm:p-4 text-xs overflow-hidden animate-fadeIn`}
       >
         {/* Modal Header */}
         <div className="pb-1 sm:pb-2 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0">
@@ -589,7 +559,7 @@ export default function AdminToolsDropdown({
         <div className="flex-1 min-h-0 flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2">
           {/* Desktop Left Sidebar: Category Navigation Tabs (Hidden when searching) */}
           {!searchQuery && (
-            <div className="hidden sm:flex flex-col w-52 shrink-0 space-y-1 pr-3 border-r border-slate-100 dark:border-slate-800/80 overflow-y-auto custom-scrollbar">
+            <div className="hidden sm:flex flex-col w-56 md:w-60 shrink-0 space-y-1 pr-3 border-r border-slate-100 dark:border-slate-800/80 overflow-y-auto custom-scrollbar">
               <div className="px-2 pt-0.5 pb-1 text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
                 Categories
               </div>
@@ -616,7 +586,7 @@ export default function AdminToolsDropdown({
                       <div className={`w-5 h-5 rounded-md flex items-center justify-center ${cat.bg} ${cat.color} shrink-0`}>
                         <CatIcon size={12} />
                       </div>
-                      <span className="truncate text-xs">{cat.title}</span>
+                      <span className="truncate text-xs font-semibold">{cat.title}</span>
                     </span>
                     <span className="flex items-center gap-1 shrink-0">
                       <span
