@@ -342,17 +342,17 @@ export default function ExcelSpreadsheetGrid({
     <div 
       ref={gridContainerRef}
       onPaste={handleGridPaste}
-      className="space-y-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm"
+      className="space-y-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs"
     >
       {/* Excel Top Ribbon Header */}
       <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[#107c41] text-white flex items-center justify-center font-black shadow-xs">
-            <FileSpreadsheet size={18} />
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-[#107c41] text-white flex items-center justify-center font-black shadow-2xs shrink-0">
+            <FileSpreadsheet size={15} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-xs font-black text-slate-900 dark:text-white">
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white">
                 Excel Tabular Clipboard Grid
               </h3>
               <span className="text-[9px] px-2 py-0.5 rounded-full font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">

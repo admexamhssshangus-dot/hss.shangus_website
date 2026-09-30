@@ -316,37 +316,31 @@ export default function GazetteAndAdmitAiTab({
   };
 
   return (
-    <div className="space-y-4 text-xs">
-      {/* Top Banner */}
-      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 dark:from-purple-950/30 dark:via-indigo-950/20 dark:to-blue-950/30 border border-purple-200 dark:border-purple-900/60 flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black shadow-xs">
-            <Sparkles size={18} />
+    <div className="space-y-2.5 text-xs">
+      {/* Sleek Vision AI Toolbar */}
+      <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-5 h-5 rounded-md bg-purple-600 text-white flex items-center justify-center font-black shadow-2xs shrink-0">
+            <Sparkles size={11} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-black text-slate-900 dark:text-white">
-                {mode === 'gazette_ai' ? '📰 Multimodal Gazette AI Vision OCR' : '🪪 Admit Card AI Extractor'}
-              </h3>
-              <span className="text-[9px] px-2 py-0.5 rounded-full font-black bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
-                Gemini Vision Multimodal
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Upload PDF gazette pages or screenshots to extract official Roll Numbers, Marks, Divisions, and Results automatically.
-            </p>
-          </div>
+          <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+            {mode === 'gazette_ai' ? 'Gazette AI Vision OCR' : 'Admit Card AI Extractor'}
+          </span>
+          <span className="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+          <span className="hidden sm:inline text-[11px] text-slate-500 dark:text-slate-400 truncate">
+            {mode === 'gazette_ai' ? 'Extract Roll Numbers, Marks & Divisions from PDF gazettes' : 'Extract Candidate details and Exam Rolls from Admit Cards'}
+          </span>
         </div>
 
         {/* Model & Keys Selector */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 ml-auto">
           <select
             value={preferredModel}
             onChange={(e) => {
               setPreferredModel(e.target.value);
               savePreferredGeminiModel(e.target.value);
             }}
-            className="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+            className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
           >
             {modelsList.map(m => (
               <option key={m.id} value={m.id}>{m.name || m.id}</option>
@@ -356,9 +350,9 @@ export default function GazetteAndAdmitAiTab({
           <button
             type="button"
             onClick={() => setShowKeysConfig(!showKeysConfig)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 cursor-pointer"
+            className="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-[11px] flex items-center gap-1 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-2xs"
           >
-            <Key size={13} />
+            <Key size={12} />
             <span>Keys ({geminiKeys.length})</span>
           </button>
         </div>
@@ -409,9 +403,9 @@ export default function GazetteAndAdmitAiTab({
       )}
 
       {/* File Dropzone */}
-      <div className="p-4 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 text-center space-y-3">
+      <div className="p-3 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 text-center space-y-2">
         <div className="flex items-center justify-center gap-2 text-slate-500">
-          <Upload size={20} />
+          <Upload size={17} />
           <span className="font-bold text-xs">Drop PDF / Image Gazette Pages or Screenshots (Max 5)</span>
         </div>
 
