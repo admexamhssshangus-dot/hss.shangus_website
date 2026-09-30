@@ -4,7 +4,8 @@ import {
   resolveCertificateStream, 
   streamMatches, 
   normalizeStreamName, 
-  normalizeRegistrationKey 
+  normalizeRegistrationKey,
+  areNamesCompatible
 } from '../../utils/certificateStudentResolution';
 import { parseJkboseMarks, calculateDivision } from '../../utils/jkboseMarksParser';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
@@ -236,6 +237,402 @@ export const STANDARD_DB_CATEGORIES = [
   }
 ];
 
+// ─── Authoritative Student Property Extractors ───
+export const getStudentDisplayName = (st) => {
+  if (!st) return '—';
+  const raw = st.raw || {};
+  const name = (
+    st["Student's Name (as per school records)"] ||
+    raw["Student's Name (as per school records)"] ||
+    st["Student's Name"] ||
+    raw["Student's Name"] ||
+    st["Student Name"] ||
+    raw["Student Name"] ||
+    st.studentName ||
+    raw.studentName ||
+    st.name ||
+    raw.name ||
+    st.Name ||
+    raw.Name ||
+    st["Candidate Name"] ||
+    raw["Candidate Name"] ||
+    st.candidateName ||
+    raw.candidateName ||
+    st.fullName ||
+    raw.fullName ||
+    st["Name of Student"] ||
+    raw["Name of Student"] ||
+    st["Candidate"] ||
+    raw["Candidate"] ||
+    ''
+  );
+  return name ? String(name).trim() : '—';
+};
+
+export const getStudentDisplayFather = (st) => {
+  if (!st) return '';
+  const raw = st.raw || {};
+  const father = (
+    st["Father's/Guardian's Name (as per school records)"] ||
+    raw["Father's/Guardian's Name (as per school records)"] ||
+    st["Father's Name"] ||
+    raw["Father's Name"] ||
+    st["Father Name"] ||
+    raw["Father Name"] ||
+    st.fatherName ||
+    raw.fatherName ||
+    st.parentName ||
+    raw.parentName ||
+    st.parentage ||
+    raw.parentage ||
+    st["Parent's Name"] ||
+    raw["Parent's Name"] ||
+    st["Father/Guardian"] ||
+    raw["Father/Guardian"] ||
+    ''
+  );
+  return father ? String(father).trim() : '';
+};
+
+export const getStudentDisplayClass = (st) => {
+  if (!st) return '—';
+  const raw = st.raw || {};
+  const val = (
+    st.selectedClass ||
+    raw.selectedClass ||
+    st.className ||
+    raw.className ||
+    st.Class ||
+    raw.Class ||
+    st.class ||
+    raw.class ||
+    st.classCanonical ||
+    raw.classCanonical ||
+    st['Admission sought for class'] ||
+    raw['Admission sought for class'] ||
+    st['Class for which Admission Sought'] ||
+    raw['Class for which Admission Sought'] ||
+    ''
+  );
+  if (!val) return '—';
+  const str = String(val).trim();
+  const digitMatch = str.match(/\d+/);
+  if (digitMatch) return `${digitMatch[0]}th`;
+  return str;
+};
+
+export const getStudentDisplaySession = (st) => {
+  if (!st) return '—';
+  const raw = st.raw || {};
+  const sess = (
+    st.selectedSession ||
+    raw.selectedSession ||
+    st.Session ||
+    raw.Session ||
+    st.session ||
+    raw.session ||
+    st.sessionCanonical ||
+    raw.sessionCanonical ||
+    st.academicSession ||
+    raw.academicSession ||
+    st['Academic Session'] ||
+    raw['Academic Session'] ||
+    ''
+  );
+  return sess ? String(sess).trim() : '—';
+};
+
+export const getStudentDisplayRollNo = (st) => {
+  if (!st) return '—';
+  const raw = st.raw || {};
+  const roll = (
+    st.classRollNo ||
+    raw.classRollNo ||
+    st['Class Roll No'] ||
+    raw['Class Roll No'] ||
+    st['Class Roll No.'] ||
+    raw['Class Roll No.'] ||
+    st['RL. NO.'] ||
+    raw['RL. NO.'] ||
+    st['RL. NO'] ||
+    raw['RL. NO'] ||
+    st['Class R.No.'] ||
+    raw['Class R.No.'] ||
+    st['Class R.No'] ||
+    raw['Class R.No'] ||
+    st.rollNo ||
+    raw.rollNo ||
+    st.roll ||
+    raw.roll ||
+    ''
+  );
+  return roll ? String(roll).trim() : '—';
+};
+
+export const getStudentDisplayFormNo = (st) => {
+  if (!st) return '—';
+  const raw = st.raw || {};
+  const form = (
+    st.formNo ||
+    raw.formNo ||
+    st['Form Number'] ||
+    raw['Form Number'] ||
+    st['Form No.'] ||
+    raw['Form No.'] ||
+    st['Form No'] ||
+    raw['Form No'] ||
+    st.fNo ||
+    raw.fNo ||
+    st.id ||
+    ''
+  );
+  return form ? String(form).trim().replace(/^#/, '') : '—';
+};
+
+export const getStudentDisplayRegNo = (st) => {
+  if (!st) return '';
+  const raw = st.raw || {};
+  const reg = (
+    st.boardRegNo ||
+    raw.boardRegNo ||
+    st.regNo ||
+    raw.regNo ||
+    st['Board Registration Number'] ||
+    raw['Board Registration Number'] ||
+    st['Board Registration No.'] ||
+    raw['Board Registration No.'] ||
+    st['Board Registration No'] ||
+    raw['Board Registration No'] ||
+    st['Board Reg. No.'] ||
+    raw['Board Reg. No.'] ||
+    st['Board Reg. No'] ||
+    raw['Board Reg. No'] ||
+    st['Board Reg No'] ||
+    raw['Board Reg No'] ||
+    st['Registration No. (allotted by JKBOSE)'] ||
+    raw['Registration No. (allotted by JKBOSE)'] ||
+    st['Registration No. (allotted by JKBOSE )'] ||
+    raw['Registration No. (allotted by JKBOSE )'] ||
+    st['Registration No. (allotted by DIET)'] ||
+    raw['Registration No. (allotted by DIET)'] ||
+    st['Registration No.'] ||
+    raw['Registration No.'] ||
+    st['Registration No'] ||
+    raw['Registration No'] ||
+    st['Registration Number'] ||
+    raw['Registration Number'] ||
+    st['Reg. No.'] ||
+    raw['Reg. No.'] ||
+    st['Reg. No'] ||
+    raw['Reg. No'] ||
+    st['Reg No.'] ||
+    raw['Reg No.'] ||
+    st['Reg No'] ||
+    raw['Reg No'] ||
+    st['REG. NO.'] ||
+    raw['REG. NO.'] ||
+    st['REG NO'] ||
+    raw['REG NO'] ||
+    st['Board Registration No. (Class 10th)'] ||
+    raw['Board Registration No. (Class 10th)'] ||
+    st['Board Registration No. (Class 11th)'] ||
+    raw['Board Registration No. (Class 11th)'] ||
+    st['Board Registration No. (Class 9th)'] ||
+    raw['Board Registration No. (Class 9th)'] ||
+    st['Board Registration No. (Class 8th)'] ||
+    raw['Board Registration No. (Class 8th)'] ||
+    st['DIET Registration No.'] ||
+    raw['DIET Registration No.'] ||
+    st['DIET/Board Reg. No.'] ||
+    raw['DIET/Board Reg. No.'] ||
+    st['DIET Reg. No.'] ||
+    raw['DIET Reg. No.'] ||
+    st['DIET Registration Number'] ||
+    raw['DIET Registration Number'] ||
+    st.boardReg ||
+    raw.boardReg ||
+    ''
+  );
+  return reg ? String(reg).replace(/\.0+$/, '').trim() : '';
+};
+
+// ─── Compact Multi-Select Checkbox Dropdown Component ───
+export function CohortCheckboxDropdown({
+  label,
+  options = [],
+  selected = [],
+  onChange,
+  allLabel,
+  presets = [],
+  studentCounts = {}
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const isAll = selected.length === 0 || selected.includes('All');
+
+  const handleToggle = (opt) => {
+    if (opt === 'All') {
+      onChange([]);
+      return;
+    }
+    let next;
+    if (isAll) {
+      next = [opt];
+    } else if (selected.includes(opt)) {
+      next = selected.filter(x => x !== opt);
+      if (next.length === 0) next = [];
+    } else {
+      next = [...selected, opt];
+      if (options.length > 0 && next.length === options.length) {
+        next = [];
+      }
+    }
+    onChange(next);
+  };
+
+  const handleSelectAll = () => {
+    onChange([]);
+  };
+
+  const handleReset = () => {
+    if (options.length > 0) {
+      onChange([options[0]]);
+    }
+  };
+
+  let buttonText = allLabel || `All ${label}s (${options.length})`;
+  if (!isAll) {
+    if (selected.length === 1) {
+      buttonText = label === 'Class' && !selected[0].toLowerCase().startsWith('class') ? `Class ${selected[0]}` : selected[0];
+    } else if (selected.length === 2) {
+      buttonText = `${selected.join(', ')}`;
+    } else {
+      buttonText = `${selected[0]}, +${selected.length - 1} (${selected.length})`;
+    }
+  }
+
+  return (
+    <div className="relative text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+          !isAll
+            ? 'bg-blue-50 dark:bg-blue-950/70 border-blue-400 dark:border-blue-600 text-blue-800 dark:text-blue-200 shadow-2xs'
+            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+        }`}
+        title={`Filter by ${label}`}
+      >
+        <span className="truncate max-w-[130px]">{buttonText}</span>
+        <ChevronDown size={11} className={`text-slate-400 transition-transform duration-200 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 mt-1 w-56 max-w-[calc(100vw-32px)] rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl z-50 p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black">
+            <span className="text-blue-600 dark:text-blue-400 uppercase tracking-wider">{label}</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[9px] font-black cursor-pointer hover:bg-blue-200"
+              >
+                All
+              </button>
+              {options.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[9px] font-bold cursor-pointer hover:bg-slate-200"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {presets.length > 0 && (
+            <div className="flex flex-wrap gap-1 pb-1 border-b border-slate-100 dark:border-slate-800">
+              {presets.map(p => {
+                const isActive = p.values.length === selected.length && p.values.every(v => selected.includes(v));
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => onChange(p.values)}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors ${
+                      isActive
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="max-h-52 overflow-y-auto space-y-0.5 py-0.5 custom-scrollbar">
+            <button
+              type="button"
+              onClick={() => handleToggle('All')}
+              className="w-full flex items-center justify-between px-2 py-1 rounded text-[11px] font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                {isAll ? (
+                  <CheckSquare size={13} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                ) : (
+                  <Square size={13} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                )}
+                <span className="font-bold">{allLabel || `All ${label}s`}</span>
+              </div>
+            </button>
+
+            {options.map((opt) => {
+              const checked = isAll || selected.includes(opt);
+              const count = studentCounts[opt];
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => handleToggle(opt)}
+                  className="w-full flex items-center justify-between px-2 py-1 rounded text-[11px] font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    {checked ? (
+                      <CheckSquare size={13} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                    ) : (
+                      <Square size={13} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                    )}
+                    <span className="truncate">{label === 'Class' && !opt.toLowerCase().startsWith('class') ? `Class ${opt}` : opt}</span>
+                  </div>
+                  {count !== undefined && (
+                    <span className="text-[9px] font-semibold text-slate-400 ml-1">
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BulkFieldOverwriteModal({
   isOpen = true,
   onClose,
@@ -268,26 +665,74 @@ export default function BulkFieldOverwriteModal({
   // ─── Bulk Overwrite Sub-State ───
   const [step, setStep] = useState('upload'); // 'upload' | 'preview' | 'executing' | 'completed'
 
-  // Read recently viewed session & class from browser storage if available
-  const [targetClass, setTargetClass] = useState(() => {
+  // Multi-Select Cohort States:
+  const [selectedClasses, setSelectedClasses] = useState(() => {
     try {
-      const saved = sessionStorage.getItem('hss_last_selected_class');
-      if (saved && saved !== 'ALL') return saved;
+      const saved = sessionStorage.getItem('hss_last_selected_classes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (_) {}
-    return '11th';
+    return ['12th', '11th']; // Senior Secondary default so both 11th & 12th are included simultaneously!
   });
 
-  const [targetSession, setTargetSession] = useState(() => {
-    if (currentSession && currentSession !== '2025-26') return currentSession;
+  const [selectedSessions, setSelectedSessions] = useState(() => {
+    if (currentSession && currentSession !== '2025-26') return [currentSession];
     try {
-      const saved = sessionStorage.getItem('hss_last_selected_session');
-      if (saved && saved !== 'ALL') return saved;
+      const saved = sessionStorage.getItem('hss_last_selected_sessions');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (_) {}
-    return currentSession || '2026 APR/BIAN';
+    return [currentSession || '2025-26'];
   });
 
-  const [targetStream, setTargetStream] = useState('All');
-  const [targetStatus, setTargetStatus] = useState('All');
+  const [selectedStreams, setSelectedStreams] = useState([]); // Empty = All Streams
+  const [selectedStatuses, setSelectedStatuses] = useState(['Approved']); // Default: Approved
+
+  // Backward-compatible single-value helpers
+  const targetClass = useMemo(() => {
+    if (selectedClasses.length === 0 || selectedClasses.includes('All')) return 'All';
+    return selectedClasses.join(', ');
+  }, [selectedClasses]);
+
+  const targetSession = useMemo(() => {
+    if (selectedSessions.length === 0 || selectedSessions.includes('All')) return 'All';
+    return selectedSessions.join(', ');
+  }, [selectedSessions]);
+
+  const targetStream = useMemo(() => {
+    if (selectedStreams.length === 0 || selectedStreams.includes('All')) return 'All';
+    return selectedStreams[0];
+  }, [selectedStreams]);
+
+  const targetStatus = useMemo(() => {
+    if (selectedStatuses.length === 0 || selectedStatuses.includes('All')) return 'All';
+    return selectedStatuses[0];
+  }, [selectedStatuses]);
+
+  const setTargetClass = (val) => {
+    if (val === 'All') setSelectedClasses([]);
+    else if (Array.isArray(val)) setSelectedClasses(val);
+    else setSelectedClasses([val]);
+  };
+  const setTargetSession = (val) => {
+    if (val === 'All') setSelectedSessions([]);
+    else if (Array.isArray(val)) setSelectedSessions(val);
+    else setSelectedSessions([val]);
+  };
+  const setTargetStream = (val) => {
+    if (val === 'All') setSelectedStreams([]);
+    else if (Array.isArray(val)) setSelectedStreams(val);
+    else setSelectedStreams([val]);
+  };
+  const setTargetStatus = (val) => {
+    if (val === 'All') setSelectedStatuses([]);
+    else if (Array.isArray(val)) setSelectedStatuses(val);
+    else setSelectedStatuses([val]);
+  };
 
   // Preview Diff Table Sorting State (Default: natural numeric Class Roll No)
   const [previewSortColumn, setPreviewSortColumn] = useState('rollNo'); // 'rollNo' | 'regNo' | 'name' | 'diffs'
@@ -653,25 +1098,67 @@ export default function BulkFieldOverwriteModal({
     return map;
   }, [universalStudents]);
 
+  // Flexible multi-select cohort evaluator: matches candidate student against selectedClasses and selectedSessions
+  const isStudentInSelectedCohort = useCallback((st) => {
+    if (!st) return false;
+    const stCls = getStudentDisplayClass(st);
+    const stSess = getStudentDisplaySession(st);
+
+    // Class filter:
+    const classMatch = selectedClasses.length === 0 || selectedClasses.includes('All') || selectedClasses.some(c => {
+      const cKey = classKey(c);
+      const stKey = classKey(stCls);
+      return cKey === stKey || c === stCls;
+    });
+    if (!classMatch) return false;
+
+    // Session filter:
+    const sessionMatch = selectedSessions.length === 0 || selectedSessions.includes('All') || selectedSessions.some(sess => {
+      const sKey = sessionKey(sess);
+      const stKey = sessionKey(stSess);
+      return sKey === stKey || stSess.includes(sess) || sess.includes(stSess);
+    });
+    if (!sessionMatch) return false;
+
+    return true;
+  }, [selectedClasses, selectedSessions]);
+
+  // Student counts for Class and Session dropdown badges
+  const classStudentCounts = useMemo(() => {
+    const counts = {};
+    (universalStudents || []).forEach(st => {
+      const cls = getStudentDisplayClass(st);
+      if (cls && cls !== '—') counts[cls] = (counts[cls] || 0) + 1;
+    });
+    return counts;
+  }, [universalStudents]);
+
+  const sessionStudentCounts = useMemo(() => {
+    const counts = {};
+    (universalStudents || []).forEach(st => {
+      const sess = getStudentDisplaySession(st);
+      if (sess && sess !== '—') counts[sess] = (counts[sess] || 0) + 1;
+    });
+    return counts;
+  }, [universalStudents]);
+
   // Robust stream resolver: checks current subjects, and if not sufficient, checks prior records for that reg no
   const getStudentProperStream = useCallback((st) => {
     if (!st) return '';
-    const reg = normalizeRegistrationKey(
-      st.boardRegNo || st.regNo || st.boardReg || st['Board Registration Number'] || st['Board Reg. No.'] || st['Registration No. (allotted by JKBOSE)']
-    );
+    const reg = normalizeRegistrationKey(getStudentDisplayRegNo(st));
     const history = reg ? (studentsByRegMap.get(reg) || []) : [];
-    const cls = st.selectedClass || st.className || st.Class || st.class || targetClass;
+    const cls = getStudentDisplayClass(st) || targetClass;
     return resolveCertificateStream(st, history, cls);
   }, [studentsByRegMap, targetClass]);
 
   const availableStreams = useMemo(() => {
-    const isSeniorSec = /11|12/i.test(targetClass);
-    const isSec = /9|10/i.test(targetClass);
-    if (isSec) return ['General'];
+    const isSeniorSec = selectedClasses.length === 0 || selectedClasses.some(c => /11|12/i.test(c));
+    const isSecOnly = selectedClasses.length > 0 && selectedClasses.every(c => /9|10/i.test(c));
+    if (isSecOnly) return ['General'];
 
     const streamSet = new Set();
     (universalStudents || []).forEach(st => {
-      if (sameCohort(st, targetSession, targetClass)) {
+      if (isStudentInSelectedCohort(st)) {
         const properStrm = getStudentProperStream(st);
         if (properStrm && properStrm !== 'Unknown' && properStrm !== 'General') {
           streamSet.add(properStrm);
@@ -692,12 +1179,12 @@ export default function BulkFieldOverwriteModal({
       if (idxB !== -1) return 1;
       return a.localeCompare(b);
     });
-  }, [universalStudents, targetSession, targetClass, getStudentProperStream]);
+  }, [universalStudents, selectedClasses, isStudentInSelectedCohort, getStudentProperStream]);
 
   const availableStatuses = useMemo(() => {
     const statusSet = new Set(['Approved', 'Confirmed', 'Draft', 'Submitted', 'Provisional']);
     (universalStudents || []).forEach(st => {
-      if (sameCohort(st, targetSession, targetClass)) {
+      if (isStudentInSelectedCohort(st)) {
         const stat = getEffectiveStatus(st);
         if (stat && stat !== '—' && stat !== 'undefined' && stat !== 'null') {
           statusSet.add(stat);
@@ -706,22 +1193,23 @@ export default function BulkFieldOverwriteModal({
     });
 
     return Array.from(statusSet).sort((a, b) => a.localeCompare(b));
-  }, [universalStudents, targetSession, targetClass, getEffectiveStatus]);
+  }, [universalStudents, isStudentInSelectedCohort, getEffectiveStatus]);
 
   // Candidates currently matching the selected cohort scope
   const matchingCohortStudents = useMemo(() => {
     return (universalStudents || []).filter(st => {
-      const matchCohort = sameCohort(st, targetSession, targetClass);
+      const matchCohort = isStudentInSelectedCohort(st);
       if (!matchCohort) return false;
 
       const resolvedStrm = getStudentProperStream(st);
-      const matchStrm = streamMatches(resolvedStrm, targetStream);
+      const matchStrm = selectedStreams.length === 0 || selectedStreams.includes('All') || selectedStreams.some(s => streamMatches(resolvedStrm, s));
+      
       const effStat = getEffectiveStatus(st).toLowerCase();
-      const matchStat = targetStatus === 'All' || effStat === targetStatus.toLowerCase();
+      const matchStat = selectedStatuses.length === 0 || selectedStatuses.includes('All') || selectedStatuses.some(s => s.toLowerCase() === effStat);
 
       return matchStrm && matchStat;
     });
-  }, [universalStudents, targetSession, targetClass, targetStream, targetStatus, getStudentProperStream, getEffectiveStatus]);
+  }, [universalStudents, isStudentInSelectedCohort, selectedStreams, selectedStatuses, getStudentProperStream, getEffectiveStatus]);
 
   // Dynamic discovery of any additional genuine student fields in database records (filtering system metadata)
   const dynamicDatabaseCategories = useMemo(() => {
@@ -1116,7 +1604,7 @@ export default function BulkFieldOverwriteModal({
       setSelectedFields(prev => ({ ...prev, ...effectiveSelectedFields }));
     }
 
-    const cohortStudents = (universalStudents || []).filter(st => sameCohort(st, targetSession, targetClass));
+    const cohortStudents = (universalStudents || []).filter(isStudentInSelectedCohort);
     const correlated = [];
     const initialSelectedIds = new Set();
     const total = rows.length;
@@ -1137,16 +1625,31 @@ export default function BulkFieldOverwriteModal({
         let rawReg = row['Board Registration Number'] || row['Registration No.'] || row['Registration No'] || 
                        row['Board Reg. No.'] || row['Board Reg No'] || row['Board Reg. No'] ||
                        row['Registration Number'] || row['Reg. No.'] || row['Reg No'] || row['REG. NO.'] ||
+                       row['Registration No. (allotted by JKBOSE)'] || row['Registration No. (allotted by JKBOSE )'] ||
+                       row['Registration No. (allotted by DIET)'] || row['Registration No. (allotted by DIET )'] ||
+                       row['Board Registration No. (Class 10th)'] || row['Board Registration No. (Class 11th)'] ||
+                       row['Board Registration No.'] || row['Board Registration No'] ||
                        normalizedRow['boardregistrationnumber'] || normalizedRow['registrationno'] || 
                        normalizedRow['regno'] || normalizedRow['boardregno'] || normalizedRow['boardregistrationno'] || 
                        normalizedRow['registrationnumber'] || '';
         
+        if (!rawReg) {
+          for (const [k, v] of Object.entries(row)) {
+            const cleanK = cleanKey(k);
+            if ((cleanK.includes('regno') || cleanK.includes('registrationno') || cleanK.includes('boardreg') || cleanK.includes('dietreg')) && v) {
+              rawReg = String(v).trim();
+              break;
+            }
+          }
+        }
+
         if (!rawReg) {
           const firstColVal = String(Object.values(row)[0] || '').trim();
           if (firstColVal && (firstColVal.length >= 10 || /^\d{16}$/i.test(firstColVal) || /\d{4,}/.test(firstColVal))) {
             rawReg = firstColVal;
           }
         }
+        rawReg = String(rawReg).replace(/\.0+$/, '').trim();
 
         const rawAdm = normalizedRow['admissionno'] || normalizedRow['admno'] || normalizedRow['admissionnumber'] || '';
         const rawForm = normalizedRow['formno'] || normalizedRow['formnumber'] || normalizedRow['fno'] || '';
@@ -1171,16 +1674,29 @@ export default function BulkFieldOverwriteModal({
         const cleanRoll = cleanKey(rawRoll);
 
         // Authoritative multi-tier matching strictly within selected cohort:
-        // Tier 1: Try strict multi-identifier match within target cohort
-        let matchedStudent = uniqueStudentMatch(universalStudents,
-          { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, targetSession, targetClass);
+        // Tier 1: Try strict multi-identifier match within selected cohort
+        let matchedStudent = uniqueStudentMatch(cohortStudents,
+          { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, 'All', 'All');
 
         // Tier 2: Match strictly by Registration Number within cohort
         if (!matchedStudent && cleanReg) {
-          matchedStudent = uniqueStudentMatch(universalStudents, { reg: rawReg }, targetSession, targetClass);
+          matchedStudent = uniqueStudentMatch(cohortStudents, { reg: rawReg }, 'All', 'All') ||
+            cohortStudents.find(st => {
+              const stReg = cleanKey(getStudentDisplayRegNo(st));
+              return stReg && stReg === cleanReg;
+            });
         }
 
-        // Tier 3: If registration number is missing or not matched in cohort, match by Name + Father's Name or Name + Roll No within cohort
+        // Tier 3: Match by Form No or Admission No within cohort
+        if (!matchedStudent && (cleanForm || cleanAdm)) {
+          matchedStudent = cohortStudents.find(st => {
+            const stForm = cleanKey(getStudentDisplayFormNo(st));
+            const stAdm = cleanKey(st.admNo || st['Admission No.'] || st.admissionNo || '');
+            return (cleanForm && stForm === cleanForm) || (cleanAdm && stAdm === cleanAdm);
+          });
+        }
+
+        // Tier 4: Match by Name + Father's Name or Name + Roll No within cohort
         let matchedByName = false;
         if (!matchedStudent && rawName) {
           const normRawName = formatConsistentName(rawName).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1191,9 +1707,10 @@ export default function BulkFieldOverwriteModal({
             // Check Name + Father
             if (normRawFather && normRawFather.length >= 3) {
               const nfMatches = cohortStudents.filter(st => {
-                const stName = formatConsistentName(st.studentName || st["Student's Name"] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                const stFather = formatConsistentName(st.fatherName || st["Father's Name"] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                return stName === normRawName && (stFather === normRawFather || stFather.includes(normRawFather) || normRawFather.includes(stFather));
+                const stName = formatConsistentName(getStudentDisplayName(st)).toLowerCase().replace(/[^a-z0-9]/g, '');
+                const stFather = formatConsistentName(getStudentDisplayFather(st)).toLowerCase().replace(/[^a-z0-9]/g, '');
+                return (stName === normRawName || areNamesCompatible(normRawName, stName)) &&
+                       (stFather === normRawFather || stFather.includes(normRawFather) || normRawFather.includes(stFather));
               });
               if (nfMatches.length === 1) {
                 matchedStudent = nfMatches[0];
@@ -1204,9 +1721,9 @@ export default function BulkFieldOverwriteModal({
             // Check Name + Roll No
             if (!matchedStudent && cleanRawRoll) {
               const nrMatches = cohortStudents.filter(st => {
-                const stName = formatConsistentName(st.studentName || st["Student's Name"] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                const stRoll = String(st.classRollNo || st['Class Roll No'] || st.rollNo || '').replace(/\D/g, '');
-                return stName === normRawName && stRoll === cleanRawRoll;
+                const stName = formatConsistentName(getStudentDisplayName(st)).toLowerCase().replace(/[^a-z0-9]/g, '');
+                const stRoll = String(getStudentDisplayRollNo(st)).replace(/\D/g, '');
+                return (stName === normRawName || areNamesCompatible(normRawName, stName)) && stRoll === cleanRawRoll;
               });
               if (nrMatches.length === 1) {
                 matchedStudent = nrMatches[0];
@@ -1216,19 +1733,36 @@ export default function BulkFieldOverwriteModal({
           }
         }
 
-        // Check if student belongs to another cohort (outside target session / class)
+        // Universal / Out of Cohort Cross-Match:
+        // If student exists in database under another class/session
         let isOutOfCohort = false;
         let outOfCohortNotice = '';
-        if (!matchedStudent && cleanReg) {
-          const anyRegMatch = (universalStudents || []).find(st => {
-            const stReg = cleanKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
-            return stReg && stReg === cleanReg;
-          });
-          if (anyRegMatch) {
+        if (!matchedStudent) {
+          let universalMatch = null;
+          if (cleanReg) {
+            universalMatch = (universalStudents || []).find(st => {
+              const stReg = cleanKey(getStudentDisplayRegNo(st));
+              return stReg && stReg === cleanReg;
+            });
+          }
+          if (!universalMatch && cleanForm) {
+            universalMatch = (universalStudents || []).find(st => {
+              const stForm = cleanKey(getStudentDisplayFormNo(st));
+              return stForm && stForm === cleanForm;
+            });
+          }
+          if (!universalMatch && cleanAdm) {
+            universalMatch = (universalStudents || []).find(st => {
+              const stAdm = cleanKey(st.admNo || st['Admission No.'] || st.admissionNo || '');
+              return stAdm && stAdm === cleanAdm;
+            });
+          }
+          if (universalMatch) {
             isOutOfCohort = true;
-            const stCls = anyRegMatch.selectedClass || anyRegMatch.Class || anyRegMatch.class || 'Other';
-            const stSess = anyRegMatch.selectedSession || anyRegMatch.Session || anyRegMatch.session || 'Other';
-            outOfCohortNotice = `Found in Class ${stCls} (${stSess}), outside target ${targetClass} (${targetSession})`;
+            matchedStudent = universalMatch;
+            const stCls = getStudentDisplayClass(universalMatch);
+            const stSess = getStudentDisplaySession(universalMatch);
+            outOfCohortNotice = `Found in Class ${stCls} (${stSess}), outside selected cohort`;
           }
         }
 
@@ -1236,7 +1770,7 @@ export default function BulkFieldOverwriteModal({
         let hasNameMismatch = false;
         let nameMismatchWarning = '';
         if (matchedStudent && rawName) {
-          const dbStudentName = matchedStudent.studentName || matchedStudent["Student's Name"] || matchedStudent.name || '';
+          const dbStudentName = getStudentDisplayName(matchedStudent);
           const nameCheck = checkNameSimilarity(rawName, dbStudentName);
           if (nameCheck.isMismatch) {
             hasNameMismatch = true;
@@ -1326,7 +1860,7 @@ export default function BulkFieldOverwriteModal({
             if (f.key === 'stream') {
               currVal = getStudentProperStream(matchedStudent);
             } else if (f.key === 'subjects') {
-              const formatted = formatStudentSubjects(matchedStudent, targetClass);
+              const formatted = formatStudentSubjects(matchedStudent, getStudentDisplayClass(matchedStudent) || targetClass);
               currVal = (formatted && formatted !== '—') ? formatted : '';
               if (!currVal) {
                 currVal = String(matchedStudent.subjects || matchedStudent.subs || matchedStudent.selectedSubjects || matchedStudent['Subjects'] || '').trim();
@@ -1334,7 +1868,7 @@ export default function BulkFieldOverwriteModal({
             } else if (f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') {
               const matchSlot = f.key.match(/\d+/);
               const slotIdx = matchSlot ? parseInt(matchSlot[0], 10) - 1 : -1;
-              const indiv = extractIndividualSubjectsList(matchedStudent, targetClass);
+              const indiv = extractIndividualSubjectsList(matchedStudent, getStudentDisplayClass(matchedStudent) || targetClass);
               if (slotIdx >= 0 && indiv && indiv[slotIdx]) {
                 currVal = indiv[slotIdx];
               } else {
@@ -1385,7 +1919,7 @@ export default function BulkFieldOverwriteModal({
         }
 
         const rowId = `row_${idx}_${cleanReg || cleanAdm || cleanForm || idx}`;
-        if (hasChanges && matchedStudent && !isOutOfCohort) {
+        if (hasChanges && matchedStudent) {
           initialSelectedIds.add(rowId);
         }
 
@@ -1401,7 +1935,7 @@ export default function BulkFieldOverwriteModal({
           incomingFields,
           diffs,
           hasChanges,
-          isUnmatched: !matchedStudent && !isOutOfCohort,
+          isUnmatched: !matchedStudent,
           isOutOfCohort,
           outOfCohortNotice,
           hasNameMismatch,
@@ -1414,7 +1948,7 @@ export default function BulkFieldOverwriteModal({
       const pct = Math.min(95, 10 + Math.round((end / total) * 85));
       const inCohortCount = correlated.filter(r => r.matchedStudent && !r.isOutOfCohort).length;
       const lastCorrelated = correlated[correlated.length - 1];
-      const name = lastCorrelated?.matchedStudent?.studentName || lastCorrelated?.matchedStudent?.["Student's Name"] || `Row #${end}`;
+      const name = getStudentDisplayName(lastCorrelated?.matchedStudent) || `Row #${end}`;
 
       setParsingProgress({
         percent: pct,
@@ -1455,9 +1989,12 @@ export default function BulkFieldOverwriteModal({
 
     previewData.forEach(r => {
       if (r.hasNameMismatch) nameMismatches++;
-      if (r.isOutOfCohort) outOfCohort++;
-      else if (r.isUnmatched) unmatched++;
-      else if (r.matchedStudent) {
+      if (r.isOutOfCohort) {
+        outOfCohort++;
+        if (r.matchedStudent && r.hasChanges) changed++;
+      } else if (r.isUnmatched) {
+        unmatched++;
+      } else if (r.matchedStudent) {
         inCohort++;
         if (r.hasChanges) changed++;
         else identical++;
@@ -1480,11 +2017,11 @@ export default function BulkFieldOverwriteModal({
   // Filtered and Sorted preview data (Default: natural numeric Class Roll No ascending)
   const filteredPreview = useMemo(() => {
     const list = previewData.filter(r => {
-      if (previewFilter === 'changed') return r.hasChanges && !r.isOutOfCohort;
+      if (previewFilter === 'changed') return r.hasChanges;
       if (previewFilter === 'mismatches') return r.hasNameMismatch;
       if (previewFilter === 'outOfCohort') return r.isOutOfCohort;
       if (previewFilter === 'unmatched') return r.isUnmatched;
-      if (previewFilter === 'identical') return !r.hasChanges && !r.isUnmatched && !r.isOutOfCohort;
+      if (previewFilter === 'identical') return !r.hasChanges && !r.isUnmatched;
       return true;
     });
 
@@ -1492,17 +2029,8 @@ export default function BulkFieldOverwriteModal({
       if (previewSortColumn === 'rollNo') {
         const getRollNum = (item) => {
           if (!item.matchedStudent) return 999999;
-          const st = item.matchedStudent;
-          const rollVal = String(
-            st.classRollNo || 
-            st['Class Roll No'] || 
-            st['Class Roll No.'] || 
-            st.rollNo || 
-            st['RL. NO.'] || 
-            st['Class R.No.'] || 
-            ''
-          ).trim();
-          const match = rollVal.match(/\d+/);
+          const rollVal = getStudentDisplayRollNo(item.matchedStudent);
+          const match = String(rollVal).match(/\d+/);
           return match ? parseInt(match[0], 10) : 999999;
         };
         const numA = getRollNum(a);
@@ -1510,8 +2038,8 @@ export default function BulkFieldOverwriteModal({
         if (numA !== numB) {
           return previewSortDirection === 'asc' ? numA - numB : numB - numA;
         }
-        const nameA = String(a.matchedStudent?.studentName || a.matchedStudent?.["Student's Name"] || '');
-        const nameB = String(b.matchedStudent?.studentName || b.matchedStudent?.["Student's Name"] || '');
+        const nameA = getStudentDisplayName(a.matchedStudent);
+        const nameB = getStudentDisplayName(b.matchedStudent);
         return nameA.localeCompare(nameB);
       }
 
@@ -1521,8 +2049,8 @@ export default function BulkFieldOverwriteModal({
       }
 
       if (previewSortColumn === 'name') {
-        const nameA = String(a.matchedStudent?.studentName || a.matchedStudent?.["Student's Name"] || '');
-        const nameB = String(b.matchedStudent?.studentName || b.matchedStudent?.["Student's Name"] || '');
+        const nameA = getStudentDisplayName(a.matchedStudent);
+        const nameB = getStudentDisplayName(b.matchedStudent);
         const comp = nameA.localeCompare(nameB);
         return previewSortDirection === 'asc' ? comp : -comp;
       }
@@ -2145,57 +2673,49 @@ export default function BulkFieldOverwriteModal({
                   <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mr-0.5">Cohort:</span>
-                      <select
-                        value={targetClass}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setTargetClass(val);
-                          try { sessionStorage.setItem('hss_last_selected_class', val); } catch (_) {}
+                      <CohortCheckboxDropdown
+                        label="Class"
+                        allLabel={`All Classes (${availableClasses.length})`}
+                        options={availableClasses}
+                        selected={selectedClasses}
+                        onChange={(vals) => {
+                          setSelectedClasses(vals);
+                          try { sessionStorage.setItem('hss_last_selected_classes', JSON.stringify(vals)); } catch (_) {}
                         }}
-                        className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                      >
-                        <option value="All">All Classes ({availableClasses.length})</option>
-                        {availableClasses.map(cls => (
-                          <option key={cls} value={cls}>Class {cls}</option>
-                        ))}
-                      </select>
+                        presets={[
+                          { label: '11th & 12th (Sr Sec)', values: ['12th', '11th'] },
+                          { label: '9th & 10th (Secondary)', values: ['10th', '9th'] }
+                        ]}
+                        studentCounts={classStudentCounts}
+                      />
 
-                      <select
-                        value={targetSession}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setTargetSession(val);
-                          try { sessionStorage.setItem('hss_last_selected_session', val); } catch (_) {}
+                      <CohortCheckboxDropdown
+                        label="Session"
+                        allLabel={`All Sessions (${availableSessions.length})`}
+                        options={availableSessions}
+                        selected={selectedSessions}
+                        onChange={(vals) => {
+                          setSelectedSessions(vals);
+                          try { sessionStorage.setItem('hss_last_selected_sessions', JSON.stringify(vals)); } catch (_) {}
                         }}
-                        className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                      >
-                        <option value="All">All Sessions ({availableSessions.length})</option>
-                        {availableSessions.map(sess => (
-                          <option key={sess} value={sess}>{sess}</option>
-                        ))}
-                      </select>
+                        studentCounts={sessionStudentCounts}
+                      />
 
-                      <select
-                        value={targetStream}
-                        onChange={(e) => setTargetStream(e.target.value)}
-                        className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                      >
-                        <option value="All">All Streams ({availableStreams.length})</option>
-                        {availableStreams.map(strm => (
-                          <option key={strm} value={strm}>{strm}</option>
-                        ))}
-                      </select>
+                      <CohortCheckboxDropdown
+                        label="Stream"
+                        allLabel={`All Streams (${availableStreams.length})`}
+                        options={availableStreams}
+                        selected={selectedStreams}
+                        onChange={setSelectedStreams}
+                      />
 
-                      <select
-                        value={targetStatus}
-                        onChange={(e) => setTargetStatus(e.target.value)}
-                        className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                      >
-                        <option value="All">All Statuses ({availableStatuses.length})</option>
-                        {availableStatuses.map(stat => (
-                          <option key={stat} value={stat}>{stat}</option>
-                        ))}
-                      </select>
+                      <CohortCheckboxDropdown
+                        label="Status"
+                        allLabel={`All Statuses (${availableStatuses.length})`}
+                        options={availableStatuses}
+                        selected={selectedStatuses}
+                        onChange={setSelectedStatuses}
+                      />
 
                       {/* Live Cohort Candidates Counter Badge */}
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
@@ -2710,7 +3230,7 @@ export default function BulkFieldOverwriteModal({
                                 <button
                                   type="button"
                                   onClick={() => handleToggleRow(r.id)}
-                                  disabled={r.isUnmatched || r.isOutOfCohort}
+                                  disabled={r.isUnmatched}
                                   className="cursor-pointer text-emerald-600 disabled:opacity-30"
                                 >
                                   {isSelected ? <CheckSquare size={13} /> : <Square size={13} className="text-slate-400" />}
@@ -2721,9 +3241,14 @@ export default function BulkFieldOverwriteModal({
                               </td>
                               <td className="p-2">
                                 {r.matchedStudent ? (
-                                  <div>
+                                  <div className="space-y-0.5">
                                     <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                                      <span>{r.matchedStudent.studentName || r.matchedStudent["Student's Name"]}</span>
+                                      <span className="text-[12px]">{getStudentDisplayName(r.matchedStudent)}</span>
+                                      {getStudentDisplayFather(r.matchedStudent) && (
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                                          S/D of {getStudentDisplayFather(r.matchedStudent)}
+                                        </span>
+                                      )}
                                       {r.hasNameMismatch && (
                                         <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700" title={r.nameMismatchWarning}>
                                           ⚠️ Name in File: {r.rawName}
@@ -2734,9 +3259,32 @@ export default function BulkFieldOverwriteModal({
                                           Matched by Name
                                         </span>
                                       )}
+                                      {r.isOutOfCohort && (
+                                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-700" title={r.outOfCohortNotice}>
+                                          ⚠️ Out of Cohort
+                                        </span>
+                                      )}
                                     </div>
-                                    <div className="text-[10px] text-slate-400">
-                                      Class: {r.matchedStudent.selectedClass || r.matchedStudent.Class || '—'} • Form: {r.matchedStudent.formNo || '—'}
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 flex-wrap">
+                                      <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300">
+                                        Class: <strong className="text-slate-900 dark:text-slate-100">{getStudentDisplayClass(r.matchedStudent)}</strong>
+                                      </span>
+                                      <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300">
+                                        Session: <strong className="text-slate-900 dark:text-slate-100">{getStudentDisplaySession(r.matchedStudent)}</strong>
+                                      </span>
+                                      {getStudentProperStream(r.matchedStudent) && getStudentProperStream(r.matchedStudent) !== '—' && (
+                                        <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300">
+                                          Stream: <strong className="text-slate-900 dark:text-slate-100">{getStudentProperStream(r.matchedStudent)}</strong>
+                                        </span>
+                                      )}
+                                      {getStudentDisplayRollNo(r.matchedStudent) !== '—' && (
+                                        <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300">
+                                          Roll: <strong className="text-slate-900 dark:text-slate-100">{getStudentDisplayRollNo(r.matchedStudent)}</strong>
+                                        </span>
+                                      )}
+                                      <span className="text-slate-400">
+                                        Form: <strong className="text-slate-600 dark:text-slate-300">{getStudentDisplayFormNo(r.matchedStudent)}</strong>
+                                      </span>
                                     </div>
                                   </div>
                                 ) : r.isOutOfCohort ? (
@@ -2903,7 +3451,7 @@ export default function BulkFieldOverwriteModal({
                   Student Field Diff (Old vs New)
                 </h3>
                 <p className="text-[11px] text-slate-500 font-mono">
-                  {inspectStudent.rawReg} • {inspectStudent.matchedStudent?.studentName}
+                  {inspectStudent.rawReg} • {getStudentDisplayName(inspectStudent.matchedStudent)} (Class {getStudentDisplayClass(inspectStudent.matchedStudent)} • Session {getStudentDisplaySession(inspectStudent.matchedStudent)})
                 </p>
               </div>
               <button

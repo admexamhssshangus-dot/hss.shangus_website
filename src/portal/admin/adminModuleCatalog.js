@@ -88,8 +88,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     category: 'Records & Registers',
     maturity: 'optimized',
     maturityNote: 'Official JKBOSE circular format, continuous roll series compression, class-wise groupings for any class, and exam dropped examinee filtering.',
-    launcher: true,
-    isNew: true,
+    launcher: false,
+    isNew: false,
     aliases: ['jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls'],
   },
   {
