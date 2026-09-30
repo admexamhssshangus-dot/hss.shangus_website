@@ -172,8 +172,9 @@ export default function AdminToolsDropdown({
         onClick: () => {
           if (m.id === 'googleContacts' && onOpenGoogleContacts) {
             onOpenGoogleContacts();
-          } else if (m.id === 'boardSync' && onOpenBoardSync) {
-            onOpenBoardSync();
+          } else if (m.id === 'boardSync') {
+            if (setActiveTab) setActiveTab('boardSync');
+            else if (onOpenBoardSync) onOpenBoardSync();
           } else if (setActiveTab) {
             setActiveTab(m.id);
           } else if (onOpenCustomRoster) {
@@ -221,10 +222,10 @@ export default function AdminToolsDropdown({
         desc: 'Add a single student application directly into active intake',
         category: 'Quick Actions',
         icon: PlusCircle,
-        onMouseEnter: () => onPrefetchModule && onPrefetchModule('reports'),
+        onMouseEnter: () => onPrefetchModule && onPrefetchModule('boardSync'),
         onClick: () => {
-          if (onOpenDirectEntry) onOpenDirectEntry();
-          else if (setActiveTab) setActiveTab('reports');
+          if (setActiveTab) setActiveTab('directEntry');
+          else if (onOpenDirectEntry) onOpenDirectEntry();
           setIsOpen(false);
         },
       });

@@ -35,6 +35,7 @@ const SchoolAccountsManager = lazyWithChunkRecovery(() => import('./SchoolAccoun
 const AdministrativeCms = lazyWithChunkRecovery(() => import('../../pages/AdminPortal'), 'admin-cms');
 const ActivityAuditView = lazyWithChunkRecovery(() => import('./ActivityAuditView'), 'admin-activity-audit');
 const AnalyticsSuiteModal = lazyWithChunkRecovery(() => import('./AnalyticsSuiteModal'), 'admin-analytics-suite');
+const BulkFieldOverwriteModal = lazyWithChunkRecovery(() => import('./BulkFieldOverwriteModal'), 'admin-board-sync');
 
 // Module Loaders Map for High-Speed Dynamic Chunk Prefetching
 export const MODULE_LOADERS = {
@@ -74,6 +75,11 @@ export const MODULE_LOADERS = {
   analyticsReports: () => import('./AnalyticsSuiteModal'),
   analytics: () => import('./AnalyticsSuiteModal'),
   statisticalReports: () => import('./AnalyticsSuiteModal'),
+  boardSync: () => import('./BulkFieldOverwriteModal'),
+  jkboseSync: () => import('./BulkFieldOverwriteModal'),
+  ingestionHub: () => import('./BulkFieldOverwriteModal'),
+  bulkOverwrite: () => import('./BulkFieldOverwriteModal'),
+  directEntry: () => import('./BulkFieldOverwriteModal'),
 };
 
 export const prefetchAdminModule = (moduleId) => {
@@ -105,7 +111,12 @@ const ADMISSIONS_DATA_TABS = new Set([
   'certificate',
   'rollNo',
   'mergeStudio',
-  'automations'
+  'automations',
+  'boardSync',
+  'jkboseSync',
+  'ingestionHub',
+  'bulkOverwrite',
+  'directEntry'
 ]);
 const ADMISSIONS_REALTIME_TABS = new Set(['reports', 'rollNo', 'mergeStudio', 'automations', 'admRegisterSuite']);
 const IDENTITY_DATA_TABS = new Set([
@@ -119,7 +130,12 @@ const IDENTITY_DATA_TABS = new Set([
   'jkboseRolls',
   'analyticsReports',
   'analytics',
-  'statisticalReports'
+  'statisticalReports',
+  'boardSync',
+  'jkboseSync',
+  'ingestionHub',
+  'bulkOverwrite',
+  'directEntry'
 ]);
 
 
@@ -129,7 +145,7 @@ function getInitialTab() {
     const searchParams = new URLSearchParams(window.location.search);
     const urlTab = searchParams.get('tab');
     if (urlTab) {
-      if (urlTab === 'bulk' || urlTab === 'boardSync') return 'reports';
+      if (urlTab === 'bulk' || urlTab === 'boardSync' || urlTab === 'ingestionHub' || urlTab === 'bulkOverwrite' || urlTab === 'directEntry') return 'boardSync';
       if (urlTab === 'curriculum' || urlTab === 'subjects' || urlTab === 'streams' || urlTab === 'feederSchools') return 'curriculum';
       if (urlTab === 'staff' || urlTab === 'permissions' || urlTab === 'staffPermissions') return 'staff';
       if (urlTab === 'controls' || urlTab === 'admissionControls' || urlTab === 'systemControls') return 'controls';
@@ -149,7 +165,7 @@ function getInitialTab() {
     if (hash && hash !== 'portal') return hash;
     const stored = sessionStorage.getItem('hss_admin_active_tab');
     if (stored) {
-      if (stored === 'bulk' || stored === 'boardSync') return 'reports';
+      if (stored === 'bulk' || stored === 'boardSync' || stored === 'ingestionHub' || stored === 'bulkOverwrite' || stored === 'directEntry') return 'boardSync';
       if (stored === 'analytics' || stored === 'statisticalReports') return 'analyticsReports';
       if (stored === 'curriculum' || stored === 'subjects' || stored === 'streams' || stored === 'feederSchools') return 'curriculum';
       if (stored === 'staff' || stored === 'permissions' || stored === 'staffPermissions') return 'staff';
@@ -743,17 +759,14 @@ export default function AdminDashboard() {
                         setTriggerAction('analytics');
                       }}
                       onOpenDirectEntry={() => {
-                        setActiveTab('reports');
-                        setTriggerAction('directEntry');
+                        setActiveTab('directEntry');
                       }}
                       onOpenBulkTools={() => {
                         setActiveTab('reports');
                         setTriggerAction('bulkTools');
                       }}
                       onOpenBoardSync={() => {
-                        setMountedTabs(prev => new Set(prev).add('reports'));
-                        setActiveTab('reports');
-                        setTriggerAction('boardSync');
+                        setActiveTab('boardSync');
                       }}
                       onOpenGoogleContacts={() => {
                         setMountedTabs(prev => new Set(prev).add('reports'));
@@ -972,6 +985,36 @@ export default function AdminDashboard() {
                           setActiveTab(tab);
                         }}
                         user={user}
+                      />
+                    </div>
+                  )}
+
+                  {/* TAB: Student Data & Board Ingestion Hub (Full Page Mode) */}
+                  {(mountedTabs.has('boardSync') || mountedTabs.has('jkboseSync') || mountedTabs.has('ingestionHub') || mountedTabs.has('bulkOverwrite') || mountedTabs.has('directEntry')) && (
+                    <div
+                      key="board-sync-container"
+                      className={(activeTab === 'boardSync' || activeTab === 'jkboseSync' || activeTab === 'ingestionHub' || activeTab === 'bulkOverwrite' || activeTab === 'directEntry') ? 'block w-full' : 'hidden'}
+                      style={(activeTab === 'boardSync' || activeTab === 'jkboseSync' || activeTab === 'ingestionHub' || activeTab === 'bulkOverwrite' || activeTab === 'directEntry') ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'boardSync' && activeTab !== 'jkboseSync' && activeTab !== 'ingestionHub' && activeTab !== 'bulkOverwrite' && activeTab !== 'directEntry'}
+                    >
+                      <BulkFieldOverwriteModal
+                        isPage={true}
+                        isOpen={activeTab === 'boardSync' || activeTab === 'jkboseSync' || activeTab === 'ingestionHub' || activeTab === 'bulkOverwrite' || activeTab === 'directEntry'}
+                        onClose={() => setActiveTab('reports')}
+                        allStudents={identityStudents || applications}
+                        currentSession={(sessionStorage.getItem('hss_last_selected_session') || '2025-26')}
+                        initialMode={activeTab === 'directEntry' ? 'express' : 'overwrite'}
+                        onComplete={() => {
+                          const cached = getCachedCollectionSync('admissions');
+                          if (cached && cached.length > 0) {
+                            commitApplications(cached, false);
+                          }
+                        }}
+                        onRecordAdded={(newRecord) => {
+                          if (newRecord) {
+                            commitApplications(prev => [newRecord, ...prev], false);
+                          }
+                        }}
                       />
                     </div>
                   )}
