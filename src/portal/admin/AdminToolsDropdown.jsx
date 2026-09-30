@@ -14,6 +14,8 @@ import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 
 const MODULE_ICONS = {
   reports: BarChart2,
+  analyticsReports: BarChart2,
+  analytics: BarChart2,
   admRegisterSuite: BookOpen,
   jkboseSubjectRolls: FileText,
   customRoster: FileSpreadsheet,
@@ -203,10 +205,10 @@ export default function AdminToolsDropdown({
         desc: 'View gender breakdown, stream stats and intake reports',
         category: 'Quick Actions',
         icon: BarChart2,
-        onMouseEnter: () => onPrefetchModule && onPrefetchModule('reports'),
+        onMouseEnter: () => onPrefetchModule && (onPrefetchModule('analyticsReports') || onPrefetchModule('reports')),
         onClick: () => {
-          if (onOpenAnalytics) onOpenAnalytics();
-          else if (setActiveTab) setActiveTab('reports');
+          if (setActiveTab) setActiveTab('analyticsReports');
+          else if (onOpenAnalytics) onOpenAnalytics();
           setIsOpen(false);
         },
       });

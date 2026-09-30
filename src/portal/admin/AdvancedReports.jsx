@@ -6401,9 +6401,14 @@ export default function AdvancedReports({
   useEffect(() => {
     if (!triggerAction) return;
     if (triggerAction === 'analytics') {
-      setHistoryLoadRequested(true);
-      setFullHistoryRequested(true);
-      setShowAnalyticsModal(true);
+      if (setActiveTab) {
+        setActiveTab('analyticsReports');
+        if (onTriggerActionHandled) onTriggerActionHandled();
+      } else {
+        setHistoryLoadRequested(true);
+        setFullHistoryRequested(true);
+        setShowAnalyticsModal(true);
+      }
     } else if (triggerAction === 'directEntry') {
       setBulkOverwriteMode('express');
       setShowBulkOverwriteModal(true);
@@ -13398,9 +13403,13 @@ export default function AdvancedReports({
                 onPrefetchModule={onPrefetchModule}
                 onOpenCustomRoster={() => setShowCustomRosterModal(true)}
                 onOpenAnalytics={() => {
-                  setHistoryLoadRequested(true);
-                  setFullHistoryRequested(true);
-                  setShowAnalyticsModal(true);
+                  if (setActiveTab) {
+                    setActiveTab('analyticsReports');
+                  } else {
+                    setHistoryLoadRequested(true);
+                    setFullHistoryRequested(true);
+                    setShowAnalyticsModal(true);
+                  }
                 }}
                 onOpenDirectEntry={() => {
                   setBulkOverwriteMode('express');

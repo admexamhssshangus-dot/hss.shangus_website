@@ -34,6 +34,7 @@ const FundDistribution = lazyWithChunkRecovery(() => import('./FundDistribution'
 const SchoolAccountsManager = lazyWithChunkRecovery(() => import('./SchoolAccountsManager'), 'admin-accounts');
 const AdministrativeCms = lazyWithChunkRecovery(() => import('../../pages/AdminPortal'), 'admin-cms');
 const ActivityAuditView = lazyWithChunkRecovery(() => import('./ActivityAuditView'), 'admin-activity-audit');
+const AnalyticsSuiteModal = lazyWithChunkRecovery(() => import('./AnalyticsSuiteModal'), 'admin-analytics-suite');
 
 // Module Loaders Map for High-Speed Dynamic Chunk Prefetching
 export const MODULE_LOADERS = {
@@ -70,6 +71,9 @@ export const MODULE_LOADERS = {
   cms: () => import('../../pages/AdminPortal'),
   heroButtons: () => import('../../pages/AdminPortal'),
   activityAudit: () => import('./ActivityAuditView'),
+  analyticsReports: () => import('./AnalyticsSuiteModal'),
+  analytics: () => import('./AnalyticsSuiteModal'),
+  statisticalReports: () => import('./AnalyticsSuiteModal'),
 };
 
 export const prefetchAdminModule = (moduleId) => {
@@ -88,6 +92,12 @@ const ADMISSIONS_DATA_TABS = new Set([
   'reports',
   'gkTest',
   'admRegisterSuite',
+  'jkboseSubjectRolls',
+  'subjectRolls',
+  'jkboseRolls',
+  'analyticsReports',
+  'analytics',
+  'statisticalReports',
   'idCards',
   'customRoster',
   'docStudio',
@@ -98,7 +108,19 @@ const ADMISSIONS_DATA_TABS = new Set([
   'automations'
 ]);
 const ADMISSIONS_REALTIME_TABS = new Set(['reports', 'rollNo', 'mergeStudio', 'automations', 'admRegisterSuite']);
-const IDENTITY_DATA_TABS = new Set(['gkTest', 'customRoster', 'docStudio', 'certStudio', 'certificate']);
+const IDENTITY_DATA_TABS = new Set([
+  'gkTest',
+  'customRoster',
+  'docStudio',
+  'certStudio',
+  'certificate',
+  'jkboseSubjectRolls',
+  'subjectRolls',
+  'jkboseRolls',
+  'analyticsReports',
+  'analytics',
+  'statisticalReports'
+]);
 
 
 // Helper to read initial activeTab from URL search params, hash or sessionStorage
@@ -128,6 +150,7 @@ function getInitialTab() {
     const stored = sessionStorage.getItem('hss_admin_active_tab');
     if (stored) {
       if (stored === 'bulk' || stored === 'boardSync') return 'reports';
+      if (stored === 'analytics' || stored === 'statisticalReports') return 'analyticsReports';
       if (stored === 'curriculum' || stored === 'subjects' || stored === 'streams' || stored === 'feederSchools') return 'curriculum';
       if (stored === 'staff' || stored === 'permissions' || stored === 'staffPermissions') return 'staff';
       if (stored === 'controls' || stored === 'admissionControls' || stored === 'systemControls') return 'controls';
@@ -909,6 +932,8 @@ export default function AdminDashboard() {
                     >
                       <JkboseSubjectRollReturnView
                         students={applications}
+                        allStudents={identityStudents || applications}
+                        user={user}
                         onClose={() => setActiveTab('reports')}
                         onDataUpdated={(updated) => {
                           if (Array.isArray(updated)) {
@@ -923,6 +948,30 @@ export default function AdminDashboard() {
                             }
                           }
                         }}
+                      />
+                    </div>
+                  )}
+
+                  {/* TAB: Analytics & Statistical Reports Suite (Full Page Mode) */}
+                  {(mountedTabs.has('analyticsReports') || mountedTabs.has('analytics') || mountedTabs.has('statisticalReports')) && (
+                    <div
+                      key="analytics-reports-container"
+                      className={(activeTab === 'analyticsReports' || activeTab === 'analytics' || activeTab === 'statisticalReports') ? 'block w-full' : 'hidden'}
+                      style={(activeTab === 'analyticsReports' || activeTab === 'analytics' || activeTab === 'statisticalReports') ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'analyticsReports' && activeTab !== 'analytics' && activeTab !== 'statisticalReports'}
+                    >
+                      <AnalyticsSuiteModal
+                        isPage={true}
+                        isOpen={activeTab === 'analyticsReports' || activeTab === 'analytics' || activeTab === 'statisticalReports'}
+                        onClose={() => setActiveTab('reports')}
+                        students={applications}
+                        allStudents={identityStudents || applications}
+                        historicalRecords={getCachedCollectionSync('masterRegisters') || []}
+                        onNavigateTab={(tab) => {
+                          setMountedTabs(prev => new Set(prev).add(tab));
+                          setActiveTab(tab);
+                        }}
+                        user={user}
                       />
                     </div>
                   )}

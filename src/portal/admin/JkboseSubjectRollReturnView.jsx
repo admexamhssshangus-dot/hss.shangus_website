@@ -9,7 +9,7 @@
  * 5. 1-Click Exports in Word (.docx), Excel (.xlsx), and Print/PDF.
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   FileText, Download, Printer, Users, UserX, UserCheck, Search,
   Filter, CheckCircle2, AlertTriangle, ArrowLeft, RefreshCw,
@@ -28,6 +28,15 @@ import {
   CANONICAL_SUBJECT_ORDER
 } from '../../utils/jkboseRollSeriesFormatter';
 import { isStudentAdmissionApproved, isStudentExamDropped, getAssignedClassRollNumber } from '../../utils/studentApprovalStatus';
+import {
+  getStudentDisplayName,
+  getStudentFatherName,
+  getStudentClass,
+  getStudentStream,
+  getStudentSession,
+  isStudentInSession,
+  fetchStudentsForSessionOnDemand
+} from '../../utils/studentDataFetcher';
 import { generateJkboseDocx } from '../../utils/jkboseDocxGenerator';
 import { generateJkboseExcel } from '../../utils/jkboseExcelGenerator';
 import { printJkboseStatement } from '../../utils/jkbosePdfGenerator';
@@ -49,9 +58,10 @@ export default function JkboseSubjectRollReturnView({
   onDataUpdated,
   user
 }) {
-  const dataset = useMemo(() => {
-    return (allStudents && allStudents.length > 0) ? allStudents : (students || []);
-  }, [allStudents, students]);
+  // Session configuration & on-demand fetching
+  const [selectedSession, setSelectedSession] = useState('2025-26');
+  const [onDemandStudents, setOnDemandStudents] = useState([]);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
 
   // View state & configuration
   const [selectedClass, setSelectedClass] = useState('12th'); // '12th' | '11th' | '10th' | 'all'
@@ -60,6 +70,61 @@ export default function JkboseSubjectRollReturnView({
   const [centreNo, setCentreNo] = useState('Centre No. 31601');
   const [session, setSession] = useState('Session 2025-26');
   const [rollType, setRollType] = useState('auto'); // 'auto' | 'board' | 'class'
+
+  // Discover all available sessions dynamically
+  const availableSessions = useMemo(() => {
+    const set = new Set(['2025-26', '2024-25', '2023-24', '2022-23', '2021-22', '2020-21']);
+    const pool = [...(students || []), ...(allStudents || [])];
+    pool.forEach((s) => {
+      const ses = getStudentSession(s);
+      if (ses) {
+        const clean = ses.replace(/session\s*/i, '').replace(/[\u2013\u2014]/g, '-').trim();
+        if (clean) set.add(clean);
+      }
+    });
+    return Array.from(set).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  }, [students, allStudents]);
+
+  // Fetch students on demand whenever selectedSession changes
+  useEffect(() => {
+    let isCancelled = false;
+    setIsLoadingSession(true);
+    fetchStudentsForSessionOnDemand(selectedSession)
+      .then((records) => {
+        if (!isCancelled && Array.isArray(records)) {
+          setOnDemandStudents(records);
+        }
+      })
+      .catch((err) => console.warn('On demand session load note:', err))
+      .finally(() => {
+        if (!isCancelled) setIsLoadingSession(false);
+      });
+    return () => { isCancelled = true; };
+  }, [selectedSession]);
+
+  // Resolves the active dataset for the selected session
+  const dataset = useMemo(() => {
+    const base = (allStudents && allStudents.length > 0) ? allStudents : (students || []);
+    const inMemMatches = base.filter((s) => isStudentInSession(s, selectedSession));
+
+    // Combine in-memory matches with any on-demand fetched records without duplicates
+    const combined = [...inMemMatches];
+    const seen = new Set(
+      inMemMatches.map((s) => String(s.id || s._docId || s.formNo || getAssignedClassRollNumber(s)).toLowerCase())
+    );
+
+    onDemandStudents.forEach((st) => {
+      const key = String(st.id || st._docId || st.formNo || getAssignedClassRollNumber(st)).toLowerCase();
+      if (!seen.has(key) && isStudentInSession(st, selectedSession)) {
+        seen.add(key);
+        combined.push(st);
+      }
+    });
+
+    if (combined.length > 0) return combined;
+    if (onDemandStudents.length > 0) return onDemandStudents;
+    return inMemMatches;
+  }, [allStudents, students, selectedSession, onDemandStudents]);
 
   // Expandable subject details row in live preview table
   const [expandedSubject, setExpandedSubject] = useState(null);
@@ -122,7 +187,7 @@ export default function JkboseSubjectRollReturnView({
   // Filter students for the Drawer
   const drawerStudents = useMemo(() => {
     return dataset.filter((s) => {
-      const normClass = normalizeExamineeClass(s.appliedClass || s.class || s.enrolledClass || '');
+      const normClass = normalizeExamineeClass(getStudentClass(s) || s.appliedClass || s.class || s.enrolledClass || '');
       if (selectedClass !== 'all' && normClass !== selectedClass) return false;
       if (!isStudentAdmissionApproved(s)) return false;
 
@@ -132,10 +197,10 @@ export default function JkboseSubjectRollReturnView({
 
       if (drawerSearch.trim()) {
         const q = drawerSearch.trim().toLowerCase();
-        const name = String(s.studentName || s.name || s['Candidate Name'] || '').toLowerCase();
-        const roll = String(s.rollNo || s.classRollNo || s.examRollNo || '').toLowerCase();
-        const reg = String(s.registrationNo || s.boardRegNo || '').toLowerCase();
-        const father = String(s.fatherName || s['Father Name'] || '').toLowerCase();
+        const name = getStudentDisplayName(s).toLowerCase();
+        const roll = String(getAssignedClassRollNumber(s) || s.rollNo || s.classRollNo || s.examRollNo || '').toLowerCase();
+        const reg = String(s.registrationNo || s.boardRegNo || s.regNo || '').toLowerCase();
+        const father = getStudentFatherName(s).toLowerCase();
         if (!name.includes(q) && !roll.includes(q) && !reg.includes(q) && !father.includes(q)) {
           return false;
         }
@@ -443,15 +508,23 @@ export default function JkboseSubjectRollReturnView({
           </div>
 
           <div>
-            <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-500 mb-1">
-              Session
+            <label className="text-[10.5px] font-black uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
+              <span>Session</span>
+              {isLoadingSession && <span className="text-[9.5px] text-amber-500 animate-pulse font-bold">Syncing…</span>}
             </label>
-            <input
-              type="text"
-              value={session}
-              onChange={(e) => setSession(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
+            <select
+              value={selectedSession}
+              onChange={(e) => {
+                const newSes = e.target.value;
+                setSelectedSession(newSes);
+                setSession(`Session ${newSes}`);
+              }}
+              className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+            >
+              {availableSessions.map((ses) => (
+                <option key={ses} value={ses}>Session {ses}</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -687,7 +760,7 @@ export default function JkboseSubjectRollReturnView({
 
             {/* Filter & Search Bar */}
             <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <div className="relative flex-1">
                   <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
                   <input
@@ -708,25 +781,42 @@ export default function JkboseSubjectRollReturnView({
                   )}
                 </div>
 
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
-                  {[
-                    { id: 'all', label: 'All' },
-                    { id: 'active', label: 'Active' },
-                    { id: 'dropped', label: 'Dropped' },
-                  ].map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setDrawerFilter(f.id)}
-                      className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                        drawerFilter === f.id
-                          ? 'bg-amber-600 text-white shadow-2xs'
-                          : 'text-slate-600 dark:text-slate-300'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2 shrink-0">
+                  <select
+                    value={selectedSession}
+                    onChange={(e) => {
+                      const newSes = e.target.value;
+                      setSelectedSession(newSes);
+                      setSession(`Session ${newSes}`);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer"
+                    title="Switch Session for Examinee Dropped Manager"
+                  >
+                    {availableSessions.map((ses) => (
+                      <option key={ses} value={ses}>Session {ses}</option>
+                    ))}
+                  </select>
+
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                    {[
+                      { id: 'all', label: 'All' },
+                      { id: 'active', label: 'Active' },
+                      { id: 'dropped', label: 'Dropped' },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setDrawerFilter(f.id)}
+                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                          drawerFilter === f.id
+                            ? 'bg-amber-600 text-white shadow-2xs'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -801,18 +891,18 @@ export default function JkboseSubjectRollReturnView({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-black text-slate-900 dark:text-white truncate">
-                              {st.studentName || st.name || st['Candidate Name'] || 'Unknown Student'}
+                              {getStudentDisplayName(st)}
                             </span>
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                               Roll: {rollNo || 'Pending'}
                             </span>
                           </div>
                           <div className="text-[10.5px] text-slate-500 truncate flex items-center gap-2 mt-0.5">
-                            <span>F: {st.fatherName || st['Father Name'] || 'N/A'}</span>
+                            <span>F: {getStudentFatherName(st)}</span>
                             <span>•</span>
-                            <span>Class: {st.appliedClass || st.class || 'N/A'}</span>
+                            <span>Class: {getStudentClass(st) || st.appliedClass || st.class || 'N/A'}</span>
                             <span>•</span>
-                            <span>{st.stream || st['Subject Stream'] || 'General'}</span>
+                            <span>{getStudentStream(st) || st.stream || 'General'}</span>
                           </div>
                           {isDropped && st.examDroppedReason && (
                             <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold mt-1 flex items-center gap-1">
@@ -855,7 +945,9 @@ export default function JkboseSubjectRollReturnView({
 
             {/* Drawer Footer */}
             <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between text-xs text-slate-500">
-              <span>Showing {drawerStudents.length} student(s)</span>
+              <span className="font-medium">
+                Showing <strong className="text-slate-900 dark:text-white font-bold">{drawerStudents.length}</strong> examinee(s) in <span className="text-amber-600 font-bold">Session {selectedSession}</span>
+              </span>
               <button
                 type="button"
                 onClick={() => setIsDroppedDrawerOpen(false)}
