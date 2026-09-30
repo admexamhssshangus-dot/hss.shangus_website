@@ -984,6 +984,19 @@ export default function AdminDashboard() {
                           setMountedTabs(prev => new Set(prev).add(tab));
                           setActiveTab(tab);
                         }}
+                        onDataUpdated={(updated) => {
+                          if (Array.isArray(updated)) {
+                            const map = new Map(updated.filter(u => u && u.id).map(u => [u.id, u]));
+                            setApplications(prev => (prev || []).map(a => map.has(a.id) ? { ...a, ...map.get(a.id) } : a));
+                          } else if (updated && updated.id) {
+                            setApplications(prev => (prev || []).map(a => a.id === updated.id ? { ...a, ...updated } : a));
+                          } else {
+                            const cached = getCachedCollectionSync('admissions');
+                            if (cached && cached.length > 0) {
+                              commitApplications(cached, false);
+                            }
+                          }
+                        }}
                         user={user}
                       />
                     </div>
