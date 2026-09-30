@@ -3098,27 +3098,7 @@ export default function BulkFieldOverwriteModal({
 
   if (isPage) {
     return (
-      <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 p-2 sm:p-6 space-y-4 animate-fadeIn">
-        {/* Top Navigation & Breadcrumbs Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950 hover:text-emerald-600 dark:hover:text-emerald-400 border border-slate-200/60 dark:border-slate-700 transition-all cursor-pointer"
-            >
-              <ArrowLeft size={14} />
-              <span>Return to Student Records & Reports</span>
-            </button>
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-              <span>/</span>
-              <span>Operations & Automation</span>
-              <span>/</span>
-              <span className="text-slate-800 dark:text-slate-200 font-bold">Student Data & Board Ingestion Hub</span>
-            </div>
-          </div>
-        </div>
-
+      <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 p-1 sm:p-2.5 space-y-2 animate-fadeIn">
         {hubContent}
         {inspectModalNode}
         {progressOverlayNode}
