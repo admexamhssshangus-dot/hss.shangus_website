@@ -5640,7 +5640,26 @@ const COLUMN_DEFS = [
   { key: 'prevPercentage', label: '%age (Prev.)', className: 'font-mono' },
   { key: 'prevDivision', label: 'Div/Distinc (Prev.)' },
   { key: 'currExamMode', label: 'Exam Mode (Current)' },
-  { key: 'currExamRollNo', label: 'Exam R.No. (Current)', className: 'font-mono' },
+  {
+    key: 'currExamRollNo',
+    label: 'Exam R.No. (Current)',
+    className: 'font-mono text-center',
+    render: (val, student) => {
+      const status = student?._getJkboseStatus?.('currExamRollNo');
+      const directEdit = student?.directEditHistory?.currExamRollNo?.newValue || student?.fieldEditHistory?.currExamRollNo?.newValue;
+      const roll = (val && val !== '—' && val !== '-')
+        ? String(val).trim()
+        : (directEdit || student?.currExamRollNo || student?.boardRollNo || student?.examRollNo || student?.['Exam R.No. (Current)'] || status?.newValue || '');
+      if (!roll) {
+        return <span className="text-slate-400 dark:text-slate-600 font-normal">—</span>;
+      }
+      return (
+        <span className="font-mono font-black text-slate-900 dark:text-white tracking-wide">
+          {roll}
+        </span>
+      );
+    }
+  },
   { key: 'currResult', label: 'Result (Current)' },
   { key: 'currMarksReapp', label: 'Marks/Reapp (Current)' },
   { key: 'withdrawalDate', label: 'Date of withdrawl' },
@@ -10804,10 +10823,10 @@ export default function AdvancedReports({
         prevMaxMarks: a['Max. Marks (Prev.)'] || a['Max Marks (Class 10th)'] || a.prevMaxMarks || '—',
         prevPercentage: a['%age (Prev.)'] || a['Percentage (Class 10th)'] || a.prevPercentage || '—',
         prevDivision: a['Div/Distinc (Prev.)'] || a.prevDivision || '—',
-        currExamMode: a['Exam Mode (Current)'] || a.currExamMode || '—',
-        currExamRollNo: a['Exam R.No. (Current)'] || a.currExamRollNo || a.examRollNo || a.examRoll || a.boardRoll || a.boardRollNo || a['Exam R.No.'] || a['Exam Roll No'] || '—',
-        currResult: a['Result (Current)'] || a.result || a.currResult || '—',
-        currMarksReapp: a['Marks/Reapp (Current)'] || '—',
+        currExamMode: a['Exam Mode (Current)'] || a.currExamMode || (masterMatch?.currExamMode || masterMatch?.['Exam Mode (Current)']) || '—',
+        currExamRollNo: a['Exam R.No. (Current)'] || a.currExamRollNo || a.examRollNo || a.examRoll || a.boardRoll || a.boardRollNo || a['Exam R.No.'] || a['Exam Roll No'] || (masterMatch?.currExamRollNo || masterMatch?.boardRollNo || masterMatch?.examRollNo || masterMatch?.['Exam R.No. (Current)'] || masterMatch?.['Board Roll Number']) || '—',
+        currResult: a['Result (Current)'] || a.result || a.currResult || (masterMatch?.currResult || masterMatch?.result || masterMatch?.boardResult) || '—',
+        currMarksReapp: a['Marks/Reapp (Current)'] || a.marks || a.currMarksReapp || (masterMatch?.currMarksReapp || masterMatch?.marks) || '—',
         withdrawalDate: a['Date of withdrawl'] || '—',
         currCcDc: resolveCcDcVal(a) !== '—' ? resolveCcDcVal(a) : (masterMatch ? resolveCcDcVal(masterMatch) : (demo?.ccDc || '—')),
         remarks: a['Remarks'] || '—',
@@ -11100,8 +11119,8 @@ export default function AdvancedReports({
         prevPercentage: m['%age (Prev.)'] || m['Percentage (Class 10th)'] || m.prevPercentage || '—',
         prevDivision: m['Div/Distinc (Prev.)'] || m.prevDivision || '—',
         currExamMode: m['Exam Mode (Current)'] || m.currExamMode || '—',
-        currExamRollNo: m['Exam R.No. (Current)'] || m.currExamRollNo || m.examRollNo || m.examRoll || m['Exam R.No.'] || m['Exam Roll No'] || '—',
-        currResult: m['Result (Current)'] || m.result || m.currResult || '—',
+        currExamRollNo: m['Exam R.No. (Current)'] || m.currExamRollNo || m.examRollNo || m.examRoll || m.boardRollNo || m.boardRoll || m['Exam R.No.'] || m['Exam Roll No'] || m['Board Roll Number'] || '—',
+        currResult: m['Result (Current)'] || m.result || m.currResult || m.boardResult || '—',
         currMarksReapp: m['Marks/Reapp (Current)'] || m.marks || m.currMarksReapp || '—',
         withdrawalDate: m['Date of withdrawl'] || m.withdrawalDate || '—',
         currCcDc: resolveCcDcVal(m) !== '—' ? resolveCcDcVal(m) : (demo?.ccDc || '—'),
