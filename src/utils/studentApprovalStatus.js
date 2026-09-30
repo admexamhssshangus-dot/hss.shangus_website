@@ -95,4 +95,35 @@ export function isStudentAdmissionApproved(student) {
   return resolveStudentAdmissionStatus(student) === 'Approved';
 }
 
+/**
+ * Checks whether an examinee has been flagged as "Dropped" from taking the board examination.
+ * Such examinees must be excluded from official JKBOSE examination returns.
+ */
+export function isStudentExamDropped(student) {
+  if (!student || typeof student !== 'object') return false;
+  const raw = student.raw || student._rawStudent || student;
+
+  if (student.isExamDropped === true || raw.isExamDropped === true) return true;
+  if (student.examDropped === true || raw.examDropped === true) return true;
+
+  const statusStr = String(
+    student.examStatus ||
+    raw.examStatus ||
+    student['Exam Status'] ||
+    raw['Exam Status'] ||
+    student['JKBOSE Exam Status'] ||
+    raw['JKBOSE Exam Status'] ||
+    student.examinationStatus ||
+    raw.examinationStatus ||
+    ''
+  ).trim().toLowerCase();
+
+  return (
+    statusStr === 'dropped' ||
+    statusStr === 'exam dropped' ||
+    statusStr === 'dropped from exam' ||
+    statusStr.includes('dropped')
+  );
+}
+
 export { CLASS_ROLL_NUMBER_KEYS };

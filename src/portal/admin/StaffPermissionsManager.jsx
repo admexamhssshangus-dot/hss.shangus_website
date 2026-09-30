@@ -497,6 +497,10 @@ export default function StaffPermissionsManager() {
       setModalError('Please select or add at least one Assigned Teaching Subject for this faculty member.');
       return;
     }
+    if (adminForm.password && adminForm.password.trim().length < 6) {
+      setModalError('Password must be at least 6 characters long.');
+      return;
+    }
     const cleanEmail = adminForm.email.trim().toLowerCase();
     setSaving(true);
 
@@ -562,7 +566,9 @@ export default function StaffPermissionsManager() {
         try { window.dispatchEvent(new CustomEvent('hss-permissions-updated')); } catch (_) {}
         setAlert({
           type: 'success',
-          text: `✨ Staff profile (${cleanEmail}) successfully updated!`,
+          text: adminForm.password
+            ? `✨ Staff profile and login password for ${cleanEmail} successfully updated! You can now log in with this email and password.`
+            : `✨ Staff profile (${cleanEmail}) successfully updated!`,
         });
       } else {
         if (adminUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
