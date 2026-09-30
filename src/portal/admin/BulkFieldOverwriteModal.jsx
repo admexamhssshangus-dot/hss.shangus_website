@@ -212,7 +212,6 @@ export const STANDARD_DB_CATEGORIES = [
     fields: [
       { key: 'category', label: "Social Category", defaultChecked: false, dbKeys: ['Social category', 'Social Category', 'Cat._JKBOSE', 'Category', 'category'], excelKeys: ['category', 'socialcategory', 'catjkbose', 'caste'] },
       { key: 'socioEconomicCategory', label: "Socio-Economic Category", defaultChecked: false, dbKeys: ['Socio-economic category', 'Socio-Economic Category', 'socioEconomicCategory'], excelKeys: ['socioeconomiccategory', 'socioeconomic', 'bplcategory'] },
-      { key: 'boardRegNo', label: "Board Reg. No.", defaultChecked: false, dbKeys: ['Board Registration Number', 'Board Registration No. (Class 11th)', 'Board Registration No. (Class 10th)', 'Board Registration No. (Class 9th)', 'Board Registration No. (Class 8th)', 'DIET Registration No.', 'DIET/Board Reg. No.', 'DIET Reg. No.', 'DIET Registration Number', 'Board Reg. No.', 'boardRegNo', 'regNo', 'Registration No. (allotted by JKBOSE)', 'Registration No. (allotted by DIET)', 'REG. NO.'], excelKeys: ['registrationno', 'regno', 'boardregno', 'boardregistrationno', 'dietregno', 'dietregistrationno'] },
       { key: 'admNo', label: "Admission No.", defaultChecked: false, dbKeys: ['Admission No.', 'Adm. No.', 'admNo', 'admissionNo'], excelKeys: ['admissionno', 'admno', 'admissionnumber'] },
       { key: 'apaarId', label: "APAAR ID (12-Digit)", defaultChecked: false, dbKeys: ['APAAR ID', 'apaarId', 'apaar', 'apaarNumber'], excelKeys: ['apaarid', 'apaar', 'apaarnumber'] },
       { key: 'penNo', label: "Student PEN No.", defaultChecked: false, dbKeys: ['Permanent Education Number (PEN)', 'PEN number (given by UDISE portal)', 'PEN No', 'PEN No.', 'pen', 'penNo', 'Student PEN No.'], excelKeys: ['penno', 'pen', 'pennumber', 'studentpen', 'pennumbergivenbyudiseportal'] },
@@ -1329,7 +1328,8 @@ export default function BulkFieldOverwriteModal({
       'raw', 'items', 'students', 'records', 'data', 'groupkey', 'arrayindex',
       'arraykey', 'srccollection', 'source', 'parentdocid', 'ishistorical', 'currentscope',
       'declaration', 'editunlocked', 'unlockexpiry', 'rejectionreason', 'searchtokens',
-      'keywords', 'auditlog', 'logs', 'history', 'mutationjob', 'lastmodified', 'formstatus'
+      'keywords', 'auditlog', 'logs', 'history', 'mutationjob', 'lastmodified', 'formstatus',
+      'boardregno', 'regno', 'boardregistrationnumber', 'boardreg', 'registrationno'
     ]);
 
     const discoveredFields = [];
@@ -1949,6 +1949,8 @@ export default function BulkFieldOverwriteModal({
 
         if (matchedStudent) {
           allFieldDefinitions.forEach(f => {
+            // Registration number is an immutable board identity key and is never overwritten
+            if (['boardregno', 'regno', 'boardregistrationnumber', 'boardreg', 'registrationno'].includes(cleanKey(f.key))) return;
             if (!effectiveSelectedFields[f.key]) return;
             const incVal = incomingFields[f.key];
             if (!incVal) return;
@@ -2297,17 +2299,6 @@ export default function BulkFieldOverwriteModal({
           payload['Class R.No.'] = cleanRoll;
         }
 
-        // Ensure Board Registration Number is synchronized across all database key variations
-        if (selectedFields['boardRegNo'] && inc['boardRegNo']) {
-          const cleanReg = String(inc['boardRegNo']).trim();
-          payload['boardRegNo'] = cleanReg;
-          payload['regNo'] = cleanReg;
-          payload['Board Registration Number'] = cleanReg;
-          payload['Board Reg. No.'] = cleanReg;
-          payload['REG. NO.'] = cleanReg;
-          payload['Registration No. (allotted by JKBOSE)'] = cleanReg;
-        }
-
         // Ensure Board Examination Roll Number is synchronized across all database key variations
         if (selectedFields['boardRollNo'] && inc['boardRollNo']) {
           const cleanExamRoll = String(inc['boardRollNo']).replace(/\.0+$/, '').trim();
@@ -2472,7 +2463,10 @@ export default function BulkFieldOverwriteModal({
           }
         }
 
-        const fieldsChangedKeys = Object.keys(item.diffs || {});
+        const fieldsChangedKeys = Object.keys(item.diffs || {}).filter(k => {
+          const norm = cleanKey(k);
+          return !['boardregno', 'regno', 'boardregistrationnumber', 'boardreg', 'registrationno'].includes(norm);
+        });
         const syncTimestamp = new Date().toISOString();
         const syncSource = fileName || 'JKBOSE Board Overwrite';
 
@@ -2485,6 +2479,12 @@ export default function BulkFieldOverwriteModal({
           : {};
 
         const mergedUpdates = { ...existingFieldUpdates };
+        // Purge any stale or legacy boardRegNo/regNo tracking so registration numbers never show update badges
+        delete mergedUpdates.boardRegNo;
+        delete mergedUpdates.regNo;
+        delete mergedUpdates['Board Registration Number'];
+        delete mergedUpdates['Board Reg. No.'];
+
         fieldsChangedKeys.forEach(k => {
           const diffItem = item.diffs[k];
           mergedUpdates[k] = {
@@ -2496,7 +2496,10 @@ export default function BulkFieldOverwriteModal({
           };
         });
 
-        const mergedJkboseFields = Array.from(new Set([...existingJkboseFields, ...fieldsChangedKeys]));
+        const mergedJkboseFields = Array.from(new Set([...existingJkboseFields, ...fieldsChangedKeys])).filter(k => {
+          const norm = cleanKey(k);
+          return !['boardregno', 'regno', 'boardregistrationnumber', 'boardreg', 'registrationno'].includes(norm);
+        });
 
         payload.jkboseUpdatedFields = mergedJkboseFields;
         payload.jkboseFieldUpdates = mergedUpdates;

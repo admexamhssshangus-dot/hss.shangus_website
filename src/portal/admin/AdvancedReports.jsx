@@ -13800,6 +13800,12 @@ export default function AdvancedReports({
                     _jkboseStatusMap: jkboseStatusMap,
                     _getJkboseStatus: (colKey, subKey) => {
                       if (!jkboseStatusMap) return null;
+                      const target = subKey || colKey;
+                      if (!target) return null;
+                      const norm = normalizeKey(target);
+                      if (['boardregno', 'regno', 'boardregistrationnumber', 'boardreg', 'formno', 'admno', 'classrollno', 'session', 'class', 'sno', 'photoid'].includes(norm)) {
+                        return null;
+                      }
                       if (subKey) {
                         return jkboseStatusMap[subKey] || jkboseStatusMap[normalizeKey(subKey)] || null;
                       }
@@ -13886,7 +13892,7 @@ export default function AdvancedReports({
                                 <div className={`flex-1 min-w-0 ${['boardRegNo', 'formNo', 'admNo', 'classRollNo', 'session', 'class'].includes(col.key) ? 'whitespace-nowrap' : 'whitespace-normal break-words'}`}>
                                   {col.render ? col.render(val, studentWithModal) : val}
                                 </div>
-                                {(!['studentName', 'fatherName', 'subs', 'aadhar', 'dob', 'sno', 'remarks'].includes(col.key)) &&
+                                {(!['studentName', 'fatherName', 'subs', 'aadhar', 'dob', 'sno', 'remarks', 'boardRegNo', 'regNo', 'formNo', 'admNo', 'classRollNo', 'session', 'class', 'photoId'].includes(col.key)) &&
                                   studentWithModal._getJkboseStatus?.(col.key) && (
                                     <JkboseFieldBadge info={studentWithModal._getJkboseStatus(col.key)} className="ml-1 flex-shrink-0" />
                                   )}
