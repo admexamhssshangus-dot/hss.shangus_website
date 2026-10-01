@@ -1361,20 +1361,57 @@ export function printAttendanceSheet({
   isExternal = false,
   evaluationType = '',
   practicalType = '',
-  subjectTitle = ''
+  subjectTitle = '',
+  subjectCode = '',
+  subjectName = ''
 }) {
   if (!students || students.length === 0) return false;
   students = students.filter(st => !isStudentExamDropped(st));
   if (students.length === 0) return false;
+
+  // Subject-specific attendance: filter to students enrolled in the given subject
+  const filterSubCode = (subjectCode || '').trim().toUpperCase();
+  if (filterSubCode) {
+    const subDef = PRACTICAL_SUBJECT_DEFS.find(s => s.code === filterSubCode);
+    if (subDef) {
+      students = students.filter(st => {
+        const stStream = String(st.stream || st.Stream || '').toLowerCase();
+        const multiSubCols = [
+          st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
+          st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
+          st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
+        ].filter(Boolean).join(', ');
+        const stSubs = String(
+          st['Subs'] || st['subs'] ||
+          (className.includes('12') ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th']) : '') ||
+          multiSubCols ||
+          st['Subjects to be taken in Class 11th'] || st['Subjects Studied in Class 11th'] ||
+          st['Subjects'] || st['Subject Combination'] || st['streamSubjects'] || st.subjects || ''
+        ).toLowerCase();
+        const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry');
+        const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
+        if (filterSubCode === 'EN') return true;
+        if (filterSubCode === 'PH' || filterSubCode === 'CH') return isScience || stSubs.includes(subDef.keywords[0]);
+        if (filterSubCode === 'BO' || filterSubCode === 'ZO' || filterSubCode === 'BI') {
+          return stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs) || (isScience && !isNonMed);
+        }
+        if (filterSubCode === 'MA') return stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed);
+        return subDef.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
+      });
+      if (students.length === 0) return false;
+    }
+  }
+
   const titles = resolveAwardRollTitles(evaluationType || practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
   const examAttendanceTitle = titles.heading.replace(/\s+AWARD\s+ROLL$/i, '');
+  const resolvedSubjectTitle = subjectTitle || (filterSubCode && subjectName ? `${subjectName} (${filterSubCode})` : (filterSubCode || ''));
 
   let html = `
     <div class="award-page">
       <div style="text-align: center; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
         <h1 style="font-size: 14pt; font-weight: 800; margin: 0; text-transform: uppercase; color: #0f172a;">Govt. Higher Secondary School Shangus</h1>
-        <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${examAttendanceTitle} ATTENDANCE SHEET — ${hseText}${subjectTitle ? ` — ${subjectTitle}` : ''}</h2>
+        <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${examAttendanceTitle} ATTENDANCE SHEET — ${hseText}${resolvedSubjectTitle ? ` — ${resolvedSubjectTitle}` : ''}</h2>
         <p style="font-size: 9.5pt; font-weight: 700; margin: 2px 0; color: #475569;">Session & Year: <strong>${session}</strong></p>
         <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: 700; margin-top: 6px; color: #334155;">
           <span>No.: ____________________</span>
@@ -1430,7 +1467,10 @@ export function printAttendanceSheet({
     </div>
   `;
 
-  triggerPrintWindow(html, `${titles.shortType} Attendance Sheet — Class ${className}`);
+  const attendanceTitle = resolvedSubjectTitle
+    ? `${titles.shortType} Attendance Sheet — ${resolvedSubjectTitle} — Class ${className}`
+    : `${titles.shortType} Attendance Sheet — Class ${className}`;
+  triggerPrintWindow(html, attendanceTitle);
   return true;
 }
 
@@ -1807,7 +1847,7 @@ export function printFailList({
     <div class="award-page">
       <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #cc0000; padding-bottom: 8px;">
         <h1 style="font-size: 14pt; font-weight: bold; margin: 0; color: #cc0000;">Govt. Higher Secondary School Shangus</h1>
-        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">ABSENTEE / FAIL STUDENTS LIST (${examType}) — ${hseText}</h2>
+        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">FAIL / ABSENT LIST (${examType}) — ${hseText}</h2>
         <p style="font-size: 9.5pt; font-weight: bold; margin: 2px 0;">Session & Year: <strong>${session}</strong></p>
       </div>
 
@@ -1846,7 +1886,7 @@ export function printFailList({
     </div>
   `;
 
-  triggerPrintWindow(html, `Absentee & Fail List (${examType}) — Class ${className}`);
+  triggerPrintWindow(html, `Fail & Absent List (${examType}) — Class ${className}`);
   return true;
 }
 

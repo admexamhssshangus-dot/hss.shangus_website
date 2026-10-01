@@ -2,48 +2,54 @@
 
 ## Current Working Changes
 
-### Exclude Exam-Dropped / Discharged Students from All Practicals Outputs
+### Practicals — Subject-Specific Attendance, Fail/Absent List & Exam Roll Display
 
-- **Feature Addressed:**
-  - Exam-dropped and discharged students were previously appearing in printed award rolls, attendance sheets, Excel exports, and DOCX consolidated award matrices. These students should be fully excluded from all practicals output at every layer.
+- **User Requests Addressed:**
+  - *"admin shall be able to print subject specific attendance"*
+  - *"turn fail list into fail/absent"*
+  - *"ensure exam roll no is displayed in web version of award also"*
 
-- **Changes Made:**
+---
 
-  1. **`studentApprovalStatus.js` — Broadened `isStudentExamDropped()` detection:**
-     - Now also detects `isDropped`, `dropped` boolean flags on student records.
-     - Reads generic `status`, `Status`, `admissionStatus`, `studentStatus`, `Admission Status` fields for dropped detection.
-     - Added `discharged` / `discharge` as recognized dropped-status keywords.
-     - Updated `resolveStudentAdmissionStatus()` to return `'Dropped'` for `drop` status strings.
+### 1. Subject-Specific Attendance Sheet
 
-  2. **`practicalsPdfGenerator.js` — Filter before every print function:**
-     - `printIndividualAwardRoll` — filters records before rendering.
-     - `printConsolidatedAwardRoll` — filters students before rendering.
-     - `printAttendanceSheet` — filters students before rendering.
-     - `printAllIndividualAwardRolls` — filters students before rendering.
-     - `printFailList` — filters students before rendering.
+**`practicalsPdfGenerator.js` — `printAttendanceSheet()`:**
+- Added `subjectCode` and `subjectName` parameters.
+- When a `subjectCode` is provided, filters students to only those enrolled in that subject using the same stream/keyword logic used by award rolls (handles EN=all, PH/CH=science, BI/BO/ZO=bio-science, MA=non-med, and keyword match for all others).
+- PDF heading and browser `<title>` both include the subject name (e.g. "Internal Practical Attendance Sheet — HSE-I (Class 11th) — Physics (PH)").
 
-  3. **`practicalsCsvManager.js` — Filter before every export function:**
-     - `exportCurrentRosterToExcel` — filters students at start.
-     - `exportConsolidatedAwardsToExcel` — filters students at start; returns false if none remain.
-     - `exportConsolidatedAwardsToDocx` — filters students at start; returns false if none remain.
+**`AdminPracticals.jsx` — Attendance Button:**
+- When exactly **one subject** is selected in the Subjects dropdown → button shows **`Attendance (PH)`** (or whichever code) with a tooltip, and prints subject-specific attendance (only students of that subject).
+- When **multiple subjects** selected → button shows **`Attendance`** and prints all students as before.
 
-  4. **`AdminPracticals.jsx` — UI-layer filter on print/export buttons:**
-     - `AwardsSummaryView` print buttons now filter `selectedStudentsList`/`sortedStudents` through `isStudentExamDropped` before passing to print/export functions.
+---
+
+### 2. Fail List → Fail / Absent
+
+- Button label changed: `Fail List` → **`Fail / Absent`**
+- PDF heading changed: `ABSENTEE / FAIL STUDENTS LIST` → **`FAIL / ABSENT LIST`**
+- Print window title updated to: `Fail & Absent List (...)`
+- *(The logic was already collecting both fail + absent records — this was purely a label correction.)*
+
+---
+
+### 3. Always Show Exam Roll in Web Awards Table
+
+- Removed the `!isCurrSession` guard that previously suppressed exam roll numbers for 2025–26 session students (on the assumption rolls aren't issued yet).
+- Now shows exam roll whenever the field is populated on the student record, regardless of session year.
 
 ---
 
 ## Files Added / Modified
-- `src/utils/studentApprovalStatus.js` — Extended dropped detection logic.
-- `src/utils/practicalsPdfGenerator.js` — All print functions filter dropped students.
-- `src/utils/practicalsCsvManager.js` — All export functions filter dropped students.
-- `src/portal/admin/AdminPracticals.jsx` — UI buttons filter dropped students before invoking exports.
+- `src/utils/practicalsPdfGenerator.js` — Subject-specific attendance filter logic; renamed fail/absent heading.
+- `src/portal/admin/AdminPracticals.jsx` — Smart attendance button (single-subject mode); fail/absent label; always-show exam roll.
 - `CHANGES_SINCE_LAST_COMMIT.md` — Updated memory log.
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(practicals): exclude exam-dropped and discharged students from all PDF, Excel, and DOCX outputs
+feat(practicals): subject-specific attendance print, rename fail to fail/absent, always show exam roll in web awards table
 ```
 
 ---
@@ -61,7 +67,7 @@ git show HEAD
 ```bash
 git reset --soft HEAD~1
 # Make any additional changes if needed
-git commit -m "fix(practicals): exclude exam-dropped and discharged students from all PDF, Excel, and DOCX outputs"
+git commit -m "feat(practicals): subject-specific attendance print, rename fail to fail/absent, always show exam roll in web awards table"
 ```
 
 ### Manual Push (Mandatory Policy):
