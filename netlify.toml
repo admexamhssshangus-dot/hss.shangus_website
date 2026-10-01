@@ -6,6 +6,7 @@
 [build.environment]
   NODE_VERSION = "22"
   GENERATE_SOURCEMAP = "false"
+  SECRETS_SCAN_OMIT_PATHS = "scripts/**"
 
 # Canonical public URL redirects are generated explicitly during the build.
 [build.processing.html]

@@ -8,18 +8,22 @@ import { initializeApp as initClient } from 'firebase/app';
 import { getAuth, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, deleteDoc, addDoc, collection } from 'firebase/firestore';
 
-const sa = JSON.parse(fs.readFileSync('scripts/serviceAccount.json', 'utf8'));
-const adminApp = admin.initializeApp({ credential: admin.cert(sa) }, 'adminAppMigrate');
-const adminAuth = getAdminAuth(adminApp);
+const saPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || path.resolve('scripts/serviceAccount.json');
+let adminAuth = null;
+if (fs.existsSync(saPath)) {
+  const sa = JSON.parse(fs.readFileSync(saPath, 'utf8'));
+  const adminApp = admin.initializeApp({ credential: admin.cert(sa) }, 'adminAppMigrate');
+  adminAuth = getAdminAuth(adminApp);
+}
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDhVgqXBo93FGXAm9YrG8x40Oa9pApu0bo",
-  authDomain: "hsssdb.firebaseapp.com",
-  projectId: "hsssdb",
-  storageBucket: "hsssdb.firebasestorage.app",
-  messagingSenderId: "894258649787",
-  appId: "1:894258649787:web:8e1f77202b304f48f2279e",
-  measurementId: "G-3RJ3KDNTH2"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || "",
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "hsssdb.firebaseapp.com",
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "hsssdb",
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "hsssdb.firebasestorage.app",
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "894258649787",
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:894258649787:web:8e1f77202b304f48f2279e",
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-3RJ3KDNTH2"
 };
 
 const clientApp = initClient(firebaseConfig, 'clientAppMigrate');
@@ -33,6 +37,10 @@ async function migrate() {
   
   // 1. Authenticate with verified admin claims
   console.log("1. Authenticating as administrator...");
+  if (!adminAuth) {
+    console.error("Firebase Admin SDK credentials not available. Please provide serviceAccount.json.");
+    return;
+  }
   const customToken = await adminAuth.createCustomToken('admin_migration_agent', {
     email: 'adm.exam.hss.shangus@gmail.com',
     email_verified: true,
