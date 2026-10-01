@@ -132,6 +132,8 @@ export default function AdminGazetteRecordEditModal({
     let failedCount = 0;
     let absentCount = 0;
     const failedCodes = [];
+    const absentCodes = [];
+    const passedCodes = [];
 
     Object.values(marksState).forEach(sub => {
       const v = String(sub.val).trim().toUpperCase();
@@ -141,8 +143,7 @@ export default function AdminGazetteRecordEditModal({
         absentCount++;
         evalCount++;
         totalMax += sub.maxMarks;
-        failedCount++;
-        failedCodes.push(sub.code);
+        absentCodes.push(sub.code);
       } else {
         const num = Number(v);
         if (Number.isFinite(num) && num >= 0) {
@@ -152,6 +153,8 @@ export default function AdminGazetteRecordEditModal({
           if (num < sub.minMarks) {
             failedCount++;
             failedCodes.push(sub.code);
+          } else {
+            passedCodes.push(sub.code);
           }
         }
       }
@@ -160,16 +163,20 @@ export default function AdminGazetteRecordEditModal({
     const pct = totalMax > 0 ? ((totalObt / totalMax) * 100).toFixed(1) : '0.0';
     let result = 'PENDING';
     if (evalCount > 0) {
-      if (failedCount === 0) {
-        result = 'PASS';
-      } else if (absentCount === evalCount) {
+      if (absentCount === evalCount) {
         result = 'ABSENT';
+      } else if (failedCount === 0 && absentCount === 0) {
+        result = 'PASS';
+      } else if (failedCodes.length > 0 && absentCodes.length > 0) {
+        result = `Poor in (${failedCodes.join(', ')}), Absent in (${absentCodes.join(', ')})`;
+      } else if (failedCodes.length > 0) {
+        result = `Poor Performance in (${failedCodes.join(', ')})`;
       } else {
-        result = failedCodes.length > 0 ? `Poor Performance in (${failedCodes.join(', ')})` : 'Poor Performance';
+        result = `Absent in (${absentCodes.join(', ')})`;
       }
     }
 
-    return { totalObt, totalMax, pct, result, evalCount, failedCount };
+    return { totalObt, totalMax, pct, result, evalCount, failedCount, absentCount, passedCodes, failedCodes, absentCodes };
   }, [marksState]);
 
   // Has any mark actually changed?
@@ -619,8 +626,8 @@ export default function AdminGazetteRecordEditModal({
                   assessmentSummary.result === 'PASS'
                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300'
                     : assessmentSummary.result === 'ABSENT'
-                    ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300'
-                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300'
+                    ? 'bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border border-slate-300'
+                    : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300'
                 }`}>
                   {assessmentSummary.result}
                 </span>
