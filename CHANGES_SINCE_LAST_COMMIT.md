@@ -1,94 +1,83 @@
-# Changes Log & Commit Reference
+# Changes Summary Since Last Commit
 
-## Latest Commit: Restrict socialshiftz@gmail.com Exclusively to Teacher Role and Enforce Strict RBAC Portal Isolation
-
-**Commit Message:** `fix(security): restrict socialshiftz@gmail.com to teacher role and enforce strict rbac isolation`
-
----
-
-### Context & Root Cause Analysis
-
-The user reported:
-> *"check again socialshiftz@gmail.com is teacher email not admin...teacher can never access admin portal not student can access eirther of two....i mean login is role specific"*
-> *"why it shows open admin panel....something has broken here? check the security deeply and strictly"*
-
-#### Root Cause:
-1. `socialshiftz@gmail.com` (Faculty member Sheikh Gulfam, Botany, Class 11th & 12th) was erroneously listed inside `BOOTSTRAP_ADMINS` in `src/utils/authRoles.js` and `isBootstrapAdmin()` in `firestore.rules`.
-2. In `src/services/staffAuthService.js`, `FALLBACK_STAFF_PROFILES['socialshiftz@gmail.com']` had `isAdmin: true` and `perms: ['reports']` instead of teacher permissions `['attendanceMgmt', 'practicals']`.
-3. Because `isAdmin` evaluated to `true`, the Teacher Dashboard rendered an administrative guidance banner ("Open Admin Portal") and an "Admin Portal" navigation button, and the top-right Navbar displayed the user badge as "ADMIN" linking to `/portal/admin`.
-4. Furthermore, role-specific login routing and tab guards needed explicit redirection and isolation to prevent any role crossover between Students, Teachers, and Administrators.
+## Commit Summary
+- **Commit Message**: `feat(assessments): add full filter parity and dual-source roster loader in teacher assessments`
+- **Date**: October 02, 2026
+- **Status**: Production Build Passed (`Exit Code 0`), verified locally.
 
 ---
 
-### Changes Made
+## Files Changed & Impact
 
-1. **`src/utils/authRoles.js`**:
-   - Removed `'socialshiftz@gmail.com'` from `BOOTSTRAP_ADMINS`.
-   - `isBootstrapAdminEmail('socialshiftz@gmail.com')` now strictly returns `false`.
+### 1. `src/portal/teacher/PracticalsPage.jsx`
+- **Exports Added**:
+  - Exported standard evaluation helper functions to guarantee exact cross-portal matching parity:
+    - `extractRawAdmNo`: Robust admission number sanitizer and resolver across all schemas.
+    - `isClassMatch`: Strict class matching (`11th`, `11`, `Class 11`).
+    - `getSessionEndYear`: Academic session range parser (`2025-26` -> `2026`).
+    - `isSessionMatch`: Multi-format session matcher handling regular, Oct-Nov, Mar-Apr, and annual sessions.
+    - `isSubjectOrStreamMatch`: Canonical subject code/stream and compulsory subject matcher.
+    - `extractStudentClass`: Class resolver across multiple form/admission keys.
+    - `hasAssignedClassRoll`: Comprehensive roll number validator filtering unallotted/placeholder rows.
+    - `getStudentName`: Robust student name accessor.
+    - `getRegNo`: JKBOSE dual registration number extractor.
+    - `getExamRoll`: Class-specific board exam roll extractor.
+    - `numberToWords`: Converts numbers to formal words representation with absent handling.
+    - `renderSubjectsWithHighlight`: Renders student enrolled subjects with the active filter subject highlighted in bold red.
 
-2. **`src/services/staffAuthService.js`**:
-   - Updated `FALLBACK_STAFF_PROFILES['socialshiftz@gmail.com']`:
-     - `name`: `'Sheikh Gulfam'`
-     - `role`: `'Teacher'`
-     - `isTeacher`: `true`
-     - `isAdmin`: `false`
-     - `subject`: `'Botany'`
-     - `teachingSubject`: `'Botany'`
-     - `assignedClasses`: `['11th', '12th']`
-     - `perms`: `['attendanceMgmt', 'practicals']`
-   - Added an institutional safety guard in `resolveStaffRoleAndPerms` that guarantees `socialshiftz@gmail.com` always resolves to `role: 'Teacher'` and `isAdmin: false`, overriding any stale or legacy administrative records in remote documents.
-
-3. **`firestore.rules`**:
-   - Removed `'socialshiftz@gmail.com'` from `isBootstrapAdmin()`.
-   - Retained `'socialshiftz@gmail.com'` in `verifiedStaffIdentity()` so that authentic faculty responsibilities (attendance logging and practical marks submission) remain fully authorized under Cloud Firestore security rules.
-   - Successfully deployed updated rules to Firebase via `npm run deploy:rules`.
-
-4. **`src/portal/LoginPage.jsx`**:
-   - Updated Google Sign-In and Email/Password Sign-In to enforce explicit, role-specific redirections:
-     - Teachers are directed to `/portal/teacher`.
-     - Students are directed to `/portal/student`.
-     - Admins are directed to `/portal/admin`.
-   - Maintained strict tab guards ensuring students and teachers cannot authenticate on administrative tabs.
-
-5. **`src/portal/teacher/TeacherDashboard.jsx` & Navbar**:
-   - With `user.isAdmin`, `isBootstrapAdminEmail`, and `isSuperAdminEmail` now evaluating to `false` for `socialshiftz@gmail.com`, `isAdminUser` evaluates to `false`.
-   - The "Open Admin Portal" banner and header switch button are completely hidden for `socialshiftz@gmail.com`.
-   - In Navbar, the badge displays `TEACHER` and links exclusively to `/portal/teacher`.
-
----
-
-### Exact List of Files Changed
-
-- [src/utils/authRoles.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/authRoles.js) (Removed `socialshiftz@gmail.com` from `BOOTSTRAP_ADMINS`)
-- [src/services/staffAuthService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/staffAuthService.js) (Set `isAdmin: false`, `role: 'Teacher'`, `perms: ['attendanceMgmt', 'practicals']` for `socialshiftz@gmail.com`)
-- [firestore.rules](file:///d:/Shk_Gulfam/Projects/hss_shangus/firestore.rules) (Removed `socialshiftz@gmail.com` from `isBootstrapAdmin()`, deployed to Firebase)
-- [src/portal/LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx) (Enforced explicit role-specific redirect pathways for student, teacher, and admin logins)
-- [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md) (Updated memory log)
-
----
-
-### Build Verification & Metrics
-
-- `npm run build`: **Exit Code 0** (production bundle built cleanly; passed all 11 static SEO checks).
-- `npm run deploy:rules`: **Exit Code 0** (`+ firestore: released rules firestore.rules to cloud.firestore`).
+### 2. `src/portal/teacher/TeacherAssessmentsPage.jsx`
+- **Root Cause Fix for Low Student Count & Missing Roll Numbers**:
+  - Replaced the flawed single-source `masterDocs` query with the proven dual-source loader querying BOTH `masterRegisters` (via `getMasterRegistersScoped({ forceAll: false })`) and `admissions` (via `getCachedCollection('admissions', false)`).
+  - Built rich multi-key indexes (`richByReg`, `richByForm`, `richByRoll`, `richByBoard`, `richByAdm`, `richByName`).
+  - Added strict class roll resolution (`st['Class Roll No']`, `st['Class R.No.']`, etc.) so all examinees display their legitimate Class Roll Numbers (`Roll 3`, `Roll 4`...) instead of `-`.
+  - Added subject/stream filtering via `isSubjectOrStreamMatch` with support for `rosterScope` (`'stream'` vs `'all_class'`), ensuring all **89 enrolled students** for Class 11th Botany (2025-26) appear seamlessly.
+- **Full Functional & Filter Parity with Practicals Portal**:
+  - **Master Action Toolbar**:
+    - Select All checkbox (`[ ] All`) with indeterminate state.
+    - Sort dropdown with options: `Roll ↑`, `Roll ↓`, `Name A-Z`, `Form #`.
+    - Collapsible `Filters (X Students)` toggle button with dynamic student counter and fail indicators.
+    - `⚡ Fill` button triggering the Quick Bulk Fill drawer.
+    - `🖨️ Print` button triggering the official School-Based Assessment Award Roll generator.
+  - **Secondary Filter Panel**:
+    - Target Class dropdown (`Class 11th`, `Class 12th`, `Class 10th`, `Class 9th`).
+    - Roster Scope dropdown (`Subject / Stream Only` vs `All Class Students`).
+    - Subject selector with class-assigned subject priority.
+    - Examination/Assessment Type selector (`Pre-Board Examination`, `Golden Test`, `Mid-term Test`, `Unit Assessment`, etc.).
+    - Academic Session selector (`2025-26`, `2024-25`, etc.).
+    - Live Search bar (searches across Name, Roll No, Form #, Reg #, Exam Roll #, Parentage, Subjects).
+    - "Show Reappear / Absent Only" filter toggle.
+  - **Quick Bulk Fill Drawer**:
+    - Supports assigning marks to Empty Only, Selected Only, or All Examinees, with preset chips and clear option.
+    - Fast select shortcuts (`All`, `Empty Only`, `Clear Selection`).
+  - **Rich Student Cards & Table Rows**:
+    - Individual selection checkboxes (`[ ] #1`, `[ ] #2`...).
+    - Prominent purple/indigo Roll No badges (`Roll 3`, `Roll 4`...).
+    - Student details display: Name, `Form #`, `Reg #`, `Exam Roll #`.
+    - `Subs:` badge showing all enrolled subjects with the active test subject highlighted in a distinct colored pill.
+    - Keyboard-friendly score input (`0-X / A`) with Enter key auto-advancing to the next student.
+    - Absent (`AB`) toggle button and in-words mark translation badge.
 
 ---
 
-### Manual Review & Push Instructions
+## Instructions for the User
 
-1. **Inspect Commit History**:
-   ```bash
-   git log -n 1 --stat
-   ```
+### 1. Review Local Commit
+To inspect the changes made in this commit:
+```bash
+git show HEAD
+# or view status
+git status
+```
 
-2. **Amend or Re-commit if Desired**:
-   ```bash
-   # If you wish to adjust the commit message or files:
-   git reset --soft HEAD~1
-   git commit -m "fix(security): restrict socialshiftz@gmail.com to teacher role and enforce strict rbac isolation"
-   ```
+### 2. Amend / Re-commit (If desired)
+If you wish to modify the commit message or make additional edits:
+```bash
+git reset --soft HEAD~1
+git commit -m "feat(assessments): add full filter parity and dual-source roster loader in teacher assessments"
+```
 
-3. **Push to Remote**:
-   ```bash
-   git push origin main
-   ```
+### 3. Push Changes (STRICT MANUAL RULE)
+The assistant is strictly prohibited from pushing to remote repositories. Push whenever you are ready:
+```bash
+git push origin main
+```

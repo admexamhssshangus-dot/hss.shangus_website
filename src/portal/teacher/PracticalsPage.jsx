@@ -122,7 +122,7 @@ const formatSubmissionDate = (updatedAt, displayDate) => {
   }
 };
 
-const extractRawAdmNo = (rec) => {
+export const extractRawAdmNo = (rec) => {
   if (!rec) return '';
   const candidates = [
     rec['admNo'],
@@ -174,7 +174,7 @@ const extractRawAdmNo = (rec) => {
 };
 
 // Helper: Strict class matching (e.g. '11th', '11th Class', 'Class 11', '11')
-function isClassMatch(stClass, targetClass) {
+export function isClassMatch(stClass, targetClass) {
   if (!stClass || !targetClass) return false;
   const c1 = String(stClass).toLowerCase().replace(/class/gi, '').trim();
   const c2 = String(targetClass).toLowerCase().replace(/class/gi, '').trim();
@@ -187,7 +187,7 @@ function isClassMatch(stClass, targetClass) {
 // Helper: Extract the END YEAR from a session string.
 // Academic sessions are formatted as "YYYY-YY" (e.g. "2024-25" → end year 2025, "2025-26" → end year 2026).
 // yearSuffix from practicals is always the end year when exams happen.
-function getSessionEndYear(sessionStr) {
+export function getSessionEndYear(sessionStr) {
   const s = String(sessionStr || '').trim();
   // Match range format: YYYY-YY (e.g., 2024-25, 2025-26)
   const rangeMatch = s.match(/\b(20\d\d)-(\d\d)\b/);
@@ -203,7 +203,7 @@ function getSessionEndYear(sessionStr) {
 }
 
 // Helper: Session matching using end-year comparison & sub-session checks
-function isSessionMatch(stSession, targetYearSuffix) {
+export function isSessionMatch(stSession, targetYearSuffix) {
   if (!stSession) return true;
   const sStr = String(stSession).toLowerCase().trim();
   const tStr = String(targetYearSuffix).toLowerCase().trim();
@@ -255,7 +255,7 @@ function isSessionMatch(stSession, targetYearSuffix) {
 }
 
 // Helper: Subject / Stream Matcher
-function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
+export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
   if (!targetSubjectCode && !targetSubjectName) return true;
 
   const codeUpper = String(targetSubjectCode || '').toUpperCase().trim();
@@ -466,7 +466,7 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
 }
 
 // Helper: Extract student class from any potential schema key
-function extractStudentClass(st) {
+export function extractStudentClass(st) {
   if (!st) return '';
   const c = String(
     st['Admission sought for class'] ||
@@ -483,7 +483,7 @@ function extractStudentClass(st) {
 }
 
 // Helper: Check if student has assigned Class Roll No
-function hasAssignedClassRoll(st) {
+export function hasAssignedClassRoll(st) {
   if (!st) return false;
   const roll = String(
     st['Class Roll No'] ||
@@ -515,7 +515,7 @@ function hasAssignedClassRoll(st) {
 }
 
 // Helper: Extract Student Name from any potential schema key
-function getStudentName(st) {
+export function getStudentName(st) {
   if (!st) return 'Student';
   const nameStr = (
     st["Student's Name (as per school records)"] ||
@@ -539,7 +539,7 @@ function getStudentName(st) {
 }
 
 // Helper: Extract Registration Number (Dual Reg No format: NewRegNo (OldRegNo))
-function getRegNo(st) {
+export function getRegNo(st) {
   if (!st) return '';
 
   const clean = (val) => {
@@ -629,7 +629,7 @@ function getRegNo(st) {
 
 // Helper: Extract Exam Roll Badges (Exam R.No. (Current) + Exam R.no. (Prev.))
 // Helper: Extract Current Class Exam Roll Number ONLY (returns '' if not assigned)
-function getExamRoll(st, selectedClass) {
+export function getExamRoll(st, selectedClass) {
   if (!st) return '';
 
   const getCleanVal = (val) => {
@@ -922,7 +922,7 @@ export function getAbbreviatedSubjects(st, targetClass = '') {
 }
 
 // Helper: Convert numbers to words
-function numberToWords(numStr) {
+export function numberToWords(numStr) {
   const value = String(numStr || '').trim().toUpperCase();
   if (value === '' || value === 'A' || value === 'AB' || value === 'ABSENT') {
     return value === 'A' || value === 'AB' || value === 'ABSENT' ? 'ABSENT' : 'N/A';
@@ -945,7 +945,7 @@ function numberToWords(numStr) {
 }
 
 // Helper: Render subject list with current filter subject highlighted in bold red text
-function renderSubjectsWithHighlight(subjectsStr, currentSubjObj) {
+export function renderSubjectsWithHighlight(subjectsStr, currentSubjObj) {
   if (!subjectsStr || subjectsStr === 'N/A') return <span>N/A</span>;
 
   const targetCode = String(currentSubjObj?.code || '').toLowerCase().trim();

@@ -3,7 +3,8 @@ import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, RefreshCw, AlertCircle, CheckCircle2,
   Printer, ShieldCheck, History, Clock, Search, Save, Send,
-  ChevronDown, X, Info, Sparkles, Award, AlertTriangle, FileText, Check
+  ChevronDown, X, Info, Sparkles, Award, AlertTriangle, FileText, Check,
+  SlidersHorizontal, Zap
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
@@ -18,33 +19,33 @@ import { printIndividualAwardRoll, isSubmissionOwnedByTeacher } from '../../util
 import {
   getSchoolEvaluationTypesForTeacher,
   getSubjectOverride,
-  SUBJECT_CONFIG_DEFS,
   isTeacherSubjectMatch,
   normalizeSubjectIdentity,
   formatPracticalDocId,
   getTeacherAssignedSubjectsForClass,
-  isPracticalEvaluationType,
   isSchoolAssessmentType
 } from '../../utils/practicalsSettingsManager';
+import {
+  isClassMatch,
+  getSessionEndYear,
+  isSessionMatch,
+  isSubjectOrStreamMatch,
+  extractStudentClass,
+  hasAssignedClassRoll,
+  getStudentName,
+  getRegNo,
+  getExamRoll,
+  extractRawAdmNo,
+  extractRawSubjectsString,
+  getAbbreviatedSubjects,
+  numberToWords,
+  renderSubjectsWithHighlight,
+  SECONDARY_7_SUBJECTS,
+  HIGHER_SECONDARY_15_SUBJECTS
+} from './PracticalsPage';
 
 const CURRENT_SESSION = '2025-26';
 const AVAILABLE_CLASSES = ['9th', '10th', '11th', '12th'];
-
-const SECONDARY_SUBJECTS = [
-  { code: 'EN', name: 'General English', defaultMax: 50 },
-  { code: 'MA', name: 'Mathematics', defaultMax: 50 },
-  { code: 'SC', name: 'Science', defaultMax: 50 },
-  { code: 'SS', name: 'Social Science', defaultMax: 50 },
-  { code: 'UR', name: 'Urdu', defaultMax: 50 },
-  { code: 'HI', name: 'Hindi', defaultMax: 50 },
-  { code: 'CS', name: 'Computer Science', defaultMax: 50 }
-];
-
-const HIGHER_SECONDARY_SUBJECTS = SUBJECT_CONFIG_DEFS.map(s => ({
-  code: s.code,
-  name: s.name,
-  defaultMax: 50
-}));
 
 export default function TeacherAssessmentsPage() {
   const { user } = useOutletContext();
@@ -74,11 +75,25 @@ export default function TeacherAssessmentsPage() {
   const [selectedSession, setSelectedSession] = useState(location.state?.yearSuffix || CURRENT_SESSION);
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION, '2024-25', '2023-24']);
 
+  // Roster Scope: 'stream' (Subject/Stream only) vs 'all_class' (All Class Students)
+  const [rosterScope, setRosterScope] = useState('stream');
+
+  // Sorting & Filtering State
+  const [sortBy, setSortBy] = useState('rollAsc'); // 'rollAsc' | 'rollDesc' | 'nameAsc' | 'formAsc'
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showFailOnly, setShowFailOnly] = useState(false);
+  const [showFilterSettings, setShowFilterSettings] = useState(true);
+
+  // Bulk Selection & Quick Fill
+  const [selectedKeys, setSelectedKeys] = useState(new Set());
+  const [quickFillMark, setQuickFillMark] = useState('');
+  const [showQuickFill, setShowQuickFill] = useState(false);
+
   // Subjects for selected class
   const displaySubjects = useMemo(() => {
     return (selectedClass === '9th' || selectedClass === '10th')
-      ? SECONDARY_SUBJECTS
-      : HIGHER_SECONDARY_SUBJECTS;
+      ? SECONDARY_7_SUBJECTS
+      : HIGHER_SECONDARY_15_SUBJECTS;
   }, [selectedClass]);
 
   const teacherClassAssignedSubjects = useMemo(() => {
@@ -129,7 +144,7 @@ export default function TeacherAssessmentsPage() {
 
   // Active Subject & Config Resolution
   const currentSubjectObj = useMemo(() => {
-    return displaySubjects.find(s => s.name.toLowerCase() === selectedSubject.toLowerCase()) ||
+    return displaySubjects.find(s => s.name.toLowerCase() === selectedSubject.toLowerCase() || s.code.toLowerCase() === selectedSubject.toLowerCase()) ||
       displaySubjects[0] ||
       { code: 'EN', name: 'General English', defaultMax: 50 };
   }, [displaySubjects, selectedSubject]);
@@ -178,17 +193,25 @@ export default function TeacherAssessmentsPage() {
 
   const pendingDocId = `pending_${canonicalDocId}`;
 
-  // Fetch Student Roster & Existing Marks
+  // Unique key helper for student selection
+  const getStudentKey = useCallback((st) => {
+    return String(st.classRollNo || st.rollNo || st.regNo || st.formNo || st.id || st.studentName || st.name);
+  }, []);
+
+  // Fetch Student Roster & Existing Marks using Dual-Source Loader (masterRegisters + admissions)
   const fetchRosterData = useCallback(async () => {
     setLoading(true);
+    setSelectedKeys(new Set());
     try {
       // 1. Fetch live or pending marks from practicalsData
       let loadedDoc = null;
       let status = 'unsubmitted';
 
-      const [pendingSnap, canonicalSnap] = await Promise.all([
+      const [pendingSnap, canonicalSnap, masterRes, admRes] = await Promise.all([
         getDoc(fsDoc(db, 'practicalsData', pendingDocId)).catch(() => null),
-        getDoc(fsDoc(db, 'practicalsData', canonicalDocId)).catch(() => null)
+        getDoc(fsDoc(db, 'practicalsData', canonicalDocId)).catch(() => null),
+        getMasterRegistersScoped({ forceAll: false }).catch(() => []),
+        getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => [])
       ]);
 
       if (pendingSnap && pendingSnap.exists()) {
@@ -204,131 +227,479 @@ export default function TeacherAssessmentsPage() {
       setExistingRecord(loadedDoc);
       setSubmissionStatus(status);
 
-      // 2. Fetch Master Registers student list for this class & session
-      const normCls = selectedClass.replace(/class/gi, '').trim();
-      const masterDocs = await getMasterRegistersScoped(normCls, selectedSession).catch(() => []);
-
-      let rawStudents = [];
-      if (Array.isArray(masterDocs) && masterDocs.length > 0) {
-        masterDocs.forEach(d => {
-          const list = d.items || d.students || d.records || d.data;
-          if (Array.isArray(list)) rawStudents.push(...list);
-        });
-      }
-
-      // Fallback: fetch admissions if master registers is empty
-      if (rawStudents.length === 0) {
-        const admissions = await getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => []);
-        rawStudents = (admissions || []).filter(st => {
-          const c = String(st.class || st.className || '').toLowerCase();
-          const s = String(st.session || st.academicSession || '');
-          return c.includes(normCls.toLowerCase()) && (s.includes(selectedSession) || selectedSession.includes(s));
-        });
-      }
-
-      // Deduplicate students by roll number or name
-      const studentMap = new Map();
-      rawStudents.forEach(st => {
-        const roll = String(st.rollNo || st.classRollNo || st.RollNo || '').trim();
-        const name = String(st.name || st.studentName || st.StudentName || '').trim();
-        if (!name) return;
-        const key = roll && roll !== '—' && roll !== 'N/A' ? `roll_${roll}` : `name_${name.toLowerCase()}`;
-        if (!studentMap.has(key)) {
-          studentMap.set(key, {
-            id: st.id || key,
-            rollNo: roll || '',
-            name,
-            fatherName: st.fatherName || st.parentage || st.FatherName || '',
-            stream: st.stream || st.Stream || '',
-            marks: '',
-            isAbsent: false
-          });
-        }
-      });
-
-      const rosterList = Array.from(studentMap.values()).sort((a, b) => {
-        const rA = parseInt(a.rollNo, 10);
-        const rB = parseInt(b.rollNo, 10);
-        if (!isNaN(rA) && !isNaN(rB)) return rA - rB;
-        return a.name.localeCompare(b.name);
-      });
-
-      // 3. Merge previously submitted/saved marks into roster
-      if (loadedDoc && Array.isArray(loadedDoc.records) && loadedDoc.records.length > 0) {
-        const marksLookup = new Map();
+      // Build saved marks lookup from loadedDoc
+      const savedMarksMap = {};
+      if (loadedDoc && Array.isArray(loadedDoc.records)) {
         loadedDoc.records.forEach(r => {
-          const rRoll = String(r.rollNo || r.roll || '').trim();
+          const rRoll = String(r.rollNo || r.classRollNo || '').trim();
+          const rBoard = String(r.boardRollNo || r.boardRoll || r.examRollNo || '').trim();
+          const rForm = String(r.formNo || '').trim();
           const rName = String(r.name || r.studentName || '').toLowerCase().trim();
-          if (rRoll) marksLookup.set(`roll_${rRoll}`, r);
-          if (rName) marksLookup.set(`name_${rName}`, r);
-        });
+          const rReg = String(r.regNo || r.boardRegNo || r.registrationNo || '').trim();
 
-        rosterList.forEach(st => {
-          const rRollKey = st.rollNo ? `roll_${st.rollNo}` : null;
-          const rNameKey = `name_${st.name.toLowerCase()}`;
-          const existing = (rRollKey && marksLookup.get(rRollKey)) || marksLookup.get(rNameKey);
-          if (existing) {
-            const rawMarks = existing.marks !== undefined ? existing.marks : (existing.practicalMarks || existing.score || '');
-            const isAb = String(rawMarks).toUpperCase() === 'AB' || String(rawMarks).toUpperCase() === 'A' || existing.isAbsent;
-            st.marks = isAb ? 'AB' : rawMarks;
-            st.isAbsent = isAb;
+          const recObj = {
+            rollNo: rRoll || rBoard,
+            classRollNo: rRoll || rBoard,
+            boardRoll: rBoard,
+            regNo: rReg,
+            name: r.name || r.studentName,
+            fatherName: r.fatherName || r.parentName || '',
+            formNo: rForm || rRoll,
+            marks: r.marks !== undefined && r.marks !== null ? String(r.marks) : (r.practicalMarks !== undefined ? String(r.practicalMarks) : ''),
+            isAbsent: r.isAbsent || r.marks === 'AB' || r.practicalMarks === 'AB'
+          };
+
+          if (rRoll) savedMarksMap[rRoll] = recObj;
+          if (rBoard) savedMarksMap[rBoard] = recObj;
+          if (rForm) savedMarksMap[rForm] = recObj;
+          if (rName) savedMarksMap[rName] = recObj;
+          if (rReg) {
+            const cleanRReg = rReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            if (cleanRReg.length >= 8) savedMarksMap['reg_' + cleanRReg] = recObj;
           }
         });
       }
 
-      setStudents(rosterList);
+      let allCandidates = [];
+
+      // A. Master Registers
+      const masterDocs = Array.isArray(masterRes) ? masterRes : [];
+      masterDocs.forEach(d => {
+        const items = d.items || d.data || d.records;
+        const docSession = d.Session || d.session || d.groupKey?.split('_')[0] || d.id?.split('_')[0] || '';
+        const docClass = d.class || d.Class || d.groupKey?.split('_')[1] || '';
+
+        if (Array.isArray(items)) {
+          items.forEach(it => {
+            allCandidates.push({
+              ...it,
+              session: it.Session || it.session || docSession,
+              class: it.class || it.Class || it['Class'] || docClass
+            });
+          });
+        } else {
+          allCandidates.push({
+            ...d,
+            session: d.Session || d.session || docSession,
+            class: d.class || d.Class || d['Class'] || docClass
+          });
+        }
+      });
+
+      // B. Admissions
+      const admDocs = Array.isArray(admRes) ? admRes : [];
+      admDocs.forEach(d => {
+        const items = d.items || d.students || d.records;
+        const docSession = d.Session || d.session || CURRENT_SESSION;
+        const docClass = d.class || d.Class || d['Admission sought for class'] || '';
+
+        if (Array.isArray(items)) {
+          items.forEach(it => {
+            allCandidates.push({
+              ...it,
+              session: it.Session || it.session || docSession,
+              class: it['Admission sought for class'] || it['Class for which Admission Sought'] || it['Class Enrolled'] || it.className || it.class || it.Class || it['Class'] || docClass
+            });
+          });
+        } else {
+          allCandidates.push({
+            ...d,
+            session: d.Session || d.session || docSession,
+            class: d['Admission sought for class'] || d['Class for which Admission Sought'] || d['Class Enrolled'] || d.className || d.class || d.Class || docClass
+          });
+        }
+      });
+
+      // C. Build Rich Index Maps for Multi-Key Matching
+      const richByReg = new Map();
+      const richByForm = new Map();
+      const richByRoll = new Map();
+      const richByBoard = new Map();
+      const richByAdm = new Map();
+      const richByName = new Map();
+
+      const indexRichItem = (it) => {
+        if (!it) return;
+        const itClass = extractStudentClass(it);
+        const isMatchCls = isClassMatch(itClass, selectedClass);
+
+        const setIfBetter = (map, key, item) => {
+          if (!key || key === '—' || key === 'N/A' || key === '#N/A') return;
+          const existing = map.get(key);
+          if (!existing) {
+            map.set(key, item);
+          } else {
+            const existingCls = extractStudentClass(existing);
+            const existingMatches = isClassMatch(existingCls, selectedClass);
+            if (!existingMatches && isMatchCls) {
+              map.set(key, item);
+            }
+          }
+        };
+
+        const rReg = getRegNo(it);
+        if (rReg) {
+          const cleanFull = rReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+          if (cleanFull.length >= 8) setIfBetter(richByReg, cleanFull, it);
+          setIfBetter(richByReg, rReg.trim().toUpperCase(), it);
+        }
+
+        const rForm = String(it.formNo || it['Form No.'] || it['Form Number'] || it.FormNo || '').trim();
+        setIfBetter(richByForm, rForm, it);
+
+        const rRoll = String(it.classRollNo || it.rollNo || it['Class Roll No'] || it['Roll No'] || '').trim();
+        if (isMatchCls) setIfBetter(richByRoll, rRoll, it);
+
+        const rExamRoll = getExamRoll(it, selectedClass);
+        if (rExamRoll) setIfBetter(richByBoard, rExamRoll, it);
+
+        const rAdm = extractRawAdmNo(it);
+        setIfBetter(richByAdm, rAdm, it);
+
+        const rName = getStudentName(it).toLowerCase().trim();
+        if (rName && rName !== 'student') setIfBetter(richByName, rName, it);
+      };
+
+      allCandidates.forEach(it => indexRichItem(it));
+
+      // D. Filter Candidates Strictly by Class + Session + Subject + Assigned Class Roll
+      const isSecondaryClass = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
+      const targetSubjCode = currentSubjectObj.code;
+      const targetSubjName = currentSubjectObj.name;
+
+      let allDiscoveredStudents = [];
+
+      allCandidates.forEach(st => {
+        const stClass = extractStudentClass(st);
+        const stSession = st.session || st.Session || st['Academic Session'];
+
+        const matchSubjOrAll = isSecondaryClass || rosterScope === 'all_class' || isSubjectOrStreamMatch(st, targetSubjCode, targetSubjName);
+
+        if (
+          hasAssignedClassRoll(st) &&
+          isClassMatch(stClass, selectedClass) &&
+          isSessionMatch(stSession, selectedSession) &&
+          matchSubjOrAll
+        ) {
+          const rRoll = String(
+            st['Class Roll No'] || st['Class Roll No.'] || st['Class R.No.'] || st['Class R.No'] ||
+            st['Class R. No.'] || st.classRollNo || st.rollNo || ''
+          ).trim();
+          const rName = getStudentName(st);
+          const rForm = st.formNo || st['Form No.'] || st['Form Number'] || '';
+          const rReg = getRegNo(st);
+          const rExamRoll = getExamRoll(st, selectedClass);
+
+          // Check if marks exist in savedMarksMap
+          let existingMarks = '';
+          let existingAb = false;
+
+          let rec = null;
+          if (rRoll && savedMarksMap[rRoll]) rec = savedMarksMap[rRoll];
+          else if (rForm && savedMarksMap[rForm]) rec = savedMarksMap[rForm];
+          else if (rExamRoll && savedMarksMap[rExamRoll]) rec = savedMarksMap[rExamRoll];
+          else if (rReg) {
+            const cleanReg = rReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            if (savedMarksMap['reg_' + cleanReg]) rec = savedMarksMap['reg_' + cleanReg];
+          }
+          if (!rec && rName && savedMarksMap[rName.toLowerCase().trim()]) {
+            rec = savedMarksMap[rName.toLowerCase().trim()];
+          }
+
+          if (rec) {
+            existingMarks = rec.marks !== undefined ? rec.marks : '';
+            existingAb = rec.isAbsent || existingMarks === 'AB';
+            if (existingAb) existingMarks = 'AB';
+          }
+
+          allDiscoveredStudents.push({
+            ...st,
+            id: st.id || `st_${rRoll}_${rForm}`,
+            rollNo: rRoll,
+            classRollNo: rRoll,
+            name: rName,
+            studentName: rName,
+            fatherName: st["Father's Name"] || st['Father Name'] || st.fatherName || st.parentage || '',
+            formNo: rForm,
+            regNo: rReg,
+            examRollNo: rExamRoll,
+            rawSubjects: extractRawSubjectsString(st, selectedClass) || st.subjects || '',
+            subjects: extractRawSubjectsString(st, selectedClass) || st['Subs'] || st.subjects || st['Subjects'] || currentSubjectObj.name,
+            subjectsAbbr: getAbbreviatedSubjects(st, selectedClass) || currentSubjectObj.name,
+            marks: existingMarks,
+            isAbsent: existingAb
+          });
+        }
+      });
+
+      // E. Deduplicate students using composite key to prevent cross-class/session collisions
+      const uniqueMap = new Map();
+      allDiscoveredStudents.forEach(st => {
+        if (!hasAssignedClassRoll(st)) return;
+        const stCls = extractStudentClass(st) || selectedClass;
+        const clsDigits = String(stCls).replace(/\D/g, '') || String(selectedClass).replace(/\D/g, '');
+        const sesScope = getSessionEndYear(String(st.session || st.Session || selectedSession || '')) || selectedSession;
+        const rollKey = String(st.rollNo || '').trim();
+
+        let key;
+        if (rollKey) {
+          key = `${clsDigits}_${sesScope}_roll_${rollKey.toLowerCase()}`;
+        } else {
+          const regId = getRegNo(st) || st.formNo || '';
+          key = regId
+            ? `${clsDigits}_${sesScope}_reg_${regId.toLowerCase().trim()}`
+            : `${clsDigits}_${sesScope}_name_${getStudentName(st).toLowerCase().trim()}`;
+        }
+
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, st);
+        } else {
+          const prev = uniqueMap.get(key);
+          const hasPrevMarks = prev.marks !== '' && prev.marks !== undefined;
+          const hasNewMarks = st.marks !== '' && st.marks !== undefined;
+          if (!hasPrevMarks && hasNewMarks) {
+            uniqueMap.set(key, { ...prev, ...st });
+          }
+        }
+      });
+
+      const uniqueRoster = Array.from(uniqueMap.values());
+      setStudents(uniqueRoster);
     } catch (err) {
-      console.error('Failed to load roster data:', err);
-      showToast('Error loading student roster', 'error');
+      console.error('Failed to load roster:', err);
+      showToast('Failed to load student roster', 'error');
     } finally {
       setLoading(false);
     }
-  }, [canonicalDocId, pendingDocId, selectedClass, selectedSession]);
+  }, [selectedClass, currentSubjectObj.name, currentSubjectObj.code, evaluationType, selectedSession, rosterScope, pendingDocId, canonicalDocId]);
 
   useEffect(() => {
     fetchRosterData();
   }, [fetchRosterData]);
 
-  // Handle Marks input
-  const handleMarksChange = (idx, value) => {
-    const raw = String(value).toUpperCase().trim();
-    setStudents(prev => {
-      const copy = [...prev];
-      if (!copy[idx]) return prev;
-
-      if (raw === 'AB' || raw === 'A') {
-        copy[idx] = { ...copy[idx], marks: 'AB', isAbsent: true };
-      } else if (raw === '') {
-        copy[idx] = { ...copy[idx], marks: '', isAbsent: false };
-      } else {
-        const num = Number(raw);
-        if (!isNaN(num)) {
-          if (num > maxMarks) {
-            showToast(`Marks cannot exceed ${maxMarks} for ${currentSubjectObj.name}`, 'warning');
-            return prev;
-          }
-          if (num < 0) return prev;
-          copy[idx] = { ...copy[idx], marks: num, isAbsent: false };
-        } else {
-          return prev;
-        }
+  // Handle Marks Input Changes
+  const handleMarksChange = (studentOrIdx, val) => {
+    const rawVal = String(val).trim().toUpperCase();
+    if (rawVal !== '' && rawVal !== 'A' && rawVal !== 'AB') {
+      const num = Number(rawVal);
+      if (isNaN(num) || num < 0 || num > maxMarks) {
+        showToast(`Marks must be between 0 and ${maxMarks}`, 'warning');
+        return;
       }
+    }
+
+    setStudents(prev => {
+      let targetIdx = -1;
+      if (typeof studentOrIdx === 'number') {
+        targetIdx = studentOrIdx;
+      } else if (studentOrIdx && typeof studentOrIdx === 'object') {
+        targetIdx = prev.findIndex(s => getStudentKey(s) === getStudentKey(studentOrIdx));
+      }
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+
+      const copy = [...prev];
+      const isExplicitAbs = rawVal === 'A' || rawVal === 'AB';
+
+      copy[targetIdx] = {
+        ...copy[targetIdx],
+        marks: isExplicitAbs ? 'AB' : rawVal,
+        isAbsent: isExplicitAbs
+      };
       return copy;
     });
   };
 
-  const handleToggleAbsent = (idx) => {
+  const handleToggleAbsent = (studentOrIdx) => {
     setStudents(prev => {
+      let targetIdx = -1;
+      if (typeof studentOrIdx === 'number') {
+        targetIdx = studentOrIdx;
+      } else if (studentOrIdx && typeof studentOrIdx === 'object') {
+        targetIdx = prev.findIndex(s => getStudentKey(s) === getStudentKey(studentOrIdx));
+      }
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+
       const copy = [...prev];
-      if (!copy[idx]) return prev;
-      const willBeAbsent = !copy[idx].isAbsent;
-      copy[idx] = {
-        ...copy[idx],
+      const cur = copy[targetIdx];
+      const willBeAbsent = !cur.isAbsent;
+      copy[targetIdx] = {
+        ...cur,
         isAbsent: willBeAbsent,
         marks: willBeAbsent ? 'AB' : ''
       };
       return copy;
     });
+  };
+
+  // Keyboard Navigation: Enter moves focus to next student
+  const handleInputKeyDown = (e, currentIndex, mode = 'desktop') => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const nextIndex = currentIndex + 1;
+      const nextId = `assessment-mark-input-${mode}-${nextIndex}`;
+      const nextEl = document.getElementById(nextId);
+      if (nextEl) {
+        nextEl.focus();
+        try { nextEl.select(); } catch (_) {}
+      } else {
+        e.target?.blur();
+      }
+    }
+  };
+
+  // Filter & Sort Pipeline
+  const displayedStudents = useMemo(() => {
+    let list = [...students];
+
+    // Search query
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      list = list.filter(st => {
+        const name = (st.name || st.studentName || '').toLowerCase();
+        const roll = String(st.rollNo || st.classRollNo || '');
+        const form = String(st.formNo || '');
+        const reg = String(st.regNo || '').toLowerCase();
+        const examRoll = String(st.examRollNo || '');
+        const parent = String(st.fatherName || st.parentName || '').toLowerCase();
+        const subjs = String(st.subjects || st.rawSubjects || st.subjectsAbbr || '').toLowerCase();
+
+        return name.includes(q) || roll.includes(q) || form.includes(q) || reg.includes(q) ||
+          examRoll.includes(q) || parent.includes(q) || subjs.includes(q);
+      });
+    }
+
+    // Fail / Absent only filter
+    if (showFailOnly) {
+      list = list.filter(st => {
+        const isAb = st.isAbsent || st.marks === 'AB';
+        if (isAb) return true;
+        if (st.marks === '' || st.marks === undefined || st.marks === null) return true;
+        const num = Number(st.marks);
+        return !isNaN(num) && num < minMarks;
+      });
+    }
+
+    // Sort
+    list.sort((a, b) => {
+      if (sortBy === 'rollAsc' || sortBy === 'rollDesc') {
+        const rA = parseInt(a.rollNo, 10);
+        const rB = parseInt(b.rollNo, 10);
+        if (!isNaN(rA) && !isNaN(rB)) {
+          return sortBy === 'rollAsc' ? rA - rB : rB - rA;
+        }
+        return sortBy === 'rollAsc'
+          ? String(a.rollNo || '').localeCompare(String(b.rollNo || ''))
+          : String(b.rollNo || '').localeCompare(String(a.rollNo || ''));
+      }
+      if (sortBy === 'nameAsc') {
+        return (a.name || a.studentName || '').localeCompare(b.name || b.studentName || '');
+      }
+      if (sortBy === 'formAsc') {
+        const fA = parseInt(a.formNo, 10);
+        const fB = parseInt(b.formNo, 10);
+        if (!isNaN(fA) && !isNaN(fB)) return fA - fB;
+        return String(a.formNo || '').localeCompare(String(b.formNo || ''));
+      }
+      return 0;
+    });
+
+    return list;
+  }, [students, searchTerm, showFailOnly, sortBy, minMarks]);
+
+  // Bulk Selection Helpers
+  const emptyCount = useMemo(() => {
+    return displayedStudents.filter(s => (s.marks === '' || s.marks === undefined || s.marks === null) && !s.isAbsent).length;
+  }, [displayedStudents]);
+
+  const isAllSelected = useMemo(() => {
+    if (displayedStudents.length === 0) return false;
+    return displayedStudents.every(s => selectedKeys.has(getStudentKey(s)));
+  }, [displayedStudents, selectedKeys, getStudentKey]);
+
+  const isSomeSelected = useMemo(() => {
+    if (displayedStudents.length === 0) return false;
+    const count = displayedStudents.filter(s => selectedKeys.has(getStudentKey(s))).length;
+    return count > 0 && count < displayedStudents.length;
+  }, [displayedStudents, selectedKeys, getStudentKey]);
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedKeys(new Set());
+    } else {
+      const next = new Set();
+      displayedStudents.forEach(s => next.add(getStudentKey(s)));
+      setSelectedKeys(next);
+    }
+  };
+
+  const handleToggleRow = (key) => {
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleSelectEmptyOnly = () => {
+    const next = new Set();
+    displayedStudents.forEach(s => {
+      const isEmpty = (s.marks === '' || s.marks === undefined || s.marks === null) && !s.isAbsent;
+      if (isEmpty) next.add(getStudentKey(s));
+    });
+    setSelectedKeys(next);
+  };
+
+  // Quick Bulk Fill Execution
+  const handleApplyQuickFill = (action = 'empty') => {
+    const rawVal = quickFillMark.trim().toUpperCase();
+    if (action !== 'clear' && !rawVal) return;
+
+    if (action !== 'clear' && rawVal !== 'A' && rawVal !== 'AB') {
+      const num = Number(rawVal);
+      if (isNaN(num) || num < 0 || num > maxMarks) {
+        showToast(`Please enter a valid mark between 0 and ${maxMarks} or 'A'`, 'warning');
+        return;
+      }
+    }
+
+    const markToApply = action === 'clear' ? '' : (rawVal === 'A' || rawVal === 'AB' ? 'AB' : String(Number(rawVal)));
+    const isAb = markToApply === 'AB';
+
+    setStudents(prev => {
+      return prev.map(s => {
+        const key = getStudentKey(s);
+        const isSelected = selectedKeys.has(key);
+        const isEmpty = (s.marks === '' || s.marks === undefined || s.marks === null) && !s.isAbsent;
+
+        if (action === 'all') {
+          return { ...s, marks: markToApply, isAbsent: isAb };
+        } else if (action === 'empty') {
+          if (isEmpty) {
+            return { ...s, marks: markToApply, isAbsent: isAb };
+          }
+        } else if (action === 'selected') {
+          if (isSelected) {
+            return { ...s, marks: markToApply, isAbsent: isAb };
+          }
+        } else if (action === 'clear') {
+          if (selectedKeys.size > 0) {
+            if (isSelected) return { ...s, marks: '', isAbsent: false };
+          } else {
+            return { ...s, marks: '', isAbsent: false };
+          }
+        }
+        return s;
+      });
+    });
+
+    if (action === 'clear') {
+      setSelectedKeys(new Set());
+      showToast('Cleared marks successfully.', 'info');
+    } else {
+      showToast(`Bulk filled marks (${markToApply}) successfully.`, 'success');
+    }
+    setShowQuickFill(false);
   };
 
   // Live Statistics
@@ -363,9 +734,14 @@ export default function TeacherAssessmentsPage() {
     try {
       const records = students.map(s => ({
         rollNo: s.rollNo,
-        name: s.name,
-        studentName: s.name,
+        classRollNo: s.rollNo,
+        name: s.name || s.studentName,
+        studentName: s.name || s.studentName,
         fatherName: s.fatherName,
+        parentName: s.fatherName,
+        formNo: s.formNo,
+        regNo: s.regNo,
+        examRollNo: s.examRollNo,
         marks: s.isAbsent ? 'AB' : s.marks,
         practicalMarks: s.isAbsent ? 'AB' : s.marks,
         isAbsent: s.isAbsent
@@ -411,7 +787,6 @@ export default function TeacherAssessmentsPage() {
 
   // Submit for Admin Approval
   const handleSubmitForApproval = () => {
-    // Validation: check if all students have marks or AB
     const unrecorded = students.filter(s => s.marks === '' && !s.isAbsent);
     if (unrecorded.length > 0) {
       setConfirmModal({
@@ -454,9 +829,14 @@ export default function TeacherAssessmentsPage() {
         const isAb = s.isAbsent || marks === 'AB';
         return {
           rollNo: s.rollNo,
-          name: s.name,
-          studentName: s.name,
+          classRollNo: s.rollNo,
+          name: s.name || s.studentName,
+          studentName: s.name || s.studentName,
           fatherName: s.fatherName,
+          parentName: s.fatherName,
+          formNo: s.formNo,
+          regNo: s.regNo,
+          examRollNo: s.examRollNo,
           marks: isAb ? 'AB' : marks,
           practicalMarks: isAb ? 'AB' : marks,
           isAbsent: isAb
@@ -509,20 +889,27 @@ export default function TeacherAssessmentsPage() {
     }
   };
 
-  // Print Award Roll
+  // Print School Assessment Award Roll
   const handlePrint = () => {
     printIndividualAwardRoll({
       subjectCode: currentSubjectObj.code,
       subjectName: currentSubjectObj.name,
       className: `Class ${selectedClass}`,
       session: selectedSession,
-      records: students.map(s => ({
+      records: displayedStudents.map(s => ({
         rollNo: s.rollNo,
-        name: s.name,
-        studentName: s.name,
-        fatherName: s.fatherName,
-        practicalMarks: s.isAbsent ? 'AB' : s.marks,
-        marks: s.isAbsent ? 'AB' : s.marks
+        classRollNo: s.rollNo,
+        name: s.name || s.studentName,
+        studentName: s.name || s.studentName,
+        fatherName: s.fatherName || s.parentName,
+        parentName: s.fatherName || s.parentName,
+        formNo: s.formNo,
+        regNo: s.regNo,
+        examRollNo: s.examRollNo,
+        boardRoll: s.examRollNo,
+        boardRollNo: s.examRollNo,
+        practicalMarks: s.isAbsent ? 'AB' : (s.marks !== undefined && s.marks !== null ? s.marks : ''),
+        marks: s.isAbsent ? 'AB' : (s.marks !== undefined && s.marks !== null ? s.marks : '')
       })),
       isExternal: false,
       evaluationType,
@@ -583,7 +970,7 @@ export default function TeacherAssessmentsPage() {
     }
   }, [user]);
 
-  // Auto-open Submissions History if navigated from Dashboard link (?view=history or state.openHistory)
+  // Auto-open Submissions History if navigated with query param
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('view') === 'history' || params.get('history') === 'true' || location.state?.openHistory) {
@@ -655,77 +1042,234 @@ export default function TeacherAssessmentsPage() {
           </div>
         </div>
 
-        {/* Filter Toolbar */}
+        {/* Master Control Card & Toolbar (Parity with Practicals Portal) */}
         <div className="rounded-xl p-3 border shadow-2xs space-y-2.5" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* Class Selector */}
-            <div>
-              <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
-                Target Class
-              </label>
+          {/* Master Toolbar Row: Select All, Sort, Filters Toggle, Quick Fill, Print */}
+          <div className="flex items-center justify-between gap-1 sm:gap-1.5 pt-0.5">
+            {/* Left: Select All Checkbox */}
+            <label className="h-8 min-h-[32px] max-h-[32px] px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-2xs select-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" title={isAllSelected ? "Deselect all" : "Select all"}>
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                onChange={handleToggleSelectAll}
+                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-teal-600 focus:ring-teal-500 cursor-pointer shrink-0"
+              />
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">All</span>
+            </label>
+
+            {/* Middle: Sort Dropdown */}
+            <div className="flex items-center gap-1 shrink-0">
               <select
-                value={selectedClass}
-                onChange={e => setSelectedClass(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="h-8 min-h-[32px] max-h-[32px] px-2 rounded-lg border text-[11px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
+                title="Sort examinees"
               >
-                {AVAILABLE_CLASSES.map(cls => (
-                  <option key={cls} value={cls}>Class {cls}</option>
-                ))}
+                <option value="rollAsc">Roll ↑</option>
+                <option value="rollDesc">Roll ↓</option>
+                <option value="nameAsc">Name A-Z</option>
+                <option value="formAsc">Form #</option>
               </select>
             </div>
 
-            {/* Assessment Type Selector */}
-            <div>
-              <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
-                Examination / Assessment
-              </label>
-              <select
-                value={evaluationType}
-                onChange={e => setEvaluationType(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+            {/* Right: Action Buttons Group */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Filters Toggle Button with Live Student Count */}
+              <button
+                type="button"
+                onClick={() => setShowFilterSettings(!showFilterSettings)}
+                className={`h-8 min-h-[32px] max-h-[32px] px-2.5 sm:px-3 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0 ${
+                  showFilterSettings
+                    ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                    : 'bg-white hover:bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                }`}
+                title={`Toggle evaluation filters (${displayedStudents.length} of ${students.length} students)`}
               >
-                {availableEvalTypes.map(et => (
-                  <option key={et.value} value={et.value}>{et.label}</option>
-                ))}
-              </select>
-            </div>
+                <SlidersHorizontal size={13} className={showFilterSettings ? 'text-white' : 'text-teal-600 dark:text-teal-400 shrink-0'} />
+                <span className="font-extrabold text-[11px]">Filters</span>
+                <span className={`px-1.5 py-0.5 rounded-md font-mono text-[10px] font-black leading-none flex items-center gap-1 ${
+                  showFilterSettings
+                    ? 'bg-white/25 text-white'
+                    : 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300'
+                }`}>
+                  <span>
+                    {displayedStudents.length}
+                    {displayedStudents.length !== students.length ? `/${students.length}` : ''}
+                  </span>
+                  <span className="hidden sm:inline font-sans text-[9px] font-bold opacity-85">Students</span>
+                  {showFailOnly && <span className="text-rose-500 font-sans font-black text-[9px]">• Fail</span>}
+                </span>
+                <ChevronDown size={11} className={`transition-transform duration-200 shrink-0 ${showFilterSettings ? 'rotate-180' : ''}`} />
+              </button>
 
-            {/* Subject Selector */}
-            <div>
-              <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
-                Subject
-              </label>
-              <select
-                value={selectedSubject}
-                onChange={e => setSelectedSubject(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+              {/* Quick Fill Button */}
+              <button
+                type="button"
+                onClick={() => setShowQuickFill(!showQuickFill)}
+                className={`h-8 min-h-[32px] max-h-[32px] px-2.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-2xs active:scale-95 shrink-0 ${
+                  showQuickFill
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs cursor-pointer'
+                    : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer'
+                }`}
+                title="Quick Bulk Fill: Fill marks for all, empty, or selected students in one go"
               >
-                {displaySubjects.map(sub => (
-                  <option key={sub.code} value={sub.name}>
-                    {sub.name} ({sub.code})
-                  </option>
-                ))}
-              </select>
-            </div>
+                <Zap size={13} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
+                <span className="hidden sm:inline">Fill</span>
+                {selectedKeys.size > 0 && (
+                  <span className="px-1 py-0.2 rounded-full bg-teal-600 text-white text-[8px] font-bold">
+                    {selectedKeys.size}
+                  </span>
+                )}
+              </button>
 
-            {/* Session Selector */}
-            <div>
-              <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
-                Academic Session
-              </label>
-              <select
-                value={selectedSession}
-                onChange={e => setSelectedSession(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+              {/* Print Button */}
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="h-8 min-h-[32px] max-h-[32px] px-2.5 rounded-lg font-bold text-[11px] shadow-2xs flex items-center justify-center gap-1 bg-teal-600 hover:bg-teal-500 text-white border border-teal-600 cursor-pointer active:scale-95 shrink-0"
+                title="Print Assessment Award Roll"
               >
-                {availableSessions.map(sess => (
-                  <option key={sess} value={sess}>{sess}</option>
-                ))}
-              </select>
+                <Printer size={13} />
+                <span className="hidden sm:inline">Print</span>
+              </button>
             </div>
           </div>
 
-          {/* Assessment Info Banner & Status */}
+          {/* Secondary Expandable Filter Inputs Panel */}
+          {showFilterSettings && (
+            <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 animate-in fade-in duration-150">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                {/* Class Selector */}
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                    Class
+                  </label>
+                  <select
+                    value={selectedClass}
+                    onChange={e => setSelectedClass(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                  >
+                    {AVAILABLE_CLASSES.map(cls => (
+                      <option key={cls} value={cls}>Class {cls}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Roster Scope */}
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                    Roster Scope
+                  </label>
+                  <select
+                    value={rosterScope}
+                    onChange={e => setRosterScope(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                    title="Choose between evaluating only students enrolled in this subject/stream or all class students"
+                  >
+                    <option value="stream">Subject / Stream Only</option>
+                    <option value="all_class">All Class Students</option>
+                  </select>
+                </div>
+
+                {/* Subject Selector */}
+                <div className="sm:col-span-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                    Subject
+                  </label>
+                  <select
+                    value={selectedSubject}
+                    onChange={e => setSelectedSubject(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                  >
+                    {displaySubjects.map(sub => (
+                      <option key={sub.code} value={sub.name}>
+                        {sub.name} ({sub.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Examination / Assessment Type */}
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                    Eval. Type
+                  </label>
+                  <select
+                    value={evaluationType}
+                    onChange={e => setEvaluationType(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                  >
+                    {availableEvalTypes.map(et => (
+                      <option key={et.value} value={et.value}>{et.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Academic Session */}
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                    Session
+                  </label>
+                  <select
+                    value={selectedSession}
+                    onChange={e => setSelectedSession(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                  >
+                    {availableSessions.map(sess => (
+                      <option key={sess} value={sess}>{sess}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Live Search and Fail-Only Filter Bar */}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search candidate by Name, Roll, Form #, Reg #, Exam Roll #..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full pl-8 pr-7 py-1 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-teal-500"
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={showFailOnly}
+                      onChange={e => setShowFailOnly(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    />
+                    <span>Show Reappear / Absent Only</span>
+                  </label>
+                  {(searchTerm || showFailOnly) && (
+                    <button
+                      type="button"
+                      onClick={() => { setSearchTerm(''); setShowFailOnly(false); }}
+                      className="text-[11px] font-bold text-teal-600 hover:underline cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Assessment Info Banner & Current Status */}
           <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-black text-slate-800 dark:text-slate-200">
@@ -737,6 +1281,15 @@ export default function TeacherAssessmentsPage() {
               <span className="px-2 py-0.5 rounded text-[10.5px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60">
                 Pass Marks: {minMarks}
               </span>
+              {rosterScope === 'stream' ? (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200/60">
+                  Filtered to enrolled stream/subject
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200/60">
+                  All Class Students Scope
+                </span>
+              )}
             </div>
 
             {/* Current Status Badge */}
@@ -814,113 +1367,311 @@ export default function TeacherAssessmentsPage() {
           </div>
         )}
 
-        {/* Student Marks Entry Table */}
+        {/* Quick Bulk Fill Drawer (Desktop) */}
+        {showQuickFill && (
+          <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 space-y-2.5 animate-fadeIn shadow-xs">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <Zap size={14} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-amber-950 dark:text-amber-200 m-0 uppercase tracking-wide">
+                    Quick Bulk Fill Marks
+                  </h4>
+                  <p className="text-[10px] text-amber-700 dark:text-amber-400 font-medium m-0">
+                    Assign a mark to empty cells, selected students ({selectedKeys.size}), or all students ({displayedStudents.length}).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickFill(false)}
+                className="p-1 rounded-lg text-amber-700 hover:text-amber-900 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                placeholder={`0-${maxMarks} or A`}
+                value={quickFillMark}
+                onChange={e => setQuickFillMark(e.target.value.toUpperCase())}
+                className="w-24 text-center py-1 px-2 font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+              />
+
+              {/* Preset Chips */}
+              <div className="flex items-center gap-1">
+                {[String(maxMarks), String(Math.max(0, maxMarks - 2)), String(minMarks), 'A'].map(val => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setQuickFillMark(val)}
+                    className="px-2 py-0.5 rounded text-[10px] font-black bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 hover:bg-amber-100 cursor-pointer"
+                  >
+                    {val === 'A' ? 'Absent (A)' : `${val}M`}
+                  </button>
+                ))}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleApplyQuickFill('empty')}
+                  disabled={!quickFillMark.trim()}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  Fill Empty Only ({emptyCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyQuickFill('selected')}
+                  disabled={selectedKeys.size === 0 || !quickFillMark.trim()}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  Fill Selected ({selectedKeys.size})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyQuickFill('all')}
+                  disabled={!quickFillMark.trim()}
+                  className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  Fill All ({displayedStudents.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyQuickFill('clear')}
+                  className="px-2 py-1 rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold cursor-pointer"
+                >
+                  Clear {selectedKeys.size > 0 ? `(${selectedKeys.size})` : 'All'}
+                </button>
+              </div>
+            </div>
+
+            {/* Fast Select Shortcuts */}
+            <div className="flex items-center gap-2 pt-1 border-t border-amber-200/60 text-[10.5px] text-amber-800 dark:text-amber-300">
+              <span className="font-bold">Fast Select:</span>
+              <button
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="font-bold text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer"
+              >
+                {isAllSelected ? 'Deselect All' : `All (${displayedStudents.length})`}
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={handleSelectEmptyOnly}
+                className="font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                Empty Only ({emptyCount})
+              </button>
+              {selectedKeys.size > 0 && (
+                <>
+                  <span>•</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedKeys(new Set())}
+                    className="font-bold text-rose-700 dark:text-rose-400 hover:underline cursor-pointer"
+                  >
+                    Clear Selection
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Student Marks Entry Table / Card Section */}
         <div className="rounded-xl border shadow-xs overflow-hidden" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
           {loading ? (
             <div className="py-20 text-center text-xs font-bold text-slate-400 space-y-2">
               <RefreshCw size={22} className="animate-spin mx-auto text-teal-600" />
-              <div>Loading student roster and assessment records…</div>
+              <div>Connecting to official database & preloading {currentSubjectObj.name} examinees for {selectedSession}…</div>
             </div>
-          ) : students.length === 0 ? (
+          ) : displayedStudents.length === 0 ? (
             <div className="py-16 text-center space-y-2 px-4">
               <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
                 <FileText size={20} />
               </div>
               <p className="text-xs font-bold text-slate-700 dark:text-slate-300 m-0">
-                No enrolled students found for Class {selectedClass} ({selectedSession}).
+                No enrolled candidates matching the selected filters.
               </p>
               <p className="text-[11px] text-slate-400 m-0">
-                Verify student admissions or master register records for this session.
+                Try switching Roster Scope to "All Class Students" or check student admissions in Class {selectedClass}.
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
-                  <tr>
-                    <th className="py-2.5 px-3 w-12 text-center">#</th>
-                    <th className="py-2.5 px-3 w-20">Roll No</th>
-                    <th className="py-2.5 px-3">Student Name</th>
-                    <th className="py-2.5 px-3">Parentage</th>
-                    <th className="py-2.5 px-3 w-36 text-center">Score ({maxMarks}M)</th>
-                    <th className="py-2.5 px-3 w-24 text-center">Absent</th>
-                    <th className="py-2.5 px-3 w-28 text-center">Result</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {students.map((st, idx) => {
-                    const isAb = st.isAbsent || String(st.marks).toUpperCase() === 'AB';
-                    const numMarks = Number(st.marks);
-                    const hasMarks = st.marks !== '' && !isNaN(numMarks);
-                    const isPass = hasMarks && numMarks >= minMarks;
+            <>
+              {/* Desktop Table View */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-black uppercase text-[9.5px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="py-2 px-2 w-14 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={isAllSelected}
+                            ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                            onChange={handleToggleSelectAll}
+                            className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                          />
+                          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 font-black">#</span>
+                        </div>
+                      </th>
+                      <th
+                        className="py-2 px-2.5 w-16 cursor-pointer hover:text-teal-600 select-none"
+                        onClick={() => setSortBy(sortBy === 'rollAsc' ? 'rollDesc' : 'rollAsc')}
+                      >
+                        Roll {sortBy.startsWith('roll') ? (sortBy === 'rollAsc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th
+                        className="py-2 px-2.5 cursor-pointer hover:text-teal-600 select-none"
+                        onClick={() => setSortBy(sortBy === 'nameAsc' ? 'rollAsc' : 'nameAsc')}
+                      >
+                        Student Details & Subjects Offered {sortBy === 'nameAsc' ? '↑' : ''}
+                      </th>
+                      <th className="py-2 px-2 text-center w-72">
+                        Marks Obt. ({maxMarks}M) & In Words
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold text-slate-900 dark:text-slate-100">
+                    {displayedStudents.map((st, idx) => {
+                      const isAbsent = st.isAbsent || st.marks === 'A' || st.marks === 'AB';
+                      const valToConvert = isAbsent ? 'A' : (st.marks !== '' && st.marks !== undefined ? st.marks : '');
+                      const inWords = valToConvert ? numberToWords(valToConvert) : '';
+                      const allSubjs = st.subjectsAbbr || st.rawSubjects || st.subjects || 'N/A';
+                      const key = getStudentKey(st);
+                      const isSelected = selectedKeys.has(key);
 
-                    return (
-                      <tr key={st.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="py-2 px-3 text-center font-mono text-[11px] text-slate-400">
-                          {idx + 1}
-                        </td>
-                        <td className="py-2 px-3 font-mono font-bold text-slate-900 dark:text-white">
-                          {st.rollNo || '—'}
-                        </td>
-                        <td className="py-2 px-3 font-bold text-slate-900 dark:text-white">
-                          {st.name}
-                        </td>
-                        <td className="py-2 px-3 text-slate-500 dark:text-slate-400">
-                          {st.fatherName || '—'}
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          {isAb ? (
-                            <span className="font-mono font-black text-xs text-rose-600">AB (Absent)</span>
-                          ) : (
-                            <input
-                              type="number"
-                              min="0"
-                              max={maxMarks}
-                              value={st.marks}
-                              onChange={e => handleMarksChange(idx, e.target.value)}
-                              placeholder={`0 - ${maxMarks}`}
-                              className="w-24 text-center py-1 px-2 font-mono font-bold text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-teal-500"
-                            />
-                          )}
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleAbsent(idx)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                              isAb
-                                ? 'bg-rose-600 text-white shadow-2xs'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                            }`}
-                          >
-                            {isAb ? 'Absent' : 'Mark AB'}
-                          </button>
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          {isAb ? (
-                            <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-rose-50 text-rose-600 border border-rose-200">
-                              Absent
-                            </span>
-                          ) : hasMarks ? (
-                            isPass ? (
-                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
-                                Pass ({st.marks})
+                      const numMarks = Number(st.marks);
+                      const hasMarks = st.marks !== '' && st.marks !== undefined && !isNaN(numMarks);
+                      const isPass = hasMarks && numMarks >= minMarks;
+
+                      return (
+                        <tr
+                          key={key}
+                          className={`hover:bg-slate-50 dark:hover:bg-slate-950/50 transition-colors ${
+                            isSelected
+                              ? 'bg-teal-50/70 dark:bg-teal-950/40'
+                              : isAbsent
+                              ? 'bg-amber-500/5'
+                              : ''
+                          }`}
+                        >
+                          {/* Row Selection & Index */}
+                          <td className="py-1.5 px-2 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleRow(key)}
+                                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                              />
+                              <span className="font-mono font-black text-slate-400 text-[11px]">#{idx + 1}</span>
+                            </div>
+                          </td>
+
+                          {/* Roll Number Badge */}
+                          <td className="py-1.5 px-2.5 font-mono font-black text-indigo-600 dark:text-indigo-400 text-xs">
+                            {st.rollNo || '—'}
+                          </td>
+
+                          {/* Student Details with Rich Badges */}
+                          <td className="py-1.5 px-2.5 space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-extrabold text-xs text-slate-900 dark:text-white leading-tight">
+                                {st.name || st.studentName}
                               </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-amber-50 text-amber-600 border border-amber-200">
-                                Reappear ({st.marks})
+                              {st.formNo && String(st.formNo) !== String(st.rollNo) && String(st.formNo).length > 2 && (
+                                <span className="px-1.5 py-0.2 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700 text-[9px]">
+                                  Form #{st.formNo}
+                                </span>
+                              )}
+                              {st.regNo && (
+                                <span className="px-1.5 py-0.2 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20 text-[9px]">
+                                  Reg #{st.regNo}
+                                </span>
+                              )}
+                              {st.examRollNo && (
+                                <span className="px-1.5 py-0.2 rounded font-mono font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[9px]">
+                                  Exam Roll: {st.examRollNo}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Enrolled Subjects with Active Subject Highlighted */}
+                            <div className="text-[9.5px] font-bold text-teal-700 dark:text-teal-300 leading-tight">
+                              <span className="font-mono font-black text-teal-800 dark:text-teal-200 bg-teal-500/15 px-1 py-0.2 rounded border border-teal-500/30 mr-1">
+                                Subs:
                               </span>
-                            )
-                          ) : (
-                            <span className="text-[10px] text-slate-400 font-bold">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                              {renderSubjectsWithHighlight(allSubjs, currentSubjectObj)}
+                            </div>
+                          </td>
+
+                          {/* Marks Input & In-Words Pill */}
+                          <td className="py-1.5 px-2">
+                            <div className="flex items-center gap-1.5 justify-center">
+                              <input
+                                id={`assessment-mark-input-desktop-${idx}`}
+                                data-student-idx={idx}
+                                type="text"
+                                enterKeyHint={idx === displayedStudents.length - 1 ? 'done' : 'next'}
+                                placeholder={`0-${maxMarks} / A`}
+                                value={st.marks}
+                                onFocus={(e) => {
+                                  try { e.target.select(); } catch (_) {}
+                                }}
+                                onChange={(e) => handleMarksChange(st, e.target.value)}
+                                onKeyDown={(e) => handleInputKeyDown(e, idx, 'desktop')}
+                                className={`w-20 px-2 py-0 rounded-md border text-[11px] font-black h-7 focus:outline-hidden focus:ring-1 focus:ring-teal-500 uppercase text-center leading-none ${
+                                  isAbsent
+                                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
+                                    : st.marks !== '' && st.marks !== undefined
+                                    ? 'bg-teal-50/50 dark:bg-teal-950/40 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 font-bold'
+                                    : 'bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white'
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleToggleAbsent(st)}
+                                className={`h-7 px-2 rounded-md font-mono text-[10px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
+                                  isAbsent
+                                    ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
+                                }`}
+                                title="Toggle Absent (AB)"
+                              >
+                                AB
+                              </button>
+                              {inWords ? (
+                                <span className={`px-1.5 py-0.5 rounded-md border text-[9.5px] font-black whitespace-nowrap ${
+                                  isAbsent
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                    : isPass
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}>
+                                  {inWords} {!isAbsent && Number(st.marks) > 0 ? 'Only' : ''}
+                                </span>
+                              ) : (
+                                <span className="text-[9.5px] text-slate-400 font-semibold italic">Enter mark</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
 
           {/* Action Footer */}
@@ -984,7 +1735,7 @@ export default function TeacherAssessmentsPage() {
               <button
                 type="button"
                 onClick={() => setShowHistoryModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -1002,7 +1753,7 @@ export default function TeacherAssessmentsPage() {
               />
             </div>
 
-            {/* List */}
+            {/* Submissions List */}
             {loadingHistory ? (
               <div className="py-12 text-center text-xs font-bold text-slate-400 space-y-2">
                 <RefreshCw size={18} className="animate-spin mx-auto text-teal-600" />
