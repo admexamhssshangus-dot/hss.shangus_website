@@ -54,3 +54,14 @@ Whenever completing or verifying changes requested by the user, follow this stri
   - State the exact local commit message.
   - Explain how the user can manually inspect or re-execute the commit if desired.
   - Remind the user to run `git push origin main` manually.
+
+### 7. Module & Permissions Catalog Synchronization Rule
+- Whenever a significant change happens to portal features—such as adding a new module/studio, renaming or rebranding a module, removing a deprecated tool, or modifying permission capabilities:
+  - **Mandatory Catalog Audit**: The assistant MUST immediately audit and synchronize:
+    1. `src/portal/admin/adminModuleCatalog.js` (`ADMIN_MODULE_CATALOG`, `ROLE_PRESETS`, `ADMIN_CATEGORIES`, IDs, labels, descriptions, and aliases).
+    2. `src/portal/admin/StaffPermissionsManager.jsx` (ensuring the updated modules, descriptions, categories, and presets appear in the administrative permissions matrix).
+    3. `src/portal/admin/AdminToolsDropdown.jsx` (`MODULE_ICONS`, launcher handlers, and `isUserPermittedForModule` backward-compatibility aliases).
+    4. `src/portal/admin/AdminDashboard.jsx` (`MODULE_LOADERS`, `mountedTabs`, and tab container mounting).
+    5. Firestore security rules & RBAC (`firestore.rules` and `staffAuthService.js` to ensure proper read/write authorization).
+  - This ensures that staff, teachers, administrators, and students always receive the updated interfaces, functionalities, and access privileges seamlessly across portal updates.
+

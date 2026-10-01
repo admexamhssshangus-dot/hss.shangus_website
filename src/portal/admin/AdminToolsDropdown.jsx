@@ -85,6 +85,11 @@ export const isUserPermittedForModule = (user, moduleId) => {
     return true;
   }
 
+  // 4. Backward-compatibility: if an admin had 'analyticsReports' or 'admRegisterSuite', they inherit access for 'jkboseSubjectRolls'
+  if (moduleId === 'jkboseSubjectRolls' && (perms.includes('analyticsReports') || perms.includes('analytics') || perms.includes('admRegisterSuite'))) {
+    return true;
+  }
+
   return false;
 };
 
