@@ -1,6 +1,12 @@
 import { db } from '../services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { getCachedCollection } from '../services/dbCache';
+import {
+  PRACTICAL_EVALUATION_TYPES,
+  DEFAULT_SCHOOL_ASSESSMENT_TYPES,
+  isPracticalEvaluationType,
+  isSchoolAssessmentType
+} from './evaluationTypes';
 
 /**
  * Official Comprehensive JKBOSE Subjects Catalog
@@ -609,19 +615,28 @@ export function getActiveSchoolEvaluations(settings) {
   return DEFAULT_SCHOOL_EVALUATIONS;
 }
 
-export function getEvaluationTypesForTeacher(settings, cls = '11th', session = '2025-26') {
-  const standardTypes = [
-    { value: 'Internal Assessment', label: 'Internal' },
-    { value: 'External Practical', label: 'External' },
-    { value: 'Term End Evaluation', label: 'Term End' }
-  ];
+export {
+  PRACTICAL_EVALUATION_TYPES,
+  DEFAULT_SCHOOL_ASSESSMENT_TYPES,
+  isPracticalEvaluationType,
+  isSchoolAssessmentType
+} from './evaluationTypes';
 
+
+export function getPracticalEvaluationTypes() {
+  return [...PRACTICAL_EVALUATION_TYPES];
+}
+
+export function getSchoolEvaluationTypesForTeacher(settings, cls = '11th', session = '2025-26') {
   const customEvals = getActiveSchoolEvaluations(settings);
   const normCls = String(cls || '').toLowerCase().trim();
   const normSess = String(session || '').trim().toLowerCase();
 
-  const matchingCustom = customEvals.filter(ev => {
+  const matchingCustom = (customEvals || []).filter(ev => {
     if (ev.isOpenForTeachers === false) return false;
+    // Exclude any practicals if mistakenly added
+    if (isPracticalEvaluationType(ev.evalType || ev.title)) return false;
+
     // Session check (empty means any session)
     if (ev.session && normSess) {
       const evS = String(ev.session).trim().toLowerCase();
@@ -634,6 +649,64 @@ export function getEvaluationTypesForTeacher(settings, cls = '11th', session = '
     if (Array.isArray(ev.classes) && ev.classes.length > 0) {
       const clsMatch = ev.classes.some(c => isEvaluationClassMatch(c, normCls));
       // In secondary school context, if 10th is enabled for evaluation, also permit 9th
+      const isSecondaryFallback = (normCls.includes('9') && ev.classes.some(c => isEvaluationClassMatch(c, '10th')));
+      if (!clsMatch && !isSecondaryFallback) return false;
+    }
+    return true;
+  });
+
+  const customTypes = matchingCustom.map(ev => ({
+    value: ev.evalType || ev.title,
+    label: ev.title || ev.evalType,
+    isCustom: true,
+    evalConfig: ev
+  }));
+
+  // Ensure default school assessment types (Pre-Board, Golden Test, etc.) are available if not in customTypes
+  const result = [...customTypes];
+  DEFAULT_SCHOOL_ASSESSMENT_TYPES.forEach(def => {
+    if (!result.some(r => r.value.toLowerCase() === def.value.toLowerCase())) {
+      result.push({
+        value: def.value,
+        label: def.label,
+        isCustom: false,
+        evalConfig: {
+          title: def.label,
+          evalType: def.value,
+          maxMarks: 50,
+          minMarks: 18,
+          normalizeTo50: def.value.toLowerCase().includes('pre-board') || def.value.toLowerCase().includes('preboard')
+        }
+      });
+    }
+  });
+
+  return result;
+}
+
+export function getEvaluationTypesForTeacher(settings, cls = '11th', session = '2025-26') {
+  // Maintained for backward compatibility with existing tests and calls
+  const standardTypes = [
+    { value: 'Internal Assessment', label: 'Internal' },
+    { value: 'External Practical', label: 'External' },
+    { value: 'Term End Evaluation', label: 'Term End' }
+  ];
+
+  const customEvals = getActiveSchoolEvaluations(settings);
+  const normCls = String(cls || '').toLowerCase().trim();
+  const normSess = String(session || '').trim().toLowerCase();
+
+  const matchingCustom = customEvals.filter(ev => {
+    if (ev.isOpenForTeachers === false) return false;
+    if (ev.session && normSess) {
+      const evS = String(ev.session).trim().toLowerCase();
+      const sMatch = normSess.includes(evS) || evS.includes(normSess) ||
+        (evS.includes('2025') && normSess.includes('2025')) ||
+        (evS.includes('2026') && normSess.includes('2026'));
+      if (!sMatch) return false;
+    }
+    if (Array.isArray(ev.classes) && ev.classes.length > 0) {
+      const clsMatch = ev.classes.some(c => isEvaluationClassMatch(c, normCls));
       const isSecondaryFallback = (normCls.includes('9') && ev.classes.some(c => isEvaluationClassMatch(c, '10th')));
       if (!clsMatch && !isSecondaryFallback) return false;
     }

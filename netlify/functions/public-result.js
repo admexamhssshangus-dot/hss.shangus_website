@@ -45,14 +45,18 @@ async function lookupResult(db, body) {
       (body.session === '2024-25' && (docSess === '2025' || String(rawSess).includes('2025') || String(rawSess).includes('2024-25')));
     if (!isSessionMatched) continue;
 
-    // Evaluation matching
+    // Evaluation matching - strictly school-based assessments (Pre-board, golden test, unit test, etc.)
     const targetEval = normalize(body.evaluation);
     const docEval = normalize(section.practicalType || section.evaluationType || section.examTitle || section.type || section.docId || snap.id || '');
+    // Practicals are strictly confidential institutional data and never queried publicly
+    if (docEval.includes('internal') && !docEval.includes('unit') && !docEval.includes('preboard')) continue;
+    if (docEval.includes('external')) continue;
+
     const isEvalMatched = docEval === targetEval ||
       docEval.includes(targetEval) || targetEval.includes(docEval) ||
       (targetEval.includes('preboard') && docEval.includes('preboard')) ||
-      (targetEval.includes('internal') && docEval.includes('internal')) ||
-      (targetEval.includes('external') && docEval.includes('external'));
+      (targetEval.includes('golden') && docEval.includes('golden')) ||
+      (targetEval.includes('unit') && docEval.includes('unit'));
     if (!isEvalMatched) continue;
 
     const sCode = (section.subjectCode || section.subject || '').toUpperCase().trim();

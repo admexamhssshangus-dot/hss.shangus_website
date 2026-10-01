@@ -44,7 +44,8 @@ import {
   SUBJECT_CONFIG_DEFS,
   DEFAULT_PRACTICAL_MARKS_CONFIG,
   getSubjectMarksConfig,
-  getActiveSchoolEvaluations
+  getActiveSchoolEvaluations,
+  isPracticalEvaluationType
 } from '../../utils/practicalsSettingsManager';
 
 export const CODES = SUBJECT_CONFIG_DEFS.map(s => s.code);
@@ -828,8 +829,13 @@ export default function AdminPracticals() {
         })
         .filter(sub => !sub.id.startsWith('history_') && sub.records && sub.records.length > 0);
 
-      const canonicalSubmissions = allSubmissions.filter(sub => !sub.id.startsWith('pending_') && sub.status !== 'pending_approval');
-      const pendingSubmissions = allSubmissions.filter(sub => sub.id.startsWith('pending_') || sub.status === 'pending_approval');
+      // Practicals portal strictly holds practical data only (Internal Assessment & External Practical)
+      const practicalSubmissions = allSubmissions.filter(sub =>
+        isPracticalEvaluationType(sub.practicalType || sub.evaluationType || sub.examTitle || sub.title)
+      );
+
+      const canonicalSubmissions = practicalSubmissions.filter(sub => !sub.id.startsWith('pending_') && sub.status !== 'pending_approval');
+      const pendingSubmissions = practicalSubmissions.filter(sub => sub.id.startsWith('pending_') || sub.status === 'pending_approval');
 
       setSubmissions(canonicalSubmissions);
       setPendingApprovals(pendingSubmissions);
@@ -2446,17 +2452,6 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setLocalPrintOpts(p => ({ ...p, practicalType: 'pre-board test' }))}
-                  className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
-                    String(localPrintOpts.practicalType || '').toLowerCase().includes('pre-board') || String(localPrintOpts.practicalType || '').toLowerCase().includes('preboard')
-                      ? 'bg-purple-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  Pre-Board
-                </button>
-                <button
-                  type="button"
                   onClick={() => setLocalPrintOpts(p => ({ ...p, practicalType: 'external' }))}
                   className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
                     localPrintOpts.practicalType === 'external'
@@ -2668,14 +2663,6 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 <select value={localPrintOpts.practicalType} onChange={e => setLocalPrintOpts({ ...localPrintOpts, practicalType: e.target.value })} className="w-full px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold">
                   <option value="internal">Internal Assessment</option>
                   <option value="external">External Practical</option>
-                  <option value="Pre-Board Test">Pre-Board Test</option>
-                  <option value="Term End Examination">Term End Examination</option>
-                  <option value="Golden Test">Golden Test</option>
-                  {(getActiveSchoolEvaluations(settings) || []).map(ev => {
-                    const title = ev.evalType || ev.title;
-                    if (!title || ['internal', 'external', 'pre-board test', 'term end examination', 'golden test'].includes(title.toLowerCase())) return null;
-                    return <option key={title} value={title}>{title}</option>;
-                  })}
                 </select>
               </div>
               <div>
@@ -3570,11 +3557,11 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                   session: canonicalSession,
                   records: subRecords,
                   isExternal: String(selSub.practicalType || selSub.evaluationType || '').toLowerCase().includes('ext'),
-                  evaluationType: selSub.evaluationType || selSub.practicalType || selSub.evalType || selSub.examTitle || 'Pre-Board Test',
-                  practicalType: selSub.practicalType || selSub.evaluationType || selSub.evalType || 'Pre-Board Test',
-                  examTitle: selSub.examTitle || selSub.evaluationType || selSub.practicalType || 'Pre-Board Test',
-                  maxMarks: selSub.maxMarks || 50,
-                  minMarks: selSub.minMarks || 18
+                  evaluationType: selSub.evaluationType || selSub.practicalType || selSub.evalType || selSub.examTitle || 'Internal Assessment',
+                  practicalType: selSub.practicalType || selSub.evaluationType || selSub.evalType || 'Internal Assessment',
+                  examTitle: selSub.examTitle || selSub.evaluationType || selSub.practicalType || 'Internal Assessment',
+                  maxMarks: selSub.maxMarks || 20,
+                  minMarks: selSub.minMarks || 7
                 });
               }}
               className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 dark:text-indigo-300 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800"

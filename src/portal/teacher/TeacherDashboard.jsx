@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import { 
   History, CalendarCheck, LogOut,
-  ArrowRight, Award, X, Clock, RefreshCw, Search, Printer, Shield
+  ArrowRight, Award, X, Clock, RefreshCw, Search, Printer, Shield, FileText
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
@@ -11,6 +11,7 @@ import { auth } from '../../services/firebase';
 import { printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
 import { showToast } from '../../components/common/GlobalToast';
 import { isBootstrapAdminEmail, isSuperAdminEmail } from '../../utils/authRoles';
+import { isPracticalEvaluationType } from '../../utils/evaluationTypes';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
@@ -266,8 +267,8 @@ export default function TeacherDashboard() {
           </div>
         )}
 
-        {/* Quick Action Navigation Grid (2 Mobile-First Interactive Cards) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
+        {/* Quick Action Navigation Grid (3 Mobile-First Interactive Cards) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
           {/* Card 1: Student Attendance Portal */}
           <div className="rounded-xl p-3 sm:p-3.5 border shadow-2xs space-y-2.5 transition-all hover:shadow-xs flex flex-col justify-between" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
             <div className="space-y-1.5">
@@ -280,7 +281,7 @@ export default function TeacherDashboard() {
                     Mark Daily Attendance
                   </h2>
                   <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">
-                    Class 11th & 12th Classroom Attendance, Leaves & Holiday Management
+                    Class 11th &amp; 12th Classroom Attendance, Leaves &amp; Holiday Management
                   </p>
                 </div>
               </div>
@@ -312,7 +313,7 @@ export default function TeacherDashboard() {
                     Practical Evaluation Portal
                   </h2>
                   <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">
-                    JKBOSE Laboratory Practical Award Lists, Viva Marks & Print Rolls
+                    JKBOSE Laboratory Practical Award Lists, Viva Marks &amp; Rolls (Internal &amp; External Only)
                   </p>
                 </div>
               </div>
@@ -323,16 +324,48 @@ export default function TeacherDashboard() {
                 type="button"
                 onClick={handleOpenHistoryModal}
                 className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1.5 transition-colors cursor-pointer group underline decoration-indigo-300 dark:decoration-indigo-700 underline-offset-2 bg-transparent border-none p-0 text-left"
-                title="Click to view all practical award submission history & records"
+                title="Click to view all submission history & records"
               >
                 <History size={13} className="text-indigo-600 dark:text-indigo-400 group-hover:rotate-[-20deg] transition-transform" />
-                <span className="font-extrabold">Submissions History{practicalCount !== null ? ` (${practicalCount})` : ''}</span>
+                <span className="font-extrabold">Submissions Log{practicalCount !== null ? ` (${practicalCount})` : ''}</span>
               </button>
               <Link
                 to="/portal/teacher/practicals"
                 className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-2xs transition-all inline-flex items-center justify-center gap-1 cursor-pointer active:scale-98"
               >
                 <span>Open Practicals</span>
+                <ArrowRight size={13} />
+              </Link>
+            </div>
+          </div>
+
+          {/* Card 3: School Based Assessment Portal */}
+          <div className="rounded-xl p-3 sm:p-3.5 border shadow-2xs space-y-2.5 transition-all hover:shadow-xs flex flex-col justify-between" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
+            <div className="space-y-1.5">
+              <div className="flex items-start gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-600/15 text-purple-600 dark:text-purple-400 flex items-center justify-center border border-purple-500/25 shadow-2xs shrink-0 mt-0.5">
+                  <FileText size={17} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-snug">
+                    School Based Assessment
+                  </h2>
+                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">
+                    Pre-Board Tests, Golden Tests, Term End &amp; Unit Assessments Marks Entry
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              <span className="text-[10.5px] font-bold text-purple-700 dark:text-purple-400">
+                School Exams
+              </span>
+              <Link
+                to="/portal/teacher/assessments"
+                className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-500 shadow-2xs transition-all inline-flex items-center justify-center gap-1 cursor-pointer active:scale-98"
+              >
+                <span>Open Assessments</span>
                 <ArrowRight size={13} />
               </Link>
             </div>
@@ -497,11 +530,14 @@ export default function TeacherDashboard() {
                               setShowHistoryModal(false);
                               const rawCls = String(item.className || '');
                               const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
-                              navigate('/portal/teacher/practicals', {
+                              const isPrac = isPracticalEvaluationType(item.practicalType);
+                              const targetRoute = isPrac ? '/portal/teacher/practicals' : '/portal/teacher/assessments';
+                              navigate(targetRoute, {
                                 state: {
                                   selectedClass: cleanCls,
-                                  selectedSubject: item.subject !== 'N/A' ? item.subject : 'Physics',
+                                  selectedSubject: item.subject !== 'N/A' ? item.subject : 'General English',
                                   practicalType: item.practicalType,
+                                  evaluationType: item.practicalType,
                                   yearSuffix: item.yearSuffix,
                                   loadedRecord: item
                                 }

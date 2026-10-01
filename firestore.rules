@@ -491,16 +491,18 @@ service cloud.firestore {
       allow delete: if canUse('attendanceMgmt');
     }
 
+    // Practical evaluations and school-based assessment awards.
+    // Strictly confidential institutional records accessible exclusively via Teacher and Admin logins.
     match /practicalsData/{documentId} {
-      allow read: if true;
-      allow create, update: if (isTeacher() || canUse('practicals')) && validStaffDocument(request.resource.data);
-      allow delete: if canUse('practicals');
+      allow read: if isTeacher() || canUseAny(['practicals', 'gkTest']);
+      allow create, update: if (isTeacher() || canUseAny(['practicals', 'gkTest'])) && validStaffDocument(request.resource.data);
+      allow delete: if canUseAny(['practicals', 'gkTest']);
     }
 
     match /practicalsBin/{documentId} {
-      allow read: if isTeacher() || canUse('practicals');
-      allow create, update: if (isTeacher() || canUse('practicals')) && validStaffDocument(request.resource.data);
-      allow delete: if canUse('practicals');
+      allow read: if isTeacher() || canUseAny(['practicals', 'gkTest']);
+      allow create, update: if (isTeacher() || canUseAny(['practicals', 'gkTest'])) && validStaffDocument(request.resource.data);
+      allow delete: if canUseAny(['practicals', 'gkTest']);
     }
 
     match /activityLogs/{documentId} {

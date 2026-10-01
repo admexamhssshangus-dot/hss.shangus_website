@@ -39,6 +39,7 @@ const AdmissionForm = lazyWithChunkRecovery(() => import('./portal/student/Admis
 const TeacherDashboard = lazyWithChunkRecovery(() => import('./portal/teacher/TeacherDashboard'), 'teacher-dashboard');
 const AttendancePage = lazyWithChunkRecovery(() => import('./portal/teacher/AttendancePage'), 'attendance');
 const PracticalsPage = lazyWithChunkRecovery(() => import('./portal/teacher/PracticalsPage'), 'practicals');
+const TeacherAssessmentsPage = lazyWithChunkRecovery(() => import('./portal/teacher/TeacherAssessmentsPage'), 'teacher-assessments');
 const AdminDashboard = lazyWithChunkRecovery(() => import('./portal/admin/AdminDashboard'), 'admin-dashboard');
 const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./portal/admin/AdmissionRegisterSuite'), 'adm-register-suite');
 const GkTestRegistration = lazyWithChunkRecovery(() => import('./pages/GkTestRegistration'), 'gk-test');
@@ -179,6 +180,8 @@ function App() {
               <Route path="teacher" element={<RoleGuard allowedRoles={['teacher']}><TeacherDashboard /></RoleGuard>} />
               <Route path="teacher/attendance" element={<RoleGuard allowedRoles={['teacher']}><AttendancePage /></RoleGuard>} />
               <Route path="teacher/practicals" element={<RoleGuard allowedRoles={['teacher']}><PracticalsPage /></RoleGuard>} />
+              <Route path="teacher/assessments" element={<RoleGuard allowedRoles={['teacher']}><TeacherAssessmentsPage /></RoleGuard>} />
+              <Route path="teacher/school-assessments" element={<RoleGuard allowedRoles={['teacher']}><TeacherAssessmentsPage /></RoleGuard>} />
 
               {/* Admin-only routes (SuperAdmin is also allowed) */}
               <Route path="admin" element={<RoleGuard allowedRoles={['admin']}><AdminDashboard /></RoleGuard>} />

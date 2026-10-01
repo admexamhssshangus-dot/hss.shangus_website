@@ -16,12 +16,14 @@ import ModernLoader from '../../components/ModernLoader';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import SchoolAssessmentsHub from './SchoolAssessmentsHub';
 import ConsolidatedGazetteView from './ConsolidatedGazetteView';
+import SchoolAssessmentApprovalsView from './SchoolAssessmentApprovalsView';
 import { showToast } from '../../components/common/GlobalToast';
 import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
 import { getStudentStream } from '../../utils/studentDataFetcher';
 
 const HUB_TABS = [
   { id: 'school', label: 'School Assessments & Pre-Board Hub', mobileLabel: 'Assessments', icon: Award },
+  { id: 'approvals', label: 'Assessment Approvals', mobileLabel: 'Approvals', icon: CheckSquare },
   { id: 'gazette', label: 'Consolidated Gazette & Analytics', mobileLabel: 'Gazette', icon: FileText },
   { id: 'competitive', label: 'Competitive Exams & OMR', mobileLabel: 'Competitive', icon: Sparkles }
 ];
@@ -295,10 +297,12 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
     try {
       const p = new URLSearchParams(window.location.search);
       const sub = p.get('subtab') || p.get('gkSubtab');
-      if (sub && ['school', 'gazette', 'competitive'].includes(sub)) return sub;
+      if (sub && ['school', 'approvals', 'gazette', 'competitive'].includes(sub)) return sub;
     } catch (_) {}
     return 'school';
   });
+
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
 
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -668,7 +672,7 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
   return (
     <div className="space-y-3 sm:space-y-4">
       {/* Sub-Navigation Bar: Responsive Grid on Mobile, Scrollable on Desktop */}
-      <div className="grid grid-cols-3 sm:flex sm:items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:overflow-x-auto no-print shadow-2xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 sm:flex sm:items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:overflow-x-auto no-print shadow-2xs">
         {HUB_TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = activeHubTab === tab.id;
@@ -693,6 +697,11 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
               <Icon size={13} className={`shrink-0 ${isActive ? 'text-white' : 'text-teal-600 dark:text-teal-400'}`} />
               <span className="sm:hidden truncate">{tab.mobileLabel || tab.label}</span>
               <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
+              {tab.id === 'approvals' && pendingApprovalsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-500 text-white shadow-2xs">
+                  {pendingApprovalsCount}
+                </span>
+              )}
             </button>
           );
         })}
@@ -704,6 +713,16 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
           <SchoolAssessmentsHub
             allStudents={directoryStudents}
             onSwitchToGazette={() => setActiveHubTab('gazette')}
+          />
+        </ModuleErrorBoundary>
+      )}
+
+      {/* TAB 2: Assessment Approvals */}
+      {activeHubTab === 'approvals' && (
+        <ModuleErrorBoundary resetKey="gktest-approvals">
+          <SchoolAssessmentApprovalsView
+            allStudents={directoryStudents}
+            onPendingCountChange={setPendingApprovalsCount}
           />
         </ModuleErrorBoundary>
       )}
