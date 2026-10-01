@@ -19,7 +19,8 @@ import { loadSiteSettings } from '../../utils/settingsLoader';
 import {
   getSubjectMarksConfig,
   getAdminPracticalsSettings,
-  getEvaluationTypesForTeacher,
+  getPracticalEvaluationTypes,
+  isPracticalEvaluationType,
   getSubjectOverride,
   SUBJECT_CONFIG_DEFS,
   isTeacherSubjectMatch,
@@ -1306,7 +1307,11 @@ export default function PracticalsPage() {
     return teacherRegisteredSubject;
   }, [teacherClassAssignedSubjects, teacherRegisteredSubject]);
 
-  const [practicalType, setPracticalType] = useState(location.state?.practicalType || 'Internal Assessment');
+  const [practicalType, setPracticalType] = useState(
+    (location.state?.practicalType && isPracticalEvaluationType(location.state.practicalType))
+      ? location.state.practicalType
+      : 'Internal Assessment'
+  );
   const [selectedSubject, setSelectedSubject] = useState(initialSubject);
   const [yearSuffix, setYearSuffix] = useState(location.state?.yearSuffix || CURRENT_SESSION);
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
@@ -1627,8 +1632,8 @@ export default function PracticalsPage() {
   }, []);
 
   const availableEvalTypes = useMemo(() => {
-    return getEvaluationTypesForTeacher(practicalsSettings, selectedClass, yearSuffix);
-  }, [practicalsSettings, selectedClass, yearSuffix]);
+    return getPracticalEvaluationTypes();
+  }, []);
 
   const activeEvalOption = availableEvalTypes.find(e => e.value === practicalType);
   const isCustomEval = activeEvalOption?.isCustom;
@@ -1780,18 +1785,16 @@ export default function PracticalsPage() {
           const matchClass = docClass.includes(clsNorm.toLowerCase()) || dId.toLowerCase().includes(clsNorm.toLowerCase());
           if (!matchClass && dId !== docId && dId !== pendingDocId) return;
 
-          // Evaluation Type Match — isolate Pre-Board Test, Internal, External, etc.
+          // Evaluation Type Match — strictly Internal or External Practical
           const docEvalType = String(data.practicalType || data.evaluationType || data.examTitle || '').toLowerCase().trim();
+          if (!isPracticalEvaluationType(docEvalType)) return;
           const targetEvalType = String(practicalType || '').toLowerCase().trim();
-          const isPreboardTarget = targetEvalType.includes('preboard') || targetEvalType.includes('pre-board');
-          const isPreboardDoc = docEvalType.includes('preboard') || docEvalType.includes('pre-board');
           const isInternalTarget = targetEvalType.includes('internal');
           const isInternalDoc = docEvalType.includes('internal');
           const isExternalTarget = targetEvalType.includes('external');
           const isExternalDoc = docEvalType.includes('external');
 
-          const matchEval = (isPreboardTarget && isPreboardDoc) || 
-                            (isInternalTarget && isInternalDoc) || 
+          const matchEval = (isInternalTarget && isInternalDoc) || 
                             (isExternalTarget && isExternalDoc) || 
                             (docEvalType === targetEvalType) ||
                             dId === docId || dId === pendingDocId;
@@ -2634,6 +2637,11 @@ export default function PracticalsPage() {
 
             // Filter out shell/corrupted records that have 0 students or no valid subject
             if (recCount === 0 || !hasValidSubject) return false;
+
+            // Practicals portal strictly holds practical data only (Internal Assessment & External Practical)
+            const evalTypeRaw = d.practicalType || d.evaluationType || d.examTitle || d.title || '';
+            if (!isPracticalEvaluationType(evalTypeRaw)) return false;
+
             return true;
           })
           .map(d => {
@@ -5306,7 +5314,7 @@ export default function PracticalsPage() {
                     My Assessment Submissions Log
                   </h3>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate m-0">
-                    Your submitted evaluations <span className="hidden sm:inline">(Pre-Board, Practicals, Term End)</span>
+                    Your submitted practical awards <span className="hidden sm:inline">(Internal Assessment & External Practical)</span>
                   </p>
                 </div>
               </div>

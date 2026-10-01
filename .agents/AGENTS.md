@@ -65,3 +65,12 @@ Whenever completing or verifying changes requested by the user, follow this stri
     5. Firestore security rules & RBAC (`firestore.rules` and `staffAuthService.js` to ensure proper read/write authorization).
   - This ensures that staff, teachers, administrators, and students always receive the updated interfaces, functionalities, and access privileges seamlessly across portal updates.
 
+### 8. Practicals & Academic Evaluation Data Boundary Rule
+- **Strict Practicals Confidentiality**: Practicals data (Internal Assessment & External Practical marks, award rolls, and examiner signatures) is strictly confidential institutional academic data.
+- **Never Available to Public Portal or Students**: Practicals data is strictly NEVER available to the public portal or student accounts under any circumstances. It is exclusively accessible via authenticated Teacher login and Admin login.
+- **Clean End-to-End Separation**:
+  - The **Practicals & Award Rolls Portal** (at both Teacher and Admin sides) holds ONLY practical data: Internal Assessment and External Practical.
+  - All other examinations—including Pre-Board Examinations, Golden Tests, Mid-term Tests, Unit Assessments, Term End Examinations, and Competitive/OMR tests—are strictly handled and displayed exclusively within the **School Based Assessment Portal** (the third dedicated portal in Teacher Workspace, and the School Based Assessment Suite in Admin Portal).
+  - Approvals of Pre-Board and other school examinations are processed exclusively within the **School Based Assessment Portal** and never in the Practicals portal.
+
+
