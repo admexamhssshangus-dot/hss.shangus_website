@@ -37,7 +37,9 @@ async function check() {
     assert.ok(doc.querySelector('meta[name="google-site-verification"]'), 'Preserve Search Console verification');
     assert.equal(doc.querySelectorAll('script[type="application/ld+json"]').length, 1);
     const graph = JSON.parse(doc.querySelector('#hss-structured-data').textContent)['@graph'];
-    assert.equal(graph.find((item) => item['@type'] === 'WebSite').name, 'HSS Shangus');
+    const website = graph.find((item) => item['@type'] === 'WebSite');
+    assert.equal(website.name, 'HSS Shangus');
+    assert.ok(!JSON.stringify(website.alternateName).includes('netlify.app'), 'Do not advertise netlify.app as alternate name');
     assert.equal(graph.find((item) => item['@type'] === 'WebPage').url, url);
     const school = graph.find((item) => item['@type'] === 'HighSchool');
     assert.ok(Array.isArray(school.sameAs) && school.sameAs.length > 0, 'HighSchool must have sameAs');

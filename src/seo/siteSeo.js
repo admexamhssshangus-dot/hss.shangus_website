@@ -121,7 +121,12 @@ function getStructuredData(seo) {
     {
       '@type': 'HighSchool', '@id': `${SITE_ORIGIN}/#school`, name: SCHOOL_NAME,
       alternateName: [SITE_NAME, 'GHSS Shangus', 'Govt HSS Shangus'],
-      url: `${SITE_ORIGIN}/`, logo: `${SITE_ORIGIN}/logo.png`, image: DEFAULT_IMAGE,
+      url: `${SITE_ORIGIN}/`, logo: `${SITE_ORIGIN}/logo.png`,
+      image: [
+        `${SITE_ORIGIN}/slides/og-card.jpg`,
+        `${SITE_ORIGIN}/slides/aboutus.jpg`,
+        `${SITE_ORIGIN}/logo192.png`
+      ],
       description: PUBLIC_PAGES['/'].description, foundingDate: '1917',
       email: 'adm.exam.hss.shangus@gmail.com', telephone: '+91-7006034501',
       sameAs: ['https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus'],
@@ -135,15 +140,60 @@ function getStructuredData(seo) {
         latitude: 33.6992,
         longitude: 75.2891
       },
+      openingHoursSpecification: [
+        {
+          '@type': 'OpeningHoursSpecification',
+          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+          opens: '10:00',
+          closes: '16:00'
+        }
+      ],
       contactPoint: {
         '@type': 'ContactPoint', telephone: '+91-7006034501',
         contactType: 'admissions', availableLanguage: ['English', 'Urdu', 'Hindi']
       },
+      department: [
+        {
+          '@type': 'EducationalOrganization',
+          name: 'Department of Science',
+          description: 'Higher Secondary Science stream offering Medical and Non-Medical combinations with Physics, Chemistry, Biology, and Mathematics.'
+        },
+        {
+          '@type': 'EducationalOrganization',
+          name: 'Department of Humanities',
+          description: 'Higher Secondary Humanities stream offering Education, Political Science, History, Economics, and Urdu.'
+        },
+        {
+          '@type': 'EducationalOrganization',
+          name: 'Secondary Education Wing',
+          description: 'Classes 9th and 10th secondary academic curriculum affiliated with JKBOSE.'
+        }
+      ],
+      hasCredential: [
+        {
+          '@type': 'EducationalOccupationalCredential',
+          name: 'Higher Secondary School Certificate (10+2)',
+          credentialCategory: 'degree',
+          recognizedBy: {
+            '@type': 'Organization',
+            name: 'Jammu and Kashmir Board of School Education (JKBOSE)'
+          }
+        },
+        {
+          '@type': 'EducationalOccupationalCredential',
+          name: 'Secondary School Certificate (10th)',
+          credentialCategory: 'degree',
+          recognizedBy: {
+            '@type': 'Organization',
+            name: 'Jammu and Kashmir Board of School Education (JKBOSE)'
+          }
+        }
+      ],
       hasMap: 'https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus'
     },
     {
       '@type': 'WebSite', '@id': `${SITE_ORIGIN}/#website`, name: SITE_NAME,
-      alternateName: [SCHOOL_NAME, 'GHSS Shangus', 'hssshangus.in', 'www.hssshangus.in', 'hssshangus.netlify.app'],
+      alternateName: [SCHOOL_NAME, 'GHSS Shangus', 'Govt HSS Shangus', 'hssshangus.in', 'www.hssshangus.in'],
       url: `${SITE_ORIGIN}/`, publisher: { '@id': `${SITE_ORIGIN}/#school` },
       hasPart: [
         {
@@ -183,6 +233,46 @@ function getStructuredData(seo) {
       ...(seo.path !== '/' ? { breadcrumb: { '@id': `${seo.canonical}#breadcrumbs` } } : {})
     }
   ];
+  if (seo.path === '/') {
+    graph.push({
+      '@type': 'FAQPage',
+      '@id': `${SITE_ORIGIN}/#faq`,
+      mainEntity: [
+        {
+          '@type': 'Question',
+          name: 'What streams and courses are offered at Govt. Higher Secondary School Shangus?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Govt. Higher Secondary School Shangus offers Higher Secondary (Classes 11th & 12th) in Science (Medical and Non-Medical) and Humanities streams, as well as Secondary Education (Classes 9th & 10th) with vocational subjects under JKBOSE.'
+          }
+        },
+        {
+          '@type': 'Question',
+          name: 'How can students apply for admission to HSS Shangus?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Students can register and submit admission forms online through the official admission portal at https://hssshangus.in/admissions or in person at the school administrative office.'
+          }
+        },
+        {
+          '@type': 'Question',
+          name: 'How can students check their examination results online?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Students can search and verify marks details, academic scorecards, and examination results directly on the official results portal at https://hssshangus.in/results.'
+          }
+        },
+        {
+          '@type': 'Question',
+          name: 'Where is Govt. Higher Secondary School Shangus located?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Govt. Higher Secondary School Shangus is located on Main Road, Shangus, Tehsil Shangus, District Anantnag, Jammu & Kashmir 192201.'
+          }
+        }
+      ]
+    });
+  }
   if (seo.path !== '/') graph.push({
     '@type': 'BreadcrumbList', '@id': `${seo.canonical}#breadcrumbs`,
     itemListElement: [

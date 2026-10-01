@@ -18,10 +18,13 @@ function renderHead(seo) {
     `<title>${escapeHtml(seo.title)}</title>`,
     `<link rel="canonical" href="${seo.canonical}">`,
     meta('name', 'description', seo.description), meta('name', 'robots', seo.robots),
-    meta('name', 'thumbnail', seo.image), meta('property', 'og:site_name', SITE_NAME),
+    meta('name', 'thumbnail', seo.image),
+    `<link rel="image_src" href="${escapeHtml(seo.image)}">`,
+    meta('property', 'og:site_name', SITE_NAME),
     meta('property', 'og:type', 'website'), meta('property', 'og:title', seo.title),
     meta('property', 'og:description', seo.description), meta('property', 'og:url', seo.canonical),
     meta('property', 'og:image', seo.image),
+    meta('property', 'og:image:secure_url', seo.image),
     meta('property', 'og:image:width', '1200'), meta('property', 'og:image:height', '630'),
     meta('property', 'og:image:type', 'image/jpeg'), meta('property', 'og:image:alt', seo.title),
     meta('property', 'og:locale', 'en_IN'),
@@ -63,6 +66,9 @@ function renderOverview(page) {
     <main class="search-overview__main" id="main-content">
       <p class="search-overview__eyebrow">Shangus · Anantnag · Jammu and Kashmir</p>
       <h1>${escapeHtml(page.heading)}</h1>
+      <figure class="search-overview__hero-media" style="margin: 0 0 24px 0; border-radius: 12px; overflow: hidden; border: 1px solid #d9e5e1; max-width: 100%;">
+        <img src="/slides/og-card.jpg" width="1200" height="630" alt="${escapeHtml(page.heading)} - Govt. Higher Secondary School Shangus" style="width: 100%; height: auto; display: block; object-fit: cover;" loading="eager" decoding="async">
+      </figure>
       ${page.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('\n')}
       <nav aria-label="Related pages" class="search-overview__links">${page.links.map(link).join(' ')}</nav>
       <noscript><p class="search-overview__note">This page provides a public overview. Enable JavaScript for live updates, full page details and online services.</p></noscript>

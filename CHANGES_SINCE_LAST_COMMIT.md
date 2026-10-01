@@ -1,48 +1,52 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Fix Modal Responsiveness, Arts-Subject Leak in Science Stream & 11th Placeholder Resolution
+## Latest Commit: Purge Netlify Schema Leak, Add Rich Search Structured Data & Thumbnail Snippets
 
-**Commit Message:** `fix(direct-entry & practicals): fix modal responsiveness z-index, prevent arts subject ED in science stream and resolve Same as in Class 11th placeholders`
+**Commit Message:** `fix(seo): purge netlify.app schema leak, add FAQPage rich snippets, multi-image structured data and campus thumbnail`
 
 ---
 
 ### Summary of Changes
 
-1. **Fixed Direct Entry Preview & Inspect Modal Responsiveness (`BulkFieldOverwriteModal.jsx`)**:
-   - **Root Cause**: The inspect diff modal previously rendered within the parent DOM container with `z-60` (which is not configured in standard Tailwind, leaving it as `z-index: auto`), allowing the background table header (`position: sticky top-0 z-10`) to slice across the modal dialog and block student field cards (such as Subject 2).
-   - **Fix**: Wrapped both `inspectModalContent` and `progressOverlayContent` in `createPortal(..., document.body)` with `z-[9999]` and `z-[10000]`.
-   - Enhanced modal card responsiveness and word-wrapping with `min-w-0`, `truncate` on labels, and resilient flex/grid layouts across mobile and desktop viewports.
+1. **Purged `netlify.app` Schema Leak (`src/seo/siteSeo.js`)**:
+   - **Root Cause**: `src/seo/siteSeo.js` previously listed `'hssshangus.netlify.app'` inside `WebSite.alternateName` alongside the official domain and school names. This actively signaled to Google's semantic indexing bots that `hssshangus.netlify.app` was a valid ongoing alias for the institution, slowing down canonical consolidation.
+   - **Fix**: Removed `'hssshangus.netlify.app'` entirely from `alternateName`. Added automated regression assertion in `scripts/seo-regression-check.js` ensuring `netlify.app` is never advertised in structured data.
 
-2. **Eliminated "Same as in Class 11th" Placeholders End-to-End**:
-   - Class 12th students with `"Same as in Class 11th"` now reliably resolve authentic subjects from `Subjects Studied in Class 11th`, `Subjects to be taken in Class 11th`, `Subjects in Class 11th`, multi-subject columns (`Subjects1..Subjects6`), or stream fallbacks.
-   - Updated `resolveStudentSubjectsRaw` in `practicalsPdfGenerator.js`, `getStudentSubjectsStr` in `AdminPracticals.jsx`, `extractRawSubjectsString` in `PracticalsPage.jsx`, and `extractRawSubjectsString` in `AttendancePage.jsx` to reject `SAME_AS_11_RE` placeholders and resolve genuine subjects.
-   - Ensured Excel roster exports in `practicalsCsvManager.js` use resolved abbreviations rather than unexpanded placeholders.
+2. **Enabled Google Rich Search Results & FAQ Accordion Snippets (`src/seo/siteSeo.js`)**:
+   - Added schema.org `FAQPage` structured data on the homepage (`/`), providing Google with high-relevance institutional FAQs (streams offered, online admission procedures, result lookup portal, and school location). This enables Google to render rich expandable Q&A accordions directly below the search result snippet.
+   - Expanded `HighSchool` schema:
+     - Multi-image aspect ratios (`slides/og-card.jpg`, `slides/aboutus.jpg`, `logo192.png`) meeting Google's rich result guidelines.
+     - Added `openingHoursSpecification` (Monday–Saturday 10:00 AM – 4:00 PM).
+     - Added `department` hierarchy (`Department of Science`, `Department of Humanities`, `Secondary Education Wing`).
+     - Added `hasCredential` recognizing JKBOSE Higher Secondary (10+2) and Secondary (10th) certifications.
 
-3. **Prevented Arts Subjects (Like Education / ED) in Science Stream**:
-   - **Root Cause**: In `practicalsPdfGenerator.js`, `practicalsCsvManager.js`, and `AttendancePage.jsx`, regexes like `/\b(education|edu|ed)\b/i` matched `"Education"` inside `"Physical Education"`, causing Science students who took Physical Education to falsely receive Arts subject `ED` (Education) alongside `PD`.
+3. **Restored Google Search Thumbnail for `hssshangus.in` (`scripts/generate-search-pages.js`, `src/seo/applySeo.js`)**:
+   - **Root Cause**: While Netlify's old crawl cache captured the campus card, `hssshangus.in` lacked `<link rel="image_src">` tags and did not have a crawlable hero figure in the static pre-rendered overview `<main>` body, causing Googlebot's thumbnail picker to omit the snippet image.
    - **Fix**:
-     - Pre-tokenized multi-word and compound subjects before single-word abbreviation (`Physical Education` ➔ `__SUB_PD__`, `Environmental Science` ➔ `__SUB_ES__`, `Political Science` ➔ `__SUB_PS__`, `Computer Science` ➔ `__SUB_CS__`, `Social Science` ➔ `__SUB_SS__`, etc.).
-     - Implemented a strict Science Stream Guard across `practicalsPdfGenerator.js`, `AdminPracticals.jsx`, `PracticalsPage.jsx`, `AttendancePage.jsx`, and `practicalsCsvManager.js` that strips Arts-only electives (`ED`, `HT`, `PS`, `SO`, `AR`, `PR`) and Secondary `SC` from any Science stream student.
-     - Exported and wired canonical `isStudentEnrolledInPracticalSubject` across Attendance Sheets, Individual Award Rolls, and Consolidated Matrices in PDF, Excel, and Word exports.
+     - Added `<link rel="image_src" href="...">` and `<meta property="og:image:secure_url">` to `renderHead`.
+     - Injected a prominent campus hero image (`/slides/og-card.jpg`, 1200x630) into the pre-rendered static HTML overview (`renderOverview`), ensuring search engines immediately index a high-resolution visual thumbnail.
+     - Added dynamic `<link rel="image_src">` injection to `src/seo/applySeo.js` for seamless client-side route transitions.
+
+4. **Preserved Forced 301 Redirects (`netlify.toml`)**:
+   - Verified that `https://hssshangus.netlify.app/*` strictly returns `HTTP/1.1 301 Moved Permanently` to `https://hssshangus.in/:splat`.
 
 ---
 
 ### Files Modified
 
-- `src/portal/admin/BulkFieldOverwriteModal.jsx` — Portaled inspect modal and progress overlay to `document.body` with `z-[9999]`, added responsive card styling.
-- `src/utils/practicalsPdfGenerator.js` — Pre-tokenized compound subjects, enforced Science stream guard, exported `isStudentEnrolledInPracticalSubject`, fixed 9th/10th resolution.
-- `src/utils/practicalsCsvManager.js` — Imported and integrated `isStudentEnrolledInPracticalSubject` and `getAbbreviatedSubjects` for Excel and Word matrix exports.
-- `src/portal/admin/AdminPracticals.jsx` — Enhanced `getStudentSubjectsStr` and `isStudentEnrolledInSubject` with 11th resolution and strict Science stream guard.
-- `src/portal/teacher/PracticalsPage.jsx` — Resolved 11th subjects for 12th students and enforced Science stream guard.
-- `src/portal/teacher/AttendancePage.jsx` — Resolved 11th subjects, enforced Science stream guard and eliminated Arts matching for Science students.
-- `src/portal/teacher/PracticalsPage.test.jsx` — Added regression tests verifying `ED` is never assigned to Science students opting for Physical Education and that `"Same as in Class 11th"` resolves cleanly.
+- `src/seo/siteSeo.js` — Removed `hssshangus.netlify.app` from `alternateName`, added multi-image aspect ratios, `openingHoursSpecification`, `department`, `hasCredential`, and `FAQPage` structured data.
+- `src/seo/applySeo.js` — Added client-side `<link rel="image_src">` synchronization.
+- `scripts/generate-search-pages.js` — Added `<link rel="image_src">`, `og:image:secure_url`, and prominent campus hero image in static HTML overview.
+- `scripts/seo-regression-check.js` — Added regression assertion forbidding `netlify.app` in `WebSite.alternateName`.
 - `CHANGES_SINCE_LAST_COMMIT.md` — Updated with complete documentation of this commit.
 
 ---
 
 ### Verification Results
-- `npm test -- src/portal/teacher/PracticalsPage.test.jsx --watchAll=false`: **19/19 Tests Passed (100%)**.
-- `npm run build`: **Compiled successfully with Exit Code 0**. SEO checks passed (11 pages, static metadata, sitemap).
+
+- `npm run build`: **Compiled successfully with Exit Code 0**.
+- Generated 11 static search pages, canonical redirects, and sitemap.
+- SEO checks passed: 11 pages, static metadata/content, sitemap, routing, privacy headers, and offline navigation.
 
 ---
 
@@ -56,7 +60,7 @@ git log -1 -p
 If you wish to amend or re-commit:
 ```bash
 git reset --soft HEAD~1
-git commit -m "fix(direct-entry & practicals): fix modal responsiveness z-index, prevent arts subject ED in science stream and resolve Same as in Class 11th placeholders"
+git commit -m "fix(seo): purge netlify.app schema leak, add FAQPage rich snippets, multi-image structured data and campus thumbnail"
 ```
 
 To push to the remote repository (Mandatory Manual Rule):
