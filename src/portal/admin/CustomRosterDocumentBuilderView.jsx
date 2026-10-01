@@ -1651,13 +1651,17 @@ function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
   );
 }
 
-// ─── Unique Stable Identifier for Roster Student Rows ───
+// ─── Unique Stable Identifier for Roster Student Rows (Strictly Scoped by Session & Class) ───
 export function getRosterRowId(row) {
   if (!row) return '';
-  return row.docId || 
-    (row.boardRegNo && row.boardRegNo !== '—' ? `reg_${row.boardRegNo}` : '') ||
-    (row.formNo && row.formNo !== '—' ? `form_${row.formNo}` : '') ||
-    `${row.session || ''}_${row.className || ''}_${row.studentName || ''}_${row.fatherName || ''}_${row._originalIdx || ''}`;
+  const sess = String(row.session || '').trim().toLowerCase();
+  const cls = String(row.className || '').trim().toLowerCase();
+  const cleanReg = row.boardRegNo && row.boardRegNo !== '—' ? String(row.boardRegNo).replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+  const cleanForm = row.formNo && row.formNo !== '—' ? String(row.formNo).trim().toLowerCase().replace(/^adm_/, '') : '';
+  const cleanName = row.studentName && row.studentName !== '—' ? String(row.studentName).trim().toLowerCase() : '';
+  const cleanFather = row.fatherName && row.fatherName !== '—' ? String(row.fatherName).trim().toLowerCase() : '';
+  const baseId = cleanReg ? `reg_${cleanReg}` : (cleanForm ? `form_${cleanForm}` : (row.docId ? `doc_${row.docId}` : `${cleanName}_${cleanFather}_${row._originalIdx || ''}`));
+  return `${sess}_${cls}_${baseId}`;
 }
 
 // ─── Reusable Multi-Select Checkbox Dropdown for Cohort Filters ───
@@ -2860,39 +2864,53 @@ export default function CustomRosterDocumentBuilderView({
   const combinedRawStudents = useMemo(() => {
     // Filter out raw chunk container documents from allStudents if any were passed
     const list = Array.isArray(allStudents) 
-      ? allStudents.filter(s => s && !Array.isArray(s.items) && !Array.isArray(s.students) && !Array.isArray(s.records)).map(s => ({ ...s }))
+      ? allStudents.filter(s => s && !Array.isArray(s.items) && !Array.isArray(s.students) && !Array.isArray(s.records) && !Array.isArray(s.data)).map(s => ({ ...s }))
       : [];
     if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
       const seenMap = new Map();
       list.forEach(s => {
         const id = String(s.id || s.docId || '').trim().toLowerCase();
-        const fNo = String(s.formNo || s['Form Number'] || s['Form No.'] || '').trim().toLowerCase();
-        const reg = String(s.boardRegNo || s['Board Registration Number'] || s['Board Reg. No.'] || s.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-        const name = String(s.studentName || s['Student Name'] || s.name || '').trim().toLowerCase();
-        const father = String(s.fatherName || s["Father's Name"] || s.parentName || '').trim().toLowerCase();
+        const fNo = String(extractFormNo(s) || s.formNo || s['Form Number'] || s['Form No.'] || '').trim().toLowerCase().replace(/^adm_/, '');
+        const reg = String(extractBoardRegNo(s) || s.boardRegNo || s['Board Registration Number'] || s['Board Reg. No.'] || s.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const name = String(extractStudentName(s) || s.studentName || s['Student Name'] || s.name || '').trim().toLowerCase();
+        const father = String(extractFatherName(s) || s.fatherName || s["Father's Name"] || s.parentName || '').trim().toLowerCase();
         const sess = String(extractSession(s) || s.session || s.Session || '').trim().toLowerCase();
         const cls = String(extractClass(s) || s.className || s.class || s.Class || '').trim().toLowerCase();
+        const roll = String(getStudentRollNumber(s) || '').trim();
 
         if (id) seenMap.set(`id:${id}`, s);
-        if (fNo) seenMap.set(`fno:${sess}:${cls}:${fNo}`, s);
-        if (reg && reg !== '—') seenMap.set(`reg:${sess}:${cls}:${reg}`, s);
-        if (name && father && cls) seenMap.set(`name:${sess}:${cls}:${name}:${father}`, s);
+        if (fNo && fNo !== '—') {
+          seenMap.set(`fno:${fNo}`, s);
+          seenMap.set(`fno:${sess}:${cls}:${fNo}`, s);
+        }
+        if (reg && reg !== '—') {
+          seenMap.set(`reg:${reg}`, s);
+          seenMap.set(`reg:${sess}:${cls}:${reg}`, s);
+        }
+        if (name && name !== '—' && father && father !== '—') {
+          seenMap.set(`name:${sess}:${cls}:${name}:${father}`, s);
+        }
+        if (name && name !== '—' && roll && roll !== '—' && roll !== '0') {
+          seenMap.set(`roll:${sess}:${cls}:${roll}:${name}`, s);
+        }
       });
 
       masterRegistersList.forEach(m => {
         const id = String(m.id || m.docId || '').trim().toLowerCase();
-        const fNo = String(m.formNo || m['Form Number'] || m['Form No.'] || '').trim().toLowerCase();
-        const reg = String(m.boardRegNo || m['Board Registration Number'] || m['Board Reg. No.'] || m.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-        const name = String(m.studentName || m['Student Name'] || m.name || '').trim().toLowerCase();
-        const father = String(m.fatherName || m["Father's Name"] || m.parentName || '').trim().toLowerCase();
+        const fNo = String(extractFormNo(m) || m.formNo || m['Form Number'] || m['Form No.'] || '').trim().toLowerCase().replace(/^adm_/, '');
+        const reg = String(extractBoardRegNo(m) || m.boardRegNo || m['Board Registration Number'] || m['Board Reg. No.'] || m.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const name = String(extractStudentName(m) || m.studentName || m['Student Name'] || m.name || '').trim().toLowerCase();
+        const father = String(extractFatherName(m) || m.fatherName || m["Father's Name"] || m.parentName || '').trim().toLowerCase();
         const sess = String(extractSession(m) || m.session || m.Session || '').trim().toLowerCase();
         const cls = String(extractClass(m) || m.className || m.class || m.Class || '').trim().toLowerCase();
+        const roll = String(getStudentRollNumber(m) || '').trim();
 
         const match = 
           (id && seenMap.get(`id:${id}`)) ||
-          (fNo && seenMap.get(`fno:${sess}:${cls}:${fNo}`)) ||
-          (reg && reg !== '—' && seenMap.get(`reg:${sess}:${cls}:${reg}`)) ||
-          (name && father && cls && seenMap.get(`name:${sess}:${cls}:${name}:${father}`));
+          (fNo && fNo !== '—' && (seenMap.get(`fno:${fNo}`) || seenMap.get(`fno:${sess}:${cls}:${fNo}`))) ||
+          (reg && reg !== '—' && (seenMap.get(`reg:${reg}`) || seenMap.get(`reg:${sess}:${cls}:${reg}`))) ||
+          (name && name !== '—' && father && father !== '—' && seenMap.get(`name:${sess}:${cls}:${name}:${father}`)) ||
+          (name && name !== '—' && roll && roll !== '—' && roll !== '0' && seenMap.get(`roll:${sess}:${cls}:${roll}:${name}`));
 
         if (match) {
           // Enrich the existing student in list with any non-empty fields from m (especially exam roll numbers)
@@ -2905,9 +2923,20 @@ export default function CustomRosterDocumentBuilderView({
         } else {
           list.push(m);
           if (id) seenMap.set(`id:${id}`, m);
-          if (fNo) seenMap.set(`fno:${sess}:${cls}:${fNo}`, m);
-          if (reg && reg !== '—') seenMap.set(`reg:${sess}:${cls}:${reg}`, m);
-          if (name && father && cls) seenMap.set(`name:${sess}:${cls}:${name}:${father}`, m);
+          if (fNo && fNo !== '—') {
+            seenMap.set(`fno:${fNo}`, m);
+            seenMap.set(`fno:${sess}:${cls}:${fNo}`, m);
+          }
+          if (reg && reg !== '—') {
+            seenMap.set(`reg:${reg}`, m);
+            seenMap.set(`reg:${sess}:${cls}:${reg}`, m);
+          }
+          if (name && name !== '—' && father && father !== '—') {
+            seenMap.set(`name:${sess}:${cls}:${name}:${father}`, m);
+          }
+          if (name && name !== '—' && roll && roll !== '—' && roll !== '0') {
+            seenMap.set(`roll:${sess}:${cls}:${roll}:${name}`, m);
+          }
         }
       });
     }
@@ -2917,7 +2946,12 @@ export default function CustomRosterDocumentBuilderView({
   // ─── Direct High-Performance Pre-Indexed Student Pool (Runs Extraction Only Once) ───
   const unifiedStudentPool = useMemo(() => {
     if (!Array.isArray(combinedRawStudents) || combinedRawStudents.length === 0) return [];
-    const poolMap = new Map();
+    const poolList = [];
+    const indexByReg = new Map();
+    const indexByForm = new Map();
+    const indexByNameFather = new Map();
+    const indexByNameRoll = new Map();
+    const indexByDoc = new Map();
 
     // ── Pre-pass: Build Cross-Reference Registry for Exam Roll Numbers across ALL records ──
     const examRollByReg = new Map();
@@ -3078,43 +3112,63 @@ export default function CustomRosterDocumentBuilderView({
       // Skip empty or container objects that lack any identifying candidate details
       if (studentName === '—' && fName === '—' && boardRegNo === '—' && formNo === '—') return;
 
-      // Create unique deduplication key for student pool (scoped to session + class so multi-year academic progression and bi-annual entries are preserved)
-      const regKey = boardRegNo && boardRegNo !== '—' ? boardRegNo.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
-      const fNoKey = formNo && formNo !== '—' ? formNo.toLowerCase() : '';
-      const nameKey = (studentName !== '—' && fName !== '—') ? `${session}_${className}_${studentName}_${fName}`.toLowerCase() : '';
-      
-      const dedupKey = regKey 
-        ? `reg_${session}_${className}_${regKey}` 
-        : (fNoKey 
-          ? `form_${session}_${className}_${fNoKey}` 
-          : (nameKey 
-            ? `name_${nameKey}` 
-            : `doc_${session}_${className}_${st.docId || st.id || idx}`));
+      // Multi-index deduplication within unified student pool (scoped to session + class so academic progression is preserved)
+      const normSession = String(session || '').trim().toLowerCase();
+      const normClass = String(className || '').trim().toLowerCase();
+      const cleanReg = boardRegNo && boardRegNo !== '—' ? boardRegNo.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+      const cleanForm = formNo && formNo !== '—' ? String(formNo).trim().toLowerCase().replace(/^adm_/, '') : '';
+      const cleanName = studentName && studentName !== '—' ? studentName.trim().toLowerCase() : '';
+      const cleanFather = fName && fName !== '—' ? fName.trim().toLowerCase() : '';
+      const cleanRoll = classRollNo && classRollNo !== '—' && classRollNo !== '0' ? String(classRollNo).trim().replace(/[^0-9]/g, '') : '';
+      const cleanDocId = (st.docId || st.id || '').trim().toLowerCase();
 
-      if (!poolMap.has(dedupKey)) {
-        poolMap.set(dedupKey, studentRecord);
-      } else {
-        const existing = poolMap.get(dedupKey);
-        // Prefer richer information and merge fields
-        const merged = { ...existing };
+      const regKey = cleanReg ? `reg_${normSession}_${normClass}_${cleanReg}` : '';
+      const formKey = cleanForm ? `form_${normSession}_${normClass}_${cleanForm}` : '';
+      const nameFatherKey = (cleanName && cleanFather) ? `nf_${normSession}_${normClass}_${cleanName}_${cleanFather}` : '';
+      const nameRollKey = (cleanName && cleanRoll) ? `nr_${normSession}_${normClass}_${cleanName}_${cleanRoll}` : '';
+      const docKey = cleanDocId ? `doc_${cleanDocId}` : '';
+
+      const existing = 
+        (regKey && indexByReg.get(regKey)) ||
+        (formKey && indexByForm.get(formKey)) ||
+        (docKey && indexByDoc.get(docKey)) ||
+        (nameFatherKey && indexByNameFather.get(nameFatherKey)) ||
+        (nameRollKey && indexByNameRoll.get(nameRollKey));
+
+      if (existing) {
+        // Merge enriched fields from studentRecord into existing
         Object.keys(studentRecord).forEach(k => {
-          if ((merged[k] === '—' || merged[k] === '' || merged[k] === undefined || merged[k] === null) &&
+          if ((existing[k] === '—' || existing[k] === '' || existing[k] === undefined || existing[k] === null) &&
               studentRecord[k] && studentRecord[k] !== '—') {
-            merged[k] = studentRecord[k];
+            existing[k] = studentRecord[k];
           }
         });
-        if (existing.classRollNo === '—' && classRollNo !== '—') {
-          merged.classRollNo = classRollNo;
+        if ((existing.classRollNo === '—' || !existing.classRollNo) && classRollNo && classRollNo !== '—') {
+          existing.classRollNo = classRollNo;
         }
         if ((existing.examRollNo === '—' || !existing.examRollNo) && examRollNo && examRollNo !== '—') {
-          merged.examRollNo = examRollNo;
+          existing.examRollNo = examRollNo;
         }
-        poolMap.set(dedupKey, merged);
+        if ((existing.boardRegNo === '—' || !existing.boardRegNo) && boardRegNo && boardRegNo !== '—') {
+          existing.boardRegNo = boardRegNo;
+        }
+        // Link all identifiers to the merged record
+        if (regKey && !indexByReg.has(regKey)) indexByReg.set(regKey, existing);
+        if (formKey && !indexByForm.has(formKey)) indexByForm.set(formKey, existing);
+        if (docKey && !indexByDoc.has(docKey)) indexByDoc.set(docKey, existing);
+        if (nameFatherKey && !indexByNameFather.has(nameFatherKey)) indexByNameFather.set(nameFatherKey, existing);
+        if (nameRollKey && !indexByNameRoll.has(nameRollKey)) indexByNameRoll.set(nameRollKey, existing);
+      } else {
+        poolList.push(studentRecord);
+        if (regKey) indexByReg.set(regKey, studentRecord);
+        if (formKey) indexByForm.set(formKey, studentRecord);
+        if (docKey) indexByDoc.set(docKey, studentRecord);
+        if (nameFatherKey) indexByNameFather.set(nameFatherKey, studentRecord);
+        if (nameRollKey) indexByNameRoll.set(nameRollKey, studentRecord);
       }
     });
 
     // Pre-sort unified student pool by Class Roll No. ascending as system baseline default
-    const poolList = Array.from(poolMap.values());
     poolList.sort((a, b) => {
       const va = a.classRollNo;
       const vb = b.classRollNo;
@@ -6339,7 +6393,7 @@ export default function CustomRosterDocumentBuilderView({
 
                         return (
                           <tr
-                            key={`${selectedClasses.join('-') || 'all'}-${row.boardRegNo || 'no-reg'}-${row.formNo || row._rawStudent?.docId || rIdx}`}
+                            key={rowId}
                             className={`transition-colors ${
                               !isSelected
                                 ? 'bg-amber-50/50 dark:bg-amber-950/30 opacity-60 text-slate-400'
@@ -6373,7 +6427,7 @@ export default function CustomRosterDocumentBuilderView({
                               >
                                 {col.key === 'studentPhoto' || col.key === 'photo' ? (
                                   <RosterStudentPhotoCell
-                                    key={`${selectedClasses.join('-') || 'all'}-${row.boardRegNo || 'no-reg'}-${row.formNo || row._rawStudent?.docId || rIdx}`}
+                                    key={`photo-${rowId}`}
                                     student={row._rawStudent || row}
                                     studentName={row.studentName}
                                     initialPhoto={row.studentPhoto}
