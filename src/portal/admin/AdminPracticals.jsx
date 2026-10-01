@@ -237,6 +237,27 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
   if (!st || !subCode) return false;
 
   const code = subCode.toUpperCase().trim();
+  const c = String(cls || st?.Class || st?.class || st?.['Admission sought for class'] || '').toLowerCase();
+  const isSecondary = c.includes('9') || c.includes('10');
+
+  // Secondary School (Class 9th & 10th) Authoritative Enrollment:
+  if (isSecondary) {
+    // 1. Core 5 Compulsory Subjects belong to EVERY Class 10th / 9th student:
+    if (['EN', 'MA', 'SC', 'SS', 'UR'].includes(code)) {
+      return true;
+    }
+    // 2. Vocational Elective (HTC or ITE):
+    const subStr = getStudentSubjectsStr(st, cls).toUpperCase().trim();
+    if (code === 'HTC') {
+      return /\b(HTC|HC|HEALTH|HEALTHCARE|HEALTH\s*CARE)\b/i.test(subStr) || (st.vocationalSubject && /health/i.test(st.vocationalSubject));
+    }
+    if (code === 'ITE') {
+      return /\b(ITE|IT|ITES|IT\s*&\s*ITES|INFORMATION\s*TECHNOLOGY|TECH|COMPUTER)\b/i.test(subStr) || (st.vocationalSubject && /it|ites|info/i.test(st.vocationalSubject));
+    }
+    // Any other 11th/12th higher secondary subjects (PH, CH, BO, ZO, ED, HT, PS, ES, PD, EC) do NOT belong to 10th
+    return false;
+  }
+
   const subStr = getStudentSubjectsStr(st, cls).toUpperCase().trim();
   const streamStr = getStudentStreamStr(st, cls).toLowerCase();
   const isScience = streamStr.includes('science') || streamStr.includes('med') || streamStr.includes('sci');

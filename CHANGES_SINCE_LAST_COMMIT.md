@@ -1,50 +1,58 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Fix Gazette & Scorecard Result Resolution for Absent Subjects Across All Classes
+## Latest Commit: Recognize Enrolled Subjects Left Empty as Absent and Fix Class 10th Stream Display
 
-**Commit Message:** `fix(gazette): prevent pass for absent subjects and distinguish poor performance vs absent across all classes`
+**Commit Message:** `fix(gazette): recognize empty enrolled subjects as absent and lock secondary stream to general`
 
 ---
 
 ### Root Cause Analysis
 
-In `src/portal/admin/ConsolidatedGazetteView.jsx`:
-1. When evaluating subject marks, absent subjects (`AB`) incremented `absentSubjectsCount`, but did not increment `failedSubjectsCount`.
-2. When evaluating the overall pass condition (`hasMarks && !isAllAbsent && !hasFail`), candidates who appeared in and passed at least one subject while being absent in all others (such as candidate **Abroo Jan** with English `19/50` and absent in `PH`, `CH`, `BO`, and `PD`) had `hasFail === false` and `isAllAbsent === false`. Consequently, the algorithm incorrectly marked the student as **`PASS`** with **`Third Division`** (7.6%).
-3. When candidates had both numeric failures and absent subjects (such as candidate **Malika Tariq** and **Sahita Bashir**), the absent subjects were grouped into `reappearSubjects` and labeled indiscriminately as `Poor Performance in (PH, CH, PD)`, incorrectly mislabeling absent subjects as poor performance.
+1. **Empty Marks for Enrolled Subjects**:
+   - In `src/portal/admin/ConsolidatedGazetteView.jsx`, when a teacher submitted an award list but left a candidate's marks cell blank/empty (`totalMarks: ''`), or when an award list had not yet been submitted for an enrolled subject (e.g., Class 10th English, Mathematics, and Social Science), the gazette evaluation treated the subject as un-evaluated (`obtained: null, isAbsent: false`).
+   - This caused the subject to display as `—` (dash) and be excluded from total max marks and result calculation.
+   - Consequently, candidates like **Muneeb Bashir** (Roll 32) who only had marks in Science (38), Urdu (18), and Healthcare (43) were evaluated out of 150 marks instead of 300 marks, falsely achieving a 66.0% score and being erroneously awarded **`PASS`** with **`First Division`**.
+2. **Class 10th Stream Column Display**:
+   - Class 10th secondary admission forms often inherited default fields or stream inference triggers (e.g. presence of "Science" or "Mathematics"), causing the gazette Stream column to render `Science` for Class 10th students. Secondary (9th/10th) education does not have streams and must strictly display `General`.
+3. **Investigation of 10th English, Mathematics, and Social Science Awards**:
+   - Inspected Firestore collections (`practicalsData`, `practicalsBin`, `activityLogs`) across all evaluation types (`Internal Assessment`, `Pre-Board Test`, etc.).
+   - Confirmed that teachers have not yet submitted award lists for Class 10th English, Mathematics, or Social Science.
 
 ---
 
 ### Summary of Changes
 
-1. **Strict Multi-Class Result Resolution (`ConsolidatedGazetteView.jsx`)**:
-   - Enforced across all classes (**10th, 11th, and 12th**):
-     - **Absent in all subjects**: Result is `ABSENT`, Grade is `Absent`.
-     - **Passed all enrolled subjects** (0 fails, 0 absents): Result is `PASS`, Grade awarded by percentage (`Distinction`, `First Division`, `Second Division`, `Third Division`).
-     - **Failed subjects only** (0 absents): Result is `Poor Performance in (<failed_subjects>)`, Grade is `—`.
-     - **Absent in some subjects only** (0 fails): Result is `Absent in (<absent_subjects>)`, Grade is `—`. Student cannot pass.
-     - **Both failed and absent subjects**: Result is `Poor in (<failed_subjects>), Absent in (<absent_subjects>)`, Grade is `—`.
-   - Tooltip details on hover: Lists full breakdown of `Passed: ... • Poor: ... • Absent: ...`.
-   - Result Filter: Selecting `Absent` now filters both fully absent candidates and partially absent candidates.
-   - Passed cohort statistics: Only students who have passed 100% of their enrolled subjects are counted towards `Passed` and `Pass Rate`.
+1. **Authoritative Secondary Subject Enrollment (`AdminPracticals.jsx`)**:
+   - Updated `isStudentEnrolledInSubject(st, subCode, cls)`:
+     - For Secondary School (Class 9th & 10th):
+       - Core 5 Compulsory Subjects (`EN`, `MA`, `SC`, `SS`, `UR`) belong to **every** Class 10th/9th student.
+       - Vocational Elective: `HTC` belongs to students enrolled in Healthcare; `ITE` belongs to students enrolled in IT & ITES based on student admission data and vocational subject mapping.
+       - Higher secondary subjects (PH, CH, BO, ZO, ED, HT, PS, etc.) are strictly excluded.
+     - Preserves Higher Secondary (11th/12th) Science vs. Arts vs. Commerce stream and subject enrollment mapping.
 
-2. **Admin Modal Alignment (`AdminGazetteRecordEditModal.jsx`)**:
-   - Cleanly separated `failedCodes` and `absentCodes` in the live assessment preview engine.
-   - Result badge dynamically updates to `PASS`, `ABSENT`, `Poor in (...), Absent in (...)`, `Poor Performance in (...)`, or `Absent in (...)`.
+2. **Empty Enrolled Marks Recognized as Absent (`ConsolidatedGazetteView.jsx`)**:
+   - When evaluating subjects for each candidate:
+     - If valid numeric marks are present (`hasNumeric`): evaluated with scaled score and pass/fail status.
+     - If the subject **belongs to the student** (`belongsToStudent`): any blank/empty marks left by teachers, or subjects awaiting teacher submission, are recognized as **`AB`** (`isAbsent: true`, `obtained: 'AB'`).
+       - Increments `absentSubjectsCount` and adds subject max marks to `totalMax`.
+       - Renders as `AB` in the gazette table cell.
+       - Listed in `absentSubjects`, ensuring the student shows `Absent in (...)` (or `Poor in (...), Absent in (...)`) and grade `—` instead of falsely passing.
+     - If the subject **does not belong to the student** (e.g., `ITE` for Healthcare students, or `HTC` for IT students): remains `obtained: null, isAbsent: false`, displaying `—` without penalizing the candidate.
 
-3. **Public Result Lookup & Scorecard Alignment (`PublicResultLookup.jsx`)**:
-   - Updated overall status evaluation so any candidate with non-passed subjects (`!s.isPass`, including absent) cannot be marked `SATISFACTORY` or given a division.
-   - Added automated test cases in `PublicResultLookup.test.jsx` verifying that partial absent candidates receive `NEEDS IMPROVEMENT` / `Scope for Improvement` and never `PASS` or a passing division.
+3. **Stream Resolution for Class 9th & 10th (`ConsolidatedGazetteView.jsx`)**:
+   - Enforced `isSecondaryClass = selectedClass === '9th' || selectedClass === '10th'`.
+   - For secondary cohorts, `resolvedStream` is locked to `'General'`, preventing stream inference from falsely labeling Class 10th students as `Science`.
+
+4. **Subject Stats Metric Alignment (`ConsolidatedGazetteView.jsx`)**:
+   - Updated `appearedCount` in subject drilldown stats to filter out absent candidates (`!isAbsent`), ensuring subject pass rate accurately reflects students who sat the examination.
 
 ---
 
 ### Files Modified
 
-- `src/portal/admin/ConsolidatedGazetteView.jsx` — Core gazette calculation, result badges, filter handling, and tooltip descriptors.
-- `src/portal/admin/AdminGazetteRecordEditModal.jsx` — Administrative edit modal live metrics and result badge calculation.
-- `src/pages/PublicResultLookup.jsx` — Public student result lookup and scorecard overall descriptor logic.
-- `src/pages/PublicResultLookup.test.jsx` — Test suite verifying absent subject handling and overall descriptors.
-- `CHANGES_SINCE_LAST_COMMIT.md` — Updated log and manual commit instructions.
+- `src/portal/admin/AdminPracticals.jsx` — Authoritative subject enrollment rules for secondary core and vocational subjects.
+- `src/portal/admin/ConsolidatedGazetteView.jsx` — Recognition of empty enrolled subjects as `AB`, locking secondary stream to `General`, and subject stat refinement.
+- `CHANGES_SINCE_LAST_COMMIT.md` — Updated log, verification results, and manual commit instructions.
 
 ---
 
@@ -65,7 +73,7 @@ git log -1 -p
 If you wish to amend or re-commit:
 ```bash
 git reset --soft HEAD~1
-git commit -m "fix(gazette): prevent pass for absent subjects and distinguish poor performance vs absent across all classes"
+git commit -m "fix(gazette): recognize empty enrolled subjects as absent and lock secondary stream to general"
 ```
 
 To push to the remote repository (**Mandatory Manual Rule**):
