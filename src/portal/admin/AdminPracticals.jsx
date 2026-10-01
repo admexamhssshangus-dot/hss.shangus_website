@@ -2055,7 +2055,16 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                       Print & Export Options
                     </div>
 
-                    {/* 1. Print Consolidated Awards Matrix */}
+                    {/* Pre-Board notice — consolidated awards not applicable */}
+                    {/pre.?board/i.test(localPrintOpts.practicalType) && (
+                      <div className="mx-1 my-1 px-2.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[10px] font-semibold text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
+                        <span className="text-amber-500 shrink-0 mt-0.5">ⓘ</span>
+                        <span>Pre-Board consolidated awards are managed via the Competitive Exams &amp; OMR system — not this portal.</span>
+                      </div>
+                    )}
+
+                    {/* 1. Print Consolidated Awards Matrix — not for Pre-Board */}
+                    {!/pre.?board/i.test(localPrintOpts.practicalType) && (
                     <button
                       type="button"
                       onClick={() => {
@@ -2085,8 +2094,8 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                         <div className="text-[10px] text-slate-400 font-semibold">Forwarding cover letter + subject hash totals matrix</div>
                       </div>
                     </button>
+                    )}
 
-                    {/* 2. Print Individual Subject Award Rolls (2-Col - All Subjects) */}
                     <button
                       type="button"
                       onClick={() => {
@@ -2117,6 +2126,8 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                       </div>
                     </button>
 
+                    {/* 3 & 4. Consolidated Excel + Word — not for Pre-Board */}
+                    {!/pre.?board/i.test(localPrintOpts.practicalType) && (<>
                     <div className="h-[1px] bg-slate-100 dark:bg-slate-800 my-1" />
 
                     {/* 3. Export Consolidated Excel */}
@@ -2180,6 +2191,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                         <div className="text-[10px] text-slate-400 font-semibold">Native Word (.docx) with 0.3" margins</div>
                       </div>
                     </button>
+                    </>)}
 
                     {/* 5. Export Roster Template (.xlsx) */}
                     <button
