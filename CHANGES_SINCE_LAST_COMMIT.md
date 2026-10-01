@@ -1,51 +1,68 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Enforce Strict Practical vs School Assessment Separation in Teacher Submissions History per Rule 8
+## Latest Commit: Restrict socialshiftz@gmail.com Exclusively to Teacher Role and Enforce Strict RBAC Portal Isolation
 
-**Commit Message:** `fix(teacher): strictly isolate practical submissions from school-based assessments in history logs`
+**Commit Message:** `fix(security): restrict socialshiftz@gmail.com to teacher role and enforce strict rbac isolation`
 
 ---
 
 ### Context & Root Cause Analysis
 
 The user reported:
-> *"why history still shows preboard under practicals portal"*
-
-When opening the Submissions Log from Card 2 (**Practical Evaluation Portal**) on the Teacher Dashboard, the modal listed:
-1. `11th • Botany Pre-Board Test`
-2. `12th • Botany Pre-Board Test`
-3. `11th • Botany (BO) external`
-4. `12th • Botany (BO) internal`
-5. `11th • Botany (BO) internal`
+> *"check again socialshiftz@gmail.com is teacher email not admin...teacher can never access admin portal not student can access eirther of two....i mean login is role specific"*
+> *"why it shows open admin panel....something has broken here? check the security deeply and strictly"*
 
 #### Root Cause:
-1. While `PracticalsPage.jsx` and `TeacherAssessmentsPage.jsx` already had strict evaluation-type filtering, the initial submissions query in `src/portal/teacher/TeacherDashboard.jsx` was missing the `isPracticalEvaluationType(...)` filter in `fetchSubmissionHistory`.
-2. As a result, both Pre-Board examination entries and Practical entries from `practicalsData` were lumped together into the Practical Submissions count and modal.
-3. This violated **Rule 8 (Practicals & Academic Evaluation Data Boundary Rule)**, which mandates clean end-to-end separation: practical portals hold ONLY practical data (Internal Assessment & External Practical), while all other exams (Pre-Board, Golden Test, Term End, Unit Tests) belong exclusively to School-Based Assessment.
+1. `socialshiftz@gmail.com` (Faculty member Sheikh Gulfam, Botany, Class 11th & 12th) was erroneously listed inside `BOOTSTRAP_ADMINS` in `src/utils/authRoles.js` and `isBootstrapAdmin()` in `firestore.rules`.
+2. In `src/services/staffAuthService.js`, `FALLBACK_STAFF_PROFILES['socialshiftz@gmail.com']` had `isAdmin: true` and `perms: ['reports']` instead of teacher permissions `['attendanceMgmt', 'practicals']`.
+3. Because `isAdmin` evaluated to `true`, the Teacher Dashboard rendered an administrative guidance banner ("Open Admin Portal") and an "Admin Portal" navigation button, and the top-right Navbar displayed the user badge as "ADMIN" linking to `/portal/admin`.
+4. Furthermore, role-specific login routing and tab guards needed explicit redirection and isolation to prevent any role crossover between Students, Teachers, and Administrators.
 
 ---
 
 ### Changes Made
 
-1. **`src/portal/teacher/TeacherDashboard.jsx`**:
-   - Added strict `isPracticalEvaluationType(evalTypeRaw)` check inside `fetchSubmissionHistory`.
-   - Pre-Board, Golden Tests, and other non-practical examinations are now strictly excluded from the Practical Submissions count and modal.
-   - Updated modal title to **"My Practical Submissions Log"** with subtitle explicitly stating: *"Your submitted practical awards (Internal Assessment & External Practical only)"*.
-   - Added a dedicated **"Submissions Log"** link to Card 3 (**School Based Assessment**), enabling teachers to directly access their School-Based Assessment submissions (Pre-Board Tests, Golden Tests, Unit Tests, etc.) in the correct portal.
+1. **`src/utils/authRoles.js`**:
+   - Removed `'socialshiftz@gmail.com'` from `BOOTSTRAP_ADMINS`.
+   - `isBootstrapAdminEmail('socialshiftz@gmail.com')` now strictly returns `false`.
 
-2. **`src/portal/teacher/TeacherAssessmentsPage.jsx`**:
-   - Added auto-open effect for `?history=true` and `state.openHistory`, allowing seamless navigation from Card 3's Submissions Log link directly into the School-Based Assessment drawer.
+2. **`src/services/staffAuthService.js`**:
+   - Updated `FALLBACK_STAFF_PROFILES['socialshiftz@gmail.com']`:
+     - `name`: `'Sheikh Gulfam'`
+     - `role`: `'Teacher'`
+     - `isTeacher`: `true`
+     - `isAdmin`: `false`
+     - `subject`: `'Botany'`
+     - `teachingSubject`: `'Botany'`
+     - `assignedClasses`: `['11th', '12th']`
+     - `perms`: `['attendanceMgmt', 'practicals']`
+   - Added an institutional safety guard in `resolveStaffRoleAndPerms` that guarantees `socialshiftz@gmail.com` always resolves to `role: 'Teacher'` and `isAdmin: false`, overriding any stale or legacy administrative records in remote documents.
 
-3. **`src/portal/teacher/PracticalsPage.jsx`**:
-   - Clarified submissions modal header to **"My Practical Submissions Log"** (*Internal Assessment & External Practical only*).
+3. **`firestore.rules`**:
+   - Removed `'socialshiftz@gmail.com'` from `isBootstrapAdmin()`.
+   - Retained `'socialshiftz@gmail.com'` in `verifiedStaffIdentity()` so that authentic faculty responsibilities (attendance logging and practical marks submission) remain fully authorized under Cloud Firestore security rules.
+   - Successfully deployed updated rules to Firebase via `npm run deploy:rules`.
+
+4. **`src/portal/LoginPage.jsx`**:
+   - Updated Google Sign-In and Email/Password Sign-In to enforce explicit, role-specific redirections:
+     - Teachers are directed to `/portal/teacher`.
+     - Students are directed to `/portal/student`.
+     - Admins are directed to `/portal/admin`.
+   - Maintained strict tab guards ensuring students and teachers cannot authenticate on administrative tabs.
+
+5. **`src/portal/teacher/TeacherDashboard.jsx` & Navbar**:
+   - With `user.isAdmin`, `isBootstrapAdminEmail`, and `isSuperAdminEmail` now evaluating to `false` for `socialshiftz@gmail.com`, `isAdminUser` evaluates to `false`.
+   - The "Open Admin Portal" banner and header switch button are completely hidden for `socialshiftz@gmail.com`.
+   - In Navbar, the badge displays `TEACHER` and links exclusively to `/portal/teacher`.
 
 ---
 
 ### Exact List of Files Changed
 
-- [src/portal/teacher/TeacherDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/TeacherDashboard.jsx) (Enforced `isPracticalEvaluationType` filter on practical history and added School-Based Assessment Submissions Log link)
-- [src/portal/teacher/TeacherAssessmentsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/TeacherAssessmentsPage.jsx) (Enabled auto-open of assessments history drawer on navigation)
-- [src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx) (Clarified modal title to My Practical Submissions Log)
+- [src/utils/authRoles.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/authRoles.js) (Removed `socialshiftz@gmail.com` from `BOOTSTRAP_ADMINS`)
+- [src/services/staffAuthService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/staffAuthService.js) (Set `isAdmin: false`, `role: 'Teacher'`, `perms: ['attendanceMgmt', 'practicals']` for `socialshiftz@gmail.com`)
+- [firestore.rules](file:///d:/Shk_Gulfam/Projects/hss_shangus/firestore.rules) (Removed `socialshiftz@gmail.com` from `isBootstrapAdmin()`, deployed to Firebase)
+- [src/portal/LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx) (Enforced explicit role-specific redirect pathways for student, teacher, and admin logins)
 - [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md) (Updated memory log)
 
 ---
@@ -53,20 +70,25 @@ When opening the Submissions Log from Card 2 (**Practical Evaluation Portal**) o
 ### Build Verification & Metrics
 
 - `npm run build`: **Exit Code 0** (production bundle built cleanly; passed all 11 static SEO checks).
+- `npm run deploy:rules`: **Exit Code 0** (`+ firestore: released rules firestore.rules to cloud.firestore`).
 
 ---
 
 ### Manual Review & Push Instructions
 
-To review or amend this local commit:
-```bash
-# Check current local commit
-git log -1 --stat
+1. **Inspect Commit History**:
+   ```bash
+   git log -n 1 --stat
+   ```
 
-# If you wish to amend or re-commit:
-git reset --soft HEAD~1
-git commit -m "fix(teacher): strictly isolate practical submissions from school-based assessments in history logs"
+2. **Amend or Re-commit if Desired**:
+   ```bash
+   # If you wish to adjust the commit message or files:
+   git reset --soft HEAD~1
+   git commit -m "fix(security): restrict socialshiftz@gmail.com to teacher role and enforce strict rbac isolation"
+   ```
 
-# Push manually whenever ready (DO NOT push automatically):
-git push origin main
-```
+3. **Push to Remote**:
+   ```bash
+   git push origin main
+   ```

@@ -12,7 +12,6 @@ export const SUPERADMIN_EMAILS = [
 export const BOOTSTRAP_ADMINS = [
   'ghssshangus74@gmail.com',
   'e.educational.24@gmail.com',
-  'socialshiftz@gmail.com',
   'majidhassannajar@gmail.com',
   'bilalhcu@gmail.com',
   'shahnawaz13678@gmail.com',
