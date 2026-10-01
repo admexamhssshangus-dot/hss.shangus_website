@@ -59,6 +59,19 @@ test('overall result descriptor handles partial evaluation as In Progress withou
   expect(completeFail.division).toBe('Scope for Improvement');
   expect(completeFail.resultStatus).not.toBe('RE-APPEAR');
   expect(completeFail.resultStatus).not.toBe('FAIL');
+
+  // Candidate with passed subject and absent subjects (Abroo Jan pattern: 1 pass, 4 absent)
+  // hasFail must be true, so resultStatus is NEEDS IMPROVEMENT and division is Scope for Improvement (not PASS or Third Division)
+  const partialAbsent = getOverallResultDescriptor(5, 5, 19, 250, true, false);
+  expect(partialAbsent.resultStatus).toBe('NEEDS IMPROVEMENT');
+  expect(partialAbsent.division).toBe('Scope for Improvement');
+  expect(partialAbsent.resultStatus).not.toBe('PASS');
+  expect(partialAbsent.division).not.toContain('Division');
+
+  // All absent candidate
+  const allAbsent = getOverallResultDescriptor(5, 5, 0, 250, true, true);
+  expect(allAbsent.resultStatus).toBe('ABSENT');
+  expect(allAbsent.division).toBe('Absent');
 });
 
 test('verified student catalog stores exact registered subjects and DOB for students', () => {

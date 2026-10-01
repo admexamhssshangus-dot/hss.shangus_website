@@ -1209,7 +1209,7 @@ export function computeScorecardSubjects({
   const pct = hasMarks && totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : null;
 
   const allAbsent = hasMarks && evaluatedSubjects.every(s => s.isAbsent);
-  const hasFail = hasMarks && evaluatedSubjects.some(s => !s.isPass && !s.isAbsent);
+  const hasFail = hasMarks && evaluatedSubjects.some(s => !s.isPass);
   const overall = getOverallResultDescriptor(evaluatedCount, totalCount, totalObtained, totalMax, hasFail, allAbsent);
 
   return {
@@ -1552,7 +1552,7 @@ export default function PublicResultLookup() {
 
         const evCount = res.evaluatedCount ?? deduplicatedServerless.filter(s => s.isEvaluated).length;
         const totCount = res.totalCount ?? (deduplicatedServerless.length || 6);
-        const anyFail = deduplicatedServerless.some(s => s.isEvaluated && !s.isPass && !s.isAbsent);
+        const anyFail = deduplicatedServerless.some(s => s.isEvaluated && !s.isPass);
         const allAb = deduplicatedServerless.length > 0 && deduplicatedServerless.every(s => s.isAbsent);
         const totalObt = deduplicatedServerless.reduce((acc, s) => acc + (typeof s.marksObtained === 'number' ? s.marksObtained : 0), 0);
         const totalMx = deduplicatedServerless.reduce((acc, s) => acc + s.maxMarks, 0);

@@ -617,7 +617,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               obtained: 'AB',
               isAbsent: true,
               isPass: false,
-              isFailed: true,
+              isFailed: false,
               maxMarks: sMeta.maxMarks,
               minMarks: sMeta.minMarks,
               updatedByAdmin: isAdmMod,
@@ -743,16 +743,22 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       // Calculate totals, percentage, result status, and grade
       const hasMarks = evaluatedSubjectsCount > 0;
       const isAllAbsent = hasMarks && absentSubjectsCount === evaluatedSubjectsCount;
+      const hasAnyAbsent = absentSubjectsCount > 0;
       const hasFail = failedSubjectsCount > 0;
       const pct = hasMarks && totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : null;
       const numericPercentage = pct !== null ? Number(pct) : -1;
 
-      // Find subjects to reappear in:
-      const reappearSubjects = subjectsListArray
-        .filter(s => {
-          const m = subjectMarks[s.code];
-          return m && m.isFailed;
-        })
+      // Group subjects by performance category:
+      const passedSubjects = subjectsListArray
+        .filter(s => subjectMarks[s.code]?.isPass)
+        .map(s => s.code);
+
+      const failedSubjects = subjectsListArray
+        .filter(s => subjectMarks[s.code]?.isFailed && !subjectMarks[s.code]?.isAbsent)
+        .map(s => s.code);
+
+      const absentSubjects = subjectsListArray
+        .filter(s => subjectMarks[s.code]?.isAbsent)
         .map(s => s.code);
 
       let resultStatus = 'PENDING';
@@ -764,9 +770,15 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           resultStatus = 'ABSENT';
           resultDisplay = 'ABSENT';
           division = 'Absent';
-        } else if (hasFail) {
+        } else if (hasFail || hasAnyAbsent) {
           resultStatus = 'REAP';
-          resultDisplay = reappearSubjects.length > 0 ? `Poor Performance in (${reappearSubjects.join(', ')})` : 'Poor Performance';
+          if (failedSubjects.length > 0 && absentSubjects.length > 0) {
+            resultDisplay = `Poor in (${failedSubjects.join(', ')}), Absent in (${absentSubjects.join(', ')})`;
+          } else if (failedSubjects.length > 0) {
+            resultDisplay = `Poor Performance in (${failedSubjects.join(', ')})`;
+          } else {
+            resultDisplay = `Absent in (${absentSubjects.join(', ')})`;
+          }
           division = '-';
         } else {
           resultStatus = 'PASS';
@@ -789,6 +801,9 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         admissionStatus,
         isApproved,
         subjectMarks,
+        passedSubjects,
+        failedSubjects,
+        absentSubjects,
         hasAdminUpdates: Object.values(subjectMarks).some(m => m?.updatedByAdmin),
         totalObtained,
         totalMax,
@@ -910,7 +925,10 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     if (selectedResultFilter !== 'All') {
       rows = rows.filter(r => {
         if (selectedResultFilter === 'REAP' || selectedResultFilter === 'RE-APPEAR' || selectedResultFilter === 'POOR_PERFORMANCE') {
-          return r.resultStatus === 'REAP' || r.resultStatus === 'RE-APPEAR' || String(r.resultDisplay).toLowerCase().includes('poor');
+          return r.resultStatus === 'REAP' || r.resultStatus === 'RE-APPEAR' || String(r.resultDisplay).toLowerCase().includes('poor') || (r.absentSubjects?.length > 0 && r.resultStatus !== 'ABSENT');
+        }
+        if (selectedResultFilter === 'ABSENT') {
+          return r.resultStatus === 'ABSENT' || (r.absentSubjects && r.absentSubjects.length > 0);
         }
         return r.resultStatus === selectedResultFilter;
       });
@@ -2074,7 +2092,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               {filteredRows.map((row, idx) => {
                 const isPass = row.resultStatus === 'PASS';
                 const isAbsent = row.resultStatus === 'ABSENT';
-                const isReappear = row.resultStatus === 'REAP' || row.resultStatus === 'RE-APPEAR' || String(row.resultDisplay).toLowerCase().includes('poor');
+                const isReappear = row.resultStatus === 'REAP' || row.resultStatus === 'RE-APPEAR' || String(row.resultDisplay).toLowerCase().includes('poor') || (row.absentSubjects?.length > 0 && !isAbsent);
                 const isSelected = selectedRowKeys.has(row.key);
 
                 return (
@@ -2208,7 +2226,14 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                     </td>
 
                     {/* Calculated Result Status */}
-                    <td className="py-1 px-1 text-center font-sans whitespace-nowrap">
+                    <td
+                      className="py-1 px-1 text-center font-sans whitespace-nowrap"
+                      title={[
+                        row.passedSubjects?.length > 0 ? `Passed: ${row.passedSubjects.join(', ')}` : '',
+                        row.failedSubjects?.length > 0 ? `Poor: ${row.failedSubjects.join(', ')}` : '',
+                        row.absentSubjects?.length > 0 ? `Absent: ${row.absentSubjects.join(', ')}` : '',
+                      ].filter(Boolean).join(' • ')}
+                    >
                       <span
                         className={`px-1.5 py-0.5 rounded text-[8.5px] font-extrabold tracking-tight inline-block whitespace-nowrap leading-none ${
                           isPass
