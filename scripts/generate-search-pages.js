@@ -84,7 +84,7 @@ const shell = template
   .replace(/<title>[\s\S]*?<\/title>/i, '<title>HSS Shangus</title>')
   .replace(
     /<link href="(\/static\/css\/main\.[^"]+\.css)" rel="stylesheet">/i,
-    '<link rel="preload" as="style" href="$1"><link href="$1" rel="stylesheet" media="print" onload="this.media=\'all\'"><noscript><link href="$1" rel="stylesheet"></noscript>'
+    '<link rel="preload" as="style" href="$1"><link href="$1" rel="stylesheet">'
   );
 fs.writeFileSync(path.join(build, 'app-shell.html'), shell);
 const routes = Object.keys(PUBLIC_PAGES);
