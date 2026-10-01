@@ -702,8 +702,8 @@ export function unpackMasterRegisterStudents(masterDocs = []) {
   masterDocs.forEach(m => {
     if (!m) return;
     const chunkItems = m.items || m.students || m.records || m.data;
-    const docId = m.id || '';
-    const groupKey = m.groupKey || '';
+    const docId = String(m.id || '');
+    const groupKey = String(m.groupKey || '');
     
     // Extract document-level fallback session, class, stream metadata
     let docSession = m.Session || m.session || m['Academic Session'] || m['academicSession'] || '';
@@ -3052,18 +3052,18 @@ export default function CustomRosterDocumentBuilderView({
         const sName = extractStudentName(st);
         const fName = extractFatherName(st);
         const cls = extractClass(st);
-        const dId = st.docId || st.id || '';
+        const dId = String(st.docId || st.id || '').trim().toLowerCase();
 
-        const cleanReg = reg && reg !== '—' ? reg.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
-        const cleanForm = fNo && fNo !== '—' ? fNo.toLowerCase() : '';
-        const cleanNameFather = (sName !== '—' && fName !== '—') ? `${sName}_${fName}`.toLowerCase() : '';
-        const cleanNameClass = (sName !== '—' && cls !== '—') ? `${sName}_${cls}`.toLowerCase() : '';
+        const cleanReg = reg && reg !== '—' ? String(reg).replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+        const cleanForm = fNo && fNo !== '—' ? String(fNo).trim().toLowerCase() : '';
+        const cleanNameFather = (sName !== '—' && fName !== '—') ? `${String(sName).trim()}_${String(fName).trim()}`.toLowerCase() : '';
+        const cleanNameClass = (sName !== '—' && cls !== '—') ? `${String(sName).trim()}_${String(cls).trim()}`.toLowerCase() : '';
 
         if (cleanReg && !examRollByReg.has(cleanReg)) examRollByReg.set(cleanReg, roll);
         if (cleanForm && !examRollByForm.has(cleanForm)) examRollByForm.set(cleanForm, roll);
         if (cleanNameFather && !examRollByNameFather.has(cleanNameFather)) examRollByNameFather.set(cleanNameFather, roll);
         if (cleanNameClass && !examRollByNameClass.has(cleanNameClass)) examRollByNameClass.set(cleanNameClass, roll);
-        if (dId && !examRollByDocId.has(dId.toLowerCase())) examRollByDocId.set(dId.toLowerCase(), roll);
+        if (dId && !examRollByDocId.has(dId)) examRollByDocId.set(dId, roll);
       }
     });
 
@@ -3117,11 +3117,11 @@ export default function CustomRosterDocumentBuilderView({
 
       // If examRollNo is not directly on this student record, cross-reference against the registry!
       if (!examRollNo || examRollNo === '—' || examRollNo === '-') {
-        const cleanReg = boardRegNo && boardRegNo !== '—' ? boardRegNo.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
-        const cleanForm = formNo && formNo !== '—' ? formNo.toLowerCase() : '';
-        const cleanNameFather = (studentName !== '—' && fName !== '—') ? `${studentName}_${fName}`.toLowerCase() : '';
-        const cleanNameClass = (studentName !== '—' && className !== '—') ? `${studentName}_${className}`.toLowerCase() : '';
-        const dId = (st.docId || st.id || '').toLowerCase();
+        const cleanReg = boardRegNo && boardRegNo !== '—' ? String(boardRegNo).replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+        const cleanForm = formNo && formNo !== '—' ? String(formNo).trim().toLowerCase() : '';
+        const cleanNameFather = (studentName !== '—' && fName !== '—') ? `${String(studentName).trim()}_${String(fName).trim()}`.toLowerCase() : '';
+        const cleanNameClass = (studentName !== '—' && className !== '—') ? `${String(studentName).trim()}_${String(className).trim()}`.toLowerCase() : '';
+        const dId = String(st.docId || st.id || '').trim().toLowerCase();
 
         if (cleanReg && examRollByReg.has(cleanReg)) {
           examRollNo = examRollByReg.get(cleanReg);
@@ -3144,7 +3144,7 @@ export default function CustomRosterDocumentBuilderView({
       const studentRecord = {
         _originalIdx: idx + 1,
         _rawStudent: st,
-        docId: st.docId || st.id || '',
+        docId: String(st.docId || st.id || ''),
         session,
         className,
         stream,
@@ -3203,13 +3203,13 @@ export default function CustomRosterDocumentBuilderView({
       // 4. Fallback: docId
       const normClass = String(className || '').trim().toLowerCase();
       const normSession = String(session || '').trim().toLowerCase();
-      const cleanReg = boardRegNo && boardRegNo !== '—' ? boardRegNo.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+      const cleanReg = boardRegNo && boardRegNo !== '—' ? String(boardRegNo).replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
       const cleanForm = formNo && formNo !== '—' ? String(formNo).trim().toLowerCase().replace(/^adm_/, '') : '';
-      const cleanName = studentName && studentName !== '—' ? studentName.trim().toLowerCase() : '';
-      const cleanFather = fName && fName !== '—' ? fName.trim().toLowerCase() : '';
+      const cleanName = studentName && studentName !== '—' ? String(studentName).trim().toLowerCase() : '';
+      const cleanFather = fName && fName !== '—' ? String(fName).trim().toLowerCase() : '';
       const rawMob = (mobile && mobile !== '—') ? mobile : (parentMobile && parentMobile !== '—' ? parentMobile : '');
       const cleanMob = rawMob ? String(rawMob).replace(/[^0-9]/g, '').slice(-10) : '';
-      const cleanDocId = (st.docId || st.id || '').trim().toLowerCase();
+      const cleanDocId = String(st.docId || st.id || '').trim().toLowerCase();
 
       // Primary: board reg no_class_session
       const regKey = cleanReg ? `reg_${cleanReg}_${normClass}_${normSession}` : '';
