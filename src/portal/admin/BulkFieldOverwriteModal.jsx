@@ -17,7 +17,7 @@ import {
   ArrowRight, ArrowLeft, Sparkles, RefreshCw, Eye, EyeOff, Plus, Trash2,
   ChevronDown, ChevronUp, Database, Sliders, Download, Search,
   Phone, Landmark, Layers, Check, Terminal, ExternalLink, RotateCcw,
-  Minimize2, Maximize2, Lock, BookmarkCheck, Save
+  Minimize2, Maximize2, Lock, BookmarkCheck, Save, Info
 } from 'lucide-react';
 import { 
   hasAssignedClassRollNumber, 
@@ -2128,6 +2128,67 @@ export default function BulkFieldOverwriteModal({
     return { total: previewData.length, changed, unmatched, identical, nameMismatches, outOfCohort, inCohort };
   }, [previewData]);
 
+  // Detected classes and sessions among matched out-of-cohort records
+  const detectedOutOfCohortSummary = useMemo(() => {
+    if (!previewData || previewData.length === 0) return null;
+    const classesSet = new Set();
+    const sessionsSet = new Set();
+    let count = 0;
+
+    previewData.forEach(r => {
+      if (r.isOutOfCohort && r.matchedStudent) {
+        count++;
+        const cls = getStudentDisplayClass(r.matchedStudent);
+        const sess = getStudentDisplaySession(r.matchedStudent);
+        if (cls && cls !== '—') classesSet.add(cls);
+        if (sess && sess !== '—') sessionsSet.add(sess);
+      }
+    });
+
+    if (count === 0) return null;
+    return {
+      count,
+      classes: Array.from(classesSet),
+      sessions: Array.from(sessionsSet)
+    };
+  }, [previewData]);
+
+  // 1-Click cohort aligner to immediately sync active cohort filter with detected students
+  const handleAlignCohortToDetected = () => {
+    if (!detectedOutOfCohortSummary) return;
+    const { classes, sessions } = detectedOutOfCohortSummary;
+    if (classes.length > 0) {
+      setSelectedClasses(classes);
+      try {
+        sessionStorage.setItem('hss_last_selected_classes', JSON.stringify(classes));
+      } catch (_) {}
+    }
+    if (sessions.length > 0) {
+      setSelectedSessions(sessions);
+      try {
+        sessionStorage.setItem('hss_last_selected_sessions', JSON.stringify(sessions));
+      } catch (_) {}
+    }
+    // Update previewData to clear out-of-cohort flags
+    setPreviewData(prev => prev.map(row => {
+      if (row.isOutOfCohort && row.matchedStudent) {
+        return {
+          ...row,
+          isOutOfCohort: false,
+          outOfCohortNotice: ''
+        };
+      }
+      return row;
+    }));
+    if (previewFilter === 'outOfCohort') {
+      setPreviewFilter('changed');
+    }
+    showToast(
+      `Cohort filter aligned to ${classes.map(c => `Class ${c}`).join(', ')} (${sessions.join(', ')}). Out-of-cohort warnings cleared!`,
+      'success'
+    );
+  };
+
   // Sort toggle handler for Preview Diff Table
   const handleTogglePreviewSort = (colKey) => {
     if (previewSortColumn === colKey) {
@@ -3378,6 +3439,39 @@ export default function BulkFieldOverwriteModal({
                       </button>
                     </div>
                   </div>
+
+                  {/* Out of Cohort Scope Notice Banner */}
+                  {stats.outOfCohort > 0 && detectedOutOfCohortSummary && (
+                    <div className="p-3.5 bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/70 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs animate-fadeIn">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 mt-0.5 flex-shrink-0">
+                          <Info size={18} />
+                        </div>
+                        <div>
+                          <div className="font-bold text-purple-950 dark:text-purple-100 flex items-center gap-2 flex-wrap">
+                            <span>{stats.outOfCohort} records detected in {detectedOutOfCohortSummary.classes.map(c => `Class ${c}`).join(', ')} ({detectedOutOfCohortSummary.sessions.join(', ')})</span>
+                            <span className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/70 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
+                              Active Scope: Class {selectedClasses.join(', ') || 'All'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-purple-800 dark:text-purple-300/90 mt-1 leading-relaxed">
+                            The uploaded file contains students from <strong>{detectedOutOfCohortSummary.classes.map(c => `Class ${c}`).join(', ')}</strong>, while your upload filter was set to <strong>Class {selectedClasses.join(', ') || 'All'}</strong>. The intelligent engine verified them via Board Registration Number and staged them for overwrite. You can safely proceed or click below to align the cohort filter.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleAlignCohortToDetected}
+                          className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                          title="Set Target Cohort to match these students and remove warning badges"
+                        >
+                          <CheckCircle2 size={14} />
+                          Align Cohort Scope
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Diff Table */}
                   <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto max-h-[420px] custom-scrollbar">
