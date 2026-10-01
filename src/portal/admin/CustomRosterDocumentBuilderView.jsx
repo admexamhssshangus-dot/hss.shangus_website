@@ -34,8 +34,17 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { toTitleCase } from '../../utils/textFormatting';
 import {
   getAssignedClassRollNumber,
-  resolveStudentAdmissionStatus
+  resolveStudentAdmissionStatus,
+  isStudentExamDropped
 } from '../../utils/studentApprovalStatus';
+import {
+  fetchExamineeDropOverrides,
+  checkIsStudentDropped
+} from '../../services/examineeDropService';
+import {
+  normalizeClassVal,
+  normalizeSessionVal
+} from './AdvancedReports';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import { scheduleIdleWork } from '../../utils/scheduleIdleWork';
 
@@ -1701,29 +1710,47 @@ function CohortCheckboxDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [dropUp, setDropUp] = useState(false);
-  const [popoverMaxHeight, setPopoverMaxHeight] = useState(260);
+  const [popoverStyle, setPopoverStyle] = useState({});
   const dropdownRef = useRef(null);
+  const popoverRef = useRef(null);
 
   const updatePlacement = useCallback(() => {
     if (!dropdownRef.current) return;
     const rect = dropdownRef.current.getBoundingClientRect();
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
-    const spaceBelow = viewportHeight - rect.bottom - 12;
+    const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 768;
+
+    const width = Math.min(260, vw - 24);
+    let left = align === 'right' ? rect.right - width : rect.left;
+    if (left < 12) left = 12;
+    if (left + width > vw - 12) left = Math.max(12, vw - width - 12);
+
+    const spaceBelow = vh - rect.bottom - 12;
     const spaceAbove = rect.top - 12;
 
-    if (spaceBelow < 260 && spaceAbove > spaceBelow) {
-      setDropUp(true);
-      setPopoverMaxHeight(Math.max(160, Math.min(360, spaceAbove)));
+    let top, maxHeight;
+    if (spaceBelow >= 240 || spaceBelow >= spaceAbove) {
+      top = rect.bottom + 4;
+      maxHeight = Math.max(140, Math.min(360, spaceBelow));
     } else {
-      setDropUp(false);
-      setPopoverMaxHeight(Math.max(160, Math.min(360, spaceBelow)));
+      maxHeight = Math.max(140, Math.min(360, spaceAbove));
+      top = Math.max(12, rect.top - maxHeight - 4);
     }
-  }, []);
+
+    setPopoverStyle({
+      position: 'fixed',
+      top: `${top}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `${maxHeight}px`,
+      zIndex: 99999
+    });
+  }, [align]);
 
   // Recalculate on resize or scroll while open
   useEffect(() => {
     if (!isOpen) return;
+    updatePlacement();
     const handleScrollOrResize = () => {
       updatePlacement();
     };
@@ -1739,7 +1766,10 @@ function CohortCheckboxDropdown({
   useEffect(() => {
     if (!isOpen) return;
     const handleMousedown = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+        popoverRef.current && !popoverRef.current.contains(e.target)
+      ) {
         setIsOpen(false);
       }
     };
@@ -1843,12 +1873,11 @@ function CohortCheckboxDropdown({
         <ChevronDown size={10} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
-          style={{ maxHeight: `${popoverMaxHeight}px` }}
-          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} ${
-            dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
-          } w-56 sm:w-64 max-w-[calc(100vw-32px)] rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[9999] p-1.5 space-y-1 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col`}
+          ref={popoverRef}
+          style={popoverStyle}
+          className="rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xl p-1.5 space-y-1 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col"
         >
           {/* Header with Title & Quick Controls */}
           <div className="shrink-0 flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-500">
@@ -1962,7 +1991,8 @@ function CohortCheckboxDropdown({
               })
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -3021,30 +3051,51 @@ function RosterColumnsDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [dropUp, setDropUp] = useState(false);
-  const [popoverMaxHeight, setPopoverMaxHeight] = useState(440);
+  const [popoverStyle, setPopoverStyle] = useState({});
   const dropdownRef = useRef(null);
+  const popoverRef = useRef(null);
 
   const updatePlacement = useCallback(() => {
     if (!dropdownRef.current) return;
     const rect = dropdownRef.current.getBoundingClientRect();
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
-    const spaceBelow = viewportHeight - rect.bottom - 16;
-    const spaceAbove = rect.top - 16;
+    const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 768;
 
-    // If space below is less than 360px and space above is greater than space below, flip upwards!
-    if (spaceBelow < 360 && spaceAbove > spaceBelow) {
-      setDropUp(true);
-      setPopoverMaxHeight(Math.max(220, Math.min(500, spaceAbove)));
+    const width = Math.min(384, vw - 24);
+    // Align right with the trigger button, clamped within viewport bounds
+    let left = rect.right - width;
+    if (left < 12) left = 12;
+    if (left + width > vw - 12) left = Math.max(12, vw - width - 12);
+
+    const spaceBelow = vh - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+
+    let top, maxHeight;
+    if (spaceBelow >= 350) {
+      top = rect.bottom + 4;
+      maxHeight = Math.min(500, spaceBelow);
+    } else if (spaceAbove >= 280) {
+      maxHeight = Math.min(500, spaceAbove);
+      top = Math.max(12, rect.top - maxHeight - 4);
     } else {
-      setDropUp(false);
-      setPopoverMaxHeight(Math.max(220, Math.min(500, spaceBelow)));
+      top = 12;
+      maxHeight = Math.max(220, vh - 24);
     }
+
+    setPopoverStyle({
+      position: 'fixed',
+      top: `${top}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `${maxHeight}px`,
+      zIndex: 99999
+    });
   }, []);
 
   // Recalculate on window resize or scroll while open
   useEffect(() => {
     if (!isOpen) return;
+    updatePlacement();
     const handleScrollOrResize = () => {
       updatePlacement();
     };
@@ -3059,7 +3110,10 @@ function RosterColumnsDropdown({
   useEffect(() => {
     if (!isOpen) return;
     const handleMousedown = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+        popoverRef.current && !popoverRef.current.contains(e.target)
+      ) {
         setIsOpen(false);
       }
     };
@@ -3123,12 +3177,11 @@ function RosterColumnsDropdown({
         </div>
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
-          style={{ maxHeight: `${popoverMaxHeight}px` }}
-          className={`absolute right-0 ${
-            dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
-          } w-84 sm:w-96 max-w-[calc(100vw-24px)] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2.5 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 flex flex-col`}
+          ref={popoverRef}
+          style={popoverStyle}
+          className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2.5 animate-fadeIn text-slate-900 dark:text-slate-100 flex flex-col"
         >
           {/* Header (Shrink-0) */}
           <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800 text-[9.5px] font-black uppercase tracking-wider text-slate-500">
@@ -3288,7 +3341,8 @@ function RosterColumnsDropdown({
               Done
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -3315,6 +3369,22 @@ export default function CustomRosterDocumentBuilderView({
     return Array.isArray(cached) && cached.length > 0 ? unpackMasterRegisterStudents(cached) : [];
   });
 
+  // Persistent cloud-synced overrides map for instantaneous UI updates when dropping / restoring
+  const [droppedOverrides, setDroppedOverrides] = useState(() => new Map());
+
+  // Sync persistent drop overrides from Firestore on mount
+  useEffect(() => {
+    let isMounted = true;
+    fetchExamineeDropOverrides().then((overridesMap) => {
+      if (isMounted && overridesMap) {
+        setDroppedOverrides(overridesMap);
+      }
+    }).catch((err) => {
+      console.warn('[CustomRoster] Drop overrides fetch note:', err);
+    });
+    return () => { isMounted = false; };
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     const cancelIdleWork = scheduleIdleWork(() => {
@@ -3332,105 +3402,119 @@ export default function CustomRosterDocumentBuilderView({
     };
   }, []);
 
-  // Combine live intake with historical registers seamlessly with thorough deduplication and field enrichment
+  // Combine live intake with historical registers seamlessly with scoped deduplication and field enrichment
   const combinedRawStudents = useMemo(() => {
-    // Filter out raw chunk container documents from allStudents if any were passed
-    const list = Array.isArray(allStudents) 
-      ? allStudents.filter(s => s && !Array.isArray(s.items) && !Array.isArray(s.students) && !Array.isArray(s.records) && !Array.isArray(s.data)).map(s => ({ ...s }))
-      : [];
-    if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
-      const seenMap = new Map();
-      list.forEach(s => {
-        const id = String(s.id || s.docId || '').trim().toLowerCase();
-        const fNo = String(extractFormNo(s) || s.formNo || s['Form Number'] || s['Form No.'] || '').trim().toLowerCase().replace(/^adm_/, '');
-        const reg = String(extractBoardRegNo(s) || s.boardRegNo || s['Board Registration Number'] || s['Board Reg. No.'] || s.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-        const name = String(extractStudentName(s) || s.studentName || s['Student Name'] || s.name || '').trim().toLowerCase();
-        const father = String(extractFatherName(s) || s.fatherName || s["Father's Name"] || s.parentName || '').trim().toLowerCase();
-        const sess = String(extractSession(s) || s.session || s.Session || '').trim().toLowerCase();
-        const cls = String(extractClass(s) || s.className || s.class || s.Class || '').trim().toLowerCase();
-        const rawMob = extractMobile(s) !== '—' ? extractMobile(s) : extractParentMobile(s);
-        const mob = rawMob && rawMob !== '—' ? String(rawMob).replace(/[^0-9]/g, '').slice(-10) : '';
+    const list = [];
+    const indexMap = new Map();
 
-        if (id) seenMap.set(`id:${id}`, s);
-        if (reg && reg !== '—') {
-          seenMap.set(`reg:${reg}:${cls}:${sess}`, s);
-          seenMap.set(`reg:${reg}`, s);
-        }
-        if (fNo && fNo !== '—') {
-          seenMap.set(`fno:${fNo}:${cls}:${sess}`, s);
-          seenMap.set(`fno:${fNo}`, s);
-        }
-        if (name && name !== '—' && father && father !== '—' && mob && mob.length >= 10) {
-          seenMap.set(`nfm:${name}:${father}:${mob}:${cls}:${sess}`, s);
-        }
-      });
+    const addOrMerge = (item, isCurrent = false) => {
+      if (!item) return;
+      // Filter out raw chunk container documents if any were passed
+      if (Array.isArray(item.items) || Array.isArray(item.students) || Array.isArray(item.records) || Array.isArray(item.data)) return;
 
-      masterRegistersList.forEach(m => {
-        const id = String(m.id || m.docId || '').trim().toLowerCase();
-        const fNo = String(extractFormNo(m) || m.formNo || m['Form Number'] || m['Form No.'] || '').trim().toLowerCase().replace(/^adm_/, '');
-        const reg = String(extractBoardRegNo(m) || m.boardRegNo || m['Board Registration Number'] || m['Board Reg. No.'] || m.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-        const name = String(extractStudentName(m) || m.studentName || m['Student Name'] || m.name || '').trim().toLowerCase();
-        const father = String(extractFatherName(m) || m.fatherName || m["Father's Name"] || m.parentName || '').trim().toLowerCase();
-        const sess = String(extractSession(m) || m.session || m.Session || '').trim().toLowerCase();
-        const cls = String(extractClass(m) || m.className || m.class || m.Class || '').trim().toLowerCase();
-        const rawMob = extractMobile(m) !== '—' ? extractMobile(m) : extractParentMobile(m);
-        const mob = rawMob && rawMob !== '—' ? String(rawMob).replace(/[^0-9]/g, '').slice(-10) : '';
+      const docId = String(item.id || item._id || item.docId || '').trim();
+      const formNo = String(item.formNo || item['Form No'] || item['Form Number'] || item['Form No.'] || item.fNo || '').trim();
+      const sName = String(extractStudentName(item) || '').trim().toLowerCase();
+      const fName = String(extractFatherName(item) || '').trim().toLowerCase();
+      const sClass = normalizeClassVal(extractClass(item) || item.class || item.Class || item['Admission sought for class']);
+      const sSess = normalizeSessionVal(extractSession(item) || item.session || item.Session);
+      const roll = getAssignedClassRollNumber(item);
 
-        // Primary: board reg no_class_session, then form number_class_session, then fallback student name_father name_mobile_class_session, then docId
-        let match = null;
-        let isFallback = false;
+      const keys = [];
+      if (docId) keys.push(`id_${docId.toLowerCase()}`);
+      if (formNo && formNo !== '—' && formNo !== '0') keys.push(`fno_${sSess}_${sClass}_${formNo.toLowerCase()}`);
+      if (roll) keys.push(`roll_${sSess}_${sClass}_${String(roll).toLowerCase()}`);
+      if (sName && sName !== '—' && sName !== 'student' && fName && fName !== '—') {
+        keys.push(`name_${sSess}_${sClass}_${sName}_${fName}`);
+      }
 
-        if (reg && reg !== '—' && (seenMap.get(`reg:${reg}:${cls}:${sess}`) || seenMap.get(`reg:${reg}`))) {
-          match = seenMap.get(`reg:${reg}:${cls}:${sess}`) || seenMap.get(`reg:${reg}`);
-        } else if (fNo && fNo !== '—' && (seenMap.get(`fno:${fNo}:${cls}:${sess}`) || seenMap.get(`fno:${fNo}`))) {
-          match = seenMap.get(`fno:${fNo}:${cls}:${sess}`) || seenMap.get(`fno:${fNo}`);
-        } else if (name && name !== '—' && father && father !== '—' && mob && mob.length >= 10 && seenMap.get(`nfm:${name}:${father}:${mob}:${cls}:${sess}`)) {
-          match = seenMap.get(`nfm:${name}:${father}:${mob}:${cls}:${sess}`);
-          isFallback = true;
-        } else if (id && seenMap.get(`id:${id}`)) {
-          match = seenMap.get(`id:${id}`);
+      let existingIdx = -1;
+      for (const k of keys) {
+        if (indexMap.has(k)) {
+          existingIdx = indexMap.get(k);
+          break;
         }
+      }
 
-        if (match) {
-          if (isFallback) {
-            match._isFallbackMerge = true;
-            match._fallbackMergeReason = `Merged via Name+Father+Mobile fallback (${extractStudentName(m)}, ${extractFatherName(m)}, ${rawMob}, ${cls}, ${sess})`;
-          }
-          // Enrich the existing student in list with any non-empty fields from m (especially exam roll numbers)
-          Object.keys(m).forEach(k => {
-            const v = m[k];
-            if (v !== undefined && v !== null && v !== '' && v !== '—' && (match[k] === undefined || match[k] === null || match[k] === '' || match[k] === '—')) {
-              match[k] = v;
-            }
-          });
-        } else {
-          list.push(m);
-          if (id) seenMap.set(`id:${id}`, m);
-          if (reg && reg !== '—') {
-            seenMap.set(`reg:${reg}:${cls}:${sess}`, m);
-            seenMap.set(`reg:${reg}`, m);
-          }
-          if (fNo && fNo !== '—') {
-            seenMap.set(`fno:${fNo}:${cls}:${sess}`, m);
-            seenMap.set(`fno:${fNo}`, m);
-          }
-          if (name && name !== '—' && father && father !== '—' && mob && mob.length >= 10) {
-            seenMap.set(`nfm:${name}:${father}:${mob}:${cls}:${sess}`, m);
-          }
-        }
-      });
+      const overrideUpdates = (docId && droppedOverrides.has(docId)) ? droppedOverrides.get(docId) : {};
+      const isDropped = checkIsStudentDropped(item, droppedOverrides);
+      const enrichedItem = {
+        ...item,
+        ...overrideUpdates,
+        ...(isDropped ? { isExamDropped: true, examStatus: 'dropped' } : {}),
+        _isCurrentScope: isCurrent ? true : Boolean(item._isCurrentScope),
+      };
+
+      if (existingIdx !== -1) {
+        const existing = list[existingIdx];
+        const existingHasRoll = Boolean(getAssignedClassRollNumber(existing));
+        const newHasRoll = Boolean(roll);
+
+        // If existing record was unassigned/draft and incoming has an assigned roll number, upgrade it!
+        const merged = {
+          ...item,
+          ...existing,
+          ...overrideUpdates,
+          ...(isDropped ? { isExamDropped: true, examStatus: 'dropped' } : {}),
+          ...(newHasRoll && !existingHasRoll ? {
+            classRollNo: roll,
+            rollNo: roll,
+            status: resolveStudentAdmissionStatus(enrichedItem),
+            Status: resolveStudentAdmissionStatus(enrichedItem)
+          } : {}),
+          _isCurrentScope: existing._isCurrentScope || enrichedItem._isCurrentScope,
+        };
+        list[existingIdx] = merged;
+        keys.forEach(k => indexMap.set(k, existingIdx));
+      } else {
+        const newIdx = list.length;
+        list.push(enrichedItem);
+        keys.forEach(k => indexMap.set(k, newIdx));
+      }
+    };
+
+    if (Array.isArray(allStudents) && allStudents.length > 0) {
+      allStudents.forEach(s => addOrMerge(s, true));
     }
+    if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
+      masterRegistersList.forEach(m => addOrMerge(m, false));
+    }
+
     return list;
-  }, [allStudents, masterRegistersList]);
+  }, [allStudents, masterRegistersList, droppedOverrides]);
 
   // ─── Direct High-Performance Pre-Indexed Student Pool (Runs Extraction Only Once) ───
   const unifiedStudentPool = useMemo(() => {
     if (!Array.isArray(combinedRawStudents) || combinedRawStudents.length === 0) return [];
-    const poolList = [];
-    const indexByReg = new Map();
-    const indexByForm = new Map();
-    const indexByNameFatherMobile = new Map();
-    const indexByDoc = new Map();
+
+    // Helper to test if a field value is a valid unique identifier (excluding placeholders like '0', '1', 'n/a', 'none')
+    const isValidUniqueVal = (val) => {
+      if (!val) return false;
+      const str = String(val).trim().toLowerCase();
+      return (
+        str !== '' &&
+        str !== '0' &&
+        str !== '—' &&
+        str !== '-' &&
+        str !== 'n/a' &&
+        str !== 'na' &&
+        str !== 'none' &&
+        str !== 'nil' &&
+        str !== 'null' &&
+        str !== 'undefined' &&
+        str !== 'unknown'
+      );
+    };
+
+    // Helper: detect bogus/dummy reg numbers (e.g. 2301000000000000 or 230101e15)
+    const isValidRegNoA = (reg) => {
+      if (!reg || reg.length < 6) return false;
+      if (/[eE]/.test(reg)) return false; // reject scientific notation
+      if (/0{5,}$/.test(reg)) return false; // ends in 5+ zeros
+      const zeros = (reg.match(/0/g) || []).length;
+      if (zeros / reg.length >= 0.75) return false; // 75%+ zeros = dummy
+      return true;
+    };
 
     // ── Pre-pass: Build Cross-Reference Registry for Exam Roll Numbers across ALL records ──
     const examRollByReg = new Map();
@@ -3463,17 +3547,44 @@ export default function CustomRosterDocumentBuilderView({
       }
     });
 
-    combinedRawStudents.forEach((rawSt, idx) => {
+    // Sort: active current scope first, then directly-approved (has roll no), then newest form number
+    const sorted = [...combinedRawStudents].sort((x, y) => {
+      const xCurrent = x._isCurrentScope === true ? 1 : 0;
+      const yCurrent = y._isCurrentScope === true ? 1 : 0;
+      if (xCurrent !== yCurrent) return yCurrent - xCurrent;
+
+      const hasRollX = isValidUniqueVal(getStudentRollNumber(x));
+      const hasRollY = isValidUniqueVal(getStudentRollNumber(y));
+      if (hasRollX && !hasRollY) return -1;
+      if (!hasRollX && hasRollY) return 1;
+      const fA = parseInt(String(x.formNo || x['Form No'] || x['Form Number'] || x.fNo || '0').replace(/\D/g, ''), 10) || 0;
+      const fB = parseInt(String(y.formNo || y['Form No'] || y['Form Number'] || y.fNo || '0').replace(/\D/g, ''), 10) || 0;
+      return fB - fA;
+    });
+
+    const poolList = [];
+    const seenRollScopeKeys = new Map(); // rollKey -> index in poolList for field enrichment
+    const seenCurrentSessionKeys = new Set();
+
+    sorted.forEach((rawSt, idx) => {
       const st = rawSt || {};
       const session = extractSession(st) || '—';
       const className = extractClass(st) || '—';
       const stream = extractStream(st) || '—';
       const gender = extractGender(st) || '—';
-      const status = resolveStudentStatus(st) || 'Submitted';
       const studentName = extractStudentName(st);
       const fName = extractFatherName(st);
       const mName = extractMotherName(st);
       const classRollNo = getStudentRollNumber(st) || '—';
+      const hasValidRoll = isValidUniqueVal(classRollNo);
+
+      // Check drop status canonically
+      const isDropped = checkIsStudentDropped(st, droppedOverrides);
+      let status = isDropped ? 'Dropped' : (resolveStudentStatus(st) || 'Submitted');
+      if (!isDropped && hasValidRoll) {
+        status = 'Approved';
+      }
+
       const boardRegNo = extractBoardRegNo(st);
       const admNo = extractAdmNo(st);
       const admDate = extractAdmDate(st);
@@ -3585,89 +3696,63 @@ export default function CustomRosterDocumentBuilderView({
         ifsc,
         rawSubjects,
         rawSubjectsWithStreamAbbr,
-        rawSubjectsWithStreamFull
+        rawSubjectsWithStreamFull,
+        isExamDropped: isDropped,
+        examStatus: isDropped ? 'dropped' : (st.examStatus || 'active')
       };
 
       // Skip empty or container objects that lack any identifying candidate details
       if (studentName === '—' && fName === '—' && boardRegNo === '—' && formNo === '—') return;
 
-      // Multi-index deduplication within unified student pool
-      // Hierarchy:
-      // 1. Primary: board reg no_class_session
-      // 2. Secondary: form number_class_session
-      // 3. Fallback: student name_father name_mobile_class_session (Flagged)
-      // 4. Fallback: docId
-      const normClass = String(className || '').trim().toLowerCase();
-      const normSession = String(session || '').trim().toLowerCase();
-      const cleanReg = boardRegNo && boardRegNo !== '—' ? String(boardRegNo).replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
-      const cleanForm = formNo && formNo !== '—' ? String(formNo).trim().toLowerCase().replace(/^adm_/, '') : '';
-      const cleanName = studentName && studentName !== '—' ? String(studentName).trim().toLowerCase() : '';
-      const cleanFather = fName && fName !== '—' ? String(fName).trim().toLowerCase() : '';
-      const rawMob = (mobile && mobile !== '—') ? mobile : (parentMobile && parentMobile !== '—' ? parentMobile : '');
-      const cleanMob = rawMob ? String(rawMob).replace(/[^0-9]/g, '').slice(-10) : '';
-      const cleanDocId = String(st.docId || st.id || '').trim().toLowerCase();
+      const normClass = normalizeClassVal(className);
+      const normSession = normalizeSessionVal(session);
+      const scope = `${normSession}_${normClass}`;
 
-      // Primary: board reg no_class_session
-      const regKey = cleanReg ? `reg_${cleanReg}_${normClass}_${normSession}` : '';
-      // Secondary: form number_class_session
-      const formKey = cleanForm ? `form_${cleanForm}_${normClass}_${normSession}` : '';
-      // Tertiary Fallback: student name_father name_mobile_class_session
-      const nameFatherMobileKey = (cleanName && cleanFather && cleanMob && cleanMob.length >= 10)
-        ? `nfm_${cleanName}_${cleanFather}_${cleanMob}_${normClass}_${normSession}`
-        : '';
-      const docKey = cleanDocId ? `doc_${cleanDocId}` : '';
+      const regNoClean = (boardRegNo && boardRegNo !== '—') ? String(boardRegNo).replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+      const regNo = isValidRegNoA(regNoClean) ? regNoClean : '';
+      const formNoClean = (formNo && formNo !== '—') ? String(formNo).trim().toLowerCase().replace(/^adm_/, '') : '';
+      const formNoVal = isValidUniqueVal(formNoClean) ? formNoClean : '';
+      const cleanName = (studentName && studentName !== '—') ? String(studentName).trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+      const cleanFather = (fName && fName !== '—') ? String(fName).trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
-      let existing = null;
-      let isFallbackMatch = false;
-
-      if (regKey && indexByReg.has(regKey)) {
-        existing = indexByReg.get(regKey);
-      } else if (formKey && indexByForm.has(formKey)) {
-        existing = indexByForm.get(formKey);
-      } else if (nameFatherMobileKey && indexByNameFatherMobile.has(nameFatherMobileKey)) {
-        existing = indexByNameFatherMobile.get(nameFatherMobileKey);
-        isFallbackMatch = true;
-      } else if (docKey && indexByDoc.has(docKey)) {
-        existing = indexByDoc.get(docKey);
-      }
-
-      if (existing) {
-        if (isFallbackMatch || st._isFallbackMerge) {
-          existing._isFallbackMerge = true;
-          existing._fallbackMergeReason = st._fallbackMergeReason || `Merged via Name+Father+Mobile fallback (${studentName}, ${fName}, ${rawMob}, ${className}, ${session})`;
-        }
-        // Merge enriched fields from studentRecord into existing
-        Object.keys(studentRecord).forEach(k => {
-          if ((existing[k] === '—' || existing[k] === '' || existing[k] === undefined || existing[k] === null) &&
-              studentRecord[k] && studentRecord[k] !== '—') {
-            existing[k] = studentRecord[k];
+      // Invariant: A student with an assigned Class Roll Number is authoritative within their class and session.
+      // Distinct examinees with different roll numbers (e.g. Roll 67 vs Roll 97) must NEVER suppress one another!
+      if (hasValidRoll) {
+        const rollKey = `roll_${scope}_${classRollNo}`;
+        if (seenRollScopeKeys.has(rollKey)) {
+          const existingIdx = seenRollScopeKeys.get(rollKey);
+          const existing = poolList[existingIdx];
+          if (existing) {
+            // Enrich missing fields from current record into existing
+            Object.keys(studentRecord).forEach(k => {
+              if ((existing[k] === '—' || existing[k] === '' || existing[k] === undefined || existing[k] === null) &&
+                  studentRecord[k] && studentRecord[k] !== '—') {
+                existing[k] = studentRecord[k];
+              }
+            });
+            if (isDropped) {
+              existing.isExamDropped = true;
+              existing.examStatus = 'dropped';
+              existing.status = 'Dropped';
+            }
           }
-        });
-        if ((existing.classRollNo === '—' || !existing.classRollNo) && classRollNo && classRollNo !== '—') {
-          existing.classRollNo = classRollNo;
+          return;
         }
-        if ((existing.examRollNo === '—' || !existing.examRollNo) && examRollNo && examRollNo !== '—') {
-          existing.examRollNo = examRollNo;
-        }
-        if ((existing.boardRegNo === '—' || !existing.boardRegNo) && boardRegNo && boardRegNo !== '—') {
-          existing.boardRegNo = boardRegNo;
-        }
-        // Link all identifiers to the merged record
-        if (regKey && !indexByReg.has(regKey)) indexByReg.set(regKey, existing);
-        if (formKey && !indexByForm.has(formKey)) indexByForm.set(formKey, existing);
-        if (nameFatherMobileKey && !indexByNameFatherMobile.has(nameFatherMobileKey)) indexByNameFatherMobile.set(nameFatherMobileKey, existing);
-        if (docKey && !indexByDoc.has(docKey)) indexByDoc.set(docKey, existing);
+        seenRollScopeKeys.set(rollKey, poolList.length);
       } else {
-        if (st._isFallbackMerge) {
-          studentRecord._isFallbackMerge = true;
-          studentRecord._fallbackMergeReason = st._fallbackMergeReason;
+        // Only for unassigned / draft / pending records, check for duplicate formNo, regNo, or identical full name + full father name
+        if (normSession.includes('2025-26') && !st._isCurrentScope) {
+          if (regNo && seenCurrentSessionKeys.has(`reg_${scope}_${regNo}`)) return;
+          if (formNoVal && seenCurrentSessionKeys.has(`fno_${scope}_${formNoVal}`)) return;
+          if (cleanName && cleanFather && seenCurrentSessionKeys.has(`name_${scope}_${cleanName}_${cleanFather}`)) return;
         }
-        poolList.push(studentRecord);
-        if (regKey) indexByReg.set(regKey, studentRecord);
-        if (formKey) indexByForm.set(formKey, studentRecord);
-        if (nameFatherMobileKey) indexByNameFatherMobile.set(nameFatherMobileKey, studentRecord);
-        if (docKey) indexByDoc.set(docKey, studentRecord);
       }
+
+      if (regNo) seenCurrentSessionKeys.add(`reg_${scope}_${regNo}`);
+      if (formNoVal) seenCurrentSessionKeys.add(`fno_${scope}_${formNoVal}`);
+      if (cleanName && cleanFather) seenCurrentSessionKeys.add(`name_${scope}_${cleanName}_${cleanFather}`);
+
+      poolList.push(studentRecord);
     });
 
     // Pre-sort unified student pool by Class Roll No. ascending as system baseline default
@@ -3701,7 +3786,7 @@ export default function CustomRosterDocumentBuilderView({
     });
 
     return poolList.map((r, i) => ({ ...r, _originalIdx: i + 1 }));
-  }, [combinedRawStudents, isReady]);
+  }, [combinedRawStudents, isReady, droppedOverrides]);
 
   // ─── Real Distinct Subjects Extracted Dynamically from Database Students ───
   const dynamicStudentSubjects = useMemo(() => {
