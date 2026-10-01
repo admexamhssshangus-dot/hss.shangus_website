@@ -1,14 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { WifiOff, Wifi, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { ensureFirestoreConnected } from '../services/firebase';
-
-/**
- * NetworkStatusIndicator
- * Smartly tracks network & mobile data availability across the entire application.
- * Non-intrusively notifies users when disconnected, avoids exposing technical codes,
- * and seamlessly restores cloud connections upon reconnection.
- */
+// NetworkStatusIndicator
+// Smartly tracks network & mobile data availability across the entire application.
+// Non-intrusively notifies users when disconnected, avoids exposing technical codes,
+// and seamlessly restores cloud connections upon reconnection.
 export default function NetworkStatusIndicator() {
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -29,10 +25,16 @@ export default function NetworkStatusIndicator() {
       return false;
     });
 
-    // Re-establish Firestore WebChannel connectivity immediately
-    try {
-      ensureFirestoreConnected();
-    } catch (_) {}
+    // Re-establish Firestore WebChannel connectivity dynamically if needed
+    if (typeof window !== 'undefined') {
+      import('../services/firebase')
+        .then(({ ensureFirestoreConnected }) => {
+          try {
+            ensureFirestoreConnected();
+          } catch (_) {}
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const handleOffline = useCallback(() => {
