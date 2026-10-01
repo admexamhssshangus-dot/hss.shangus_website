@@ -37,7 +37,8 @@ import {
   formatRollNumberSeries,
   buildJkboseSubjectRollData,
   normalizeExamineeClass,
-  CANONICAL_SUBJECT_ORDER
+  CANONICAL_SUBJECT_ORDER,
+  cleanCentreNoDisplay
 } from '../../utils/jkboseRollSeriesFormatter';
 import { generateJkboseDocx } from '../../utils/jkboseDocxGenerator';
 import { generateJkboseExcel } from '../../utils/jkboseExcelGenerator';
@@ -212,6 +213,14 @@ export default function AnalyticsSuiteModal({
   const [isBulkDropPending, setIsBulkDropPending] = useState(false);
   const [dropReason, setDropReason] = useState(COMMON_DROPPED_REASONS[0]);
   const [customDropReason, setCustomDropReason] = useState('');
+
+  // JKBOSE Subject Return Statement Custom Parameters & Configurations
+  const [jkboseSelectedClass, setJkboseSelectedClass] = useState('12th'); // '12th' | '11th' | '10th' | 'all'
+  const [jkboseInstitutionName, setJkboseInstitutionName] = useState('GOVT. HIGHER SECONDARY SCHOOL SHANGUS');
+  const [jkboseExamName, setJkboseExamName] = useState('ANNUAL REGULAR 2026');
+  const [jkboseCentreNo, setJkboseCentreNo] = useState('');
+  const [isJkboseCentreManuallyEdited, setIsJkboseCentreManuallyEdited] = useState(false);
+  const [jkboseRollType, setJkboseRollType] = useState('auto'); // 'auto' | 'board' | 'class'
 
   // Expandable Subject Rows in Table
   const [expandedSubject, setExpandedSubject] = useState(null);
@@ -1255,16 +1264,63 @@ export default function AnalyticsSuiteModal({
     return Object.values(groups).sort((a, b) => a.className.localeCompare(b.className));
   }, [stats.sortedRollStmts]);
 
+  // Effective Class for JKBOSE Return Statement
+  const effectiveJkboseClass = useMemo(() => {
+    if (selectedClasses.length === 1 && !selectedClasses.includes('All')) {
+      return normalizeExamineeClass(selectedClasses[0]);
+    }
+    return jkboseSelectedClass;
+  }, [selectedClasses, jkboseSelectedClass]);
+
+  // Sync jkboseSelectedClass when selectedClasses is modified via filter dropdown
+  useEffect(() => {
+    if (selectedClasses.length === 1 && !selectedClasses.includes('All')) {
+      const norm = normalizeExamineeClass(selectedClasses[0]);
+      if (['10th', '11th', '12th'].includes(norm)) {
+        setJkboseSelectedClass(norm);
+      }
+    } else if (selectedClasses.length === 0) {
+      setJkboseSelectedClass('all');
+    }
+  }, [selectedClasses]);
+
+  // Effective Session String for JKBOSE Return Statement
+  const effectiveJkboseSession = useMemo(() => {
+    if (selectedSessions.length === 1) return `Session ${selectedSessions[0]}`;
+    if (selectedSessions.length > 1) return `Sessions ${selectedSessions.join(', ')}`;
+    return 'Session 2025-26';
+  }, [selectedSessions]);
+
   // JKBOSE Subject Roll Return Dataset (Official Sub-Office Format)
   const jkboseRollData = useMemo(() => {
-    const targetClass = selectedClasses.length === 1
-      ? normalizeExamineeClass(selectedClasses[0])
-      : 'all';
     return buildJkboseSubjectRollData(filteredStudents, {
-      selectedClass: targetClass,
-      rollType: 'auto',
+      selectedClass: effectiveJkboseClass,
+      rollType: jkboseRollType,
+      centreNo: jkboseCentreNo,
     });
-  }, [filteredStudents, selectedClasses]);
+  }, [filteredStudents, effectiveJkboseClass, jkboseRollType, jkboseCentreNo]);
+
+  // Active Class Data for Live Statement Preview
+  const activeClassData = useMemo(() => {
+    if (!jkboseRollData || !jkboseRollData.classWiseData) return null;
+    if (effectiveJkboseClass === 'all') {
+      return {
+        label: 'ALL CLASSES (SSE & HSE)',
+        centreNo: jkboseRollData.detectedCentreNo,
+      };
+    }
+    return jkboseRollData.classWiseData[effectiveJkboseClass] || null;
+  }, [jkboseRollData, effectiveJkboseClass]);
+
+  // Auto-detect & synchronize Centre Number when jkboseRollData updates
+  useEffect(() => {
+    if (!isJkboseCentreManuallyEdited) {
+      const detected = jkboseRollData?.detectedCentreNo || activeClassData?.centreNo || '';
+      if (detected) {
+        setJkboseCentreNo(cleanCentreNoDisplay(detected));
+      }
+    }
+  }, [jkboseRollData?.detectedCentreNo, activeClassData?.centreNo, isJkboseCentreManuallyEdited]);
 
   const jkboseKpis = useMemo(() => {
     let approved = 0;
@@ -1471,13 +1527,22 @@ export default function AnalyticsSuiteModal({
   // Handle Clean PDF Export (Direct Browser Print via Hidden Iframe)
   const handlePrintPDF = () => {
     if (analysisMode === 'jkbose_subject_rolls') {
-      const autoCentre = jkboseRollData?.detectedCentreNo ||
-        Object.values(jkboseRollData?.classWiseData || {})[0]?.centreNo || '';
-      printJkboseStatement(jkboseRollData, {
-        institutionName: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
-        centreNo: autoCentre,
-        session: selectedSessions.length === 1 ? `Session ${selectedSessions[0]}` : 'Session 2025-26',
-      });
+      try {
+        const resolvedCentre = cleanCentreNoDisplay(
+          jkboseCentreNo || jkboseRollData?.detectedCentreNo || activeClassData?.centreNo || ''
+        );
+        printJkboseStatement({
+          classWiseData: jkboseRollData?.classWiseData || {},
+          selectedClass: effectiveJkboseClass,
+          institutionName: jkboseInstitutionName,
+          examName: jkboseExamName,
+          centreNo: resolvedCentre,
+          session: effectiveJkboseSession,
+        });
+      } catch (err) {
+        console.error('Print dispatch failed:', err);
+        showToast('Print dispatch failed: ' + (err.message || err), 'error');
+      }
       return;
     }
 
@@ -1694,29 +1759,46 @@ export default function AnalyticsSuiteModal({
   // Handle Word Export for JKBOSE Statement
   const handleExportDocx = async () => {
     try {
-      const autoCentre = jkboseRollData?.detectedCentreNo ||
-        Object.values(jkboseRollData?.classWiseData || {})[0]?.centreNo || '';
-      await generateJkboseDocx(jkboseRollData, {
-        institutionName: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
-        centreNo: autoCentre,
-        session: selectedSessions.length === 1 ? `Session ${selectedSessions[0]}` : 'Session 2025-26',
+      showToast('Generating Word (.docx) document...', 'info');
+      const resolvedCentre = cleanCentreNoDisplay(
+        jkboseCentreNo || jkboseRollData?.detectedCentreNo || activeClassData?.centreNo || ''
+      );
+      await generateJkboseDocx({
+        classWiseData: jkboseRollData?.classWiseData || {},
+        selectedClass: effectiveJkboseClass,
+        institutionName: jkboseInstitutionName,
+        examName: jkboseExamName,
+        centreNo: resolvedCentre,
+        session: effectiveJkboseSession,
       });
+      showToast('Word (.docx) return statement downloaded successfully!', 'success');
     } catch (err) {
       console.error('Word (.docx) export failed:', err);
-      alert('Word (.docx) export failed: ' + (err.message || err));
+      showToast('Word (.docx) export failed: ' + (err.message || err), 'error');
     }
   };
 
   // Handle Clean Excel / CSV Export
   const handleExportExcel = () => {
     if (analysisMode === 'jkbose_subject_rolls') {
-      const autoCentre = jkboseRollData?.detectedCentreNo ||
-        Object.values(jkboseRollData?.classWiseData || {})[0]?.centreNo || '';
-      generateJkboseExcel(jkboseRollData, {
-        institutionName: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
-        centreNo: autoCentre,
-        session: selectedSessions.length === 1 ? `Session ${selectedSessions[0]}` : 'Session 2025-26',
-      });
+      try {
+        showToast('Generating Excel (.xlsx) workbook...', 'info');
+        const resolvedCentre = cleanCentreNoDisplay(
+          jkboseCentreNo || jkboseRollData?.detectedCentreNo || activeClassData?.centreNo || ''
+        );
+        generateJkboseExcel({
+          classWiseData: jkboseRollData?.classWiseData || {},
+          selectedClass: effectiveJkboseClass,
+          institutionName: jkboseInstitutionName,
+          examName: jkboseExamName,
+          centreNo: resolvedCentre,
+          session: effectiveJkboseSession,
+        });
+        showToast('Excel (.xlsx) return statement downloaded successfully!', 'success');
+      } catch (err) {
+        console.error('Excel export failed:', err);
+        showToast('Excel export failed: ' + (err.message || err), 'error');
+      }
       return;
     }
 
@@ -2448,6 +2530,146 @@ export default function AnalyticsSuiteModal({
           </div>
         </div>
 
+        {/* JKBOSE Subject Roll Return Parameters & Class Selection Controls */}
+        {analysisMode === 'jkbose_subject_rolls' && (
+          <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-indigo-200/80 dark:border-indigo-900/50 shadow-xs space-y-2.5 flex-shrink-0 animate-fadeIn">
+            {/* Class Selection Tabs & Manage Dropped Trigger */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mr-1">
+                  Select Class:
+                </span>
+                <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  {[
+                    { id: '12th', label: 'Class 12th (HSE-II)' },
+                    { id: '11th', label: 'Class 11th (HSE-I)' },
+                    { id: '10th', label: 'Class 10th (SSE)' },
+                    { id: 'all', label: 'All Classes (Classwise)' },
+                  ].map((tab) => {
+                    const isSelected = effectiveJkboseClass === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setJkboseSelectedClass(tab.id);
+                          setExpandedSubject(null);
+                          if (tab.id === 'all') {
+                            setSelectedClasses([]);
+                          } else {
+                            setSelectedClasses([`Class ${tab.id}`]);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white shadow-xs scale-[1.02]'
+                            : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Dropped Examinees Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setIsDroppedDrawerOpen(true)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+              >
+                <UserX size={14} />
+                <span>Manage Dropped Examinees ({jkboseKpis.dropped})</span>
+              </button>
+            </div>
+
+            {/* 5 Customizable Return Parameters */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 pt-0.5">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5">
+                  Institution Name
+                </label>
+                <input
+                  type="text"
+                  value={jkboseInstitutionName}
+                  onChange={(e) => setJkboseInstitutionName(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5">
+                  Examination
+                </label>
+                <input
+                  type="text"
+                  value={jkboseExamName}
+                  onChange={(e) => setJkboseExamName(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5 flex items-center justify-between">
+                  <span>Centre Number</span>
+                  {jkboseRollData?.detectedCentreNo && (
+                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold lowercase">
+                      auto-detected
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={jkboseCentreNo}
+                  placeholder={jkboseRollData?.detectedCentreNo ? cleanCentreNoDisplay(jkboseRollData.detectedCentreNo) : 'e.g. 301003, 301004'}
+                  onChange={(e) => {
+                    setJkboseCentreNo(e.target.value);
+                    setIsJkboseCentreManuallyEdited(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5 flex items-center justify-between">
+                  <span>Session</span>
+                  {(isLoadingHistory || isLoadingSeed || isLoadingSession) && (
+                    <span className="text-[9px] text-amber-500 animate-pulse font-bold">Syncing…</span>
+                  )}
+                </label>
+                <select
+                  value={selectedSessions[0] || '2025-26'}
+                  onChange={(e) => {
+                    const newSes = e.target.value;
+                    setSelectedSessions([newSes]);
+                  }}
+                  className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                >
+                  {availableSessions.map((ses) => (
+                    <option key={ses} value={ses}>Session {ses}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5">
+                  Roll No Source
+                </label>
+                <select
+                  value={jkboseRollType}
+                  onChange={(e) => setJkboseRollType(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="auto">Auto (Board Exam Roll &gt; Class Roll)</option>
+                  <option value="board">Board Exam Roll No strictly</option>
+                  <option value="class">Assigned Class Roll No strictly</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Executive Summary Stat Cards: Ultra-Compact & Responsive */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-2 flex-shrink-0">
           <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
@@ -2522,17 +2744,40 @@ export default function AnalyticsSuiteModal({
           ? "overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 custom-scrollbar max-h-[650px] min-h-[400px]"
           : "overflow-auto flex-1 min-h-0 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 custom-scrollbar"
         }>
+          {/* Paper Header Preview for JKBOSE Return */}
+          {analysisMode === 'jkbose_subject_rolls' && (
+            <div className="p-4 sm:p-5 bg-slate-50/70 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-center space-y-1">
+              <h3 className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-white uppercase">
+                {jkboseInstitutionName}
+              </h3>
+              <div className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">
+                SUBJECT-WISE ROLL NUMBER RETURN STATEMENT FOR EXAMINEES
+              </div>
+              <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 pt-0.5 flex items-center justify-center gap-2.5 flex-wrap">
+                <span>
+                  <strong>EXAMINATION:</strong> {activeClassData ? activeClassData.label : 'CLASS'} — {jkboseExamName} ({effectiveJkboseSession})
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800 text-[11px]">
+                  {cleanCentreNoDisplay(jkboseCentreNo || jkboseRollData?.detectedCentreNo || activeClassData?.centreNo || '') || 'Centre: Pending'}
+                </span>
+              </div>
+              <div className="text-[10.5px] text-slate-500 italic pt-0.5">
+                Continuous roll series are separated by <strong>"TO"</strong> & single Roll Numbers by <strong>Comma</strong>. Click any subject row to inspect enrolled student names.
+              </div>
+            </div>
+          )}
+
           <table className={`w-full text-left text-[10.5px] sm:text-xs font-medium border-collapse ${
             analysisMode === 'jkbose_subject_rolls' ? 'min-w-[960px]' : 'min-w-[780px]'
           }`}>
             <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-black uppercase text-[9.5px] sm:text-[10.5px] border-b border-slate-200 dark:border-slate-700 z-10">
               {analysisMode === 'jkbose_subject_rolls' && (
-                <tr>
-                  <th className="py-2.5 px-3 w-14 min-w-[56px] text-center whitespace-nowrap">#</th>
-                  <th className="py-2.5 px-4 w-60 min-w-[220px] whitespace-nowrap">Subject Name</th>
+                <tr className="bg-slate-100/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200">
+                  <th className="py-2.5 px-3 w-14 min-w-[56px] text-center whitespace-nowrap">S.No</th>
+                  <th className="py-2.5 px-4 w-60 min-w-[220px] whitespace-nowrap">Subject</th>
                   <th className="py-2.5 px-3 w-32 min-w-[110px] text-center whitespace-nowrap">Class</th>
-                  <th className="py-2.5 px-4 min-w-[460px] whitespace-nowrap">Roll Number Series (Range Compressed with "TO" and ",")</th>
-                  <th className="py-2.5 px-3 w-32 min-w-[110px] text-center whitespace-nowrap">Examinees</th>
+                  <th className="py-2.5 px-4 min-w-[460px] whitespace-nowrap">Roll Numbers ( separate continuous series by "TO" & single Roll No's by "Comma" )</th>
+                  <th className="py-2.5 px-3 w-32 min-w-[110px] text-center whitespace-nowrap">Total Candidates</th>
                 </tr>
               )}
 
@@ -2586,64 +2831,88 @@ export default function AnalyticsSuiteModal({
             </thead>
 
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
-              {analysisMode === 'jkbose_subject_rolls' &&
-                jkboseSubjectRows.map((r) => {
-                  const isExpanded = expandedSubject === `${r.className}_${r.subject}`;
-                  return (
-                    <React.Fragment key={`${r.className}_${r.subject}`}>
-                      <tr
-                        onClick={() => setExpandedSubject(isExpanded ? null : `${r.className}_${r.subject}`)}
-                        className={`hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors cursor-pointer ${
-                          isExpanded ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''
-                        }`}
-                        title="Click to view/hide examinee roll numbers list"
-                      >
-                        <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-xs whitespace-nowrap">{r.globalIdx}</td>
-                        <td className="py-2.5 px-4 font-bold text-slate-900 dark:text-white text-xs whitespace-nowrap">
-                          <div className="flex items-center justify-between gap-2">
-                            <span>{r.subject}</span>
-                            <span className="text-slate-400">
-                              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 inline-block">
-                            {formatClassDisplay(r.className)}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 font-mono font-bold text-indigo-950 dark:text-indigo-200 text-xs tracking-tight leading-relaxed">
-                          {r.rollNumbersSeries || <span className="text-slate-400 font-normal italic">No examinees</span>}
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-black text-xs text-slate-900 dark:text-white whitespace-nowrap">
-                          {r.candidateCount}
-                        </td>
-                      </tr>
-                      {isExpanded && Array.isArray(r.rawRollNumbers) && r.rawRollNumbers.length > 0 && (
-                        <tr className="bg-slate-50/80 dark:bg-slate-950/60">
-                          <td colSpan={5} className="p-3 sm:p-4 border-y border-indigo-100 dark:border-indigo-900/40">
-                            <div className="space-y-1.5">
-                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                                <span>Enrolled Examinees in {r.subject} ({r.candidateCount} candidates):</span>
-                                <span className="text-[10px] text-slate-400 font-normal">Click row to collapse</span>
-                              </div>
-                              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 custom-scrollbar">
-                                {r.rawRollNumbers.map((rollNum, rollIdx) => (
-                                  <span
-                                    key={rollIdx}
-                                    className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
-                                  >
-                                    #{rollNum}
-                                  </span>
-                                ))}
-                              </div>
+              {analysisMode === 'jkbose_subject_rolls' && (
+                jkboseSubjectRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-slate-400 italic font-medium">
+                      No approved examinee data found for {effectiveJkboseClass === 'all' ? 'the selected classes' : `Class ${effectiveJkboseClass}`}.
+                    </td>
+                  </tr>
+                ) : (
+                  jkboseSubjectRows.map((r, idx) => {
+                    const isExpanded = expandedSubject === `${r.className}_${r.subject}`;
+                    return (
+                      <React.Fragment key={`${r.className}_${r.subject}`}>
+                        <tr
+                          onClick={() => setExpandedSubject(isExpanded ? null : `${r.className}_${r.subject}`)}
+                          className={`hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors cursor-pointer ${
+                            isExpanded ? 'bg-indigo-50/70 dark:bg-indigo-950/40' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/30 dark:bg-slate-900/30'
+                          }`}
+                          title="Click to view/hide examinee roll numbers list"
+                        >
+                          <td className="py-2.5 px-3 text-center text-slate-500 font-bold text-xs whitespace-nowrap">{r.globalIdx}</td>
+                          <td className="py-2.5 px-4 font-black text-slate-900 dark:text-white text-xs whitespace-nowrap">
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{r.subject}</span>
+                              <span className="text-slate-400">
+                                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                              </span>
                             </div>
                           </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 inline-block">
+                              {formatClassDisplay(r.className)}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 font-mono font-medium text-slate-800 dark:text-slate-200 leading-relaxed text-[11.5px]">
+                            {r.rollNumbersSeries ? (
+                              r.rollNumbersSeries.split(/(TO|, )/g).map((part, pIdx) => {
+                                if (part === 'TO') {
+                                  return (
+                                    <strong key={pIdx} className="text-indigo-600 dark:text-indigo-400 font-black px-1 underline decoration-indigo-400">
+                                      TO
+                                    </strong>
+                                  );
+                                }
+                                return <span key={pIdx}>{part}</span>;
+                              })
+                            ) : (
+                              <span className="text-slate-400 font-normal italic">No examinees</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-full font-black text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                              {r.candidateCount}
+                            </span>
+                          </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                        {isExpanded && Array.isArray(r.rawRollNumbers) && r.rawRollNumbers.length > 0 && (
+                          <tr className="bg-slate-50/80 dark:bg-slate-950/60">
+                            <td colSpan={5} className="p-3 sm:p-4 border-y border-indigo-100 dark:border-indigo-900/40">
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                  <span>Enrolled Examinees in {r.subject} ({r.candidateCount} candidates):</span>
+                                  <span className="text-[10px] text-slate-400 font-normal">Click row to collapse</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 custom-scrollbar">
+                                  {r.rawRollNumbers.map((rollNum, rollIdx) => (
+                                    <span
+                                      key={rollIdx}
+                                      className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                                    >
+                                      #{rollNum}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                )
+              )}
 
               {analysisMode === 'subject' &&
                 stats.sortedSubjects.map((sub, idx) => {
@@ -2747,10 +3016,10 @@ export default function AnalyticsSuiteModal({
               <tfoot className="sticky bottom-0 bg-slate-100 dark:bg-slate-800 font-black text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700 shadow-xs z-10">
                 {analysisMode === 'jkbose_subject_rolls' && (
                   <tr>
-                    <td colSpan="4" className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 uppercase font-bold text-slate-700 dark:text-slate-300">
-                      TOTAL UNIQUE ACTIVE EXAMINEES IN RETURN ({jkboseSubjectRows.length} SUBJECTS)
+                    <td colSpan="4" className="py-2.5 px-3.5 sm:py-3 sm:px-4 text-right uppercase font-black text-slate-700 dark:text-slate-300">
+                      TOTAL UNIQUE EXAMINEES IN RETURN:
                     </td>
-                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-black text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm">
+                    <td className="py-2.5 px-3 sm:py-3 sm:px-3 text-center font-black text-indigo-600 dark:text-indigo-400 text-sm">
                       {jkboseKpis.active}
                     </td>
                   </tr>
@@ -2800,6 +3069,20 @@ export default function AnalyticsSuiteModal({
               </tfoot>
             )}
           </table>
+
+          {/* Paper Footer with Signatory Block Preview for JKBOSE Return */}
+          {analysisMode === 'jkbose_subject_rolls' && (
+            <div className="p-4 sm:p-5 bg-slate-50/40 dark:bg-slate-950/20 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                <div className="font-bold">Verified from Institutional Enrollment Register.</div>
+                <div>Date of Return: <strong>{new Date().toLocaleDateString('en-GB')}</strong></div>
+              </div>
+              <div className="text-left sm:text-right space-y-1 text-xs">
+                <div className="font-black text-slate-900 dark:text-white">Principal / Head of Institution</div>
+                <div className="font-semibold text-slate-600 dark:text-slate-400">{jkboseInstitutionName}</div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ========================================================================= */}
@@ -2855,25 +3138,41 @@ export default function AnalyticsSuiteModal({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
-                    {[
-                      { id: 'all', label: 'All' },
-                      { id: 'active', label: 'Active' },
-                      { id: 'dropped', label: 'Dropped' },
-                    ].map((f) => (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() => setDrawerFilter(f.id)}
-                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                          drawerFilter === f.id
-                            ? 'bg-amber-600 text-white shadow-2xs'
-                            : 'text-slate-600 dark:text-slate-300'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <select
+                      value={selectedSessions[0] || '2025-26'}
+                      onChange={(e) => {
+                        const newSes = e.target.value;
+                        setSelectedSessions([newSes]);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer"
+                      title="Switch Session for Examinee Dropped Manager"
+                    >
+                      {availableSessions.map((ses) => (
+                        <option key={ses} value={ses}>Session {ses}</option>
+                      ))}
+                    </select>
+
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                      {[
+                        { id: 'all', label: 'All' },
+                        { id: 'active', label: 'Active' },
+                        { id: 'dropped', label: 'Dropped' },
+                      ].map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => setDrawerFilter(f.id)}
+                          className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                            drawerFilter === f.id
+                              ? 'bg-amber-600 text-white shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 

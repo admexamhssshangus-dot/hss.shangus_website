@@ -1,52 +1,71 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Diagnostic & Error Handling for Cloud Firestore Free-Tier Quota Exceeded
+## Latest Commit: Complete Feature Parity for JKBOSE Subject Roll Return Statement in Analytics & Statistical Reports Suite
 
-**Commit Message:** `fix(portal): clarify Firestore quota exceeded guidance during bulk field overwrite`
-
----
-
-### Context & Diagnostic Analysis
-
-1. **User Screenshot & Reported Error**:
-   - The user encountered `⚠️ Failed during overwrite execution: Quota exceeded.` while executing a bulk field overwrite for 59 Class 10th student Board Roll Numbers in the Express Direct Record Entry tool (`localhost:3000/portal/admin?gkSubtab=school&tab=directEntry`).
-   
-2. **Root Cause Confirmation via Live REST Diagnostic**:
-   - Directly queried the Cloud Firestore REST endpoint for `hsssdb`:
-     ```json
-     {"error":{"code":429,"message":"Quota exceeded.","status":"RESOURCE_EXHAUSTED"}}
-     ```
-   - **Reason**: The Firebase project `hsssdb` reached Google Cloud Firestore's Spark (Free Tier) daily quotas (20,000 document writes / 50,000 document reads per 24 hours).
-   - When this daily ceiling is met on the Spark plan, Google Cloud blocks further Firestore reads/writes with HTTP 429 (`RESOURCE_EXHAUSTED`).
-
-3. **Resolution**:
-   - **Immediate Permanent Fix**: Upgrade the Firebase project `hsssdb` from Spark (Free) to **Blaze (Pay-as-you-go)** at [Firebase Console Usage Dashboard](https://console.firebase.google.com/project/hsssdb/usage).
-     - The first 50k reads, 20k writes, and 20k deletes each day remain **100% free ($0.00)** on Blaze.
-     - Additional operations cost negligible fractions of a cent ($0.06 per 100k writes).
-     - Prevents bulk overwrites, teacher submissions, and result imports from being hard-blocked.
-   - **Alternative**: Wait for the daily free quota to reset at midnight Pacific Time (00:00 PST / 12:30 PM IST).
+**Commit Message:** `feat(analytics): replicate complete JKBOSE subject roll return statement in AnalyticsSuiteModal`
 
 ---
 
-### Solutions Implemented
+### Context & Implementation Summary
 
-1. **User-Friendly & Actionable Error Messaging**:
-   - Updated [src/portal/admin/BulkFieldOverwriteModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BulkFieldOverwriteModal.jsx) lines 2660–2670 to detect Firestore `resource-exhausted` / `Quota exceeded` errors.
-   - Replaced raw, ambiguous `Quota exceeded` error with explicit, actionable guidance directing administrators to the Firebase Console upgrade option or quota reset timing.
+The user requested:
+> *"replicate all functionalities of 'JKBOSE Subject Roll Return Statement' into Analytics & Statistical Reports Suite where is available in drop down menu"*
+
+Previously, selecting `JKBOSE Subject-wise Roll Number Statement` (`jkbose_subject_rolls`) in `Analytics & Statistical Reports Suite` displayed basic KPI cards and a rudimentary table, while the standalone `JKBOSE Subject Roll Return Statement` module (`JkboseSubjectRollReturnView.jsx`) offered a rich administrative suite with interactive return parameters, class segmented tabs, official circular layout previews, highlighted continuous roll series, table totals, and official signatory blocks.
+
+All features from `JkboseSubjectRollReturnView.jsx` have now been faithfully replicated directly into `AnalyticsSuiteModal.jsx`:
+
+1. **Segmented Class Selector Tabs**:
+   - Quick one-click selector tabs for `Class 12th (HSE-II)`, `Class 11th (HSE-I)`, `Class 10th (SSE)`, and `All Classes (Classwise)`.
+   - Bidirectionally synchronized with the global multi-select `Classes` filter.
+
+2. **Interactive Return Parameters Bar (5 Fields)**:
+   - **Institution Name**: Fully editable text input (default: `GOVT. HIGHER SECONDARY SCHOOL SHANGUS`).
+   - **Examination**: Fully editable text input (default: `ANNUAL REGULAR 2026`).
+   - **Centre Number**: Auto-detected from examinee roll data with a live `auto-detected` indicator badge; supports manual overwrite.
+   - **Session**: Dropdown selector synchronized with academic session dataset and live loading status.
+   - **Roll No Source**: Configurable selector between `Auto (Board Exam Roll > Class Roll)`, `Board Exam Roll No strictly`, and `Assigned Class Roll No strictly`.
+
+3. **Official Paper Header Preview**:
+   - Matches official JKBOSE sub-office circular formatting.
+   - Displays Institution Name (uppercase), circular statement title, examination bracket, session, centre number badge, and circular instructions.
+
+4. **Continuous Roll Number Range Compression with Highlighted "TO"**:
+   - Series are formatted using `buildJkboseSubjectRollData` and `formatRollNumberSeries`.
+   - "TO" keyword is prominently highlighted with `<strong className="text-indigo-600 dark:text-indigo-400 font-black px-1 underline decoration-indigo-400">TO</strong>`.
+   - Includes expandable subject rows with enrolled examinee roll number badges (`#301003...`).
+
+5. **Official Table Footer & Unique Examinee Count**:
+   - Includes `tfoot` row showing `TOTAL UNIQUE EXAMINEES IN RETURN:` with accurate count of active non-dropped examinees (`jkboseKpis.active`).
+
+6. **Official Paper Signatory Block Preview**:
+   - Signatory block preview at the table base with:
+     - `Verified from Institutional Enrollment Register.`
+     - `Date of Return: <current date>`
+     - `Principal / Head of Institution`
+     - Institution Name
+
+7. **Synchronized 1-Click Exports**:
+   - **Word (.docx)** via `generateJkboseDocx`: passes custom `institutionName`, `examName`, `centreNo`, `selectedClass`, `session`, and `classWiseData`.
+   - **Excel (.xlsx)** via `generateJkboseExcel`: passes custom parameters and generates multi-class / single-class workbooks.
+   - **Print / PDF** via `printJkboseStatement`: passes custom parameters for circular print / PDF generation.
+
+8. **Dropped Examinees Drawer & Session Filter Enhancement**:
+   - Accessible via the "Manage Dropped Examinees" button directly in the JKBOSE parameters bar.
+   - Added session switcher dropdown in the drawer toolbar for fast multi-session audits.
 
 ---
 
 ### Exact List of Files Changed
 
-- [src/portal/admin/BulkFieldOverwriteModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BulkFieldOverwriteModal.jsx) (Added Firestore daily quota exceeded detection and guidance)
+- [src/portal/admin/AnalyticsSuiteModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AnalyticsSuiteModal.jsx) (Replicated complete JKBOSE Subject Roll Return features, parameters bar, tabs, paper previews, and exports)
 - [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md) (Updated memory log)
 
 ---
 
 ### Build Verification & Metrics
 
-- `npm run build`: **Exit Code 0**
-- Test REST Probe: `code: 429, status: RESOURCE_EXHAUSTED` diagnosed and documented.
+- `npm run build`: **Exit Code 0** (production build completed successfully with zero breaking errors).
 
 ---
 
@@ -59,8 +78,8 @@ git log -1 --stat
 
 # If you wish to amend or re-commit:
 git reset --soft HEAD~1
-git commit -m "fix(portal): clarify Firestore quota exceeded guidance during bulk field overwrite"
+git commit -m "feat(analytics): replicate complete JKBOSE subject roll return statement in AnalyticsSuiteModal"
 
-# Push manually whenever ready:
+# Push manually whenever ready (DO NOT push automatically):
 git push origin main
 ```
