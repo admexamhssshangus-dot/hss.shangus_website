@@ -1,43 +1,37 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Remove Redundant Top Navbar Setup Button in Student Rosters & Registers View
+## Latest Commit: Move Actions & Exports to Top of Student Rosters & Registers Control Palette
 
-**Commit Message:** `fix(roster): remove redundant top navbar setup button in custom roster view`
+**Commit Message:** `refactor(roster): move actions and exports card to top of control palette`
 
 ---
 
 ### Context & Requirements Addressed
 
 - **User Request**:
-  > *"i donot think setup button is needed here as that is already in letterehad and sign field"*
+  > *"move "Actions & Exports" to top in Student Rosters & Registers"*
 
-- **Analysis & Finding**:
-  - In `AdminDashboard.jsx`, the top sub-nav bar right slot rendered a `# Setup` button (`<Sliders /> <span>Setup</span>`) whenever `activeTab === 'customRoster'` or `docStudio`.
-  - When clicked, this button dispatched `'hss-toggle-studio-setup'`, which was toggling `isSetupAccordionOpen` inside `CustomRosterDocumentBuilderView.jsx`.
-  - However, in `CustomRosterDocumentBuilderView.jsx` (under the **Page & Table Setup** card in the right control palette), there is already a dedicated and clearly labeled **`Letterhead & Sign`** toggle button that expands and collapses the exact same institutional fields (*School Name Override, Subtitle, Signatories, Signatures*).
-  - Showing an additional `# Setup` button in the top navigation bar created visual clutter and confusion.
+- **UI & Ergonomics Enhancement**:
+  - Previously, the **Actions & Exports** card was positioned at the very bottom (Card 4) of the control palette in `CustomRosterDocumentBuilderView.jsx`.
+  - Administrators frequently needed to scroll down past *Cohort Filters*, *Table Columns*, and *Page & Table Setup* just to trigger printing, Excel/Word/CSV exports, or toggle candidate inclusions.
+  - Moving **Actions & Exports** to the very top (Card 1) ensures instant 1-click access to all primary document generation and export functions (`Print / PDF`, `Excel`, `Word`, `CSV`, `Selection`, `Skipped`) immediately upon viewing the student roster.
 
 ---
 
 ### Solutions Implemented
 
-1. **Excluded `customRoster` and `docStudio` from Top Sub-Nav Setup Button**:
-   - In [src/portal/admin/AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx#L715):
-     - Updated the condition so that the top navbar `Setup` button only renders for modules that rely on it (`officialLetter`, `certStudio`, `certificate`).
-     - Removed `customRoster` and `docStudio` from the condition.
-   - Cleaned up unused `showSettingsDrawerProp` and `onToggleSettingsDrawer` prop passes on `<CustomRosterDocumentBuilderView />` in `AdminDashboard.jsx`.
-
-2. **Cleaned Up Obsolete Setup Drawer Sync Effects in Custom Roster View**:
+1. **Reordered Control Palette Hierarchy**:
    - In [src/portal/admin/CustomRosterDocumentBuilderView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/CustomRosterDocumentBuilderView.jsx):
-     - Removed unused `showSettingsDrawer` state and obsolete `hss-toggle-studio-setup` event listener.
-     - Kept the in-module **`Letterhead & Sign`** button in the Page & Table Setup control panel as the single, authoritative, and clean toggle for the letterhead & signatories accordion.
-     - Cleaned up obsolete drawer props and unused handlers.
+     - **Card 1 (Top)**: `Actions & Exports` (Print / PDF with shortcut `Ctrl+P`, Excel, Word, CSV, Select/Deselect All, Skipped Candidates toggle).
+     - **Card 2**: `Cohort Filters` (Session, Class, Stream, Subject, Gender, Status filters with match counter).
+     - **Card 3**: `Table Columns & Database Fields` (Columns dropdown, chips, reorder, abbreviations).
+     - **Card 4**: `Page & Table Setup` (Standard / 2-Col layout, Portrait / Landscape, Signature size, Letterhead & Sign accordion).
+   - Both desktop sidebar and mobile options drawer now display the export and action toolbar at the top without requiring vertical scrolling.
 
 ---
 
 ### Exact List of Files Changed
 
-- [src/portal/admin/AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx)
 - [src/portal/admin/CustomRosterDocumentBuilderView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/CustomRosterDocumentBuilderView.jsx)
 - [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md)
 
@@ -64,7 +58,7 @@ If you want to inspect, amend, or re-commit:
    ```bash
    git reset --soft HEAD~1
    git add .
-   git commit -m "fix(roster): remove redundant top navbar setup button in custom roster view"
+   git commit -m "refactor(roster): move actions and exports card to top of control palette"
    ```
 
 3. **Push to Remote (When Ready)**:
