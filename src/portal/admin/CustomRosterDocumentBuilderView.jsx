@@ -3222,9 +3222,7 @@ export default function CustomRosterDocumentBuilderView({
   onSwitchToLetterWriter,
   globalSession,
   onSelectGlobalSession,
-  isActive = true,
-  showSettingsDrawerProp,
-  onToggleSettingsDrawer
+  isActive = true
 }) {
   const [isReady, setIsReady] = useState(true);
 
@@ -3840,7 +3838,6 @@ export default function CustomRosterDocumentBuilderView({
   const [attendanceSigLeft, setAttendanceSigLeft] = useState('Sig. of the Asstt. Supdt.');
   const [attendanceSigRight, setAttendanceSigRight] = useState('Sig. of the Centre Supdt.');
   const [showAttendanceAdvanced, setShowAttendanceAdvanced] = useState(false);
-  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [attendanceRowsPerColumn, setAttendanceRowsPerColumn] = useState(25);
   const [showColumnOrder, setShowColumnOrder] = useState(false);
 
@@ -4028,18 +4025,8 @@ export default function CustomRosterDocumentBuilderView({
   useEffect(() => {
     if (!isActive) {
       setShowMobileOptionsModal(false);
-      setShowSettingsDrawer(false);
     }
   }, [isActive]);
-
-  // Sync external Setup toggle from Top Sub-Nav bar when active
-  useEffect(() => {
-    if (!isActive) return;
-    if (showSettingsDrawerProp !== undefined) {
-      setShowSettingsDrawer(showSettingsDrawerProp);
-      setIsSetupAccordionOpen(Boolean(showSettingsDrawerProp));
-    }
-  }, [showSettingsDrawerProp, isActive]);
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
@@ -4048,19 +4035,6 @@ export default function CustomRosterDocumentBuilderView({
   }, []);
 
   useEffect(() => {
-    const handleToggle = (e) => {
-      if (!isActive) return;
-      if (e?.detail?.targetModule && e.detail.targetModule !== 'customRoster' && e.detail.targetModule !== 'docStudio') {
-        return;
-      }
-      if (typeof e?.detail?.open === 'boolean') {
-        setShowSettingsDrawer(e.detail.open);
-        setIsSetupAccordionOpen(e.detail.open);
-      } else {
-        setShowSettingsDrawer(prev => !prev);
-        setIsSetupAccordionOpen(prev => !prev);
-      }
-    };
     const handleToggleFilters = (e) => {
       if (!isActive) return;
       if (typeof e?.detail?.open === 'boolean') {
@@ -4069,23 +4043,15 @@ export default function CustomRosterDocumentBuilderView({
         setShowMobileOptionsModal(prev => !prev);
       }
     };
-    window.addEventListener('hss-toggle-studio-setup', handleToggle);
     window.addEventListener('hss-toggle-roster-filters', handleToggleFilters);
     return () => {
-      window.removeEventListener('hss-toggle-studio-setup', handleToggle);
       window.removeEventListener('hss-toggle-roster-filters', handleToggleFilters);
     };
   }, [isActive]);
 
-  const handleCloseSettings = useCallback(() => {
-    setShowSettingsDrawer(false);
-    if (onToggleSettingsDrawer) onToggleSettingsDrawer(false);
-  }, [onToggleSettingsDrawer]);
-
   const handleCloseMobileOptions = useCallback(() => {
     setShowMobileOptionsModal(false);
-    if (onToggleSettingsDrawer) onToggleSettingsDrawer(false);
-  }, [onToggleSettingsDrawer]);
+  }, []);
 
   const handleSplitterMouseDown = (e) => {
     e.preventDefault();
@@ -5625,10 +5591,7 @@ export default function CustomRosterDocumentBuilderView({
         <div className="flex items-center gap-1.5 min-w-0">
           <button
             type="button"
-            onClick={() => {
-              setShowMobileOptionsModal(true);
-              if (onToggleSettingsDrawer) onToggleSettingsDrawer(true);
-            }}
+            onClick={() => setShowMobileOptionsModal(true)}
             className="studio-compact-toolbar-btn px-2 h-6.5 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 font-bold text-[9.5px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0"
             title="Configure Student Cohort Filters, Columns & Setup"
           >
