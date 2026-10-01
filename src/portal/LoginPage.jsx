@@ -807,8 +807,13 @@ export default function LoginPage() {
       if (isAdmin) {
         verifiedSession.redirectPath = '/portal/admin';
         setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Admin Portal...` });
+      } else if (isTeacher) {
+        incrementTeacherLoginCount(cleanEmail).catch(() => {});
+        verifiedSession.redirectPath = '/portal/teacher';
+        setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
       } else {
-        setAlert({ type: 'success', text: 'Login successful! Redirecting to Portal...' });
+        verifiedSession.redirectPath = '/portal/student';
+        setAlert({ type: 'success', text: 'Login successful! Redirecting to Student Portal...' });
       }
       onLoginSuccess(verifiedSession, keepLoggedIn);
     } catch (err) {
@@ -987,6 +992,7 @@ export default function LoginPage() {
 
       // --- STUDENT TAB ACCESS (OR DEFAULT) ---
       const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
+      verifiedSession.redirectPath = '/portal/student';
       setAlert({ type: 'success', text: 'Login successful! Redirecting to Student Portal...' });
       onLoginSuccess(verifiedSession, keepLoggedIn);
 

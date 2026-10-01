@@ -34,15 +34,15 @@ export const FALLBACK_STAFF_PROFILES = {
   'e.educational.24@gmail.com': { name: 'Sheikh Gulfam', role: 'Admin', isAdmin: true, perms: ['reports'] },
   'ghssshangus74@gmail.com': { name: 'GHSS Shangus (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
   'socialshiftz@gmail.com': { 
-    name: 'Technical Admin / Faculty', 
+    name: 'Sheikh Gulfam', 
     role: 'Teacher', 
     isTeacher: true, 
-    isAdmin: true, 
+    isAdmin: false, 
     isStaff: true, 
     subject: 'Botany',
     teachingSubject: 'Botany',
     assignedClasses: ['11th', '12th'],
-    perms: ['reports'] 
+    perms: ['attendanceMgmt', 'practicals'] 
   },
   'shahnawaz13678@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
   'shahnawaz@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
@@ -244,6 +244,21 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
 
   if (!profile) return null;
   if (profile.active === false) throw new Error('This staff account is inactive.');
+
+  // Institutional security constraint: socialshiftz@gmail.com is strictly faculty/teacher, never admin
+  if (email === 'socialshiftz@gmail.com') {
+    profile = {
+      ...profile,
+      role: 'Teacher',
+      isTeacher: true,
+      isAdmin: false,
+      isSuperAdmin: false,
+      subject: profile.subject || 'Botany',
+      teachingSubject: profile.teachingSubject || 'Botany',
+      assignedClasses: profile.assignedClasses || ['11th', '12th'],
+      perms: ['attendanceMgmt', 'practicals']
+    };
+  }
 
   const rawRole = String(profile.role || 'Admin').trim();
   const normalizedRole = rawRole.toLowerCase();
