@@ -46,16 +46,19 @@ const DB_COLUMN_GROUPS = [
       { key: 'sno', label: 'S.No.', defaultSelected: true, defaultWidthPct: 5, align: 'center', isPrimary: true },
       { key: 'studentPhoto', label: 'Photo', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: true },
       { key: 'classRollNo', label: 'R.No.', defaultSelected: true, defaultWidthPct: 7, align: 'center', isPrimary: true },
+      { key: 'examRollNo', label: 'Exam Roll No. (Current)', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: true },
       { key: 'boardRegNo', label: 'Reg. No.', defaultSelected: true, defaultWidthPct: 13, align: 'left', isPrimary: true },
       { key: 'studentName', label: "Student's Name", defaultSelected: true, defaultWidthPct: 18, align: 'left', isPrimary: true },
       { key: 'parentage', label: 'Parentage (F/M)', defaultSelected: false, defaultWidthPct: 18, align: 'left', isPrimary: true },
       { key: 'fatherName', label: "Father's Name", defaultSelected: true, defaultWidthPct: 16, align: 'left', isPrimary: true },
       { key: 'motherName', label: "Mother's Name", defaultSelected: false, defaultWidthPct: 16, align: 'left', isPrimary: true },
       { key: 'admNo', label: 'Adm. No.', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: false },
+      { key: 'admDate', label: 'Adm. Date', defaultSelected: false, defaultWidthPct: 9, align: 'center', isPrimary: false },
       { key: 'formNo', label: 'Form No.', defaultSelected: false, defaultWidthPct: 9, align: 'center', isPrimary: false },
       { key: 'gender', label: 'Gender', defaultSelected: false, defaultWidthPct: 6, align: 'center', isPrimary: false },
       { key: 'dob', label: 'DOB', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
       { key: 'bloodGroup', label: 'Blood Group', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: false },
+      { key: 'motherTongue', label: 'Mother Tongue', defaultSelected: false, defaultWidthPct: 10, align: 'left', isPrimary: false },
       { key: 'religion', label: 'Religion', defaultSelected: false, defaultWidthPct: 9, align: 'center', isPrimary: false },
     ]
   },
@@ -70,9 +73,11 @@ const DB_COLUMN_GROUPS = [
       { key: 'status', label: 'Status', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: false },
       { key: 'admissionType', label: 'Admission Type', defaultSelected: false, defaultWidthPct: 10, align: 'left', isPrimary: false },
       { key: 'prevSchool', label: 'Previous School', defaultSelected: false, defaultWidthPct: 18, align: 'left', isPrimary: false },
+      { key: 'prevBoard', label: 'Previous Board', defaultSelected: false, defaultWidthPct: 12, align: 'left', isPrimary: false },
       { key: 'prevMarks', label: '10th/11th Marks', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
       { key: 'prevRollNo', label: 'Previous Roll No.', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
       { key: 'prevYear', label: 'Passing Year', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: false },
+      { key: 'dietRegNo', label: 'DIET Reg. No.', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: false },
     ]
   },
   {
@@ -88,6 +93,7 @@ const DB_COLUMN_GROUPS = [
       { key: 'pincode', label: 'PIN Code', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: false },
       { key: 'aadhaarNo', label: 'Aadhaar No.', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: true },
       { key: 'pen', label: 'PEN No.', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: false },
+      { key: 'rationCard', label: 'Ration Card No.', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: false },
       { key: 'category', label: 'Category', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: true },
       { key: 'socioCategory', label: 'Socio Category', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
       { key: 'disability', label: 'Disability Status', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
@@ -475,6 +481,189 @@ export function extractAdmNo(st) {
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
       return String(st[k]).trim();
+    }
+  }
+  return '—';
+}
+
+export function extractExamRollNo(st) {
+  if (!st) return '—';
+  const raw = st.raw || st._rawStudent || st;
+
+  // 1. Direct and Field Edit History (from inline cell edits in AdvancedReports / Master Registers)
+  const directEdit = 
+    raw?.directEditHistory?.currExamRollNo?.newValue ||
+    raw?.fieldEditHistory?.currExamRollNo?.newValue ||
+    raw?.directEditHistory?.['Exam R.No. (Current)']?.newValue ||
+    raw?.fieldEditHistory?.['Exam R.No. (Current)']?.newValue ||
+    raw?.directEditHistory?.examRollNo?.newValue ||
+    raw?.fieldEditHistory?.examRollNo?.newValue ||
+    raw?.directEditHistory?.boardRollNo?.newValue ||
+    raw?.fieldEditHistory?.boardRollNo?.newValue ||
+    st?.directEditHistory?.currExamRollNo?.newValue ||
+    st?.fieldEditHistory?.currExamRollNo?.newValue ||
+    st?.directEditHistory?.['Exam R.No. (Current)']?.newValue ||
+    st?.fieldEditHistory?.['Exam R.No. (Current)']?.newValue;
+  if (directEdit !== undefined && directEdit !== null && String(directEdit).trim()) {
+    const s = String(directEdit).trim();
+    if (!/^(—|N\/A|null|undefined|-)$/i.test(s)) {
+      const cleaned = cleanRegNoVal(s);
+      if (cleaned && cleaned !== '—') return cleaned;
+      return s;
+    }
+  }
+
+  // 2. Comprehensive explicit keys
+  const explicitKeys = [
+    "currExamRollNo",
+    "examRollNo",
+    "boardRollNo",
+    "Exam R.No. (Current)",
+    "Exam R. No. (Current)",
+    "Exam Roll No. (Board)",
+    "Exam Roll No.(Board)",
+    "Exam Roll No (Board)",
+    "Exam Roll (Board)",
+    "Exam Roll No. (Current)",
+    "Exam Roll No (Current)",
+    "Current Exam Roll No",
+    "Current Exam Roll No.",
+    "Exam Roll No.",
+    "Exam Roll No",
+    "Exam Roll",
+    "Exam R.No.",
+    "Exam R.No",
+    "Exam R. no.",
+    "Exam R. No",
+    "Board Roll Number",
+    "Board Roll No.",
+    "Board Roll No",
+    "boardRoll",
+    "currExamRoll",
+    "curr_exam_roll",
+    "exam_roll_no",
+    "rollNoCurrent",
+    "currentRollNo",
+    "jkboseRollNo",
+    "jkboseRoll",
+    "jkbose_roll_no",
+    "board_roll_no",
+    "examRoll"
+  ];
+
+  for (const k of explicitKeys) {
+    const val = raw[k] !== undefined && raw[k] !== null ? raw[k] : st[k];
+    if (val !== undefined && val !== null && String(val).trim()) {
+      const s = String(val).trim();
+      if (!/^(—|N\/A|null|undefined|-|none|nil)$/i.test(s)) {
+        const cleaned = cleanRegNoVal(s);
+        if (cleaned && cleaned !== '—') {
+          return cleaned;
+        }
+        return s;
+      }
+    }
+  }
+
+  // 3. Dynamic fallback scan for any key containing "exam" and "roll" or "board" and "roll"
+  for (const [k, v] of Object.entries(raw)) {
+    if (v !== undefined && v !== null) {
+      const lk = k.toLowerCase();
+      if (lk.includes('prev') || lk.includes('10th') || lk.includes('8th') || lk.includes('previous')) continue;
+      if (lk.includes('examroll') || (lk.includes('exam') && lk.includes('roll')) || (lk.includes('board') && lk.includes('roll'))) {
+        const s = String(v).trim();
+        if (s && !/^(—|N\/A|null|undefined|-|none|nil)$/i.test(s)) {
+          const cleaned = cleanRegNoVal(s);
+          if (cleaned && cleaned !== '—') return cleaned;
+          return s;
+        }
+      }
+    }
+  }
+
+  return '—';
+}
+
+export function extractAdmDate(st) {
+  if (!st) return '—';
+  const raw = st.raw || st._rawStudent || st;
+  const keys = [
+    "Admission Date", "Adm. Date", "Adm Date", "admDate", "admissionDate",
+    "Date of Admission", "Date of admission", "adm_date"
+  ];
+  for (const k of keys) {
+    const val = raw[k] || st[k];
+    if (val && String(val).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(val).trim())) {
+      let str = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+        const [y, m, d] = str.slice(0, 10).split('-');
+        return `${d}/${m}/${y}`;
+      }
+      return str;
+    }
+  }
+  return '—';
+}
+
+export function extractMotherTongue(st) {
+  if (!st) return '—';
+  const raw = st.raw || st._rawStudent || st;
+  const keys = [
+    "Your Mother Tongue", "Mother Tongue", "motherTongue", "Mother tongue", "mother_tongue"
+  ];
+  for (const k of keys) {
+    const val = raw[k] || st[k];
+    if (val && String(val).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(val).trim())) {
+      return toTitleCase(String(val).trim());
+    }
+  }
+  return '—';
+}
+
+export function extractPrevBoard(st) {
+  if (!st) return '—';
+  const raw = st.raw || st._rawStudent || st;
+  const keys = [
+    "Name of Previous Board (Class 10th)", "Name of Previous Board (Class 11th)",
+    "Previous Board", "previousBoard", "prevBoard", "Name of Previous Board", "Board"
+  ];
+  for (const k of keys) {
+    const val = raw[k] || st[k];
+    if (val && String(val).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(val).trim())) {
+      return String(val).trim();
+    }
+  }
+  return '—';
+}
+
+export function extractDietRegNo(st) {
+  if (!st) return '—';
+  const raw = st.raw || st._rawStudent || st;
+  const keys = [
+    "DIET Registration No.", "DIET/Board Reg. No.", "DIET Reg. No.", "DIET Reg No",
+    "dietRegNo", "dietRegistrationNo"
+  ];
+  for (const k of keys) {
+    const val = raw[k] || st[k];
+    if (val !== undefined && val !== null) {
+      const cleaned = cleanRegNoVal(val);
+      if (cleaned && cleaned !== '—') return cleaned;
+    }
+  }
+  return '—';
+}
+
+export function extractRationCard(st) {
+  if (!st) return '—';
+  const raw = st.raw || st._rawStudent || st;
+  const keys = [
+    "Ration Card No.", "Ration Card Number", "rationCardNo", "rationCard",
+    "Ration card number", "Ration Card", "ration_card"
+  ];
+  for (const k of keys) {
+    const val = raw[k] || st[k];
+    if (val && String(val).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(val).trim())) {
+      return String(val).trim();
     }
   }
   return '—';
@@ -2667,14 +2856,14 @@ export default function CustomRosterDocumentBuilderView({
     };
   }, []);
 
-  // Combine live intake with historical registers seamlessly with thorough deduplication
+  // Combine live intake with historical registers seamlessly with thorough deduplication and field enrichment
   const combinedRawStudents = useMemo(() => {
     // Filter out raw chunk container documents from allStudents if any were passed
     const list = Array.isArray(allStudents) 
-      ? allStudents.filter(s => s && !Array.isArray(s.items) && !Array.isArray(s.students) && !Array.isArray(s.records)) 
+      ? allStudents.filter(s => s && !Array.isArray(s.items) && !Array.isArray(s.students) && !Array.isArray(s.records)).map(s => ({ ...s }))
       : [];
     if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
-      const seenKeys = new Set();
+      const seenMap = new Map();
       list.forEach(s => {
         const id = String(s.id || s.docId || '').trim().toLowerCase();
         const fNo = String(s.formNo || s['Form Number'] || s['Form No.'] || '').trim().toLowerCase();
@@ -2684,10 +2873,10 @@ export default function CustomRosterDocumentBuilderView({
         const sess = String(extractSession(s) || s.session || s.Session || '').trim().toLowerCase();
         const cls = String(extractClass(s) || s.className || s.class || s.Class || '').trim().toLowerCase();
 
-        if (id) seenKeys.add(`id:${id}`);
-        if (fNo) seenKeys.add(`fno:${sess}:${cls}:${fNo}`);
-        if (reg && reg !== '—') seenKeys.add(`reg:${sess}:${cls}:${reg}`);
-        if (name && father && cls) seenKeys.add(`name:${sess}:${cls}:${name}:${father}`);
+        if (id) seenMap.set(`id:${id}`, s);
+        if (fNo) seenMap.set(`fno:${sess}:${cls}:${fNo}`, s);
+        if (reg && reg !== '—') seenMap.set(`reg:${sess}:${cls}:${reg}`, s);
+        if (name && father && cls) seenMap.set(`name:${sess}:${cls}:${name}:${father}`, s);
       });
 
       masterRegistersList.forEach(m => {
@@ -2699,18 +2888,26 @@ export default function CustomRosterDocumentBuilderView({
         const sess = String(extractSession(m) || m.session || m.Session || '').trim().toLowerCase();
         const cls = String(extractClass(m) || m.className || m.class || m.Class || '').trim().toLowerCase();
 
-        const isDuplicate = 
-          (id && seenKeys.has(`id:${id}`)) ||
-          (fNo && seenKeys.has(`fno:${sess}:${cls}:${fNo}`)) ||
-          (reg && reg !== '—' && seenKeys.has(`reg:${sess}:${cls}:${reg}`)) ||
-          (name && father && cls && seenKeys.has(`name:${sess}:${cls}:${name}:${father}`));
+        const match = 
+          (id && seenMap.get(`id:${id}`)) ||
+          (fNo && seenMap.get(`fno:${sess}:${cls}:${fNo}`)) ||
+          (reg && reg !== '—' && seenMap.get(`reg:${sess}:${cls}:${reg}`)) ||
+          (name && father && cls && seenMap.get(`name:${sess}:${cls}:${name}:${father}`));
 
-        if (!isDuplicate) {
+        if (match) {
+          // Enrich the existing student in list with any non-empty fields from m (especially exam roll numbers)
+          Object.keys(m).forEach(k => {
+            const v = m[k];
+            if (v !== undefined && v !== null && v !== '' && v !== '—' && (match[k] === undefined || match[k] === null || match[k] === '' || match[k] === '—')) {
+              match[k] = v;
+            }
+          });
+        } else {
           list.push(m);
-          if (id) seenKeys.add(`id:${id}`);
-          if (fNo) seenKeys.add(`fno:${sess}:${cls}:${fNo}`);
-          if (reg && reg !== '—') seenKeys.add(`reg:${sess}:${cls}:${reg}`);
-          if (name && father && cls) seenKeys.add(`name:${sess}:${cls}:${name}:${father}`);
+          if (id) seenMap.set(`id:${id}`, m);
+          if (fNo) seenMap.set(`fno:${sess}:${cls}:${fNo}`, m);
+          if (reg && reg !== '—') seenMap.set(`reg:${sess}:${cls}:${reg}`, m);
+          if (name && father && cls) seenMap.set(`name:${sess}:${cls}:${name}:${father}`, m);
         }
       });
     }
@@ -2721,6 +2918,37 @@ export default function CustomRosterDocumentBuilderView({
   const unifiedStudentPool = useMemo(() => {
     if (!Array.isArray(combinedRawStudents) || combinedRawStudents.length === 0) return [];
     const poolMap = new Map();
+
+    // ── Pre-pass: Build Cross-Reference Registry for Exam Roll Numbers across ALL records ──
+    const examRollByReg = new Map();
+    const examRollByForm = new Map();
+    const examRollByNameFather = new Map();
+    const examRollByNameClass = new Map();
+    const examRollByDocId = new Map();
+
+    combinedRawStudents.forEach((st) => {
+      if (!st) return;
+      const roll = extractExamRollNo(st);
+      if (roll && roll !== '—' && roll !== '-') {
+        const reg = extractBoardRegNo(st);
+        const fNo = extractFormNo(st);
+        const sName = extractStudentName(st);
+        const fName = extractFatherName(st);
+        const cls = extractClass(st);
+        const dId = st.docId || st.id || '';
+
+        const cleanReg = reg && reg !== '—' ? reg.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+        const cleanForm = fNo && fNo !== '—' ? fNo.toLowerCase() : '';
+        const cleanNameFather = (sName !== '—' && fName !== '—') ? `${sName}_${fName}`.toLowerCase() : '';
+        const cleanNameClass = (sName !== '—' && cls !== '—') ? `${sName}_${cls}`.toLowerCase() : '';
+
+        if (cleanReg && !examRollByReg.has(cleanReg)) examRollByReg.set(cleanReg, roll);
+        if (cleanForm && !examRollByForm.has(cleanForm)) examRollByForm.set(cleanForm, roll);
+        if (cleanNameFather && !examRollByNameFather.has(cleanNameFather)) examRollByNameFather.set(cleanNameFather, roll);
+        if (cleanNameClass && !examRollByNameClass.has(cleanNameClass)) examRollByNameClass.set(cleanNameClass, roll);
+        if (dId && !examRollByDocId.has(dId.toLowerCase())) examRollByDocId.set(dId.toLowerCase(), roll);
+      }
+    });
 
     combinedRawStudents.forEach((rawSt, idx) => {
       const st = rawSt || {};
@@ -2735,15 +2963,19 @@ export default function CustomRosterDocumentBuilderView({
       const classRollNo = getStudentRollNumber(st) || '—';
       const boardRegNo = extractBoardRegNo(st);
       const admNo = extractAdmNo(st);
+      const admDate = extractAdmDate(st);
       const formNo = extractFormNo(st);
       const dob = extractDob(st);
       const bloodGroup = extractBloodGroup(st);
       const religion = extractReligion(st);
+      const motherTongue = extractMotherTongue(st);
       const admissionType = extractAdmissionType(st);
       const prevSchool = extractPrevSchool(st);
+      const prevBoard = extractPrevBoard(st);
       const prevMarks = extractPrevMarks(st);
       const prevRollNo = extractPrevRollNo(st);
       const prevYear = extractPrevYear(st);
+      const dietRegNo = extractDietRegNo(st);
       const mobile = extractMobile(st);
       const parentMobile = extractParentMobile(st);
       const email = extractEmail(st);
@@ -2753,6 +2985,7 @@ export default function CustomRosterDocumentBuilderView({
       const pincode = extractPincode(st);
       const aadhaarNo = extractAadhaar(st);
       const pen = extractPen(st);
+      const rationCard = extractRationCard(st);
       const category = extractCategory(st);
       const socioCategory = extractSocioCategory(st);
       const disability = extractDisability(st);
@@ -2762,6 +2995,29 @@ export default function CustomRosterDocumentBuilderView({
       const rawSubjects = extractSubjects(st, false);
       const rawSubjectsWithStreamAbbr = extractSubjectsWithStream(st, true);
       const rawSubjectsWithStreamFull = extractSubjectsWithStream(st, false);
+
+      let examRollNo = extractExamRollNo(st);
+
+      // If examRollNo is not directly on this student record, cross-reference against the registry!
+      if (!examRollNo || examRollNo === '—' || examRollNo === '-') {
+        const cleanReg = boardRegNo && boardRegNo !== '—' ? boardRegNo.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+        const cleanForm = formNo && formNo !== '—' ? formNo.toLowerCase() : '';
+        const cleanNameFather = (studentName !== '—' && fName !== '—') ? `${studentName}_${fName}`.toLowerCase() : '';
+        const cleanNameClass = (studentName !== '—' && className !== '—') ? `${studentName}_${className}`.toLowerCase() : '';
+        const dId = (st.docId || st.id || '').toLowerCase();
+
+        if (cleanReg && examRollByReg.has(cleanReg)) {
+          examRollNo = examRollByReg.get(cleanReg);
+        } else if (cleanForm && examRollByForm.has(cleanForm)) {
+          examRollNo = examRollByForm.get(cleanForm);
+        } else if (cleanNameFather && examRollByNameFather.has(cleanNameFather)) {
+          examRollNo = examRollByNameFather.get(cleanNameFather);
+        } else if (cleanNameClass && examRollByNameClass.has(cleanNameClass)) {
+          examRollNo = examRollByNameClass.get(cleanNameClass);
+        } else if (dId && examRollByDocId.has(dId)) {
+          examRollNo = examRollByDocId.get(dId);
+        }
+      }
 
       let parentage = '—';
       if (fName !== '—' && mName !== '—') parentage = `${fName} / ${mName}`;
@@ -2782,17 +3038,22 @@ export default function CustomRosterDocumentBuilderView({
         motherName: mName,
         parentage,
         classRollNo,
+        examRollNo: examRollNo || '—',
         boardRegNo,
         admNo,
+        admDate,
         formNo,
         dob,
         bloodGroup,
         religion,
+        motherTongue,
         admissionType,
         prevSchool,
+        prevBoard,
         prevMarks,
         prevRollNo,
         prevYear,
+        dietRegNo,
         mobile,
         parentMobile,
         email,
@@ -2802,6 +3063,7 @@ export default function CustomRosterDocumentBuilderView({
         pincode,
         aadhaarNo,
         pen,
+        rationCard,
         category,
         socioCategory,
         disability,
@@ -2833,10 +3095,21 @@ export default function CustomRosterDocumentBuilderView({
         poolMap.set(dedupKey, studentRecord);
       } else {
         const existing = poolMap.get(dedupKey);
-        // Prefer the record that has an assigned class roll number or richer information
+        // Prefer richer information and merge fields
+        const merged = { ...existing };
+        Object.keys(studentRecord).forEach(k => {
+          if ((merged[k] === '—' || merged[k] === '' || merged[k] === undefined || merged[k] === null) &&
+              studentRecord[k] && studentRecord[k] !== '—') {
+            merged[k] = studentRecord[k];
+          }
+        });
         if (existing.classRollNo === '—' && classRollNo !== '—') {
-          poolMap.set(dedupKey, { ...existing, ...studentRecord });
+          merged.classRollNo = classRollNo;
         }
+        if ((existing.examRollNo === '—' || !existing.examRollNo) && examRollNo && examRollNo !== '—') {
+          merged.examRollNo = examRollNo;
+        }
+        poolMap.set(dedupKey, merged);
       }
     });
 
@@ -3938,12 +4211,22 @@ export default function CustomRosterDocumentBuilderView({
     return activeColumns.some(c => c.key === 'studentPhoto' || c.key === 'photo');
   }, [activeColumns]);
 
+  const hasExamRollCol = useMemo(() => {
+    return activeColumns.some(c => c.key === 'examRollNo');
+  }, [activeColumns]);
+
   // Normalize Student Data for Table View & Exports with Column Sorting (Instant < 2ms)
   const processedRows = useMemo(() => {
     const rawRows = filteredStudents.map((st, idx) => {
       const row = { ...st };
       row.sno = idx + 1;
       row.subjects = useAbbreviatedSubjects ? st.rawSubjectsWithStreamAbbr : st.rawSubjectsWithStreamFull;
+      if (!row.examRollNo || row.examRollNo === '—' || row.examRollNo === '-') {
+        const fallbackRoll = extractExamRollNo(st._rawStudent || st);
+        if (fallbackRoll && fallbackRoll !== '—' && fallbackRoll !== '-') {
+          row.examRollNo = fallbackRoll;
+        }
+      }
 
       const photoSrc = hasPhotoColumn ? (resolveStudentPhoto(st._rawStudent) || getStudentPhotoUrl(st._rawStudent) || '') : '';
       row.studentPhoto = photoSrc;
@@ -3978,7 +4261,7 @@ export default function CustomRosterDocumentBuilderView({
       const isAValidNum = !isNaN(numA) && String(va).trim() !== '' && /^\d+$/.test(String(va).replace(/[^0-9]/g, ''));
       const isBValidNum = !isNaN(numB) && String(vb).trim() !== '' && /^\d+$/.test(String(vb).replace(/[^0-9]/g, ''));
 
-      if (isAValidNum && isBValidNum && (sortKey === 'classRollNo' || sortKey === 'sno' || sortKey === '_originalIdx' || sortKey === 'admNo' || !isNaN(Number(va)))) {
+      if (isAValidNum && isBValidNum && (sortKey === 'classRollNo' || sortKey === 'examRollNo' || sortKey === 'sno' || sortKey === '_originalIdx' || sortKey === 'admNo' || !isNaN(Number(va)))) {
         const diff = sortConfig.direction === 'asc' ? numA - numB : numB - numA;
         if (diff !== 0) return diff;
       } else {
@@ -5685,7 +5968,9 @@ export default function CustomRosterDocumentBuilderView({
                             <table className="w-full table-fixed border-collapse text-xs">
                               <thead>
                                 <tr className="bg-slate-100 text-slate-900 border-b-2 border-slate-800 font-serif">
-                                  <th className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center">R.No.</th>
+                                  <th className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center">
+                                    {hasExamRollCol ? 'Exam R.No.' : 'R.No.'}
+                                  </th>
                                   <th className="border-r border-slate-700 px-1.5 py-1 font-black text-[9px] w-[54%] text-left">Name of the Candidate</th>
                                   <th className="px-1 py-1 font-black text-[9px] w-[28%] text-center">Sig. of the Candidate</th>
                                 </tr>
@@ -5694,7 +5979,9 @@ export default function CustomRosterDocumentBuilderView({
                                 {Array.from({ length: half }).map((_, i) => {
                                   const row = previewRows[i];
                                   if (!row) return null;
-                                  const roll = (row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || i + 1);
+                                  const roll = hasExamRollCol
+                                    ? ((row.examRollNo && row.examRollNo !== '—' && row.examRollNo !== '-') ? row.examRollNo : ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || i + 1)))
+                                    : ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || i + 1));
                                   return (
                                     <tr key={i} className="h-8.5 hover:bg-slate-50">
                                       <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>
@@ -5712,7 +5999,9 @@ export default function CustomRosterDocumentBuilderView({
                             <table className="w-full table-fixed border-collapse text-xs">
                               <thead>
                                 <tr className="bg-slate-100 text-slate-900 border-b-2 border-slate-800 font-serif">
-                                  <th className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center">R.No.</th>
+                                  <th className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center">
+                                    {hasExamRollCol ? 'Exam R.No.' : 'R.No.'}
+                                  </th>
                                   <th className="border-r border-slate-700 px-1.5 py-1 font-black text-[9px] w-[54%] text-left">Name of the Candidate</th>
                                   <th className="px-1 py-1 font-black text-[9px] w-[28%] text-center">Sig. of the Candidate</th>
                                 </tr>
@@ -5720,7 +6009,9 @@ export default function CustomRosterDocumentBuilderView({
                               <tbody className="divide-y divide-slate-400">
                                 {Array.from({ length: half }).map((_, i) => {
                                   const row = previewRows[half + i];
-                                  const roll = row ? ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || half + i + 1)) : '';
+                                  const roll = row ? (hasExamRollCol
+                                    ? ((row.examRollNo && row.examRollNo !== '—' && row.examRollNo !== '-') ? row.examRollNo : ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || half + i + 1)))
+                                    : ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || half + i + 1))) : '';
                                   return (
                                     <tr key={i} className="h-8.5 hover:bg-slate-50">
                                       <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>
@@ -6101,6 +6392,16 @@ export default function CustomRosterDocumentBuilderView({
                                       </span>
                                     )}
                                   </div>
+                                ) : col.key === 'examRollNo' ? (
+                                  <span className="font-mono text-center font-bold block">
+                                    {row.examRollNo && row.examRollNo !== '—' && row.examRollNo !== '-' ? (
+                                      <span className="text-indigo-950 dark:text-indigo-200 font-black tracking-wide bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                                        {row.examRollNo}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400 font-normal">—</span>
+                                    )}
+                                  </span>
                                 ) : (
                                   <span className="block break-words whitespace-normal">{row[col.key] !== undefined ? row[col.key] : '—'}</span>
                                 )}
