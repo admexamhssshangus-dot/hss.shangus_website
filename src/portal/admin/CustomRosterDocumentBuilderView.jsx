@@ -2659,7 +2659,9 @@ function RosterColumnsDropdown({
   setShowMoreFields,
   handleOpenAddModal,
   handleOpenEditModal,
-  handleRemoveColumn
+  handleRemoveColumn,
+  handleResetToSystemDefault,
+  fullWidth = false
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -2685,30 +2687,52 @@ function RosterColumnsDropdown({
 
   const term = searchTerm.toLowerCase().trim();
 
+  // Count total matches when searching
+  const totalMatches = useMemo(() => {
+    if (!term) return 0;
+    let count = 0;
+    dbColumnGroups.forEach(grp => {
+      grp.columns.forEach(col => {
+        if (col.label.toLowerCase().includes(term) || col.key.toLowerCase().includes(term) || grp.category.toLowerCase().includes(term)) {
+          count++;
+        }
+      });
+    });
+    return count;
+  }, [dbColumnGroups, term]);
+
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div className={`relative ${fullWidth ? 'block w-full' : 'inline-block'} text-left`} ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 h-6.5 rounded-md sm:rounded-lg border font-extrabold text-[9px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer ${
+        className={`${
+          fullWidth
+            ? 'w-full px-2.5 py-1.5 rounded-lg border font-extrabold text-[10.5px] flex items-center justify-between shadow-2xs'
+            : 'px-1.5 sm:px-2 py-0.5 sm:py-1 h-6.5 rounded-md sm:rounded-lg border font-extrabold text-[9px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs'
+        } transition-all cursor-pointer ${
           isOpen
-            ? 'bg-indigo-600 text-white border-indigo-700'
-            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
+            ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-indigo-400'
         }`}
         title="Select and configure table columns"
       >
-        <Layers size={10} className={isOpen ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
-        <span>Columns</span>
-        <span className={`px-1 py-0.2 rounded-full text-[8px] font-black leading-tight ${
-          isOpen ? 'bg-indigo-700 text-white' : 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
-        }`}>
-          {activeColumns.length} Active
-        </span>
-        <ChevronDown size={9} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <div className="flex items-center gap-1.5">
+          <Layers size={fullWidth ? 13 : 10} className={isOpen ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
+          <span>Select Table Columns</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className={`px-1.5 py-0.2 rounded-full text-[8.5px] font-black leading-tight ${
+            isOpen ? 'bg-indigo-700 text-white' : 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+          }`}>
+            {activeColumns.length} Active
+          </span>
+          <ChevronDown size={fullWidth ? 11 : 9} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-1 w-72 sm:w-80 max-w-[calc(100vw-24px)] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 max-h-96 overflow-y-auto space-y-2">
+        <div className="absolute right-0 mt-1 w-84 sm:w-96 max-w-[calc(100vw-24px)] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2.5 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 max-h-[460px] overflow-y-auto space-y-2">
           {/* Header */}
           <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800 text-[9.5px] font-black uppercase tracking-wider text-slate-500">
             <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
@@ -2720,20 +2744,22 @@ function RosterColumnsDropdown({
                 type="button"
                 onClick={() => setShowMoreFields(prev => !prev)}
                 className="px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-[8.5px] font-bold cursor-pointer"
+                title="Toggle between core columns and all 35 database columns"
               >
-                {showMoreFields ? 'Less' : '+ All 33'}
+                {showMoreFields ? 'Core Only' : '+ All 35'}
               </button>
               <button
                 type="button"
                 onClick={() => handleOpenAddModal()}
-                className="px-1.5 py-0.5 rounded bg-amber-600 text-white text-[8.5px] font-bold cursor-pointer"
+                className="px-1.5 py-0.5 rounded bg-amber-600 text-white text-[8.5px] font-bold cursor-pointer hover:bg-amber-500 shadow-2xs"
               >
                 + Custom
               </button>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer ml-1"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer ml-1 p-0.5"
+                title="Close dropdown"
               >
                 <X size={12} />
               </button>
@@ -2746,8 +2772,9 @@ function RosterColumnsDropdown({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search column fields..."
-              className="w-full px-2 py-1 pl-6 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-900 dark:text-slate-100 focus:outline-hidden"
+              placeholder="Search column fields (e.g. roll, dob, photo, stream, aadhaar, marks)..."
+              className="w-full px-2 py-1 pl-6 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-indigo-500"
+              autoFocus
             />
             <Search size={10} className="absolute left-2 top-2 text-slate-400" />
             {searchTerm && (
@@ -2761,23 +2788,33 @@ function RosterColumnsDropdown({
             )}
           </div>
 
+          {/* Search match counter if searching */}
+          {term && (
+            <div className="text-[8.5px] font-bold text-indigo-600 dark:text-indigo-400 px-0.5">
+              Found {totalMatches} matching field{totalMatches === 1 ? '' : 's'} across database
+            </div>
+          )}
+
           {/* Category Groups with Checkboxes */}
           <div className="space-y-2">
             {dbColumnGroups.map((grp) => {
-              const visibleCols = showMoreFields
+              const candidateCols = (term || showMoreFields)
                 ? grp.columns
                 : grp.columns.filter(c => c.isPrimary || activeColumns.some(ac => ac.key === c.key));
 
               const filteredCols = term
-                ? visibleCols.filter(c => c.label.toLowerCase().includes(term) || c.key.toLowerCase().includes(term))
-                : visibleCols;
+                ? candidateCols.filter(c => c.label.toLowerCase().includes(term) || c.key.toLowerCase().includes(term) || grp.category.toLowerCase().includes(term))
+                : candidateCols;
 
               if (filteredCols.length === 0) return null;
 
+              const activeInGroup = grp.columns.filter(c => activeColumns.some(ac => ac.key === c.key)).length;
+
               return (
                 <div key={grp.category} className="space-y-1">
-                  <div className="text-[8.5px] uppercase font-black text-slate-400 tracking-wider px-0.5">
-                    {grp.category}
+                  <div className="flex items-center justify-between text-[8.5px] uppercase font-black text-slate-400 tracking-wider px-0.5">
+                    <span>{grp.category}</span>
+                    <span className="text-[7.5px] text-slate-500 font-bold">{activeInGroup}/{grp.columns.length}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-1">
                     {filteredCols.map((col) => {
@@ -2789,7 +2826,7 @@ function RosterColumnsDropdown({
                           onClick={() => toggleDbColumn(col)}
                           className={`w-full px-1.5 py-1 rounded-md text-[9.5px] font-bold flex items-center justify-between border cursor-pointer transition-all text-left ${
                             isSelected
-                              ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-400 dark:border-indigo-700 text-indigo-950 dark:text-indigo-200'
+                              ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-400 dark:border-indigo-700 text-indigo-950 dark:text-indigo-200 shadow-2xs'
                               : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
                           }`}
                         >
@@ -2816,7 +2853,7 @@ function RosterColumnsDropdown({
                 {activeColumns.filter(c => c.isCustom).map((c) => (
                   <span
                     key={c.key}
-                    className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 text-[9px] font-bold inline-flex items-center gap-1"
+                    className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 text-[9px] font-bold inline-flex items-center gap-1 shadow-2xs"
                   >
                     <span onClick={() => handleOpenEditModal(c)} className="cursor-pointer hover:underline truncate max-w-[120px]">
                       {c.label}
@@ -2829,6 +2866,30 @@ function RosterColumnsDropdown({
               </div>
             </div>
           )}
+
+          {/* Quick Footer */}
+          <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-200 dark:border-slate-800 text-[8.5px] font-bold">
+            {handleResetToSystemDefault && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleResetToSystemDefault();
+                  setIsOpen(false);
+                }}
+                className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
+                title="Reset to default columns"
+              >
+                Reset Default Columns
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-black cursor-pointer shadow-2xs ml-auto"
+            >
+              Done
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -3629,18 +3690,20 @@ export default function CustomRosterDocumentBuilderView({
     setAttendanceCentre('');
   };
 
-  // ─── Draggable Dual-Pane Splitter State (Left Palette % vs Right Preview %) ───
-  const [leftSplitPct, setLeftSplitPct] = useState(() => {
+  // ─── Draggable Dual-Pane Splitter State (Left Table % vs Right Controls %) ───
+  // Default: 67% space for table preview (2/3 width), 33% space for controls (1/3 width)
+  const [tableSplitPct, setTableSplitPct] = useState(() => {
     try {
-      const saved = localStorage.getItem('hss_roster_split_pct');
-      return saved ? Math.max(22, Math.min(75, Number(saved))) : 42;
+      const saved = localStorage.getItem('hss_roster_table_split_pct');
+      return saved ? Math.max(45, Math.min(80, Number(saved))) : 67;
     } catch {
-      return 42;
+      return 67;
     }
   });
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [showMobileOptionsModal, setShowMobileOptionsModal] = useState(false);
+  const [isSetupAccordionOpen, setIsSetupAccordionOpen] = useState(false);
 
   // Automatically dismiss mobile options modal if the tab becomes inactive
   useEffect(() => {
@@ -3712,11 +3775,12 @@ export default function CustomRosterDocumentBuilderView({
     const handleMouseMove = (moveEvt) => {
       moveEvt.preventDefault();
       const mouseX = moveEvt.clientX - rect.left;
-      const pct = Math.max(22, Math.min(75, (mouseX / rect.width) * 100));
+      // mouseX represents the width percentage of the left pane (the table preview)
+      const pct = Math.max(45, Math.min(80, (mouseX / rect.width) * 100));
       const rounded = Math.round(pct * 10) / 10;
-      setLeftSplitPct(rounded);
+      setTableSplitPct(rounded);
       try {
-        localStorage.setItem('hss_roster_split_pct', String(rounded));
+        localStorage.setItem('hss_roster_table_split_pct', String(rounded));
       } catch {}
     };
 
@@ -4616,471 +4680,571 @@ export default function CustomRosterDocumentBuilderView({
     );
   }
 
-  // ─── Unified Roster Control Palette (Cohort Filters, Custom Tags & Matrix) ───
+  // ─── Unified Roster Control Palette (Cohort Filters, Columns Dropdown, Page Setup & Actions) ───
   const renderRosterControlPalette = () => (
-    <div className="space-y-2 text-xs">
-      {/* COHORT & DEMOGRAPHIC FILTERS */}
-          <div className="space-y-1 pb-1 sm:pb-1.5 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 py-0.5">
+    <div className="space-y-2.5 text-xs">
+      
+      {/* ── CARD 1: COHORT FILTERS ── */}
+      <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 pb-1 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+            <Sliders size={11} className="shrink-0" />
+            <span className="font-extrabold tracking-wide text-slate-800 dark:text-slate-200">Cohort Filters</span>
+            {metaBadges.length > 3 && (
+              <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
+                Active
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono font-black text-[9px] text-emerald-600 dark:text-emerald-400">
+              {filteredStudents.length}/{unifiedStudentPool.length} Matched
+            </span>
+            {filteredStudents.some(s => s && s._isFallbackMerge) && (
+              <span
+                className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[7.5px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 cursor-help"
+                title={`${filteredStudents.filter(s => s && s._isFallbackMerge).length} student record(s) deduplicated via Name + Father + Mobile fallback. Please verify Board Reg No or Form No.`}
+              >
+                <AlertTriangle size={8} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>{filteredStudents.filter(s => s && s._isFallbackMerge).length} Flagged</span>
+              </span>
+            )}
+            {(selectedSessions.length > 0 || selectedClasses.length > 0 || selectedStreams.length > 0 || selectedSubjects.length > 0 || selectedGenders.length > 0 || selectedStatuses.length > 0) && (
               <button
                 type="button"
-                onClick={() => setIsMobileFiltersCollapsed(p => !p)}
-                className="flex items-center gap-1 cursor-pointer sm:cursor-default hover:text-slate-800 dark:hover:text-slate-200"
-                title="Click to toggle cohort filters on mobile"
+                onClick={() => {
+                  setSelectedSessions([]);
+                  setSelectedClasses([]);
+                  setSelectedStreams([]);
+                  setSelectedSubjects([]);
+                  setSelectedGenders([]);
+                  setSelectedStatuses(['Approved']);
+                  setSortConfig({ key: 'classRollNo', direction: 'asc' });
+                }}
+                className="text-[8px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                title="Reset all cohort filters to default"
               >
-                <Sliders size={10} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                <span>Cohort Filters</span>
-                {metaBadges.length > 3 && (
-                  <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
-                    Active
-                  </span>
-                )}
-                <ChevronDown size={9} className={`sm:hidden transition-transform duration-200 shrink-0 ${isMobileFiltersCollapsed ? '-rotate-90' : ''}`} />
+                Reset
               </button>
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono font-black text-[8.5px] text-emerald-600 dark:text-emerald-400">
-                  {filteredStudents.length}/{unifiedStudentPool.length} Matched
-                </span>
-                {filteredStudents.some(s => s && s._isFallbackMerge) && (
-                  <span
-                    className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[7.5px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 cursor-help"
-                    title={`${filteredStudents.filter(s => s && s._isFallbackMerge).length} student record(s) deduplicated via Name + Father + Mobile fallback. Please verify Board Reg No or Form No.`}
-                  >
-                    <AlertTriangle size={8} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span>{filteredStudents.filter(s => s && s._isFallbackMerge).length} Flagged</span>
-                  </span>
-                )}
-                {(selectedSessions.length > 0 || selectedClasses.length > 0 || selectedStreams.length > 0 || selectedSubjects.length > 0 || selectedGenders.length > 0 || selectedStatuses.length > 0) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSessions([]);
-                      setSelectedClasses([]);
-                      setSelectedStreams([]);
-                      setSelectedSubjects([]);
-                      setSelectedGenders([]);
-                      setSelectedStatuses(['Approved']);
-                      setSortConfig({ key: 'classRollNo', direction: 'asc' });
-                    }}
-                    className="text-[8px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
-                    title="Reset all cohort filters to default"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* MOBILE COMPACT FILTERS (2 rows of 2 grouped filters without redundant labels on < sm) */}
-            {!isMobileFiltersCollapsed && (
-              <div className="grid grid-cols-2 gap-1 sm:hidden">
-                <CohortCheckboxDropdown
-                  label="Session"
-                  pluralLabel="Sessions"
-                  options={dynamicSessions}
-                  selected={selectedSessions}
-                  onChange={setSelectedSessions}
-                  totalCount={unifiedStudentPool.length}
-                  align="left"
-                />
-
-                <GroupedCohortCheckboxDropdown
-                  label="Class & Stream"
-                  groups={[
-                    {
-                      id: 'class',
-                      title: 'Class',
-                      pluralLabel: 'Classes',
-                      options: dynamicClasses,
-                      selected: selectedClasses,
-                      onChange: setSelectedClasses,
-                      totalCount: sessionStudents.length
-                    },
-                    {
-                      id: 'stream',
-                      title: 'Stream',
-                      pluralLabel: 'Streams',
-                      options: dynamicStreams,
-                      selected: selectedStreams,
-                      onChange: setSelectedStreams,
-                      totalCount: sessionClassStudents.length
-                    }
-                  ]}
-                  align="right"
-                />
-
-                <CohortCheckboxDropdown
-                  label="Subject"
-                  pluralLabel="Subjects"
-                  options={dynamicRosterSubjects}
-                  selected={selectedSubjects}
-                  onChange={handleSubjectsChange}
-                  totalCount={sessionClassStreamStudents.length}
-                  searchable={true}
-                  align="left"
-                />
-
-                <GroupedCohortCheckboxDropdown
-                  label="Gender & Status"
-                  groups={[
-                    {
-                      id: 'gender',
-                      title: 'Gender',
-                      pluralLabel: 'Genders',
-                      options: [
-                        { value: 'M', label: 'Male (M)' },
-                        { value: 'F', label: 'Female (F)' }
-                      ],
-                      selected: selectedGenders,
-                      onChange: setSelectedGenders,
-                      totalCount: sessionClassStreamStudents.length
-                    },
-                    {
-                      id: 'status',
-                      title: 'Status',
-                      pluralLabel: 'Statuses',
-                      options: dynamicStatuses,
-                      selected: selectedStatuses,
-                      onChange: setSelectedStatuses,
-                      totalCount: sessionClassStreamStudents.length
-                    }
-                  ]}
-                  align="right"
-                />
-              </div>
             )}
+          </div>
+        </div>
 
-            {/* DESKTOP & TABLET FILTERS (Individual columns on sm+) */}
-            <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-1">
-              {/* Session */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Session</label>
-                <CohortCheckboxDropdown
-                  label="Session"
-                  pluralLabel="Sessions"
-                  options={dynamicSessions}
-                  selected={selectedSessions}
-                  onChange={setSelectedSessions}
-                  totalCount={unifiedStudentPool.length}
-                  align="left"
-                />
-              </div>
+        {/* 2-Column Compact Grid of Dropdowns */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <div>
+            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Session</label>
+            <CohortCheckboxDropdown
+              label="Session"
+              pluralLabel="Sessions"
+              options={dynamicSessions}
+              selected={selectedSessions}
+              onChange={setSelectedSessions}
+              totalCount={unifiedStudentPool.length}
+              align="left"
+            />
+          </div>
 
-              {/* Class */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Class</label>
-                <CohortCheckboxDropdown
-                  label="Class"
-                  pluralLabel="Classes"
-                  options={dynamicClasses}
-                  selected={selectedClasses}
-                  onChange={setSelectedClasses}
-                  totalCount={sessionStudents.length}
-                  align="left"
-                />
-              </div>
+          <div>
+            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Class</label>
+            <CohortCheckboxDropdown
+              label="Class"
+              pluralLabel="Classes"
+              options={dynamicClasses}
+              selected={selectedClasses}
+              onChange={setSelectedClasses}
+              totalCount={sessionStudents.length}
+              align="left"
+            />
+          </div>
 
-              {/* Stream */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Stream</label>
-                <CohortCheckboxDropdown
-                  label="Stream"
-                  pluralLabel="Streams"
-                  options={dynamicStreams}
-                  selected={selectedStreams}
-                  onChange={setSelectedStreams}
-                  totalCount={sessionClassStudents.length}
-                  align="left"
-                />
-              </div>
+          <div>
+            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Stream</label>
+            <CohortCheckboxDropdown
+              label="Stream"
+              pluralLabel="Streams"
+              options={dynamicStreams}
+              selected={selectedStreams}
+              onChange={setSelectedStreams}
+              totalCount={sessionClassStudents.length}
+              align="left"
+            />
+          </div>
 
-              {/* Subject-wise official list filter */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Subject</label>
-                <CohortCheckboxDropdown
-                  label="Subject"
-                  pluralLabel="Subjects"
-                  options={dynamicRosterSubjects}
-                  selected={selectedSubjects}
-                  onChange={handleSubjectsChange}
-                  totalCount={sessionClassStreamStudents.length}
-                  searchable={true}
-                  align="right"
-                />
-              </div>
+          <div>
+            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Subject</label>
+            <CohortCheckboxDropdown
+              label="Subject"
+              pluralLabel="Subjects"
+              options={dynamicRosterSubjects}
+              selected={selectedSubjects}
+              onChange={handleSubjectsChange}
+              totalCount={sessionClassStreamStudents.length}
+              searchable={true}
+              align="right"
+            />
+          </div>
 
-              {/* Gender */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Gender</label>
-                <CohortCheckboxDropdown
-                  label="Gender"
-                  pluralLabel="Genders"
-                  options={[
-                    { value: 'M', label: 'Male (M)' },
-                    { value: 'F', label: 'Female (F)' }
-                  ]}
-                  selected={selectedGenders}
-                  onChange={setSelectedGenders}
-                  totalCount={sessionClassStreamStudents.length}
-                  align="right"
-                />
-              </div>
+          <div>
+            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Gender</label>
+            <CohortCheckboxDropdown
+              label="Gender"
+              pluralLabel="Genders"
+              options={[
+                { value: 'M', label: 'Male (M)' },
+                { value: 'F', label: 'Female (F)' }
+              ]}
+              selected={selectedGenders}
+              onChange={setSelectedGenders}
+              totalCount={sessionClassStreamStudents.length}
+              align="left"
+            />
+          </div>
 
-              {/* Form Status */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Status</label>
-                <CohortCheckboxDropdown
-                  label="Status"
-                  pluralLabel="Statuses"
-                  options={dynamicStatuses}
-                  selected={selectedStatuses}
-                  onChange={setSelectedStatuses}
-                  totalCount={sessionClassStreamStudents.length}
-                  align="right"
-                />
-              </div>
+          <div>
+            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Status</label>
+            <CohortCheckboxDropdown
+              label="Status"
+              pluralLabel="Statuses"
+              options={dynamicStatuses}
+              selected={selectedStatuses}
+              onChange={setSelectedStatuses}
+              totalCount={sessionClassStreamStudents.length}
+              align="right"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── CARD 2: TABLE COLUMNS & DATABASE FIELDS ── */}
+      <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 pb-1 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
+            <Layers size={11} className="shrink-0" />
+            <span className="font-extrabold tracking-wide text-slate-800 dark:text-slate-200">Table Columns</span>
+          </div>
+          <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+            {activeColumns.length} Active
+          </span>
+        </div>
+
+        {/* Compact Checkbox Dropdown with Database Column Search */}
+        <RosterColumnsDropdown
+          activeColumns={activeColumns}
+          toggleDbColumn={toggleDbColumn}
+          dbColumnGroups={DB_COLUMN_GROUPS}
+          showMoreFields={showMoreFields}
+          setShowMoreFields={setShowMoreFields}
+          handleOpenAddModal={handleOpenAddModal}
+          handleOpenEditModal={handleOpenEditModal}
+          handleRemoveColumn={handleRemoveColumn}
+          handleResetToSystemDefault={handleResetToSystemDefault}
+          fullWidth={true}
+        />
+
+        {/* Quick Toolbar: Abbr/Full names, + Custom, Save Default */}
+        <div className="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-slate-200/80 dark:border-slate-800">
+          {/* Abbr vs Full Subjects */}
+          <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 text-[8.5px] font-extrabold shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setUseAbbreviatedSubjects(true)}
+              className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
+                useAbbreviatedSubjects
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Abbreviate subjects to standard codes (GE, PH)"
+            >
+              ⚡ Abbr
+            </button>
+            <button
+              type="button"
+              onClick={() => setUseAbbreviatedSubjects(false)}
+              className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
+                !useAbbreviatedSubjects
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Display full subject names"
+            >
+              📝 Full
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleOpenAddModal()}
+              className="px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-black text-[8.5px] flex items-center gap-1 cursor-pointer shadow-2xs transition-all active:scale-95"
+              title="Create custom formula or fixed value column"
+            >
+              <Plus size={9} />
+              <span>+ Custom</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveAsDefaultColumns}
+              className={`px-2 py-1 rounded-md font-black text-[8.5px] flex items-center gap-1 cursor-pointer transition-all border shadow-2xs ${
+                saveDefaultToast
+                  ? 'bg-emerald-600 text-white border-emerald-700'
+                  : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
+              }`}
+              title="Save current column sequence and widths as default"
+            >
+              {saveDefaultToast ? <Check size={9} /> : <Save size={9} className="text-emerald-600 dark:text-emerald-400" />}
+              <span>{saveDefaultToast ? 'Saved!' : 'Save Default'}</span>
+            </button>
+
+            {hasSavedDefault && (
+              <button
+                type="button"
+                onClick={handleResetToSystemDefault}
+                className="p-1 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 font-bold text-[8.5px] border border-slate-300 dark:border-slate-700 cursor-pointer"
+                title="Reset to system default column configuration"
+              >
+                <RotateCcw size={9} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Active Column Sequence Chips with ◀ ▶ Reordering */}
+        <div className="space-y-1 pt-1.5 border-t border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-slate-400">
+            <span>Column Order (drag in table or use ◀ ▶)</span>
+            <span className="text-slate-500 lowercase font-medium">{activeColumns.length} columns</span>
+          </div>
+
+          <div className="flex flex-wrap gap-1 max-h-36 overflow-y-auto pr-0.5">
+            {activeColumns.map((col, idx) => {
+              const isFirst = idx === 0;
+              const isLast = idx === activeColumns.length - 1;
+              const isSno = col.key === 'sno';
+
+              return (
+                <div
+                  key={col.key}
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border shadow-2xs select-none transition-all ${
+                    col.isCustom
+                      ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200'
+                  }`}
+                >
+                  {/* Reorder Left */}
+                  {!isFirst && (
+                    <button
+                      type="button"
+                      onClick={() => moveColumn(idx, -1)}
+                      className="text-slate-400 hover:text-indigo-600 cursor-pointer p-0.2"
+                      title="Move column left"
+                    >
+                      ◀
+                    </button>
+                  )}
+
+                  {/* Label (clickable for custom column edit) */}
+                  <span
+                    onClick={() => col.isCustom && handleOpenEditModal(col)}
+                    className={`truncate max-w-[110px] ${col.isCustom ? 'cursor-pointer hover:underline text-amber-900 dark:text-amber-300 font-black' : ''}`}
+                    title={col.label}
+                  >
+                    {col.isCustom && col.calcType === 'fee_with_subject_surcharge' && (
+                      <span className="text-[7.5px] font-black mr-0.5 text-amber-700 dark:text-amber-300">⚡</span>
+                    )}
+                    {col.label}
+                  </span>
+
+                  {/* Reorder Right */}
+                  {!isLast && (
+                    <button
+                      type="button"
+                      onClick={() => moveColumn(idx, 1)}
+                      className="text-slate-400 hover:text-indigo-600 cursor-pointer p-0.2"
+                      title="Move column right"
+                    >
+                      ▶
+                    </button>
+                  )}
+
+                  {/* Remove Column button */}
+                  {!isSno && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveColumn(col.key)}
+                      className="text-slate-400 hover:text-rose-600 cursor-pointer ml-0.5 p-0.2"
+                      title="Remove column from roster"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ── CARD 3: DOCUMENT LAYOUT & PAGE SETUP ── */}
+      <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 pb-1 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-400">
+            <SlidersHorizontal size={11} className="shrink-0" />
+            <span className="font-extrabold tracking-wide text-slate-800 dark:text-slate-200">Page & Table Setup</span>
+          </div>
+        </div>
+
+        {/* Document Title Input */}
+        <div>
+          <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Document Title</label>
+          <input
+            type="text"
+            value={docTitle}
+            onChange={(e) => setDocTitle(e.target.value)}
+            placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
+            className="w-full px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-[9.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100 placeholder:text-[8.5px]"
+          />
+        </div>
+
+        {/* Layout & Orientation Toggles in 2 columns */}
+        <div className="grid grid-cols-2 gap-1.5">
+          {/* Layout Structure */}
+          <div>
+            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Layout Mode</label>
+            <div className="grid grid-cols-2 gap-0.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 text-[8.5px] font-black">
+              <button
+                type="button"
+                onClick={() => handleLayoutModeChange('standard')}
+                className={`py-0.5 rounded text-center cursor-pointer transition-all ${
+                  layoutMode === 'standard'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLayoutModeChange('two_column_attendance')}
+                className={`py-0.5 rounded text-center cursor-pointer transition-all ${
+                  layoutMode === 'two_column_attendance'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                2-Col Att.
+              </button>
             </div>
           </div>
 
-          {/* COLUMN CONFIGURATION MATRIX */}
-          <div className="space-y-1.5">
-            {/* Mobile Column Bar: Ultra-Compact Dropdown + Controls (sm:hidden) */}
-            <div className="flex items-center justify-between gap-1 sm:hidden">
-              <RosterColumnsDropdown
-                activeColumns={activeColumns}
-                toggleDbColumn={toggleDbColumn}
-                dbColumnGroups={DB_COLUMN_GROUPS}
-                showMoreFields={showMoreFields}
-                setShowMoreFields={setShowMoreFields}
-                handleOpenAddModal={handleOpenAddModal}
-                handleOpenEditModal={handleOpenEditModal}
-                handleRemoveColumn={handleRemoveColumn}
-              />
+          {/* Orientation */}
+          <div>
+            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Orientation</label>
+            <div className="grid grid-cols-2 gap-0.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 text-[8.5px] font-black">
+              <button
+                type="button"
+                onClick={() => setOrientation('portrait')}
+                className={`py-0.5 rounded text-center cursor-pointer transition-all ${
+                  orientation === 'portrait'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Portrait
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrientation('landscape')}
+                className={`py-0.5 rounded text-center cursor-pointer transition-all ${
+                  orientation === 'landscape'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Landscape
+              </button>
+            </div>
+          </div>
+        </div>
 
-              <div className="flex items-center gap-1 shrink-0">
-                <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[8px] font-extrabold h-6.5 items-center">
+        {/* Row Height Preset */}
+        <div>
+          <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Row Height Preset</label>
+          <select
+            value={selectedRowHeightIdx}
+            onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
+            className="w-full px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[9.5px] text-slate-800 dark:text-slate-200"
+          >
+            {ROW_HEIGHT_PRESETS.map((p, idx) => (
+              <option key={p.label} value={idx}>
+                {p.label} ({p.px}px) — {p.desc}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Collapsible Accordion: Institutional Header & Signatories Setup */}
+        <div className="pt-1 border-t border-slate-200/80 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={() => setIsSetupAccordionOpen(prev => !prev)}
+            className="w-full flex items-center justify-between py-1 text-[8.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 hover:text-indigo-600 cursor-pointer"
+          >
+            <span className="flex items-center gap-1">
+              <Sliders size={9} />
+              <span>Letterhead & Signatories</span>
+            </span>
+            <ChevronDown size={10} className={`transition-transform duration-200 ${isSetupAccordionOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isSetupAccordionOpen && (
+            <div className="space-y-1.5 pt-1.5 animate-fadeIn">
+              <div>
+                <label className="block text-[7.5px] font-bold text-slate-400 mb-0.5">School Name Override</label>
+                <input
+                  type="text"
+                  value={institutionName}
+                  onChange={(e) => handleInstitutionNameChange(e.target.value)}
+                  placeholder="GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS"
+                  className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-bold"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-0.5">
+                  <label className="text-[7.5px] font-bold text-slate-400">Subtitle</label>
                   <button
                     type="button"
-                    onClick={() => setUseAbbreviatedSubjects(true)}
-                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
-                      useAbbreviatedSubjects
-                        ? 'bg-indigo-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                    title="Abbreviate subjects to standard codes (GE, PH)"
+                    onClick={() => handleToggleShowMetaBadges(!showMetaBadges)}
+                    className="text-[7.5px] font-black text-indigo-600 dark:text-indigo-400 cursor-pointer"
                   >
-                    ⚡ Abbr
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUseAbbreviatedSubjects(false)}
-                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
-                      !useAbbreviatedSubjects
-                        ? 'bg-indigo-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                    title="Display full subject names"
-                  >
-                    📝 Full
+                    {showMetaBadges ? 'Cohort Badges ON' : 'Cohort Badges OFF'}
                   </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleSaveAsDefaultColumns}
-                  className={`px-1.5 py-0.5 h-6.5 rounded font-black text-[8.5px] flex items-center gap-0.5 cursor-pointer transition-all border shadow-2xs shrink-0 ${
-                    saveDefaultToast
-                      ? 'bg-emerald-600 text-white border-emerald-700'
-                      : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
-                  }`}
-                  title="Save current column order as default"
-                >
-                  {saveDefaultToast ? <Check size={8.5} /> : <Save size={8.5} className="text-emerald-600 dark:text-emerald-400" />}
-                  <span>{saveDefaultToast ? 'Saved' : 'Save'}</span>
-                </button>
-
-                {hasSavedDefault && (
-                  <button
-                    type="button"
-                    onClick={handleResetToSystemDefault}
-                    className="p-1 h-6.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 font-bold text-[8px] border border-slate-300 dark:border-slate-700 cursor-pointer flex items-center justify-center shrink-0"
-                    title="Reset to system default column order"
-                  >
-                    <RotateCcw size={8} />
-                  </button>
-                )}
+                <input
+                  type="text"
+                  value={docSubtitle}
+                  onChange={(e) => handleDocSubtitleChange(e.target.value)}
+                  placeholder="District Anantnag, Kashmir — 192201"
+                  className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px]"
+                />
               </div>
-            </div>
 
-            {/* Column Header Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-1 text-[9px] uppercase font-black tracking-wider text-slate-500">
-              <span className="flex items-center gap-1 shrink-0">
-                <Layers size={10} className="text-indigo-600 dark:text-indigo-400" />
-                <span>Columns ({activeTableColumns.length} Active)</span>
-              </span>
-
-              <div className="flex flex-wrap items-center gap-1">
-                <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[8.5px] font-extrabold">
-                  <button
-                    type="button"
-                    onClick={() => setUseAbbreviatedSubjects(true)}
-                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
-                      useAbbreviatedSubjects
-                        ? 'bg-indigo-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                    title="Abbreviate subjects to standard codes (GE, PH, CH, BI, MA, PD, ITE, HTC...)"
-                  >
-                    ⚡ Abbr (GE, PH)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUseAbbreviatedSubjects(false)}
-                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
-                      !useAbbreviatedSubjects
-                        ? 'bg-indigo-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                    title="Display full subject names (General English, Physics, Chemistry...)"
-                  >
-                    📝 Full Names
-                  </button>
+              <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-200 dark:border-slate-800">
+                <div>
+                  <label className="block text-[7.5px] font-bold text-slate-400 mb-0.5">Signatory 1 (Left)</label>
+                  <input
+                    type="text"
+                    value={signatoryLeft}
+                    onChange={(e) => handleSignatoryLeftChange(e.target.value)}
+                    placeholder="Incharge Admissions & Exam"
+                    className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9px] font-semibold"
+                  />
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowMoreFields(prev => !prev)}
-                  className={`px-1.5 py-0.5 rounded font-black text-[9px] flex items-center gap-0.5 cursor-pointer transition-all border ${
-                    showMoreFields
-                      ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
-                      : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 hover:bg-purple-100'
-                  }`}
-                  title="Toggle all 33 database fields"
-                >
-                  <ChevronDown size={9} className={`transition-transform duration-200 ${showMoreFields ? 'rotate-180' : ''}`} />
-                  <span>{showMoreFields ? 'Less' : '+ More'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenAddModal()}
-                  className="px-1.5 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-black text-[9px] flex items-center gap-0.5 cursor-pointer shadow-xs"
-                >
-                  <Plus size={9} />
-                  <span>+ Custom</span>
-                </button>
-
-                {/* Save Current Columns Order as Default */}
-                <button
-                  type="button"
-                  onClick={handleSaveAsDefaultColumns}
-                  className={`px-1.5 py-0.5 rounded font-black text-[9px] flex items-center gap-0.5 cursor-pointer transition-all border shadow-2xs ${
-                    saveDefaultToast
-                      ? 'bg-emerald-600 text-white border-emerald-700'
-                      : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
-                  }`}
-                  title="Save current column order, widths and custom formulas as your default layout"
-                >
-                  {saveDefaultToast ? <Check size={9} /> : <Save size={9} className="text-emerald-600 dark:text-emerald-400" />}
-                  <span>{saveDefaultToast ? 'Saved!' : 'Save Default'}</span>
-                </button>
-
-                {hasSavedDefault && (
-                  <button
-                    type="button"
-                    onClick={handleResetToSystemDefault}
-                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 font-bold text-[8.5px] border border-slate-300 dark:border-slate-700 cursor-pointer"
-                    title="Reset to system default column order"
-                  >
-                    <RotateCcw size={8.5} />
-                  </button>
-                )}
+                <div>
+                  <label className="block text-[7.5px] font-bold text-slate-400 mb-0.5">Signatory 2 (Right)</label>
+                  <input
+                    type="text"
+                    value={signatoryRight}
+                    onChange={(e) => handleSignatoryRightChange(e.target.value)}
+                    placeholder="Principal"
+                    className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9px] font-semibold"
+                  />
+                </div>
               </div>
-            </div>
-
-            {/* Categorized Database Field Matrix */}
-            <div className={`grid gap-1.5 ${showMoreFields ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
-              {DB_COLUMN_GROUPS.map((grp) => {
-                const visibleCols = showMoreFields
-                  ? grp.columns
-                  : grp.columns.filter(c => c.isPrimary || activeColumns.some(ac => ac.key === c.key));
-
-                if (visibleCols.length === 0) return null;
-
-                return (
-                  <div key={grp.category} className="p-1.5 rounded-lg bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-1">
-                    <div className="text-[8.5px] uppercase font-black text-slate-400 tracking-wider">
-                      {grp.category}
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {visibleCols.map((col) => {
-                        const isSelected = activeColumns.some(c => c.key === col.key);
-                        return (
-                          <button
-                            key={col.key}
-                            type="button"
-                            onClick={() => toggleDbColumn(col)}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 border cursor-pointer transition-all ${
-                              isSelected
-                                ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
-                                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-indigo-400'
-                            }`}
-                          >
-                            {isSelected ? <CheckSquare size={10} /> : <Square size={10} className="opacity-30" />}
-                            <span>{col.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-          {/* Custom Field Tags (Minimal Single Scrollable Row on Mobile, Wrap on sm+) */}
-          {activeColumns.some(c => c.isCustom) && (
-            <div className="pt-1 border-t border-slate-200 dark:border-slate-800 flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 whitespace-nowrap sm:flex-wrap">
-              <span className="text-[8px] font-bold text-amber-700 dark:text-amber-400 uppercase shrink-0">Custom ({activeColumns.filter(c => c.isCustom).length}):</span>
-              {activeColumns.filter(c => c.isCustom).map((c) => (
-                <span
-                  key={c.key}
-                  className="shrink-0 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 text-[8.5px] font-bold inline-flex items-center gap-1 shadow-2xs"
-                >
-                  <span
-                    onClick={() => handleOpenEditModal(c)}
-                    title="Click to edit formula and rates"
-                    className="cursor-pointer hover:underline flex items-center gap-0.5"
-                  >
-                    {c.calcType === 'fee_with_subject_surcharge' && (
-                      <span className="text-[7.5px] font-black text-amber-700 dark:text-amber-300 bg-amber-200/80 dark:bg-amber-900/60 px-0.5 rounded">⚡ Fee</span>
-                    )}
-                    <span>{c.label}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditModal(c)}
-                    title="Edit Column Formula & Rates"
-                    className="text-amber-700 hover:text-amber-950 dark:text-amber-300 dark:hover:text-white cursor-pointer"
-                  >
-                    <Edit3 size={8.5} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveColumn(c.key)}
-                    title="Remove Custom Column"
-                    className="text-rose-600 hover:text-rose-800 cursor-pointer"
-                  >
-                    <X size={8.5} />
-                  </button>
-                </span>
-              ))}
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── CARD 4: ACTIONS & EXPORTS ── */}
+      <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 pb-1 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+            <Printer size={11} className="shrink-0" />
+            <span className="font-extrabold tracking-wide text-slate-800 dark:text-slate-200">Actions & Exports</span>
+          </div>
+          <span className="text-[8.5px] font-mono font-bold text-slate-500">
+            {activeIncludedRows.length}/{processedRows.length} Students
+          </span>
+        </div>
+
+        {/* Primary Print Button */}
+        <button
+          type="button"
+          onClick={handlePrint}
+          disabled={processedRows.length === 0}
+          className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600 via-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+          title="Print Official Institutional Register / Save PDF (Ctrl+P)"
+        >
+          <Printer size={13} />
+          <span>Print Register / Save PDF</span>
+          <span className="text-[9px] opacity-75 font-normal ml-1">(Ctrl+P)</span>
+        </button>
+
+        {/* 3-Column Export Grid */}
+        <div className="grid grid-cols-3 gap-1">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={processedRows.length === 0}
+            className="py-1 px-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
+            title="Export filtered records to Microsoft Excel spreadsheet"
+          >
+            <FileSpreadsheet size={10} />
+            <span>Excel</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportDocx}
+            disabled={processedRows.length === 0 || isExporting}
+            className="py-1 px-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
+            title="Export formatted roster to Microsoft Word document"
+          >
+            {isExporting ? <RefreshCw size={10} className="animate-spin" /> : <FileText size={10} />}
+            <span>Word</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={processedRows.length === 0}
+            className="py-1 px-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-[9px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
+            title="Export raw data to CSV file"
+          >
+            <Download size={10} />
+            <span>CSV</span>
+          </button>
+        </div>
+
+        {/* Student Inclusion & Skipped Rows Toggles */}
+        <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-200/80 dark:border-slate-800 text-[8.5px] font-bold">
+          <button
+            type="button"
+            onClick={toggleSelectAllRows}
+            className="px-1.5 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-all"
+          >
+            {isAllRowsIncluded ? <CheckSquare size={10} className="text-emerald-600" /> : <Square size={10} />}
+            <span>{isAllRowsIncluded ? 'Deselect All' : 'Include All'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setHideSkippedRows(prev => !prev)}
+            className="px-1.5 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-all"
+          >
+            <Eye size={10} className={hideSkippedRows ? 'text-indigo-600' : 'opacity-50'} />
+            <span>{hideSkippedRows ? 'Skipped Hidden' : 'Show Skipped'}</span>
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 
-    return (
+  return (
     <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
       
       {/* ── SLEEK CONTROL BAR WITH EXPORT ACTIONS & DOCUMENT SETTINGS ── */}
@@ -5561,17 +5725,7 @@ export default function CustomRosterDocumentBuilderView({
       {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
       <div className="split-pane-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
         
-{/* ════════ LEFT HALF: COMPACT UNIFIED CONTROL PALETTE (DESKTOP) ════════ */}
-        {isDesktop && (
-          <div
-            style={{ width: `${leftSplitPct}%` }}
-            className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-1.5 sm:p-2.5 space-y-2 text-xs overflow-visible lg:overflow-hidden flex flex-col min-h-0 lg:min-h-[620px] lg:max-h-[calc(100dvh-95px)]"
-          >
-            {renderRosterControlPalette()}
-          </div>
-        )}
-
-        {/* ════════ MOBILE POPUP MODAL: FILTERS, COLUMNS & TAGS ════════ */}
+        {/* ════════ MOBILE POPUP MODAL: FILTERS, COLUMNS & TAGS (< lg) ════════ */}
         {!isDesktop && showMobileOptionsModal && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
             <div className="absolute inset-0" onClick={handleCloseMobileOptions} />
@@ -5622,25 +5776,10 @@ export default function CustomRosterDocumentBuilderView({
           document.body
         )}
 
-        {/* ── DRAGGABLE VERTICAL SPLITTER HANDLE ── */}
-        {isDesktop && (
-          <div
-          onMouseDown={handleSplitterMouseDown}
-          title="Drag horizontally to adjust split width (Double-click to reset)"
-          onDoubleClick={() => {
-            setLeftSplitPct(42);
-            try { localStorage.setItem('hss_roster_split_pct', '42'); } catch {}
-          }}
-          className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-indigo-400/20 active:bg-indigo-600/30 group transition-colors z-20 shrink-0 mx-0.5"
-        >
-          <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-indigo-600 ${isDraggingSplitter ? 'bg-indigo-600 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
-        </div>
-        )}
-
-                {/* ════════ RIGHT HALF: STICKY LIVE DOCUMENT PREVIEW ════════ */}
+        {/* ════════ LEFT HALF: STICKY LIVE DOCUMENT PREVIEW (2/3 WIDTH ~67%) ════════ */}
         <div
-          style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
-          className="w-full lg:flex-1 sticky top-3 self-start pl-0 lg:pl-1 min-w-0"
+          style={{ width: isDesktop ? `${tableSplitPct}%` : '100%' }}
+          className="w-full lg:flex-1 sticky top-3 self-start pr-0 lg:pr-1 min-w-0"
         >
           {/* Quick Examination Attendance Setup Toolbar (Visible when in 2-Column Attendance layout) */}
           {layoutMode === 'two_column_attendance' && (
@@ -6575,6 +6714,31 @@ export default function CustomRosterDocumentBuilderView({
         )}
       </div>
     </div>
+
+        {/* ── DRAGGABLE VERTICAL SPLITTER HANDLE ── */}
+        {isDesktop && (
+          <div
+            onMouseDown={handleSplitterMouseDown}
+            title="Drag horizontally to adjust split width (Double-click to reset to 2/3 table space)"
+            onDoubleClick={() => {
+              setTableSplitPct(67);
+              try { localStorage.setItem('hss_roster_table_split_pct', '67'); } catch {}
+            }}
+            className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-indigo-400/20 active:bg-indigo-600/30 group transition-colors z-20 shrink-0 mx-0.5"
+          >
+            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-indigo-600 ${isDraggingSplitter ? 'bg-indigo-600 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
+          </div>
+        )}
+
+        {/* ════════ RIGHT HALF: COMPACT LOGICALLY-GROUPED CONTROL PALETTE (DESKTOP 1/3 WIDTH ~33%) ════════ */}
+        {isDesktop && (
+          <div
+            style={{ width: `${100 - tableSplitPct}%` }}
+            className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-2 sm:p-2.5 space-y-2 text-xs overflow-y-auto min-h-0 lg:max-h-[calc(100dvh-95px)] sticky top-3"
+          >
+            {renderRosterControlPalette()}
+          </div>
+        )}
 
       </div>
 
