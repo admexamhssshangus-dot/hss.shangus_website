@@ -37,6 +37,13 @@ export default function applySeo(seo) {
     document.head.appendChild(canonical);
   }
   canonical.href = seo.canonical;
+  let imageSrc = document.head.querySelector('link[rel="image_src"]');
+  if (!imageSrc) {
+    imageSrc = document.createElement('link');
+    imageSrc.rel = 'image_src';
+    document.head.appendChild(imageSrc);
+  }
+  imageSrc.href = seo.image;
   let schema = document.getElementById('hss-structured-data');
   if (!schema) {
     schema = document.createElement('script');
