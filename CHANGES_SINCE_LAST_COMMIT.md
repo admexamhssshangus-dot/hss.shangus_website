@@ -1,59 +1,44 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Fix `dId.toLowerCase` Crash via Defensive String Sanitization
+## Latest Commit: Remove Redundant Teacher Portal Link from Admin Dashboard Header
 
-**Commit Message:** `fix(roster): sanitize docId and formNo as string to prevent toLowerCase runtime crash on numeric IDs`
+**Commit Message:** `fix(admin): remove redundant teacher portal link from admin dashboard header`
 
 ---
 
-### Issue Resolved
+### Context & Clarification
 
-- **Symptom**:
-  Opening the Custom Roster Document Builder view (`/portal/admin?tab=customRoster`) in mobile/responsive or desktop mode caused a runtime crash caught by `ModuleErrorBoundary`:
-  ```text
-  TypeError: dId.toLowerCase is not a function
-    at CustomRosterDocumentBuilderView.jsx:3066:1
-    at Array.forEach (<anonymous>)
-    at CustomRosterDocumentBuilderView.jsx:3046:1
-    at CustomRosterDocumentBuilderView (CustomRosterDocumentBuilderView.jsx:3031:1)
-  ```
-- **Root Cause**:
-  In `CustomRosterDocumentBuilderView.jsx`:
-  - When raw students or admission records are imported with numeric IDs (e.g. integer `idx + 1` or numeric DB IDs), `st.docId || st.id` resolves to a number rather than a string.
-  - Calling `.toLowerCase()` directly on `dId` in the exam roll cross-reference pre-pass (`examRollByDocId.has(dId.toLowerCase())`) and in student deduplication (`dId.toLowerCase()`, `(st.docId || st.id || '').trim().toLowerCase()`) threw a TypeError because JavaScript Numbers do not have `.toLowerCase()` or `.trim()` methods.
-  - Similarly, `docId` and `groupKey` in `flattenMasterRegistersChunked` were susceptible to method invocation failures if provided as numeric primitives.
+- **User Inquiry**:
+  > *"why there is teacher portal link, one email can be registered one role only.....,"*
+- **Clarification**:
+  - In a previous commit (`c058a582`), a quick switcher button (`Teacher Portal`) was introduced under the mistaken assumption that staff members might hold "dual roles" (both Administrative and Teaching/Faculty responsibilities).
+  - As the institution's operational model dictates, **each registered email address is strictly assigned to one single role** (Administrator, Teacher, or Student).
+  - An Administrator logged into the Admin Portal has no reason to enter practical awards or class attendance designed for teachers, and vice-versa.
+  - Consequently, placing a "Teacher Portal" link in the top bar of [AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx) was redundant, misleading, and cluttered the header space.
 
 ---
 
 ### Changes Applied
 
-1. **`src/portal/admin/CustomRosterDocumentBuilderView.jsx`**:
-   - In `flattenMasterRegistersChunked`:
-     - Sanitized `docId` with `String(m.id || '')`.
-     - Sanitized `groupKey` with `String(m.groupKey || '')`.
-   - In `unifiedStudentPool` (Exam Roll Cross-Reference Pre-Pass):
-     - Safely sanitized `dId` with `String(st.docId || st.id || '').trim().toLowerCase()`.
-     - Safely sanitized `cleanReg`, `cleanForm`, `cleanNameFather`, and `cleanNameClass` with `String(...)` before calling string transformations.
-     - Updated `examRollByDocId.set(dId, roll)` to use the normalized string `dId`.
-   - In `unifiedStudentPool` (Student Record Normalization & Cross-Referencing):
-     - Safely sanitized `dId` with `String(st.docId || st.id || '').trim().toLowerCase()`.
-     - Enforced `docId: String(st.docId || st.id || '')` in `studentRecord`.
-     - Safely cast `cleanReg`, `cleanForm`, `cleanName`, `cleanFather`, and `cleanDocId` to strings before `.toLowerCase()` or `.trim()`.
+1. **`src/portal/admin/AdminDashboard.jsx`**:
+   - Removed the `<Link to="/portal/teacher">Teacher Portal</Link>` button from the header action toolbar.
+   - Cleaned up unused imports (`Link` from `react-router-dom`, `BookOpen` from `lucide-react`).
+   - Restored clean, focused administrative workspace navigation (Setup button, administrative Modules switcher dropdown, and sync status HUD).
 
 ---
 
 ### Exact List of Files Changed
 
-- `src/portal/admin/CustomRosterDocumentBuilderView.jsx`
+- `src/portal/admin/AdminDashboard.jsx`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ### Verification & Build Status
 
-- **Build Verification**: `npm run build` executed and passed with **Exit Code 0** (`main.4f00133c.js`).
+- **Build Verification**: `npm run build` executed and passed with **Exit Code 0** (`main.b6d1fbae.js`).
 - Zero syntax, linting, or runtime errors.
-- Roster component now safely loads without crashing on records with numeric or non-string IDs across all screen sizes (mobile, tablet, desktop).
+- Dev server hot-reloaded the updated bundle seamlessly.
 
 ---
 
@@ -70,7 +55,7 @@
 3. **Amend Commit Message (if desired)**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "fix(roster): sanitize docId and formNo as string to prevent toLowerCase runtime crash on numeric IDs"
+   git commit -m "fix(admin): remove redundant teacher portal link from admin dashboard header"
    ```
 4. **Push to Remote (STRICT MANUAL RULE)**:
    ```bash
