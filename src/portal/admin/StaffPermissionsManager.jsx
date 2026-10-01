@@ -146,6 +146,7 @@ export default function StaffPermissionsManager() {
   const [userToDelete, setUserToDelete] = useState(null);
   const [subjectTierTab, setSubjectTierTab] = useState('11th-12th'); // '9th-10th' | '11th-12th'
   const [customSubjectInput, setCustomSubjectInput] = useState('');
+  const [modalModuleSearch, setModalModuleSearch] = useState('');
 
   const [adminForm, setAdminForm] = useState({ 
     name: '', 
@@ -264,8 +265,10 @@ export default function StaffPermissionsManager() {
     if (!dropdownSearch.trim()) return ALL_ADMIN_MODULES;
     const q = dropdownSearch.toLowerCase().trim();
     return ALL_ADMIN_MODULES.filter(m => 
-      m.label.toLowerCase().includes(q) || 
-      m.code.toLowerCase().includes(q) || 
+      (m.label && m.label.toLowerCase().includes(q)) || 
+      (m.shortLabel && m.shortLabel.toLowerCase().includes(q)) ||
+      (m.code && m.code.toLowerCase().includes(q)) || 
+      (m.category && m.category.toLowerCase().includes(q)) ||
       (m.desc && m.desc.toLowerCase().includes(q))
     );
   }, [dropdownSearch]);
@@ -395,6 +398,7 @@ export default function StaffPermissionsManager() {
     });
     setSubjectTierTab('11th-12th');
     setCustomSubjectInput('');
+    setModalModuleSearch('');
     setShowAdminModal(true);
   };
 
@@ -456,6 +460,7 @@ export default function StaffPermissionsManager() {
       setSubjectTierTab('11th-12th');
     }
     setCustomSubjectInput('');
+    setModalModuleSearch('');
     setShowAdminModal(true);
   };
 
@@ -1001,15 +1006,43 @@ export default function StaffPermissionsManager() {
                 {/* Inline Module Permissions Dropdown */}
                 {isOpen && !isTeacher && (
                   <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800/80 space-y-2 animate-fadeIn">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Configure Granted Modules for {user.name}
-                      </span>
-                      <div className="flex items-center gap-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Configure Granted Modules for {user.name}
+                        </span>
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                          {activeCount}/{ALL_ADMIN_MODULES.length} Granted
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {dropdownSearch.trim() && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const codesToGrant = filteredDropdownModules.map(m => m.code);
+                                setAdminUsers(prev => prev.map(u => {
+                                  if (u.email.toLowerCase() === user.email.toLowerCase()) {
+                                    const currentPerms = Array.isArray(u.perms) ? u.perms : [];
+                                    const nextPerms = Array.from(new Set([...currentPerms, ...codesToGrant]));
+                                    return { ...u, perms: nextPerms };
+                                  }
+                                  return u;
+                                }));
+                              }}
+                              className="text-[9.5px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                              title="Grant all modules currently visible in search filter"
+                            >
+                              Grant Matching ({filteredDropdownModules.length})
+                            </button>
+                            <span className="text-slate-300 dark:text-slate-700">|</span>
+                          </>
+                        )}
                         <button
                           type="button"
                           onClick={() => setAllPermissionsForUser(user.email, true)}
-                          className="text-[9.5px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                          className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                         >
                           Select All
                         </button>
@@ -1024,29 +1057,75 @@ export default function StaffPermissionsManager() {
                       </div>
                     </div>
 
+                    {/* Quick Module Search Input */}
+                    <div className="relative flex items-center">
+                      <Search size={13} className="absolute left-2.5 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={dropdownSearch}
+                        onChange={(e) => setDropdownSearch(e.target.value)}
+                        placeholder={`Search ${ALL_ADMIN_MODULES.length} modules by name, code, or description (e.g. Assessment, Practicals, Roll, Attendance)...`}
+                        className="w-full pl-8 pr-20 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-2xs"
+                      />
+                      <div className="absolute right-2 flex items-center gap-1.5">
+                        {dropdownSearch ? (
+                          <>
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                              {filteredDropdownModules.length} match{filteredDropdownModules.length === 1 ? '' : 'es'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setDropdownSearch('')}
+                              className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                              title="Clear search"
+                            >
+                              <X size={12} />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1">
+                            {ALL_ADMIN_MODULES.length} Modules
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5 max-h-56 overflow-y-auto p-1.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 scrollbar-thin">
-                      {ALL_ADMIN_MODULES.map((mod) => {
+                      {filteredDropdownModules.map((mod) => {
                         const isGranted = isSuper || userPerms.includes(mod.code);
                         return (
                           <label
                             key={mod.code}
                             className={`flex items-center gap-2 p-1.5 rounded-lg border text-[10.5px] font-bold cursor-pointer transition-all ${
                               isGranted
-                                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200'
-                                : 'bg-slate-50/50 dark:bg-slate-950/30 border-slate-200/60 dark:border-slate-800/60 text-slate-600 dark:text-slate-400'
+                                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200 shadow-2xs'
+                                : 'bg-slate-50/50 dark:bg-slate-950/30 border-slate-200/60 dark:border-slate-800/60 text-slate-600 dark:text-slate-400 hover:border-slate-300'
                             }`}
+                            title={mod.desc || mod.label}
                           >
                             <input
                               type="checkbox"
                               checked={isGranted}
                               disabled={isSuper}
                               onChange={() => togglePermission(user.email, mod.code)}
-                              className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
                             />
                             <span className="truncate">{mod.label}</span>
                           </label>
                         );
                       })}
+                      {filteredDropdownModules.length === 0 && (
+                        <div className="col-span-full py-6 text-center text-xs text-slate-400 dark:text-slate-500">
+                          No modules match "{dropdownSearch}".
+                          <button
+                            type="button"
+                            onClick={() => setDropdownSearch('')}
+                            className="ml-2 font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                          >
+                            Clear search
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1678,6 +1757,30 @@ export default function StaffPermissionsManager() {
                       )}
                     </div>
 
+                    {/* Modal Quick Module Search Input */}
+                    {adminForm.role !== 'SuperAdmin' && (
+                      <div className="relative flex items-center">
+                        <Search size={13} className="absolute left-2.5 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={modalModuleSearch}
+                          onChange={(e) => setModalModuleSearch(e.target.value)}
+                          placeholder="Search authorized modules by name, keyword, or description..."
+                          className="w-full pl-8 pr-8 py-1.5 rounded-xl text-xs font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-2xs"
+                        />
+                        {modalModuleSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setModalModuleSearch('')}
+                            className="absolute right-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                            title="Clear search"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {adminForm.role === 'SuperAdmin' ? (
                       <div className="p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 text-xs font-bold flex items-center gap-2">
                         <ShieldCheck size={16} className="text-indigo-600 flex-shrink-0" />
@@ -1686,7 +1789,15 @@ export default function StaffPermissionsManager() {
                     ) : (
                       <div className="p-3 space-y-3.5 max-h-[380px] sm:max-h-[420px] overflow-y-auto rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/30 scrollbar-thin">
                         {ADMIN_CATEGORIES.map((cat) => {
-                          const catModules = ALL_ADMIN_MODULES.filter((m) => m.category === cat.key);
+                          const q = modalModuleSearch.toLowerCase().trim();
+                          const catModules = ALL_ADMIN_MODULES
+                            .filter((m) => m.category === cat.key)
+                            .filter((m) => !q || 
+                              (m.label && m.label.toLowerCase().includes(q)) || 
+                              (m.shortLabel && m.shortLabel.toLowerCase().includes(q)) ||
+                              (m.code && m.code.toLowerCase().includes(q)) || 
+                              (m.desc && m.desc.toLowerCase().includes(q))
+                            );
                           if (catModules.length === 0) return null;
                           const catCodes = catModules.map((m) => m.code);
                           const catActiveCount = catCodes.filter((code) => adminForm.perms.includes(code)).length;
@@ -1750,6 +1861,27 @@ export default function StaffPermissionsManager() {
                             </div>
                           );
                         })}
+
+                        {modalModuleSearch.trim() && ADMIN_CATEGORIES.every(cat => {
+                          const q = modalModuleSearch.toLowerCase().trim();
+                          return ALL_ADMIN_MODULES.filter(m => m.category === cat.key && (
+                            (m.label && m.label.toLowerCase().includes(q)) || 
+                            (m.shortLabel && m.shortLabel.toLowerCase().includes(q)) ||
+                            (m.code && m.code.toLowerCase().includes(q)) || 
+                            (m.desc && m.desc.toLowerCase().includes(q))
+                          )).length === 0;
+                        }) && (
+                          <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
+                            No modules match "{modalModuleSearch}".
+                            <button
+                              type="button"
+                              onClick={() => setModalModuleSearch('')}
+                              className="ml-2 font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                            >
+                              Clear search
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
