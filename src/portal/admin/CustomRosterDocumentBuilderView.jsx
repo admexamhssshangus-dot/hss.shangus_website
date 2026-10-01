@@ -1781,7 +1781,7 @@ function CohortCheckboxDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`w-full px-1.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border font-extrabold text-[9.5px] sm:text-[10px] flex items-center justify-between gap-1 shadow-2xs transition-colors cursor-pointer text-left ${
+        className={`w-full px-1.5 py-0 h-6.5 rounded-md border font-extrabold text-[9px] sm:text-[9.5px] flex items-center justify-between gap-1 shadow-2xs transition-colors cursor-pointer text-left ${
           isFiltered
             ? 'bg-amber-500/10 border-amber-500 text-amber-800 dark:text-amber-300'
             : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
@@ -2708,8 +2708,8 @@ function RosterColumnsDropdown({
         onClick={() => setIsOpen(prev => !prev)}
         className={`${
           fullWidth
-            ? 'w-full px-2.5 py-1.5 rounded-lg border font-extrabold text-[10.5px] flex items-center justify-between shadow-2xs'
-            : 'px-1.5 sm:px-2 py-0.5 sm:py-1 h-6.5 rounded-md sm:rounded-lg border font-extrabold text-[9px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs'
+            ? 'w-full px-2 py-0 h-6.5 rounded-md border font-extrabold text-[9.5px] flex items-center justify-between shadow-2xs'
+            : 'px-1.5 sm:px-2 py-0 h-6.5 rounded-md border font-extrabold text-[9px] sm:text-[9.5px] flex items-center gap-1 shadow-2xs'
         } transition-all cursor-pointer ${
           isOpen
             ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
@@ -3524,6 +3524,7 @@ export default function CustomRosterDocumentBuilderView({
   const [showAttendanceAdvanced, setShowAttendanceAdvanced] = useState(false);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [attendanceRowsPerColumn, setAttendanceRowsPerColumn] = useState(25);
+  const [showColumnOrder, setShowColumnOrder] = useState(false);
 
   const handleInstitutionNameChange = (val) => {
     setInstitutionName(val);
@@ -3718,6 +3719,7 @@ export default function CustomRosterDocumentBuilderView({
     if (!isActive) return;
     if (showSettingsDrawerProp !== undefined) {
       setShowSettingsDrawer(showSettingsDrawerProp);
+      setIsSetupAccordionOpen(Boolean(showSettingsDrawerProp));
     }
   }, [showSettingsDrawerProp, isActive]);
 
@@ -3735,8 +3737,10 @@ export default function CustomRosterDocumentBuilderView({
       }
       if (typeof e?.detail?.open === 'boolean') {
         setShowSettingsDrawer(e.detail.open);
+        setIsSetupAccordionOpen(e.detail.open);
       } else {
         setShowSettingsDrawer(prev => !prev);
+        setIsSetupAccordionOpen(prev => !prev);
       }
     };
     const handleToggleFilters = (e) => {
@@ -4682,30 +4686,30 @@ export default function CustomRosterDocumentBuilderView({
 
   // ─── Unified Roster Control Palette (Cohort Filters, Columns Dropdown, Page Setup & Actions) ───
   const renderRosterControlPalette = () => (
-    <div className="space-y-2.5 text-xs">
+    <div className="space-y-1.5 text-xs">
       
       {/* ── CARD 1: COHORT FILTERS ── */}
-      <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-2">
-        <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 pb-1 border-b border-slate-200/80 dark:border-slate-800">
-          <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-            <Sliders size={11} className="shrink-0" />
+      <div className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-1">
+        <div className="flex items-center justify-between text-[8.5px] uppercase font-black tracking-wider text-slate-500 pb-0.5 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-1 text-amber-700 dark:text-amber-400">
+            <Sliders size={10} className="shrink-0" />
             <span className="font-extrabold tracking-wide text-slate-800 dark:text-slate-200">Cohort Filters</span>
             {metaBadges.length > 3 && (
-              <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
+              <span className="px-1 py-0.2 rounded-full text-[7px] bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
                 Active
               </span>
             )}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="font-mono font-black text-[9px] text-emerald-600 dark:text-emerald-400">
+            <span className="font-mono font-black text-[8.5px] text-emerald-600 dark:text-emerald-400">
               {filteredStudents.length}/{unifiedStudentPool.length} Matched
             </span>
             {filteredStudents.some(s => s && s._isFallbackMerge) && (
               <span
-                className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[7.5px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 cursor-help"
+                className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[7px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 cursor-help"
                 title={`${filteredStudents.filter(s => s && s._isFallbackMerge).length} student record(s) deduplicated via Name + Father + Mobile fallback. Please verify Board Reg No or Form No.`}
               >
-                <AlertTriangle size={8} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <AlertTriangle size={7.5} className="text-amber-600 dark:text-amber-400 shrink-0" />
                 <span>{filteredStudents.filter(s => s && s._isFallbackMerge).length} Flagged</span>
               </span>
             )}
@@ -4721,7 +4725,7 @@ export default function CustomRosterDocumentBuilderView({
                   setSelectedStatuses(['Approved']);
                   setSortConfig({ key: 'classRollNo', direction: 'asc' });
                 }}
-                className="text-[8px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                className="text-[7.5px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
                 title="Reset all cohort filters to default"
               >
                 Reset
@@ -4731,9 +4735,8 @@ export default function CustomRosterDocumentBuilderView({
         </div>
 
         {/* 2-Column Compact Grid of Dropdowns */}
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1">
           <div>
-            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Session</label>
             <CohortCheckboxDropdown
               label="Session"
               pluralLabel="Sessions"
@@ -4746,7 +4749,6 @@ export default function CustomRosterDocumentBuilderView({
           </div>
 
           <div>
-            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Class</label>
             <CohortCheckboxDropdown
               label="Class"
               pluralLabel="Classes"
@@ -4759,7 +4761,6 @@ export default function CustomRosterDocumentBuilderView({
           </div>
 
           <div>
-            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Stream</label>
             <CohortCheckboxDropdown
               label="Stream"
               pluralLabel="Streams"
@@ -4772,7 +4773,6 @@ export default function CustomRosterDocumentBuilderView({
           </div>
 
           <div>
-            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Subject</label>
             <CohortCheckboxDropdown
               label="Subject"
               pluralLabel="Subjects"
@@ -4786,7 +4786,6 @@ export default function CustomRosterDocumentBuilderView({
           </div>
 
           <div>
-            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Gender</label>
             <CohortCheckboxDropdown
               label="Gender"
               pluralLabel="Genders"
@@ -4802,7 +4801,6 @@ export default function CustomRosterDocumentBuilderView({
           </div>
 
           <div>
-            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Status</label>
             <CohortCheckboxDropdown
               label="Status"
               pluralLabel="Statuses"
@@ -4817,13 +4815,13 @@ export default function CustomRosterDocumentBuilderView({
       </div>
 
       {/* ── CARD 2: TABLE COLUMNS & DATABASE FIELDS ── */}
-      <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-2">
-        <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 pb-1 border-b border-slate-200/80 dark:border-slate-800">
-          <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
-            <Layers size={11} className="shrink-0" />
+      <div className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-1">
+        <div className="flex items-center justify-between text-[8.5px] uppercase font-black tracking-wider text-slate-500 pb-0.5 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-1 text-indigo-700 dark:text-indigo-400">
+            <Layers size={10} className="shrink-0" />
             <span className="font-extrabold tracking-wide text-slate-800 dark:text-slate-200">Table Columns</span>
           </div>
-          <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+          <span className="px-1 py-0.2 rounded-full text-[7.5px] font-black bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
             {activeColumns.length} Active
           </span>
         </div>
@@ -4842,10 +4840,10 @@ export default function CustomRosterDocumentBuilderView({
           fullWidth={true}
         />
 
-        {/* Quick Toolbar: Abbr/Full names, + Custom, Save Default */}
-        <div className="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-slate-200/80 dark:border-slate-800">
+        {/* Quick Toolbar: Abbr/Full names, + Custom, Save Default, Order toggle */}
+        <div className="flex items-center justify-between gap-1 pt-0.5">
           {/* Abbr vs Full Subjects */}
-          <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 text-[8.5px] font-extrabold shadow-2xs">
+          <div className="inline-flex rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 text-[8px] font-extrabold shadow-2xs">
             <button
               type="button"
               onClick={() => setUseAbbreviatedSubjects(true)}
@@ -4876,296 +4874,279 @@ export default function CustomRosterDocumentBuilderView({
             <button
               type="button"
               onClick={() => handleOpenAddModal()}
-              className="px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-black text-[8.5px] flex items-center gap-1 cursor-pointer shadow-2xs transition-all active:scale-95"
+              className="px-1.5 py-0.5 h-5.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-black text-[8px] flex items-center gap-0.5 cursor-pointer shadow-2xs transition-all active:scale-95"
               title="Create custom formula or fixed value column"
             >
-              <Plus size={9} />
+              <Plus size={8} />
               <span>+ Custom</span>
             </button>
 
             <button
               type="button"
               onClick={handleSaveAsDefaultColumns}
-              className={`px-2 py-1 rounded-md font-black text-[8.5px] flex items-center gap-1 cursor-pointer transition-all border shadow-2xs ${
+              className={`px-1.5 py-0.5 h-5.5 rounded font-black text-[8px] flex items-center gap-0.5 cursor-pointer transition-all border shadow-2xs ${
                 saveDefaultToast
                   ? 'bg-emerald-600 text-white border-emerald-700'
                   : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
               }`}
               title="Save current column sequence and widths as default"
             >
-              {saveDefaultToast ? <Check size={9} /> : <Save size={9} className="text-emerald-600 dark:text-emerald-400" />}
-              <span>{saveDefaultToast ? 'Saved!' : 'Save Default'}</span>
+              {saveDefaultToast ? <Check size={8} /> : <Save size={8} className="text-emerald-600 dark:text-emerald-400" />}
+              <span>{saveDefaultToast ? 'Saved!' : 'Save'}</span>
             </button>
 
-            {hasSavedDefault && (
-              <button
-                type="button"
-                onClick={handleResetToSystemDefault}
-                className="p-1 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 font-bold text-[8.5px] border border-slate-300 dark:border-slate-700 cursor-pointer"
-                title="Reset to system default column configuration"
-              >
-                <RotateCcw size={9} />
-              </button>
-            )}
+            {/* Toggle Column Order Chips view */}
+            <button
+              type="button"
+              onClick={() => setShowColumnOrder(prev => !prev)}
+              className={`px-1.5 py-0.5 h-5.5 rounded font-bold text-[8px] flex items-center gap-0.5 border cursor-pointer transition-all ${
+                showColumnOrder
+                  ? 'bg-indigo-100 dark:bg-indigo-950 border-indigo-300 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+              }`}
+              title="Toggle column sequence chips reorder panel"
+            >
+              <span>Order</span>
+              <ChevronDown size={8} className={`transition-transform duration-200 ${showColumnOrder ? 'rotate-180' : ''}`} />
+            </button>
           </div>
         </div>
 
-        {/* Active Column Sequence Chips with ◀ ▶ Reordering */}
-        <div className="space-y-1 pt-1.5 border-t border-slate-200/80 dark:border-slate-800">
-          <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-slate-400">
-            <span>Column Order (drag in table or use ◀ ▶)</span>
-            <span className="text-slate-500 lowercase font-medium">{activeColumns.length} columns</span>
-          </div>
+        {/* Collapsible Column Order Sequence Chips */}
+        {showColumnOrder && (
+          <div className="space-y-1 pt-1 border-t border-slate-200/80 dark:border-slate-800 animate-fadeIn">
+            <div className="flex items-center justify-between text-[7.5px] font-black uppercase tracking-wider text-slate-400">
+              <span>Drag in table or use ◀ ▶</span>
+              <span className="text-slate-500 font-medium">{activeColumns.length} columns</span>
+            </div>
 
-          <div className="flex flex-wrap gap-1 max-h-36 overflow-y-auto pr-0.5">
-            {activeColumns.map((col, idx) => {
-              const isFirst = idx === 0;
-              const isLast = idx === activeColumns.length - 1;
-              const isSno = col.key === 'sno';
+            <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto pr-0.5">
+              {activeColumns.map((col, idx) => {
+                const isFirst = idx === 0;
+                const isLast = idx === activeColumns.length - 1;
+                const isSno = col.key === 'sno';
 
-              return (
-                <div
-                  key={col.key}
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border shadow-2xs select-none transition-all ${
-                    col.isCustom
-                      ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
-                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  {/* Reorder Left */}
-                  {!isFirst && (
-                    <button
-                      type="button"
-                      onClick={() => moveColumn(idx, -1)}
-                      className="text-slate-400 hover:text-indigo-600 cursor-pointer p-0.2"
-                      title="Move column left"
-                    >
-                      ◀
-                    </button>
-                  )}
-
-                  {/* Label (clickable for custom column edit) */}
-                  <span
-                    onClick={() => col.isCustom && handleOpenEditModal(col)}
-                    className={`truncate max-w-[110px] ${col.isCustom ? 'cursor-pointer hover:underline text-amber-900 dark:text-amber-300 font-black' : ''}`}
-                    title={col.label}
+                return (
+                  <div
+                    key={col.key}
+                    className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[8.5px] font-bold border shadow-2xs select-none transition-all ${
+                      col.isCustom
+                        ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
+                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200'
+                    }`}
                   >
-                    {col.isCustom && col.calcType === 'fee_with_subject_surcharge' && (
-                      <span className="text-[7.5px] font-black mr-0.5 text-amber-700 dark:text-amber-300">⚡</span>
+                    {!isFirst && (
+                      <button
+                        type="button"
+                        onClick={() => moveColumn(idx, -1)}
+                        className="text-slate-400 hover:text-indigo-600 cursor-pointer p-0.2"
+                        title="Move column left"
+                      >
+                        ◀
+                      </button>
                     )}
-                    {col.label}
-                  </span>
-
-                  {/* Reorder Right */}
-                  {!isLast && (
-                    <button
-                      type="button"
-                      onClick={() => moveColumn(idx, 1)}
-                      className="text-slate-400 hover:text-indigo-600 cursor-pointer p-0.2"
-                      title="Move column right"
+                    <span
+                      onClick={() => col.isCustom && handleOpenEditModal(col)}
+                      className={`truncate max-w-[100px] ${col.isCustom ? 'cursor-pointer hover:underline text-amber-900 dark:text-amber-300 font-black' : ''}`}
+                      title={col.label}
                     >
-                      ▶
-                    </button>
-                  )}
-
-                  {/* Remove Column button */}
-                  {!isSno && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveColumn(col.key)}
-                      className="text-slate-400 hover:text-rose-600 cursor-pointer ml-0.5 p-0.2"
-                      title="Remove column from roster"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                      {col.label}
+                    </span>
+                    {!isLast && (
+                      <button
+                        type="button"
+                        onClick={() => moveColumn(idx, 1)}
+                        className="text-slate-400 hover:text-indigo-600 cursor-pointer p-0.2"
+                        title="Move column right"
+                      >
+                        ▶
+                      </button>
+                    )}
+                    {!isSno && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveColumn(col.key)}
+                        className="text-slate-400 hover:text-rose-600 cursor-pointer ml-0.5 p-0.2"
+                        title="Remove column"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── CARD 3: DOCUMENT LAYOUT & PAGE SETUP ── */}
-      <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-2">
-        <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 pb-1 border-b border-slate-200/80 dark:border-slate-800">
-          <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-400">
-            <SlidersHorizontal size={11} className="shrink-0" />
+      <div className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-1">
+        <div className="flex items-center justify-between text-[8.5px] uppercase font-black tracking-wider text-slate-500 pb-0.5 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-1 text-purple-700 dark:text-purple-400">
+            <SlidersHorizontal size={10} className="shrink-0" />
             <span className="font-extrabold tracking-wide text-slate-800 dark:text-slate-200">Page & Table Setup</span>
           </div>
         </div>
 
         {/* Document Title Input */}
         <div>
-          <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Document Title</label>
           <input
             type="text"
             value={docTitle}
             onChange={(e) => setDocTitle(e.target.value)}
             placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
-            className="w-full px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-[9.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100 placeholder:text-[8.5px]"
+            className="w-full px-2 py-0.5 h-6 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-[8.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100 placeholder:text-[8px]"
           />
         </div>
 
-        {/* Layout & Orientation Toggles in 2 columns */}
-        <div className="grid grid-cols-2 gap-1.5">
-          {/* Layout Structure */}
-          <div>
-            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Layout Mode</label>
-            <div className="grid grid-cols-2 gap-0.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 text-[8.5px] font-black">
-              <button
-                type="button"
-                onClick={() => handleLayoutModeChange('standard')}
-                className={`py-0.5 rounded text-center cursor-pointer transition-all ${
-                  layoutMode === 'standard'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Standard
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLayoutModeChange('two_column_attendance')}
-                className={`py-0.5 rounded text-center cursor-pointer transition-all ${
-                  layoutMode === 'two_column_attendance'
-                    ? 'bg-amber-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                2-Col Att.
-              </button>
-            </div>
+        {/* Layout, Orientation in 2 columns */}
+        <div className="grid grid-cols-2 gap-1 text-[8px] font-black">
+          {/* Layout Mode */}
+          <div className="grid grid-cols-2 gap-0.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 h-6 items-center">
+            <button
+              type="button"
+              onClick={() => handleLayoutModeChange('standard')}
+              className={`h-full rounded text-center cursor-pointer transition-all flex items-center justify-center ${
+                layoutMode === 'standard'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Standard
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLayoutModeChange('two_column_attendance')}
+              className={`h-full rounded text-center cursor-pointer transition-all flex items-center justify-center ${
+                layoutMode === 'two_column_attendance'
+                  ? 'bg-amber-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              2-Col Att.
+            </button>
           </div>
 
           {/* Orientation */}
-          <div>
-            <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Orientation</label>
-            <div className="grid grid-cols-2 gap-0.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 text-[8.5px] font-black">
-              <button
-                type="button"
-                onClick={() => setOrientation('portrait')}
-                className={`py-0.5 rounded text-center cursor-pointer transition-all ${
-                  orientation === 'portrait'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Portrait
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrientation('landscape')}
-                className={`py-0.5 rounded text-center cursor-pointer transition-all ${
-                  orientation === 'landscape'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Landscape
-              </button>
-            </div>
+          <div className="grid grid-cols-2 gap-0.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 h-6 items-center">
+            <button
+              type="button"
+              onClick={() => setOrientation('portrait')}
+              className={`h-full rounded text-center cursor-pointer transition-all flex items-center justify-center ${
+                orientation === 'portrait'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Portrait
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrientation('landscape')}
+              className={`h-full rounded text-center cursor-pointer transition-all flex items-center justify-center ${
+                orientation === 'landscape'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Landscape
+            </button>
           </div>
         </div>
 
-        {/* Row Height Preset */}
-        <div>
-          <label className="block text-[8px] font-extrabold text-slate-400 uppercase tracking-tight mb-0.5">Row Height Preset</label>
+        {/* Row Height Preset + Letterhead Accordion Trigger */}
+        <div className="grid grid-cols-2 gap-1 items-center">
           <select
             value={selectedRowHeightIdx}
             onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
-            className="w-full px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[9.5px] text-slate-800 dark:text-slate-200"
+            className="w-full px-1.5 h-6 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[8.5px] text-slate-800 dark:text-slate-200"
           >
             {ROW_HEIGHT_PRESETS.map((p, idx) => (
               <option key={p.label} value={idx}>
-                {p.label} ({p.px}px) — {p.desc}
+                {p.label} ({p.px}px)
               </option>
             ))}
           </select>
-        </div>
 
-        {/* Collapsible Accordion: Institutional Header & Signatories Setup */}
-        <div className="pt-1 border-t border-slate-200/80 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setIsSetupAccordionOpen(prev => !prev)}
-            className="w-full flex items-center justify-between py-1 text-[8.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 hover:text-indigo-600 cursor-pointer"
+            className="w-full h-6 px-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-[8px] font-black uppercase text-slate-700 dark:text-slate-300 flex items-center justify-between cursor-pointer"
           >
-            <span className="flex items-center gap-1">
-              <Sliders size={9} />
-              <span>Letterhead & Signatories</span>
-            </span>
-            <ChevronDown size={10} className={`transition-transform duration-200 ${isSetupAccordionOpen ? 'rotate-180' : ''}`} />
+            <span>Letterhead & Sign</span>
+            <ChevronDown size={8.5} className={`transition-transform duration-200 ${isSetupAccordionOpen ? 'rotate-180' : ''}`} />
           </button>
+        </div>
 
-          {isSetupAccordionOpen && (
-            <div className="space-y-1.5 pt-1.5 animate-fadeIn">
+        {/* Collapsible Accordion: Institutional Letterhead & Signatories */}
+        {isSetupAccordionOpen && (
+          <div className="space-y-1 pt-1 border-t border-slate-200 dark:border-slate-800 animate-fadeIn">
+            <div>
+              <label className="block text-[7px] font-bold text-slate-400 mb-0.5">School Name Override</label>
+              <input
+                type="text"
+                value={institutionName}
+                onChange={(e) => handleInstitutionNameChange(e.target.value)}
+                placeholder="GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS"
+                className="w-full px-1.5 py-0.5 h-5.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[8.5px] font-bold"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="text-[7px] font-bold text-slate-400">Subtitle</label>
+                <button
+                  type="button"
+                  onClick={() => handleToggleShowMetaBadges(!showMetaBadges)}
+                  className="text-[7px] font-black text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                >
+                  {showMetaBadges ? 'Badges ON' : 'Badges OFF'}
+                </button>
+              </div>
+              <input
+                type="text"
+                value={docSubtitle}
+                onChange={(e) => handleDocSubtitleChange(e.target.value)}
+                placeholder="District Anantnag, Kashmir — 192201"
+                className="w-full px-1.5 py-0.5 h-5.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[8.5px]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-1 pt-0.5 border-t border-slate-200 dark:border-slate-800">
               <div>
-                <label className="block text-[7.5px] font-bold text-slate-400 mb-0.5">School Name Override</label>
+                <label className="block text-[7px] font-bold text-slate-400 mb-0.5">Signatory 1 (Left)</label>
                 <input
                   type="text"
-                  value={institutionName}
-                  onChange={(e) => handleInstitutionNameChange(e.target.value)}
-                  placeholder="GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS"
-                  className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px] font-bold"
+                  value={signatoryLeft}
+                  onChange={(e) => handleSignatoryLeftChange(e.target.value)}
+                  placeholder="Incharge Admissions & Exam"
+                  className="w-full px-1.5 py-0.5 h-5.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[8px] font-semibold"
                 />
               </div>
-
               <div>
-                <div className="flex items-center justify-between mb-0.5">
-                  <label className="text-[7.5px] font-bold text-slate-400">Subtitle</label>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleShowMetaBadges(!showMetaBadges)}
-                    className="text-[7.5px] font-black text-indigo-600 dark:text-indigo-400 cursor-pointer"
-                  >
-                    {showMetaBadges ? 'Cohort Badges ON' : 'Cohort Badges OFF'}
-                  </button>
-                </div>
+                <label className="block text-[7px] font-bold text-slate-400 mb-0.5">Signatory 2 (Right)</label>
                 <input
                   type="text"
-                  value={docSubtitle}
-                  onChange={(e) => handleDocSubtitleChange(e.target.value)}
-                  placeholder="District Anantnag, Kashmir — 192201"
-                  className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9.5px]"
+                  value={signatoryRight}
+                  onChange={(e) => handleSignatoryRightChange(e.target.value)}
+                  placeholder="Principal"
+                  className="w-full px-1.5 py-0.5 h-5.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[8px] font-semibold"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-200 dark:border-slate-800">
-                <div>
-                  <label className="block text-[7.5px] font-bold text-slate-400 mb-0.5">Signatory 1 (Left)</label>
-                  <input
-                    type="text"
-                    value={signatoryLeft}
-                    onChange={(e) => handleSignatoryLeftChange(e.target.value)}
-                    placeholder="Incharge Admissions & Exam"
-                    className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9px] font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[7.5px] font-bold text-slate-400 mb-0.5">Signatory 2 (Right)</label>
-                  <input
-                    type="text"
-                    value={signatoryRight}
-                    onChange={(e) => handleSignatoryRightChange(e.target.value)}
-                    placeholder="Principal"
-                    className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[9px] font-semibold"
-                  />
-                </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ── CARD 4: ACTIONS & EXPORTS ── */}
-      <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-2">
-        <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 pb-1 border-b border-slate-200/80 dark:border-slate-800">
-          <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-            <Printer size={11} className="shrink-0" />
+      <div className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-1">
+        <div className="flex items-center justify-between text-[8.5px] uppercase font-black tracking-wider text-slate-500 pb-0.5 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+            <Printer size={10} className="shrink-0" />
             <span className="font-extrabold tracking-wide text-slate-800 dark:text-slate-200">Actions & Exports</span>
           </div>
-          <span className="text-[8.5px] font-mono font-bold text-slate-500">
+          <span className="text-[7.5px] font-mono font-bold text-slate-500">
             {activeIncludedRows.length}/{processedRows.length} Students
           </span>
         </div>
@@ -5175,12 +5156,12 @@ export default function CustomRosterDocumentBuilderView({
           type="button"
           onClick={handlePrint}
           disabled={processedRows.length === 0}
-          className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600 via-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+          className="w-full h-7 px-2 rounded-lg bg-gradient-to-r from-amber-600 via-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[10.5px] flex items-center justify-center gap-1 shadow-sm cursor-pointer disabled:opacity-50 transition-all active:scale-95"
           title="Print Official Institutional Register / Save PDF (Ctrl+P)"
         >
-          <Printer size={13} />
+          <Printer size={11} />
           <span>Print Register / Save PDF</span>
-          <span className="text-[9px] opacity-75 font-normal ml-1">(Ctrl+P)</span>
+          <span className="text-[8px] opacity-75 font-normal ml-0.5">(Ctrl+P)</span>
         </button>
 
         {/* 3-Column Export Grid */}
@@ -5189,10 +5170,10 @@ export default function CustomRosterDocumentBuilderView({
             type="button"
             onClick={handleExportExcel}
             disabled={processedRows.length === 0}
-            className="py-1 px-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
+            className="h-6 px-1 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
             title="Export filtered records to Microsoft Excel spreadsheet"
           >
-            <FileSpreadsheet size={10} />
+            <FileSpreadsheet size={9} />
             <span>Excel</span>
           </button>
 
@@ -5200,10 +5181,10 @@ export default function CustomRosterDocumentBuilderView({
             type="button"
             onClick={handleExportDocx}
             disabled={processedRows.length === 0 || isExporting}
-            className="py-1 px-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
+            className="h-6 px-1 rounded-md bg-blue-700 hover:bg-blue-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
             title="Export formatted roster to Microsoft Word document"
           >
-            {isExporting ? <RefreshCw size={10} className="animate-spin" /> : <FileText size={10} />}
+            {isExporting ? <RefreshCw size={9} className="animate-spin" /> : <FileText size={9} />}
             <span>Word</span>
           </button>
 
@@ -5211,31 +5192,31 @@ export default function CustomRosterDocumentBuilderView({
             type="button"
             onClick={handleExportCsv}
             disabled={processedRows.length === 0}
-            className="py-1 px-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-[9px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
+            className="h-6 px-1 rounded-md bg-slate-700 hover:bg-slate-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
             title="Export raw data to CSV file"
           >
-            <Download size={10} />
+            <Download size={9} />
             <span>CSV</span>
           </button>
         </div>
 
         {/* Student Inclusion & Skipped Rows Toggles */}
-        <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-200/80 dark:border-slate-800 text-[8.5px] font-bold">
+        <div className="grid grid-cols-2 gap-1 pt-0.5 border-t border-slate-200/80 dark:border-slate-800 text-[8px] font-bold">
           <button
             type="button"
             onClick={toggleSelectAllRows}
-            className="px-1.5 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-all"
+            className="h-5.5 px-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-all"
           >
-            {isAllRowsIncluded ? <CheckSquare size={10} className="text-emerald-600" /> : <Square size={10} />}
+            {isAllRowsIncluded ? <CheckSquare size={9} className="text-emerald-600" /> : <Square size={9} />}
             <span>{isAllRowsIncluded ? 'Deselect All' : 'Include All'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setHideSkippedRows(prev => !prev)}
-            className="px-1.5 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-all"
+            className="h-5.5 px-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-all"
           >
-            <Eye size={10} className={hideSkippedRows ? 'text-indigo-600' : 'opacity-50'} />
+            <Eye size={9} className={hideSkippedRows ? 'text-indigo-600' : 'opacity-50'} />
             <span>{hideSkippedRows ? 'Skipped Hidden' : 'Show Skipped'}</span>
           </button>
         </div>
@@ -5245,485 +5226,67 @@ export default function CustomRosterDocumentBuilderView({
   );
 
   return (
-    <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
+    <div className="h-[calc(100dvh-54px)] w-full flex flex-col overflow-hidden text-slate-900 dark:text-slate-100 animate-fadeIn">
       
-      {/* ── SLEEK CONTROL BAR WITH EXPORT ACTIONS & DOCUMENT SETTINGS ── */}
+      {/* ── MOBILE ONLY HEADER TOOLBAR (< lg) ── */}
       <div 
-        className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl border shadow-2xs space-y-0.5 md:space-y-0 md:flex md:items-center md:justify-between md:gap-2 text-xs font-extrabold"
+        className="lg:hidden shrink-0 px-2 py-1 border-b shadow-2xs flex items-center justify-between gap-1 text-xs font-extrabold"
         style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
       >
-        {/* Left Side: Document Title & Desktop Inline Config */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <div className="w-full md:w-auto flex-1 md:min-w-[180px] md:max-w-[320px]">
-            <input
-              type="text"
-              value={docTitle}
-              onChange={(e) => setDocTitle(e.target.value)}
-              placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
-              className="studio-inline-input studio-compact-toolbar-btn w-full px-2 py-0 h-6 sm:h-7 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-[9px] sm:text-[10px] uppercase shadow-2xs text-slate-900 dark:text-slate-100 placeholder:text-[8.5px]"
-            />
-          </div>
-
-          {/* Desktop inline toggles (visible on md+) */}
-          <div className="hidden md:flex items-center gap-1.5 shrink-0">
-            {/* Layout Structure Toggle */}
-            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
-              <button
-                type="button"
-                onClick={() => handleLayoutModeChange('standard')}
-                className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
-                  layoutMode === 'standard'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title="Standard multi-column cohort roster"
-              >
-                <Columns size={10} />
-                <span>Standard</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLayoutModeChange('two_column_attendance')}
-                className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
-                  layoutMode === 'two_column_attendance'
-                    ? 'bg-amber-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title="Official two-column examination daily attendance sheet"
-              >
-                <ClipboardList size={10} />
-                <span>2-Col Attendance</span>
-              </button>
-            </div>
-
-            {/* Orientation Toggle */}
-            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
-              <button
-                type="button"
-                onClick={() => setOrientation('portrait')}
-                className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
-                  orientation === 'portrait'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Portrait
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrientation('landscape')}
-                className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
-                  orientation === 'landscape'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Landscape
-              </button>
-            </div>
-
-            {/* Row Height Preset */}
-            <select
-              value={selectedRowHeightIdx}
-              onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
-              className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-extrabold text-[10px] text-slate-800 dark:text-slate-200"
-            >
-              {ROW_HEIGHT_PRESETS.map((p, idx) => (
-                <option key={p.label} value={idx}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => {
+              setShowMobileOptionsModal(true);
+              if (onToggleSettingsDrawer) onToggleSettingsDrawer(true);
+            }}
+            className="studio-compact-toolbar-btn px-2 h-6.5 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 font-bold text-[9.5px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0"
+            title="Configure Student Cohort Filters, Columns & Setup"
+          >
+            <Sliders size={10} className="text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>Filters & Setup</span>
+            <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
+              {filteredStudents.length}
+            </span>
+          </button>
+          <span className="text-[10px] text-slate-500 font-bold truncate max-w-[130px]">
+            {docTitle || 'Roster'}
+          </span>
         </div>
 
-        {/* Right Side: Actions (On mobile: Filters + Setup + Unified Print & Export Actions dropdown; on desktop: Export Dropdown + Print) */}
-        <div className="flex items-center justify-between md:justify-end gap-1 sm:gap-1.5 shrink-0">
-          {/* Mobile Filters & Columns Modal Trigger (visible on < lg) */}
-          <div className="lg:hidden shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                setShowMobileOptionsModal(true);
-                if (onToggleSettingsDrawer) onToggleSettingsDrawer(true);
-              }}
-              className="studio-compact-toolbar-btn px-2 sm:px-2.5 h-6 sm:h-7 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 font-bold text-[9px] sm:text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
-              title="Configure Student Cohort Filters & Register Columns"
-            >
-              <Sliders size={9.5} className="text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>Filters</span>
-              <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
-                {filteredStudents.length}
-              </span>
-            </button>
-          </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <MobileRosterActionsDropdown
+            onPrint={handlePrint}
+            onExportExcel={handleExportExcel}
+            onExportDocx={handleExportDocx}
+            disabled={processedRows.length === 0}
+            isExporting={isExporting}
+            activeIncludedCount={activeIncludedRows.length}
+            totalCount={processedRows.length}
+            isAllRowsIncluded={isAllRowsIncluded}
+            isSomeRowsSkipped={isSomeRowsSkipped}
+            skippedCount={skippedCount}
+            onToggleSelectAllRows={toggleSelectAllRows}
+            hideSkippedRows={hideSkippedRows}
+            onToggleHideSkippedRows={() => setHideSkippedRows(prev => !prev)}
+            onSaveAsDefaultColumns={handleSaveAsDefaultColumns}
+            saveDefaultToast={saveDefaultToast}
+          />
 
-          {/* Setup Drawer Toggle (Mobile) */}
-          <div className="md:hidden shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                const next = !showSettingsDrawer;
-                setShowSettingsDrawer(next);
-                if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
-              }}
-              className={`studio-compact-toolbar-btn px-2 sm:px-2.5 h-6 sm:h-7 rounded-md border text-[9px] sm:text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
-                showSettingsDrawer
-                  ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 dark:border-amber-600 text-amber-900 dark:text-amber-200'
-                  : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-              }`}
-              title="Configure Institutional Letterhead, Title & Attendance Setup"
-            >
-              <Sliders size={9.5} className={showSettingsDrawer ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'} />
-              <span>Setup</span>
-            </button>
-          </div>
-
-          {/* Mobile Layout & Page Setup Popover (visible on < md) */}
-          <div className="md:hidden shrink-0">
-            <RosterPageSetupDropdown
-              layoutMode={layoutMode}
-              onLayoutModeChange={handleLayoutModeChange}
-              orientation={orientation}
-              onOrientationChange={setOrientation}
-              selectedRowHeightIdx={selectedRowHeightIdx}
-              onRowHeightChange={setSelectedRowHeightIdx}
-              rowHeightPresets={ROW_HEIGHT_PRESETS}
-            />
-          </div>
-
-          {/* Mobile Grouped Actions: Print, Export, Student Inclusion & View Settings (visible on < md) */}
-          <div className="md:hidden shrink-0">
-            <MobileRosterActionsDropdown
-              onPrint={handlePrint}
-              onExportExcel={handleExportExcel}
-              onExportDocx={handleExportDocx}
-              disabled={processedRows.length === 0}
-              isExporting={isExporting}
-              activeIncludedCount={activeIncludedRows.length}
-              totalCount={processedRows.length}
-              isAllRowsIncluded={isAllRowsIncluded}
-              isSomeRowsSkipped={isSomeRowsSkipped}
-              skippedCount={skippedCount}
-              onToggleSelectAllRows={toggleSelectAllRows}
-              hideSkippedRows={hideSkippedRows}
-              onToggleHideSkippedRows={() => setHideSkippedRows(prev => !prev)}
-              onSaveAsDefaultColumns={handleSaveAsDefaultColumns}
-              saveDefaultToast={saveDefaultToast}
-            />
-          </div>
-
-          {/* Desktop Actions: Separate Export Dropdown and Primary Print Button (visible on md+) */}
-          <div className="hidden md:flex items-center gap-1 sm:gap-1.5 ml-auto md:ml-0 shrink-0">
-            {/* Unified Export Dropdown (Excel & Word) */}
-            <RosterExportDropdown
-              onExportExcel={handleExportExcel}
-              onExportDocx={handleExportDocx}
-              disabled={processedRows.length === 0}
-              isExporting={isExporting}
-            />
-
-            {/* Primary Print / PDF Button */}
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={processedRows.length === 0}
-              className="px-2.5 sm:px-3 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0 whitespace-nowrap"
-              title="Print Official Institutional Register / Save PDF"
-            >
-              <Printer size={10} className="shrink-0" />
-              <span>Print</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={processedRows.length === 0}
+            className="px-2 h-6.5 rounded-md bg-gradient-to-r from-amber-600 to-amber-700 text-white font-bold text-[9.5px] flex items-center gap-1 shadow-sm cursor-pointer disabled:opacity-50 active:scale-95"
+          >
+            <Printer size={10} />
+            <span>Print</span>
+          </button>
         </div>
       </div>
 
-      {/* ── COLLAPSIBLE ROSTER & ATTENDANCE SETUP DRAWER ── */}
-      {showSettingsDrawer && (
-        <div
-          className="rounded-xl p-3 shadow-2xs space-y-2.5 animate-fadeIn text-xs border"
-          style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
-        >
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5 flex-wrap gap-1">
-            <div className="flex items-center gap-1.5">
-              <span className="p-1 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
-                <Sliders size={12} />
-              </span>
-              <h3 className="font-black text-xs text-slate-900 dark:text-slate-100 uppercase tracking-wider m-0">
-                Document & Institutional Header Setup
-              </h3>
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
-                {layoutMode === 'two_column_attendance' ? '2-Column Attendance Mode' : 'Standard Roster Mode'}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={handleResetHeaderDefaults}
-                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-extrabold text-[9px] cursor-pointer flex items-center gap-1 transition-colors"
-                title="Reset all header, title and banner fields to default"
-              >
-                <RotateCcw size={8.5} />
-                <span>Reset Defaults</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleCloseSettings}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Close setup drawer"
-                aria-label="Close setup drawer"
-              >
-                <X size={13} />
-              </button>
-            </div>
-          </div>
-
-          {layoutMode === 'two_column_attendance' ? (
-            /* ── 2-Column Attendance Mode Header Setup ── */
-            <div className="space-y-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                {/* Banner Text */}
-                <div className="sm:col-span-2">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <label className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
-                      Institution Banner (Gray Box Text)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleAttendanceBanner(!showAttendanceInstBanner)}
-                      className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-1 cursor-pointer ${
-                        showAttendanceInstBanner
-                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {showAttendanceInstBanner ? <Eye size={8} /> : <EyeOff size={8} />}
-                      <span>{showAttendanceInstBanner ? 'Banner Visible' : 'Banner Hidden'}</span>
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={attendanceInstBanner}
-                    onChange={(e) => handleAttendanceBannerChange(e.target.value)}
-                    placeholder="Govt. Higher Secondary School Shangus, Anantnag"
-                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-slate-100"
-                  />
-                </div>
-
-                {/* Banner Style */}
-                <div>
-                  <label className="block text-[9px] font-black uppercase text-slate-600 dark:text-slate-400 mb-0.5">
-                    Banner Background Theme
-                  </label>
-                  <select
-                    value={attendanceBannerBg}
-                    onChange={(e) => handleAttendanceBannerBgChange(e.target.value)}
-                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200"
-                  >
-                    <option value="slate">Classic Slate Grey (#cbd5e1)</option>
-                    <option value="white">Clean White (Border Only)</option>
-                    <option value="amber">Warm Amber (#fef3c7)</option>
-                    <option value="indigo">Soft Indigo (#e0e7ff)</option>
-                  </select>
-                </div>
-
-                {/* Document Title */}
-                <div>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <label className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
-                      Sheet Title
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleAttendanceUnderline(!attendanceTitleUnderline)}
-                      className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-0.5 cursor-pointer ${
-                        attendanceTitleUnderline
-                          ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <Underline size={8} />
-                      <span>{attendanceTitleUnderline ? 'Underline' : 'Plain'}</span>
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={docTitle}
-                    onChange={(e) => handleDocTitleChange(e.target.value)}
-                    placeholder="DAILY ATTENDANCE SHEET"
-                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase"
-                  />
-                </div>
-              </div>
-
-              {/* Superintendent Signatures Row */}
-              <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5">
-                    Left Signature Block Title
-                  </label>
-                  <input
-                    type="text"
-                    value={attendanceSigLeft}
-                    onChange={(e) => setAttendanceSigLeft(e.target.value)}
-                    placeholder="Sig. of the Asstt. Supdt."
-                    className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5">
-                    Right Signature Block Title
-                  </label>
-                  <input
-                    type="text"
-                    value={attendanceSigRight}
-                    onChange={(e) => setAttendanceSigRight(e.target.value)}
-                    placeholder="Sig. of the Centre Supdt."
-                    className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200"
-                  />
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* ── Standard Roster Mode Header Setup ── */
-            <div className="space-y-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {/* Institution Name */}
-                <div className="sm:col-span-2">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <label className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
-                      Institution Main Name (Letterhead Header)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleShowHeader(!showHeader)}
-                      className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-1 cursor-pointer ${
-                        showHeader
-                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {showHeader ? <Eye size={8} /> : <EyeOff size={8} />}
-                      <span>{showHeader ? 'Header Visible' : 'Header Hidden'}</span>
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={institutionName}
-                    onChange={(e) => handleInstitutionNameChange(e.target.value)}
-                    placeholder="GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS"
-                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-xs text-rose-900 dark:text-rose-300 uppercase tracking-wide"
-                  />
-                </div>
-
-                {/* Document Title */}
-                <div>
-                  <label className="block text-[9px] font-black uppercase text-slate-600 dark:text-slate-400 mb-0.5">
-                    Document Title (Printed On Register)
-                  </label>
-                  <input
-                    type="text"
-                    value={docTitle}
-                    onChange={(e) => handleDocTitleChange(e.target.value)}
-                    placeholder="STUDENT ROSTER & RECORD SHEET"
-                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase"
-                  />
-                </div>
-
-                {/* Institution Subtitle / Address */}
-                <div className="sm:col-span-2">
-                  <label className="block text-[9px] font-black uppercase text-slate-600 dark:text-slate-400 mb-0.5">
-                    Institution Subtitle / Location / U-DISE Line
-                  </label>
-                  <input
-                    type="text"
-                    value={institutionSubtitle}
-                    onChange={(e) => handleInstitutionSubtitleChange(e.target.value)}
-                    placeholder="District Anantnag, Kashmir — 192201 | Official Institutional Record"
-                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold text-xs text-slate-800 dark:text-slate-200"
-                  />
-                </div>
-
-                {/* Document Subtitle / Notes */}
-                <div>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <label className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
-                      Document Subtitle / Section Note
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleShowMetaBadges(!showMetaBadges)}
-                      className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-1 cursor-pointer ${
-                        showMetaBadges
-                          ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
-                      }`}
-                      title="Show or hide cohort badges below title"
-                    >
-                      <span>{showMetaBadges ? 'Cohort Badges ON' : 'Cohort Badges OFF'}</span>
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={docSubtitle}
-                    onChange={(e) => handleDocSubtitleChange(e.target.value)}
-                    placeholder="e.g. Science Stream • Academic Session 2025-26"
-                    className="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300"
-                  />
-                </div>
-              </div>
-
-              {/* Signatories Setup Row */}
-              <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[9px] font-black uppercase text-slate-600 dark:text-slate-400">
-                    Institutional Signatories (Bottom of Register)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleShowSignatories(!showSignatories)}
-                    className={`text-[8px] font-black px-1.5 py-0.2 rounded flex items-center gap-1 cursor-pointer ${
-                      showSignatories
-                        ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
-                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {showSignatories ? <Eye size={8} /> : <EyeOff size={8} />}
-                    <span>{showSignatories ? 'Signatures Visible' : 'Signatures Hidden'}</span>
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[8.5px] font-bold text-slate-500 mb-0.5">Signatory 1 (Left)</label>
-                    <input
-                      type="text"
-                      value={signatoryLeft}
-                      onChange={(e) => handleSignatoryLeftChange(e.target.value)}
-                      disabled={!showSignatories}
-                      placeholder="Incharge Admissions & Exam"
-                      className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold disabled:opacity-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[8.5px] font-bold text-slate-500 mb-0.5">Signatory 2 (Right)</label>
-                    <input
-                      type="text"
-                      value={signatoryRight}
-                      onChange={(e) => handleSignatoryRightChange(e.target.value)}
-                      disabled={!showSignatories}
-                      placeholder="Principal"
-                      className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold disabled:opacity-50"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
-      <div className="split-pane-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
+      {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT (INDEPENDENT SCROLL) ── */}
+      <div className="split-pane-container flex-1 flex flex-col lg:flex-row gap-1 items-stretch w-full min-h-0 overflow-hidden relative">
         
         {/* ════════ MOBILE POPUP MODAL: FILTERS, COLUMNS & TAGS (< lg) ════════ */}
         {!isDesktop && showMobileOptionsModal && createPortal(
@@ -5776,10 +5339,10 @@ export default function CustomRosterDocumentBuilderView({
           document.body
         )}
 
-        {/* ════════ LEFT HALF: STICKY LIVE DOCUMENT PREVIEW (2/3 WIDTH ~67%) ════════ */}
+        {/* ════════ LEFT HALF: LIVE DOCUMENT PREVIEW (INDEPENDENT SCROLL PANE) ════════ */}
         <div
           style={{ width: isDesktop ? `${tableSplitPct}%` : '100%' }}
-          className="w-full lg:flex-1 sticky top-3 self-start pr-0 lg:pr-1 min-w-0"
+          className="w-full lg:flex-1 h-full min-h-0 flex flex-col pr-0 lg:pr-1 min-w-0 overflow-hidden"
         >
           {/* Quick Examination Attendance Setup Toolbar (Visible when in 2-Column Attendance layout) */}
           {layoutMode === 'two_column_attendance' && (
@@ -6105,7 +5668,7 @@ export default function CustomRosterDocumentBuilderView({
           )}
 
           {/* Paper Sheet Preview Container (Independent Scrollable Window) */}
-          <div className="bg-white text-slate-900 border border-slate-300 rounded-lg sm:rounded-xl p-1.5 sm:p-5 shadow-sm overflow-x-auto max-h-[calc(100vh-100px)] overflow-y-auto">
+          <div className="bg-white text-slate-900 border border-slate-300 rounded-lg sm:rounded-xl p-1.5 sm:p-4 shadow-sm flex-1 min-h-0 overflow-auto">
             {layoutMode === 'two_column_attendance' ? (
               /* ── 2-COLUMN EXAMINATION ATTENDANCE PREVIEW ── */
               <div>
@@ -6350,77 +5913,22 @@ export default function CustomRosterDocumentBuilderView({
                   </div>
                 )}
 
-            {/* Minimal Compact Controls Bar: Student Inclusion, Skip Toggle & Column Default Saver (Visible on desktop md+, consolidated into top action bar on mobile) */}
-            <div className="hidden md:flex items-center justify-between gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 mb-1 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200/90 dark:border-slate-700/90 text-xs select-none min-h-[26px] sm:min-h-[30px]">
-              {/* Left: Included Students Count Pill */}
-              <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
-                <button
-                  type="button"
-                  onClick={toggleSelectAllRows}
-                  className="flex items-center gap-1 text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold cursor-pointer transition-colors shrink-0"
-                  title={isAllRowsIncluded ? "Deselect / skip all rows" : "Select / include all rows"}
-                >
-                  {isAllRowsIncluded ? (
-                    <CheckSquare size={11} className="sm:hidden text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  ) : isSomeRowsSkipped ? (
-                    <Minus size={11} className="sm:hidden text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs shrink-0" />
-                  ) : (
-                    <Square size={11} className="sm:hidden text-slate-400 shrink-0" />
-                  )}
-                  {isAllRowsIncluded ? (
-                    <CheckSquare size={13} className="hidden sm:block text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  ) : isSomeRowsSkipped ? (
-                    <Minus size={13} className="hidden sm:block text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs shrink-0" />
-                  ) : (
-                    <Square size={13} className="hidden sm:block text-slate-400 shrink-0" />
-                  )}
-                  <span className="text-[9px] sm:text-[11px] truncate">
-                    <strong className="text-indigo-600 dark:text-indigo-400 font-black">{activeIncludedRows.length}</strong>
-                    <span className="text-slate-500 font-normal"> / {processedRows.length}</span>
-                    <span className="hidden sm:inline text-slate-600 dark:text-slate-400 ml-1">Students Included</span>
-                  </span>
-                </button>
+            {/* Minimal Slim Info Bar: Active Count & Drag Hint (No duplicate action buttons) */}
+            <div className="flex items-center justify-between gap-1 px-2 py-0.5 mb-1 bg-slate-50 dark:bg-slate-800/80 rounded border border-slate-200 dark:border-slate-700 text-[9px] sm:text-[9.5px] select-none">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-extrabold text-slate-700 dark:text-slate-300">
+                  <strong className="text-indigo-600 dark:text-indigo-400 font-black">{activeIncludedRows.length}</strong>
+                  <span className="text-slate-500 font-normal"> / {processedRows.length} Students Active</span>
+                </span>
                 {skippedCount > 0 && (
-                  <span className="text-[8px] sm:text-[9px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-1 sm:px-1.5 py-0.2 rounded-full shrink-0">
+                  <span className="text-[7.5px] sm:text-[8px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-1 sm:px-1.5 py-0.2 rounded-full shrink-0">
                     {skippedCount} skipped
                   </span>
                 )}
-                <span className="hidden md:inline-flex items-center text-[9px] text-slate-400 font-medium ml-2">
-                  💡 Drag headers or use ◀ ▶ arrows to reorder columns
-                </span>
               </div>
-
-              {/* Right: Actions (Include All if skipped, Show Skipped, Save Order) */}
-              <div className="flex items-center gap-1 shrink-0 text-[8.5px] sm:text-[9.5px] font-bold">
-                {skippedCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setDeselectedRowKeys(new Set())}
-                    className="h-5 sm:h-6 px-1.5 sm:px-2 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 cursor-pointer transition-colors text-[8px] sm:text-[9px] font-extrabold"
-                    title="Reset selection: Include all students in print & exports"
-                  >
-                    Include All
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setHideSkippedRows(prev => !prev)}
-                  className="h-5 sm:h-6 px-1.5 sm:px-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px]"
-                  title={hideSkippedRows ? "Show all rows including skipped rows" : "Hide skipped rows from table preview"}
-                >
-                  {hideSkippedRows ? <Eye size={9} className="text-indigo-600 dark:text-indigo-400 shrink-0" /> : <Eye size={9} className="opacity-50 shrink-0" />}
-                  <span className="hidden sm:inline">{hideSkippedRows ? 'Showing Included Only' : 'Show Skipped'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveAsDefaultColumns}
-                  className="h-5 sm:h-6 px-1.5 sm:px-2 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 cursor-pointer transition-colors flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px]"
-                  title="Save this column sequence as your default order"
-                >
-                  {saveDefaultToast ? <Check size={9} className="text-emerald-600 shrink-0" /> : <Save size={9} className="text-emerald-600 shrink-0" />}
-                  <span className="hidden sm:inline">{saveDefaultToast ? 'Saved Order' : 'Save Order'}</span>
-                </button>
-              </div>
+              <span className="text-[8px] sm:text-[8.5px] text-slate-400 font-medium hidden sm:inline">
+                💡 Drag table header edges to resize • Official Print Layout
+              </span>
             </div>
 
             {/* Formatted Data Table with Draggable & Arrow-Reorderable Headers */}
@@ -6734,7 +6242,7 @@ export default function CustomRosterDocumentBuilderView({
         {isDesktop && (
           <div
             style={{ width: `${100 - tableSplitPct}%` }}
-            className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-2 sm:p-2.5 space-y-2 text-xs overflow-y-auto min-h-0 lg:max-h-[calc(100dvh-95px)] sticky top-3"
+            className="w-full lg:w-auto shrink-0 h-full min-h-0 overflow-y-auto bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-1.5 sm:p-2 space-y-1.5 text-xs select-none"
           >
             {renderRosterControlPalette()}
           </div>
