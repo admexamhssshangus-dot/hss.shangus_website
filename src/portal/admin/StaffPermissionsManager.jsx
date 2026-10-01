@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   ShieldCheck, Lock, UserCheck, Key, Edit3, Trash2, UserPlus, 
   Sparkles, Save, RefreshCw, CheckCircle2, AlertCircle, X, Search,
-  SlidersHorizontal, ChevronDown, Eye, EyeOff, Check, Users
+  SlidersHorizontal, ChevronDown, Eye, EyeOff, Check, Users, BookOpen
 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
@@ -148,6 +148,12 @@ export default function StaffPermissionsManager() {
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [modalModuleSearch, setModalModuleSearch] = useState('');
 
+  // Teacher Subject multi-select dropdown state
+  const [subjectDropdownOpen, setSubjectDropdownOpen] = useState(false);
+  const [subjectSearch, setSubjectSearch] = useState('');
+  const [subjectTierFilter, setSubjectTierFilter] = useState('all'); // 'all' | '9th-10th' | '11th-12th'
+  const subjectDropdownRef = useRef(null);
+
   const [adminForm, setAdminForm] = useState({ 
     name: '', 
     email: '', 
@@ -255,6 +261,118 @@ export default function StaffPermissionsManager() {
     }
     loadStaffAccounts();
   }, []);
+
+  // Close subject multi-select dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (subjectDropdownRef.current && !subjectDropdownRef.current.contains(event.target)) {
+        setSubjectDropdownOpen(false);
+      }
+    }
+    if (subjectDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [subjectDropdownOpen]);
+
+  const allAvailableSubjects = useMemo(() => {
+    const list = [];
+    SECONDARY_SUBJECTS_LIST.forEach((s) => {
+      list.push({ name: s, tier: '9th-10th', tierLabel: 'Secondary' });
+    });
+    HIGHER_SECONDARY_SUBJECTS_LIST.forEach((s) => {
+      list.push({ name: s, tier: '11th-12th', tierLabel: 'Higher Sec' });
+    });
+    // Any custom subjects assigned that are not in the predefined lists
+    (adminForm.assignedSubjects || []).forEach((s) => {
+      if (!list.some(item => item.name.toLowerCase() === s.toLowerCase())) {
+        list.push({ name: s, tier: 'custom', tierLabel: 'Custom' });
+      }
+    });
+    return list;
+  }, [adminForm.assignedSubjects]);
+
+  const filteredTeacherSubjects = useMemo(() => {
+    let list = allAvailableSubjects;
+    if (subjectTierFilter === '9th-10th') {
+      list = list.filter(item => item.tier === '9th-10th' || item.tier === 'custom');
+    } else if (subjectTierFilter === '11th-12th') {
+      list = list.filter(item => item.tier === '11th-12th' || item.tier === 'custom');
+    }
+    if (!subjectSearch.trim()) return list;
+    const q = subjectSearch.toLowerCase().trim();
+    return list.filter(item => 
+      item.name.toLowerCase().includes(q) || 
+      item.tierLabel.toLowerCase().includes(q)
+    );
+  }, [allAvailableSubjects, subjectTierFilter, subjectSearch]);
+
+  const handleToggleSubject = (sub, tier = '11th-12th') => {
+    const current = adminForm.assignedSubjects || [];
+    const isChecked = current.includes(sub);
+    const resolvedTier = tier === '9th-10th' ? '9th-10th' : '11th-12th';
+
+    if (isChecked) {
+      const next = current.filter(s => s !== sub);
+      const nextTier = {
+        '9th-10th': (adminForm.tierSubjects?.['9th-10th'] || []).filter(s => s !== sub),
+        '11th-12th': (adminForm.tierSubjects?.['11th-12th'] || []).filter(s => s !== sub),
+      };
+      setAdminForm(prev => ({
+        ...prev,
+        assignedSubjects: next,
+        tierSubjects: nextTier,
+        subject: next.join(', ')
+      }));
+    } else {
+      const next = [...current, sub];
+      const currentTierSubs = adminForm.tierSubjects?.[resolvedTier] || [];
+      const nextTier = {
+        ...(adminForm.tierSubjects || {}),
+        [resolvedTier]: currentTierSubs.includes(sub) ? currentTierSubs : [...currentTierSubs, sub],
+      };
+      let nextClasses = [...(adminForm.assignedClasses || [])];
+      if (resolvedTier === '9th-10th' && !nextClasses.some(c => c === '9th' || c === '10th')) {
+        nextClasses = Array.from(new Set([...nextClasses, '9th', '10th']));
+      }
+      if (resolvedTier === '11th-12th' && !nextClasses.some(c => c === '11th' || c === '12th')) {
+        nextClasses = Array.from(new Set([...nextClasses, '11th', '12th']));
+      }
+      setAdminForm(prev => ({
+        ...prev,
+        assignedSubjects: next,
+        assignedClasses: nextClasses,
+        tierSubjects: nextTier,
+        subject: next.join(', ')
+      }));
+    }
+  };
+
+  const handleRemoveSubject = (subToRemove) => {
+    const next = (adminForm.assignedSubjects || []).filter((s) => s !== subToRemove);
+    const nextTier = {
+      '9th-10th': (adminForm.tierSubjects?.['9th-10th'] || []).filter(s => s !== subToRemove),
+      '11th-12th': (adminForm.tierSubjects?.['11th-12th'] || []).filter(s => s !== subToRemove),
+    };
+    setAdminForm(prev => ({
+      ...prev,
+      assignedSubjects: next,
+      tierSubjects: nextTier,
+      subject: next.join(', ')
+    }));
+  };
+
+  const handleAddCustomSubject = (rawSubject) => {
+    const clean = String(rawSubject || '').trim();
+    if (!clean) return;
+    if ((adminForm.assignedSubjects || []).some(s => s.toLowerCase() === clean.toLowerCase())) {
+      setCustomSubjectInput('');
+      return;
+    }
+    const resolvedTier = subjectTierFilter === '9th-10th' ? '9th-10th' : '11th-12th';
+    handleToggleSubject(clean, resolvedTier);
+    setCustomSubjectInput('');
+  };
 
   const toggleModulesDropdown = (email) => {
     setOpenDropdownUser(prev => prev === email ? null : email);
@@ -399,6 +517,9 @@ export default function StaffPermissionsManager() {
     setSubjectTierTab('11th-12th');
     setCustomSubjectInput('');
     setModalModuleSearch('');
+    setSubjectDropdownOpen(false);
+    setSubjectSearch('');
+    setSubjectTierFilter('all');
     setShowAdminModal(true);
   };
 
@@ -461,6 +582,9 @@ export default function StaffPermissionsManager() {
     }
     setCustomSubjectInput('');
     setModalModuleSearch('');
+    setSubjectDropdownOpen(false);
+    setSubjectSearch('');
+    setSubjectTierFilter('all');
     setShowAdminModal(true);
   };
 
@@ -1279,391 +1403,327 @@ export default function StaffPermissionsManager() {
 
                 {/* Faculty Subject & Classes Assignment (if Teacher) */}
                 {adminForm.role === 'Teacher' && (
-                  <div className="space-y-3 p-3 sm:p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/60">
-                    {/* Header with Class Tier Selector Tabs */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 dark:border-emerald-800/60 pb-2.5">
-                      <div>
-                        <label className="block text-xs font-black text-emerald-950 dark:text-emerald-200">
-                          Assigned Teaching Subject(s) <span className="text-rose-500">*</span>
+                  <div className="space-y-2.5 p-3 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/60">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-emerald-200/60 dark:border-emerald-800/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-black text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5">
+                          <BookOpen size={13} className="text-emerald-600 dark:text-emerald-400" />
+                          <span>Assigned Teaching Subject(s)</span>
+                          <span className="text-rose-500">*</span>
                         </label>
-                        <p className="text-[10px] font-medium text-emerald-800/80 dark:text-emerald-400/80">
-                          Check all subjects this faculty member teaches across secondary and higher secondary levels.
-                        </p>
+                        <span className="px-2 py-0.2 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                          {adminForm.assignedSubjects?.length || 0} Assigned
+                        </span>
                       </div>
-
-                      {/* Class Tier Tabs (9th-10th vs 11th-12th) */}
-                      <div className="inline-flex p-0.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-200 dark:border-emerald-800 shadow-2xs self-start sm:self-auto">
-                        <button
-                          type="button"
-                          onClick={() => setSubjectTierTab('9th-10th')}
-                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold cursor-pointer transition-all ${
-                            subjectTierTab === '9th-10th'
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-300 hover:text-emerald-700'
-                          }`}
-                        >
-                          Secondary (9th & 10th)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSubjectTierTab('11th-12th')}
-                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold cursor-pointer transition-all ${
-                            subjectTierTab === '11th-12th'
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-300 hover:text-emerald-700'
-                          }`}
-                        >
-                          Higher Secondary (11th & 12th)
-                        </button>
-                      </div>
+                      <span className="text-[10px] text-emerald-800/80 dark:text-emerald-400/80 font-medium">
+                        Select curriculum subjects via compact checkbox dropdown
+                      </span>
                     </div>
 
-                    {/* Selected Subjects Chips Summary */}
-                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200/60 dark:border-emerald-800/60 space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                        <span>Active Subject Assignment ({adminForm.assignedSubjects?.length || 0})</span>
-                        {adminForm.assignedSubjects && adminForm.assignedSubjects.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setAdminForm({ ...adminForm, assignedSubjects: [], tierSubjects: { '9th-10th': [], '11th-12th': [] }, subject: '' })}
-                            className="text-rose-500 hover:text-rose-600 cursor-pointer text-[9.5px] font-bold"
-                          >
-                            Clear All
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5 min-h-[28px]">
-                        {adminForm.assignedSubjects && adminForm.assignedSubjects.length > 0 ? (
-                          getTeacherClassSubjectPermissions(adminForm).filter(p => p.subject).map((perm, pIdx) => (
-                            <span
-                              key={pIdx}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-600 text-white shadow-2xs animate-fadeIn"
-                            >
-                              <span className="text-[10px] font-black uppercase text-emerald-200">
-                                {perm.classes.map(c => `Class ${c}`).join(', ')}:
-                              </span>
-                              <span className="font-extrabold">{perm.subject}</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next = (adminForm.assignedSubjects || []).filter((s) => s !== perm.subject);
-                                  const nextTier = {
-                                    '9th-10th': (adminForm.tierSubjects?.['9th-10th'] || []).filter(s => s !== perm.subject),
-                                    '11th-12th': (adminForm.tierSubjects?.['11th-12th'] || []).filter(s => s !== perm.subject),
-                                  };
-                                  setAdminForm({ ...adminForm, assignedSubjects: next, tierSubjects: nextTier, subject: next.join(', ') });
-                                }}
-                                className="hover:opacity-75 cursor-pointer p-0.5 -mr-0.5"
-                                title={`Remove ${perm.subject}`}
+                    {/* Multi-Select Checkbox Dropdown Trigger & Panel */}
+                    <div ref={subjectDropdownRef} className="relative">
+                      <div
+                        onClick={() => setSubjectDropdownOpen(!subjectDropdownOpen)}
+                        className={`w-full min-h-[38px] px-3 py-1.5 rounded-xl text-xs border bg-white dark:bg-slate-900 flex items-center justify-between gap-2 cursor-pointer shadow-2xs transition-all ${
+                          subjectDropdownOpen
+                            ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+                            : 'border-emerald-300 dark:border-emerald-700/80 hover:border-emerald-400'
+                        }`}
+                      >
+                        <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
+                          {(adminForm.assignedSubjects && adminForm.assignedSubjects.length > 0) ? (
+                            adminForm.assignedSubjects.map((sub) => (
+                              <span
+                                key={sub}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-2xs"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <X size={12} />
-                              </button>
+                                <span>{sub}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveSubject(sub)}
+                                  className="text-emerald-600 hover:text-rose-600 p-0.5 rounded cursor-pointer"
+                                  title={`Remove ${sub}`}
+                                >
+                                  <X size={11} />
+                                </button>
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-500 text-xs font-medium flex items-center gap-1.5">
+                              <Search size={12} className="text-slate-400" />
+                              <span>Click to open subject checklist dropdown...</span>
                             </span>
-                          ))
-                        ) : (
-                          <span className="text-xs font-medium text-amber-600 dark:text-amber-400 italic">
-                            No subjects selected yet — check below or add custom subjects
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                          )}
+                        </div>
 
-                    {/* Subject Catalogue Grid by Tier */}
-                    {subjectTierTab === '9th-10th' ? (
-                      <div className="space-y-2 pt-0.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10.5px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                            Secondary Curriculum ({SECONDARY_SUBJECTS_LIST.length} Subjects)
-                          </span>
-                          <div className="flex items-center gap-2 text-[10px] font-bold">
+                        <div className="flex items-center gap-1.5 shrink-0 text-slate-400">
+                          {adminForm.assignedSubjects?.length > 0 && (
                             <button
                               type="button"
-                              onClick={() => {
-                                const current = new Set(adminForm.assignedSubjects || []);
-                                const currentTier = new Set(adminForm.tierSubjects?.['9th-10th'] || []);
-                                SECONDARY_SUBJECTS_LIST.forEach(s => { current.add(s); currentTier.add(s); });
-                                const nextClasses = Array.from(new Set([...(adminForm.assignedClasses || []), '9th', '10th']));
-                                setAdminForm({ 
-                                  ...adminForm, 
-                                  assignedSubjects: Array.from(current), 
-                                  assignedClasses: nextClasses,
-                                  tierSubjects: { ...(adminForm.tierSubjects || {}), '9th-10th': Array.from(currentTier) },
-                                  subject: Array.from(current).join(', ') 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAdminForm({
+                                  ...adminForm,
+                                  assignedSubjects: [],
+                                  tierSubjects: { '9th-10th': [], '11th-12th': [] },
+                                  subject: ''
                                 });
                               }}
-                              className="text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+                              className="text-[10px] font-bold text-rose-500 hover:text-rose-600 px-1 py-0.5 rounded hover:bg-rose-50 dark:hover:bg-rose-950/60 transition-colors"
+                              title="Clear all selected subjects"
                             >
-                              Select All 7
+                              Clear
                             </button>
-                          </div>
+                          )}
+                          <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
+                          <ChevronDown size={14} className={`transition-transform duration-200 text-emerald-600 ${subjectDropdownOpen ? 'rotate-180' : ''}`} />
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          {SECONDARY_SUBJECTS_LIST.map((sub) => {
-                            const isChecked = (adminForm.assignedSubjects || []).includes(sub);
-                            return (
+                      </div>
+
+                      {/* Dropdown Floating Panel */}
+                      {subjectDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1.5 z-[100] bg-white dark:bg-slate-900 rounded-2xl border border-emerald-300 dark:border-emerald-700 shadow-2xl p-3 space-y-2.5 animate-fadeIn">
+                          {/* Search and Tier Tabs */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <div className="relative flex-1">
+                              <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                              <input
+                                type="text"
+                                autoFocus
+                                value={subjectSearch}
+                                onChange={(e) => setSubjectSearch(e.target.value)}
+                                placeholder="Search teaching subjects..."
+                                className="w-full pl-8 pr-7 py-1.5 rounded-xl text-xs font-medium border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                              />
+                              {subjectSearch && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSubjectSearch('')}
+                                  className="absolute right-2 top-2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0 self-start sm:self-auto">
                               <button
-                                key={sub}
+                                type="button"
+                                onClick={() => setSubjectTierFilter('all')}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                                  subjectTierFilter === 'all'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-300 hover:text-emerald-600'
+                                }`}
+                              >
+                                All ({allAvailableSubjects.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSubjectTierFilter('9th-10th')}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                                  subjectTierFilter === '9th-10th'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-300 hover:text-emerald-600'
+                                }`}
+                              >
+                                Secondary ({SECONDARY_SUBJECTS_LIST.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSubjectTierFilter('11th-12th')}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                                  subjectTierFilter === '11th-12th'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-300 hover:text-emerald-600'
+                                }`}
+                              >
+                                Higher Sec ({HIGHER_SECONDARY_SUBJECTS_LIST.length})
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Action Toolbar */}
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 px-0.5">
+                            <span>
+                              Showing {filteredTeacherSubjects.length} subjects • <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{adminForm.assignedSubjects?.length || 0} selected</span>
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
                                 type="button"
                                 onClick={() => {
-                                  const current = adminForm.assignedSubjects || [];
-                                  const currentTier = adminForm.tierSubjects?.['9th-10th'] || [];
-                                  const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
-                                  const nextTier = isChecked ? currentTier.filter((s) => s !== sub) : [...currentTier, sub];
+                                  const toAdd = filteredTeacherSubjects.map(s => s.name);
+                                  const nextAssigned = Array.from(new Set([...(adminForm.assignedSubjects || []), ...toAdd]));
+                                  const nextTier = { ...(adminForm.tierSubjects || {}) };
+                                  filteredTeacherSubjects.forEach(item => {
+                                    const t = item.tier === '9th-10th' ? '9th-10th' : '11th-12th';
+                                    nextTier[t] = Array.from(new Set([...(nextTier[t] || []), item.name]));
+                                  });
                                   let nextClasses = [...(adminForm.assignedClasses || [])];
-                                  if (!isChecked && !nextClasses.some(c => c === '9th' || c === '10th')) {
+                                  if (filteredTeacherSubjects.some(i => i.tier === '9th-10th') && !nextClasses.some(c => c === '9th' || c === '10th')) {
                                     nextClasses = Array.from(new Set([...nextClasses, '9th', '10th']));
                                   }
-                                  setAdminForm({ 
-                                    ...adminForm, 
-                                    assignedSubjects: next, 
+                                  if (filteredTeacherSubjects.some(i => i.tier === '11th-12th') && !nextClasses.some(c => c === '11th' || c === '12th')) {
+                                    nextClasses = Array.from(new Set([...nextClasses, '11th', '12th']));
+                                  }
+                                  setAdminForm({
+                                    ...adminForm,
+                                    assignedSubjects: nextAssigned,
                                     assignedClasses: nextClasses,
-                                    tierSubjects: { ...(adminForm.tierSubjects || {}), '9th-10th': nextTier },
-                                    subject: next.join(', ') 
+                                    tierSubjects: nextTier,
+                                    subject: nextAssigned.join(', ')
                                   });
                                 }}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${
-                                  isChecked
-                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs scale-[1.02]'
-                                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
-                                }`}
+                                className="text-emerald-600 hover:underline cursor-pointer"
                               >
-                                <span className={`w-4 h-4 rounded flex items-center justify-center border text-[9.5px] ${
-                                  isChecked ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'
-                                }`}>
-                                  {isChecked && <Check size={11} strokeWidth={3} />}
-                                </span>
-                                <span>{sub}</span>
+                                Select All Filtered
                               </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 pt-0.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10.5px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                            Higher Secondary Curriculum ({HIGHER_SECONDARY_SUBJECTS_LIST.length} Subjects)
-                          </span>
-                          <div className="flex items-center gap-2 text-[10px] font-bold">
+                              <span>|</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const toRemove = new Set(filteredTeacherSubjects.map(s => s.name));
+                                  const nextAssigned = (adminForm.assignedSubjects || []).filter(s => !toRemove.has(s));
+                                  const nextTier = {
+                                    '9th-10th': (adminForm.tierSubjects?.['9th-10th'] || []).filter(s => !toRemove.has(s)),
+                                    '11th-12th': (adminForm.tierSubjects?.['11th-12th'] || []).filter(s => !toRemove.has(s)),
+                                  };
+                                  setAdminForm({
+                                    ...adminForm,
+                                    assignedSubjects: nextAssigned,
+                                    tierSubjects: nextTier,
+                                    subject: nextAssigned.join(', ')
+                                  });
+                                }}
+                                className="text-rose-500 hover:underline cursor-pointer"
+                              >
+                                Clear Filtered
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Checkbox Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
+                            {filteredTeacherSubjects.map((item) => {
+                              const isChecked = (adminForm.assignedSubjects || []).includes(item.name);
+                              return (
+                                <label
+                                  key={`${item.tier}-${item.name}`}
+                                  className={`flex items-center justify-between gap-1.5 p-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
+                                    isChecked
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-800 text-emerald-950 dark:text-emerald-100 shadow-2xs'
+                                      : 'bg-slate-50/50 dark:bg-slate-950/40 border-slate-200/60 dark:border-slate-800/60 text-slate-700 dark:text-slate-300 hover:border-emerald-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => handleToggleSubject(item.name, item.tier)}
+                                      className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
+                                    />
+                                    <span className="truncate">{item.name}</span>
+                                  </div>
+                                  <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono shrink-0 ${
+                                    item.tier === '9th-10th'
+                                      ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300'
+                                      : item.tier === '11th-12th'
+                                      ? 'bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300'
+                                      : 'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300'
+                                  }`}>
+                                    {item.tier === '9th-10th' ? '9-10' : item.tier === '11th-12th' ? '11-12' : 'Other'}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                            {filteredTeacherSubjects.length === 0 && (
+                              <div className="col-span-full py-6 text-center text-xs text-slate-400">
+                                No subjects match "{subjectSearch}". Type below to add custom.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Quick Custom Subject Adder & Close Toolbar */}
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                            <div className="flex-1 flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={customSubjectInput}
+                                onChange={(e) => setCustomSubjectInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddCustomSubject(customSubjectInput);
+                                  }
+                                }}
+                                placeholder="Write any other custom subject..."
+                                className="flex-1 px-3 py-1 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleAddCustomSubject(customSubjectInput)}
+                                className="px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-2xs"
+                              >
+                                + Add
+                              </button>
+                            </div>
                             <button
                               type="button"
-                              onClick={() => {
-                                const current = new Set(adminForm.assignedSubjects || []);
-                                const currentTier = new Set(adminForm.tierSubjects?.['11th-12th'] || []);
-                                HIGHER_SECONDARY_SUBJECTS_LIST.forEach(s => { current.add(s); currentTier.add(s); });
-                                const nextClasses = Array.from(new Set([...(adminForm.assignedClasses || []), '11th', '12th']));
-                                setAdminForm({ 
-                                  ...adminForm, 
-                                  assignedSubjects: Array.from(current), 
-                                  assignedClasses: nextClasses,
-                                  tierSubjects: { ...(adminForm.tierSubjects || {}), '11th-12th': Array.from(currentTier) },
-                                  subject: Array.from(current).join(', ') 
-                                });
-                              }}
-                              className="text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+                              onClick={() => setSubjectDropdownOpen(false)}
+                              className="px-3.5 py-1 rounded-xl text-xs font-extrabold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 cursor-pointer transition-colors"
                             >
-                              Select All 15
+                              Done
                             </button>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          {HIGHER_SECONDARY_SUBJECTS_LIST.map((sub) => {
-                            const isChecked = (adminForm.assignedSubjects || []).includes(sub);
-                            return (
-                              <button
-                                key={sub}
-                                type="button"
-                                onClick={() => {
-                                  const current = adminForm.assignedSubjects || [];
-                                  const currentTier = adminForm.tierSubjects?.['11th-12th'] || [];
-                                  const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
-                                  const nextTier = isChecked ? currentTier.filter((s) => s !== sub) : [...currentTier, sub];
-                                  let nextClasses = [...(adminForm.assignedClasses || [])];
-                                  if (!isChecked && !nextClasses.some(c => c === '11th' || c === '12th')) {
-                                    nextClasses = Array.from(new Set([...nextClasses, '11th', '12th']));
-                                  }
-                                  setAdminForm({ 
-                                    ...adminForm, 
-                                    assignedSubjects: next, 
-                                    assignedClasses: nextClasses,
-                                    tierSubjects: { ...(adminForm.tierSubjects || {}), '11th-12th': nextTier },
-                                    subject: next.join(', ') 
-                                  });
-                                }}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${
-                                  isChecked
-                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs scale-[1.02]'
-                                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
-                                }`}
-                              >
-                                <span className={`w-4 h-4 rounded flex items-center justify-center border text-[9.5px] ${
-                                  isChecked ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'
-                                }`}>
-                                  {isChecked && <Check size={11} strokeWidth={3} />}
-                                </span>
-                                <span>{sub}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Custom / Quick Write-In Subject Adder */}
-                    <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={customSubjectInput}
-                        onChange={(e) => setCustomSubjectInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const clean = customSubjectInput.trim();
-                            if (clean && !(adminForm.assignedSubjects || []).includes(clean)) {
-                              const next = [...(adminForm.assignedSubjects || []), clean];
-                              const tierKey = subjectTierTab;
-                              const currentTier = adminForm.tierSubjects?.[tierKey] || [];
-                              setAdminForm({ 
-                                ...adminForm, 
-                                assignedSubjects: next, 
-                                tierSubjects: { ...(adminForm.tierSubjects || {}), [tierKey]: [...currentTier, clean] },
-                                subject: next.join(', ') 
-                              });
-                              setCustomSubjectInput('');
-                            }
-                          }
-                        }}
-                        placeholder="Type any custom / other subject..."
-                        className="flex-1 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-300 dark:border-emerald-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const clean = customSubjectInput.trim();
-                          if (clean && !(adminForm.assignedSubjects || []).includes(clean)) {
-                            const next = [...(adminForm.assignedSubjects || []), clean];
-                            const tierKey = subjectTierTab;
-                            const currentTier = adminForm.tierSubjects?.[tierKey] || [];
-                            setAdminForm({ 
-                              ...adminForm, 
-                              assignedSubjects: next, 
-                              tierSubjects: { ...(adminForm.tierSubjects || {}), [tierKey]: [...currentTier, clean] },
-                              subject: next.join(', ') 
-                            });
-                            setCustomSubjectInput('');
-                          }
-                        }}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer transition-all active:scale-95"
-                      >
-                        + Add Subject
-                      </button>
+                      )}
                     </div>
 
-                    {/* Assigned Classes Grouped by Curriculum Tier */}
-                    <div className="pt-2.5 border-t border-emerald-200/60 dark:border-emerald-800/60 space-y-2.5">
-                      <div className="flex items-center justify-between">
+                    {/* Compact Assigned Classes Row */}
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200/60 dark:border-emerald-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
                         <label className="block text-[11px] font-black text-emerald-950 dark:text-emerald-200 uppercase tracking-wider">
                           Assigned Classes (Evaluation & Registers)
                         </label>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
-                          Active Tab: {subjectTierTab === '9th-10th' ? 'Secondary Tier' : 'Higher Secondary Tier'}
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                          Toggle evaluation access for faculty ({adminForm.assignedClasses?.length || 0}/4 active)
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {/* Secondary Tier */}
-                        <div className={`p-2.5 rounded-xl border transition-all ${
-                          subjectTierTab === '9th-10th'
-                            ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/80 shadow-2xs'
-                            : 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200/70 dark:border-slate-800 opacity-80 hover:opacity-100'
-                        }`}>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10.5px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                              Secondary (9th & 10th)
-                            </span>
-                            <span className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400">
-                              {(adminForm.tierSubjects?.['9th-10th'] || []).length} subject(s)
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {['9th', '10th'].map((cls) => {
-                              const isSelected = (adminForm.assignedClasses || []).includes(cls);
-                              return (
-                                <label
-                                  key={cls}
-                                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs font-bold cursor-pointer transition-all ${
-                                    isSelected
-                                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(event) =>
-                                      setAdminForm((prev) => ({
-                                        ...prev,
-                                        assignedClasses: event.target.checked
-                                          ? normalizeTeacherClasses([...(prev.assignedClasses || []), cls])
-                                          : (prev.assignedClasses || []).filter((v) => v !== cls),
-                                      }))
-                                    }
-                                    className="hidden"
-                                  />
-                                  <span>Class {cls}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Higher Secondary Tier */}
-                        <div className={`p-2.5 rounded-xl border transition-all ${
-                          subjectTierTab === '11th-12th'
-                            ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/80 shadow-2xs'
-                            : 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200/70 dark:border-slate-800 opacity-80 hover:opacity-100'
-                        }`}>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10.5px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                              <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-                              Higher Secondary (11th & 12th)
-                            </span>
-                            <span className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400">
-                              {(adminForm.tierSubjects?.['11th-12th'] || []).length} subject(s)
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {['11th', '12th'].map((cls) => {
-                              const isSelected = (adminForm.assignedClasses || []).includes(cls);
-                              return (
-                                <label
-                                  key={cls}
-                                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs font-bold cursor-pointer transition-all ${
-                                    isSelected
-                                      ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
-                                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(event) =>
-                                      setAdminForm((prev) => ({
-                                        ...prev,
-                                        assignedClasses: event.target.checked
-                                          ? normalizeTeacherClasses([...(prev.assignedClasses || []), cls])
-                                          : (prev.assignedClasses || []).filter((v) => v !== cls),
-                                      }))
-                                    }
-                                    className="hidden"
-                                  />
-                                  <span>Class {cls}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {['9th', '10th', '11th', '12th'].map((cls) => {
+                          const isSelected = (adminForm.assignedClasses || []).includes(cls);
+                          const isSec = cls === '9th' || cls === '10th';
+                          return (
+                            <button
+                              key={cls}
+                              type="button"
+                              onClick={() => {
+                                const next = isSelected
+                                  ? (adminForm.assignedClasses || []).filter(c => c !== cls)
+                                  : normalizeTeacherClasses([...(adminForm.assignedClasses || []), cls]);
+                                setAdminForm(prev => ({ ...prev, assignedClasses: next }));
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                                isSelected
+                                  ? isSec
+                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                                    : 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                                  : 'bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
+                              }`}
+                            >
+                              <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] ${
+                                isSelected ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'
+                              }`}>
+                                {isSelected && <Check size={10} strokeWidth={3} />}
+                              </span>
+                              <span>Class {cls}</span>
+                              <span className="text-[9px] opacity-75 font-mono">({isSec ? 'Sec' : 'Hr'})</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

@@ -1,41 +1,45 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Instant Module Search in Staff Permissions Manager
+## Latest Commit: Compact Teacher Subject Assignment with Multi-Select Checkbox Dropdown
 
-**Commit Message:** `feat(permissions): add instant search filter to granted modules in staff permissions manager`
+**Commit Message:** `refactor(permissions): compact teacher subject assignment with multi-select checkbox dropdown and streamlined class selector`
 
 ---
 
 ### Context & Requirements Addressed
 
 1. **User Request**:
-   - *"allow to search module here as there aremany manuallly takes more time to find"*
-   - User provided a screenshot of the **Staff & Permissions Manager** (`localhost:3000/portal/admin?tab=staff`) showing an expanded user card (*"Configure Granted Modules for Sheikh Gulfam"*) with 26 modules displayed across a 4-column grid without any search/filter input, requiring tedious manual scrolling to find and toggle specific modules.
+   - *"apply check box drop down to make design compact"*
+   - The user provided a screenshot of the **Register New Staff Member / Edit Staff Account** modal for the `Teaching Faculty / Subject Teacher` role category.
+   - The previous layout displayed a sprawling grid of 16-23 subject buttons across secondary and higher secondary curriculum tiers along with two large cards for classes, consuming excessive vertical height and requiring extensive scrolling.
 
 2. **Problem Analysis**:
-   - As the institutional portal has expanded to 26 feature modules, finding a specific module (e.g. "School Based Assessment", "Google Contacts Bulk Exporter", "Practicals & Award Rolls", "Attendance") inside the permissions grid required scanning through all 26 checkboxes manually.
-   - The component had internal logic initialized for filtering, but lacked a dedicated search bar and was rendering all 26 modules regardless.
-   - Additionally, the Add/Edit Staff account modal also displayed 26 modules across multiple category sections without a fast search input.
+   - The modal suffered from vertical bloat due to constantly expanded subject button grids, custom input rows, and split class cards.
+   - Transforming subject assignment into an interactive multi-select checkbox dropdown with search and curriculum filters drastically compresses the form into a clean, compact footprint.
 
 ---
 
 ### Solutions Implemented
 
-1. **Interactive Inline Module Search** ([src/portal/admin/StaffPermissionsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffPermissionsManager.jsx)):
-   - Added a sleek, instant search bar with a `Search` icon, clear button (`X`), real-time match counter, and total module indicator right above the permissions grid.
-   - Broadened search matching across module `label`, `shortLabel`, `code`, `category`, and `desc` (e.g. searching "assessment", "omr", "practical", "roll", "attendance", "fee", or "student" instantly filters matches).
-   - Added a dynamic **"Grant Matching ({count})"** quick-action button whenever a search filter is active, allowing administrators to grant all filtered modules in a single click.
-   - Added an empty state with a "Clear search" fallback when no modules match the search query.
+1. **Multi-Select Checkbox Dropdown** ([src/portal/admin/StaffPermissionsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffPermissionsManager.jsx)):
+   - Replaced the sprawling subject buttons with a sleek, input-styled trigger displaying selected subject chips, quick-clear action, count badge, and animated chevron.
+   - Implemented a floating popover menu with:
+     - Real-time search filter (`Search` input) for finding subjects instantly.
+     - Curriculum tabs: `All`, `Secondary (9th-10th)`, and `Higher Secondary (11th-12th)`.
+     - Action buttons: `Select All Filtered` and `Clear Filtered`.
+     - Compact scrollable checkbox grid (1-3 columns) with curriculum tier badges (`9-10`, `11-12`, `Other`).
+     - Integrated custom subject write-in input and "+ Add" button inside the dropdown footer.
+     - "Done" button and outside-click auto-dismissal (`useRef` click-outside hook).
 
-2. **Modal Module Search**:
-   - Added `modalModuleSearch` state with an integrated search bar inside the Add/Edit Staff Modal for Standard Admins.
-   - Automatically filters module options across categories in real time, with category counts reflecting matches and an empty state if no modules match across any category.
+2. **Streamlined Horizontal Assigned Classes Row**:
+   - Replaced the two bulky split class cards with a single horizontal flex row featuring clean toggle pill buttons for `Class 9th`, `Class 10th`, `Class 11th`, and `Class 12th`.
+   - Displays real-time active count (e.g. `2/4 active`) and preserves automatic tier matching when secondary or higher secondary subjects are selected.
 
 ---
 
 ### Exact List of Files Changed
 
-- [src/portal/admin/StaffPermissionsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffPermissionsManager.jsx) (Added module search bar, counter, batch-grant matching button, and empty state to inline card dropdown and modal)
+- [src/portal/admin/StaffPermissionsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffPermissionsManager.jsx) (Converted teacher subject selection to compact multi-select checkbox dropdown and compressed class selector row)
 - [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md) (Updated commit memory log)
 
 ---
@@ -57,7 +61,7 @@ git log -1 --stat
 
 # If you wish to amend or re-commit:
 git reset --soft HEAD~1
-git commit -m "feat(permissions): add instant search filter to granted modules in staff permissions manager"
+git commit -m "refactor(permissions): compact teacher subject assignment with multi-select checkbox dropdown and streamlined class selector"
 ```
 
 To push changes to GitHub:
