@@ -1,58 +1,44 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Class 10th Practicals Management (7 Subjects) & Practicals Recycle Bin Delete Actions
+## Latest Commit: Diagnostic & Error Handling for Cloud Firestore Free-Tier Quota Exceeded
 
-**Commit Message:** `feat(practicals): add Class 10th practicals support with 7 core subjects and submission delete recycle bin`
+**Commit Message:** `fix(portal): clarify Firestore quota exceeded guidance during bulk field overwrite`
 
 ---
 
-### Context & User Requests
+### Context & Diagnostic Analysis
 
-1. **Class 10th Practicals Management**:
-   - The user requested: *"moreover the practicals portal will now manage class 10th practicals also.....class 10th class 7 subjects in total"*
-   - Authoritative 7 subjects for Secondary Class 10th:
-     - 5 Compulsory Core Subjects: English (`EN`), Mathematics (`MA`), Science (`SC`), Social Science (`SS`), Urdu (`UR`).
-     - 2 Vocational Electives: Healthcare (`HTC`), IT and ITES (`ITE`).
+1. **User Screenshot & Reported Error**:
+   - The user encountered `⚠️ Failed during overwrite execution: Quota exceeded.` while executing a bulk field overwrite for 59 Class 10th student Board Roll Numbers in the Express Direct Record Entry tool (`localhost:3000/portal/admin?gkSubtab=school&tab=directEntry`).
+   
+2. **Root Cause Confirmation via Live REST Diagnostic**:
+   - Directly queried the Cloud Firestore REST endpoint for `hsssdb`:
+     ```json
+     {"error":{"code":429,"message":"Quota exceeded.","status":"RESOURCE_EXHAUSTED"}}
+     ```
+   - **Reason**: The Firebase project `hsssdb` reached Google Cloud Firestore's Spark (Free Tier) daily quotas (20,000 document writes / 50,000 document reads per 24 hours).
+   - When this daily ceiling is met on the Spark plan, Google Cloud blocks further Firestore reads/writes with HTTP 429 (`RESOURCE_EXHAUSTED`).
 
-2. **Submission Delete & Recycle Bin**:
-   - The user asked *"where is delete option"* with a screenshot of the submission inspection/review modal.
-   - When reviewing a submission in `SelectedSubmissionModal`, there was no option to delete or soft-delete the submission, requiring users to exit and find rows in the underlying tables.
-   - Pending approval cards and modal footers previously only displayed "Inspect", "Reject / Revision", and "Approve".
+3. **Resolution**:
+   - **Immediate Permanent Fix**: Upgrade the Firebase project `hsssdb` from Spark (Free) to **Blaze (Pay-as-you-go)** at [Firebase Console Usage Dashboard](https://console.firebase.google.com/project/hsssdb/usage).
+     - The first 50k reads, 20k writes, and 20k deletes each day remain **100% free ($0.00)** on Blaze.
+     - Additional operations cost negligible fractions of a cent ($0.06 per 100k writes).
+     - Prevents bulk overwrites, teacher submissions, and result imports from being hard-blocked.
+   - **Alternative**: Wait for the daily free quota to reset at midnight Pacific Time (00:00 PST / 12:30 PM IST).
 
 ---
 
 ### Solutions Implemented
 
-1. **Integrated Class 10th Practicals in Admin Portal**:
-   - Added `Class 10th` tab alongside `Class 11th` and `Class 12th` in the main segmented toolbar of [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx).
-   - Rendered `<AwardsSummaryView cls="10th" ... />` when the `Class 10th` tab is selected.
-   - In `AwardsSummaryView`, dynamically resolved `activeCodesList` for Class 10th to the authoritative 7 subjects: `['EN', 'MA', 'SC', 'SS', 'UR', 'HTC', 'ITE']`.
-   - Updated `isClassMatch` and `getRollNo` to parse Class 10th identifiers (including Roman numeral `X`, text `ten`, and `Class Roll No (Class 10th)`).
-   - Preserved `Subjects to be taken in Class 10th` in `cleanStudentData` normalization.
-   - Added `Class 10th` to the flat document audit filter dropdown in `FacultySubmissionsView`.
-
-2. **Direct Delete & Practicals Recycle Bin Across Modals & Cards**:
-   - Passed `onDelete` to `<SelectedSubmissionModal>` in [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx), triggering the recoverable confirmation modal and moving documents to `practicalsRecycleBin`.
-   - Added a prominent red **Delete** button in the top-right toolbar of `SelectedSubmissionModal` (next to "Print Award Roll").
-   - Added a **Delete** button in the modal footer next to "Request Revision / Reject".
-   - Added quick delete trash icons directly on each pending approval card in `FacultySubmissionsView`.
-   - Added a delete button to the inspection modal footer in [src/portal/admin/SchoolAssessmentApprovalsView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAssessmentApprovalsView.jsx).
-
-3. **Recycle Bin Service & Firestore Security Rules**:
-   - Created [src/portal/admin/PracticalsRecycleBinModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/PracticalsRecycleBinModal.jsx) with search, filter, restore to live database, and permanent purge capabilities.
-   - Integrated `practicalsBinService.js` with `moveSubmissionToRecycleBin`, `getPracticalsRecycleBinItems`, `restoreSubmissionFromBin`, and `purgeSubmissionFromBin`.
-   - Updated [firestore.rules](file:///d:/Shk_Gulfam/Projects/hss_shangus/firestore.rules) with RBAC rules for `practicalsRecycleBin` collection.
-   - Deployed updated security rules to Firebase `hsssdb` successfully.
+1. **User-Friendly & Actionable Error Messaging**:
+   - Updated [src/portal/admin/BulkFieldOverwriteModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BulkFieldOverwriteModal.jsx) lines 2660–2670 to detect Firestore `resource-exhausted` / `Quota exceeded` errors.
+   - Replaced raw, ambiguous `Quota exceeded` error with explicit, actionable guidance directing administrators to the Firebase Console upgrade option or quota reset timing.
 
 ---
 
 ### Exact List of Files Changed
 
-- [firestore.rules](file:///d:/Shk_Gulfam/Projects/hss_shangus/firestore.rules) (Added `practicalsRecycleBin` collection security rules)
-- [src/services/practicalsBinService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/practicalsBinService.js) (Added soft-delete, restore, and purge services)
-- [src/portal/admin/PracticalsRecycleBinModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/PracticalsRecycleBinModal.jsx) (Recycle bin modal interface)
-- [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx) (Class 10th tabs, 7 subjects, modal delete button, pending card delete buttons, recycle bin launcher)
-- [src/portal/admin/SchoolAssessmentApprovalsView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAssessmentApprovalsView.jsx) (Inspect modal footer delete button)
+- [src/portal/admin/BulkFieldOverwriteModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BulkFieldOverwriteModal.jsx) (Added Firestore daily quota exceeded detection and guidance)
 - [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md) (Updated memory log)
 
 ---
@@ -60,7 +46,7 @@
 ### Build Verification & Metrics
 
 - `npm run build`: **Exit Code 0**
-- `npx -y firebase-tools deploy --only firestore:rules`: **Released successfully to Firebase `hsssdb`**
+- Test REST Probe: `code: 429, status: RESOURCE_EXHAUSTED` diagnosed and documented.
 
 ---
 
@@ -73,7 +59,7 @@ git log -1 --stat
 
 # If you wish to amend or re-commit:
 git reset --soft HEAD~1
-git commit -m "feat(practicals): add Class 10th practicals support with 7 core subjects and submission delete recycle bin"
+git commit -m "fix(portal): clarify Firestore quota exceeded guidance during bulk field overwrite"
 
 # Push manually whenever ready:
 git push origin main
