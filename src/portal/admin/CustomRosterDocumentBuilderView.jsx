@@ -15,13 +15,15 @@ import {
   ChevronDown, ChevronUp, ArrowLeft, ArrowRight, GripVertical,
   ArrowUpDown, ArrowUp, ArrowDown, Edit3, Save, RotateCcw, Check, Bookmark, Award,
   Calculator, IndianRupee, FlaskConical, CheckCircle2, Cloud, Info, Zap,
-  Columns, ClipboardList, Search, Underline, Type, AlertTriangle
+  Columns, ClipboardList, Search, Underline, Type, AlertTriangle, Hash
 } from 'lucide-react';
 import { generateCustomRosterDocx } from '../../utils/customRosterDocxGenerator';
 import {
   printCustomRosterTable,
   exportCustomRosterExcel,
-  exportCustomRosterCsv
+  exportCustomRosterCsv,
+  resolveAttendanceRollCol,
+  getAttendanceStudentRoll
 } from '../../utils/customRosterExportUtils';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { showToast } from '../../components/common/GlobalToast';
@@ -4699,9 +4701,11 @@ export default function CustomRosterDocumentBuilderView({
     return activeColumns.some(c => c.key === 'studentPhoto' || c.key === 'photo');
   }, [activeColumns]);
 
-  const hasExamRollCol = useMemo(() => {
-    return activeColumns.some(c => c.key === 'examRollNo');
-  }, [activeColumns]);
+  const rollColInfo = useMemo(() => {
+    return resolveAttendanceRollCol(activeTableColumns);
+  }, [activeTableColumns]);
+
+  const hasExamRollCol = rollColInfo.isExam;
 
   // Normalize Student Data for Table View & Exports with Column Sorting (Instant < 2ms)
   const processedRows = useMemo(() => {
@@ -4713,6 +4717,12 @@ export default function CustomRosterDocumentBuilderView({
         const fallbackRoll = extractExamRollNo(st._rawStudent || st);
         if (fallbackRoll && fallbackRoll !== '—' && fallbackRoll !== '-') {
           row.examRollNo = fallbackRoll;
+        }
+      }
+      if (!row.classRollNo || row.classRollNo === '—' || row.classRollNo === '-') {
+        const fallbackClassRoll = getStudentRollNumber(st._rawStudent || st);
+        if (fallbackClassRoll && fallbackClassRoll !== '—' && fallbackClassRoll !== '-') {
+          row.classRollNo = fallbackClassRoll;
         }
       }
 
@@ -4863,6 +4873,42 @@ export default function CustomRosterDocumentBuilderView({
   const handleRemoveColumn = (key) => {
     if (activeColumns.length <= 1) return;
     setActiveColumns(activeColumns.filter(c => c.key !== key));
+  };
+
+  // Switch Attendance Sheet Roll Number Mode (Class Roll No vs Exam Roll No)
+  const handleSetAttendanceRollType = (type) => {
+    setActiveColumns(prev => {
+      if (type === 'class') {
+        const withoutExam = prev.filter(c => c.key !== 'examRollNo');
+        const hasClass = withoutExam.some(c => c.key === 'classRollNo');
+        if (!hasClass) {
+          const snoIdx = withoutExam.findIndex(c => c.key === 'sno');
+          const classCol = { key: 'classRollNo', label: 'R.No.', widthPct: 7, align: 'center', isCustom: false, isPrimary: true };
+          if (snoIdx !== -1) {
+            const next = [...withoutExam];
+            next.splice(snoIdx + 1, 0, classCol);
+            return next;
+          }
+          return [classCol, ...withoutExam];
+        }
+        return withoutExam;
+      } else {
+        const withoutClass = prev.filter(c => c.key !== 'classRollNo');
+        const hasExam = withoutClass.some(c => c.key === 'examRollNo');
+        if (!hasExam) {
+          const snoIdx = withoutClass.findIndex(c => c.key === 'sno');
+          const examCol = { key: 'examRollNo', label: 'Exam Roll No. (Current)', widthPct: 12, align: 'center', isPrimary: true, isCustom: false };
+          if (snoIdx !== -1) {
+            const next = [...withoutClass];
+            next.splice(snoIdx + 1, 0, examCol);
+            return next;
+          }
+          return [examCol, ...withoutClass];
+        }
+        return withoutClass;
+      }
+    });
+    showToast(type === 'class' ? 'Attendance sheet set to Class Roll No. (R.No.)' : 'Attendance sheet set to Exam Roll No. (Current)', 'info');
   };
 
   // Export to Word (.docx) — Includes only checked rows with sequential S.No.
@@ -5478,7 +5524,7 @@ export default function CustomRosterDocumentBuilderView({
         )}
       </div>
 
-      {/* ── CARD 4: ACTIONS & EXPORTS ── */}
+      {/* ── CARD 4: ACTIONS & EXPORTS (Compact Single-Row Design) ── */}
       <div className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-1">
         <div className="flex items-center justify-between text-[8.5px] uppercase font-black tracking-wider text-slate-500 pb-0.5 border-b border-slate-200/80 dark:border-slate-800">
           <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
@@ -5490,73 +5536,77 @@ export default function CustomRosterDocumentBuilderView({
           </span>
         </div>
 
-        {/* Primary Print Button */}
-        <button
-          type="button"
-          onClick={handlePrint}
-          disabled={processedRows.length === 0}
-          className="w-full h-7 px-2 rounded-lg bg-gradient-to-r from-amber-600 via-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[10.5px] flex items-center justify-center gap-1 shadow-sm cursor-pointer disabled:opacity-50 transition-all active:scale-95"
-          title="Print Official Institutional Register / Save PDF (Ctrl+P)"
-        >
-          <Printer size={11} />
-          <span>Print Register / Save PDF</span>
-          <span className="text-[8px] opacity-75 font-normal ml-0.5">(Ctrl+P)</span>
-        </button>
+        {/* All Actions on Single Compact Row */}
+        <div className="flex items-center gap-1">
+          {/* Primary Print Button */}
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={processedRows.length === 0}
+            className="flex-1 min-w-0 h-6.5 px-2 rounded-lg bg-gradient-to-r from-amber-600 via-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[9.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+            title="Print Official Institutional Register / Save PDF (Ctrl+P)"
+          >
+            <Printer size={10} className="shrink-0" />
+            <span className="truncate">Print / PDF</span>
+            <span className="text-[7.5px] opacity-75 font-normal ml-0.5 hidden sm:inline">(Ctrl+P)</span>
+          </button>
 
-        {/* 3-Column Export Grid */}
-        <div className="grid grid-cols-3 gap-1">
+          {/* Excel */}
           <button
             type="button"
             onClick={handleExportExcel}
             disabled={processedRows.length === 0}
-            className="h-6 px-1 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
+            className="h-6.5 px-2 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
             title="Export filtered records to Microsoft Excel spreadsheet"
           >
-            <FileSpreadsheet size={9} />
+            <FileSpreadsheet size={9.5} className="shrink-0" />
             <span>Excel</span>
           </button>
 
+          {/* Word */}
           <button
             type="button"
             onClick={handleExportDocx}
             disabled={processedRows.length === 0 || isExporting}
-            className="h-6 px-1 rounded-md bg-blue-700 hover:bg-blue-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
-            title="Export formatted roster to Microsoft Word document"
+            className="h-6.5 px-2 rounded-md bg-blue-700 hover:bg-blue-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
+            title="Export formatted roster to Microsoft Word document (.docx)"
           >
-            {isExporting ? <RefreshCw size={9} className="animate-spin" /> : <FileText size={9} />}
+            {isExporting ? <RefreshCw size={9.5} className="animate-spin shrink-0" /> : <FileText size={9.5} className="shrink-0" />}
             <span>Word</span>
           </button>
 
+          {/* CSV */}
           <button
             type="button"
             onClick={handleExportCsv}
             disabled={processedRows.length === 0}
-            className="h-6 px-1 rounded-md bg-slate-700 hover:bg-slate-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all"
+            className="h-6.5 px-2 rounded-md bg-slate-700 hover:bg-slate-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
             title="Export raw data to CSV file"
           >
-            <Download size={9} />
+            <Download size={9.5} className="shrink-0" />
             <span>CSV</span>
           </button>
-        </div>
 
-        {/* Student Inclusion & Skipped Rows Toggles */}
-        <div className="grid grid-cols-2 gap-1 pt-0.5 border-t border-slate-200/80 dark:border-slate-800 text-[8px] font-bold">
+          {/* Selection Toggle (All / None) */}
           <button
             type="button"
             onClick={toggleSelectAllRows}
-            className="h-5.5 px-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-all"
+            className="h-6.5 px-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-[8px] font-bold flex items-center justify-center gap-0.5 cursor-pointer transition-all shrink-0"
+            title={isAllRowsIncluded ? 'Deselect All Candidates' : 'Include All Candidates'}
           >
-            {isAllRowsIncluded ? <CheckSquare size={9} className="text-emerald-600" /> : <Square size={9} />}
-            <span>{isAllRowsIncluded ? 'Deselect All' : 'Include All'}</span>
+            {isAllRowsIncluded ? <CheckSquare size={9} className="text-emerald-600 shrink-0" /> : <Square size={9} className="shrink-0" />}
+            <span>{isAllRowsIncluded ? 'Deselect' : 'All'}</span>
           </button>
 
+          {/* Skipped Toggle */}
           <button
             type="button"
             onClick={() => setHideSkippedRows(prev => !prev)}
-            className="h-5.5 px-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-all"
+            className="h-6.5 px-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-[8px] font-bold flex items-center justify-center gap-0.5 cursor-pointer transition-all shrink-0"
+            title={hideSkippedRows ? 'Click to show skipped candidates' : 'Click to hide skipped candidates'}
           >
-            <Eye size={9} className={hideSkippedRows ? 'text-indigo-600' : 'opacity-50'} />
-            <span>{hideSkippedRows ? 'Skipped Hidden' : 'Show Skipped'}</span>
+            <Eye size={9} className={`shrink-0 ${hideSkippedRows ? 'text-indigo-600' : 'opacity-50'}`} />
+            <span>{hideSkippedRows ? 'Hidden' : 'Skipped'}</span>
           </button>
         </div>
       </div>
@@ -5692,7 +5742,39 @@ export default function CustomRosterDocumentBuilderView({
                   <ClipboardList size={13} className="text-amber-600" />
                   <span>Examination Attendance Sheet Setup</span>
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-wrap">
+                  {/* Roll No Mode Switcher */}
+                  <div className="inline-flex items-center rounded-lg bg-amber-100/90 dark:bg-amber-900/60 p-0.5 border border-amber-300 dark:border-amber-700 shadow-2xs">
+                    <span className="text-[8px] font-black uppercase text-amber-900 dark:text-amber-200 px-1 flex items-center gap-0.5">
+                      <Hash size={9} className="text-amber-700 dark:text-amber-300" />
+                      <span>Roll:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSetAttendanceRollType('class')}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold cursor-pointer transition-all ${
+                        !rollColInfo.isExam
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'text-amber-900 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-800'
+                      }`}
+                      title="Display School Class Roll Number (R.No.) in register"
+                    >
+                      Class R.No. {!rollColInfo.isExam && '✓'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetAttendanceRollType('exam')}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold cursor-pointer transition-all ${
+                        rollColInfo.isExam
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'text-amber-900 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-800'
+                      }`}
+                      title="Display JKBOSE Examination Roll Number (Exam R.No.) in register"
+                    >
+                      Exam R.No. {rollColInfo.isExam && '✓'}
+                    </button>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setShowAttendanceAdvanced(prev => !prev)}
@@ -6117,8 +6199,15 @@ export default function CustomRosterDocumentBuilderView({
                             <table className="w-full table-fixed border-collapse text-xs">
                               <thead>
                                 <tr className="bg-slate-100 text-slate-900 border-b-2 border-slate-800 font-serif">
-                                  <th className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center">
-                                    {hasExamRollCol ? 'Exam R.No.' : 'R.No.'}
+                                  <th
+                                    onClick={() => handleSetAttendanceRollType(rollColInfo.isExam ? 'class' : 'exam')}
+                                    className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/60 transition-colors select-none"
+                                    title={`Click to switch between Class Roll No and Exam Roll No (Currently showing: ${rollColInfo.label})`}
+                                  >
+                                    <span className="inline-flex items-center justify-center gap-0.5">
+                                      <span>{rollColInfo.label}</span>
+                                      <ArrowUpDown size={8} className="text-slate-400 print:hidden opacity-70" />
+                                    </span>
                                   </th>
                                   <th className="border-r border-slate-700 px-1.5 py-1 font-black text-[9px] w-[54%] text-left">Name of the Candidate</th>
                                   <th className="px-1 py-1 font-black text-[9px] w-[28%] text-center">Sig. of the Candidate</th>
@@ -6128,9 +6217,7 @@ export default function CustomRosterDocumentBuilderView({
                                 {Array.from({ length: half }).map((_, i) => {
                                   const row = previewRows[i];
                                   if (!row) return null;
-                                  const roll = hasExamRollCol
-                                    ? ((row.examRollNo && row.examRollNo !== '—' && row.examRollNo !== '-') ? row.examRollNo : ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || i + 1)))
-                                    : ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || i + 1));
+                                  const roll = getAttendanceStudentRoll(row, rollColInfo, i + 1);
                                   return (
                                     <tr key={i} className="h-8.5 hover:bg-slate-50">
                                       <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>
@@ -6151,8 +6238,15 @@ export default function CustomRosterDocumentBuilderView({
                             <table className="w-full table-fixed border-collapse text-xs">
                               <thead>
                                 <tr className="bg-slate-100 text-slate-900 border-b-2 border-slate-800 font-serif">
-                                  <th className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center">
-                                    {hasExamRollCol ? 'Exam R.No.' : 'R.No.'}
+                                  <th
+                                    onClick={() => handleSetAttendanceRollType(rollColInfo.isExam ? 'class' : 'exam')}
+                                    className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/60 transition-colors select-none"
+                                    title={`Click to switch between Class Roll No and Exam Roll No (Currently showing: ${rollColInfo.label})`}
+                                  >
+                                    <span className="inline-flex items-center justify-center gap-0.5">
+                                      <span>{rollColInfo.label}</span>
+                                      <ArrowUpDown size={8} className="text-slate-400 print:hidden opacity-70" />
+                                    </span>
                                   </th>
                                   <th className="border-r border-slate-700 px-1.5 py-1 font-black text-[9px] w-[54%] text-left">Name of the Candidate</th>
                                   <th className="px-1 py-1 font-black text-[9px] w-[28%] text-center">Sig. of the Candidate</th>
@@ -6161,9 +6255,7 @@ export default function CustomRosterDocumentBuilderView({
                               <tbody className="divide-y divide-slate-400">
                                 {Array.from({ length: half }).map((_, i) => {
                                   const row = previewRows[half + i];
-                                  const roll = row ? (hasExamRollCol
-                                    ? ((row.examRollNo && row.examRollNo !== '—' && row.examRollNo !== '-') ? row.examRollNo : ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || half + i + 1)))
-                                    : ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || half + i + 1))) : '';
+                                  const roll = row ? getAttendanceStudentRoll(row, rollColInfo, half + i + 1) : '';
                                   return (
                                     <tr key={i} className="h-8.5 hover:bg-slate-50">
                                       <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>

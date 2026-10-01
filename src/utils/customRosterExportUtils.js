@@ -5,6 +5,72 @@
 import * as XLSX from 'xlsx';
 
 /**
+ * Resolves the primary roll column to display for 2-column examination attendance sheets.
+ * Respects user's activeColumns order:
+ * - If only examRollNo is present -> 'Exam R.No.' (isExam: true)
+ * - If only classRollNo is present -> 'R.No.' (isExam: false)
+ * - If BOTH are present -> whichever appears FIRST in columns takes priority!
+ * - Default -> 'R.No.' (isExam: false)
+ */
+export function resolveAttendanceRollCol(columns = []) {
+  if (!Array.isArray(columns) || columns.length === 0) {
+    return { key: 'classRollNo', label: 'R.No.', isExam: false };
+  }
+
+  const classIdx = columns.findIndex(c => c.key === 'classRollNo');
+  const examIdx = columns.findIndex(c => c.key === 'examRollNo');
+
+  if (examIdx !== -1 && classIdx === -1) {
+    const colDef = columns[examIdx];
+    const label = colDef?.label?.includes('Exam') ? 'Exam R.No.' : (colDef?.label || 'Exam R.No.');
+    return { key: 'examRollNo', label, isExam: true };
+  }
+
+  if (classIdx !== -1 && examIdx === -1) {
+    const colDef = columns[classIdx];
+    const label = colDef?.label || 'R.No.';
+    return { key: 'classRollNo', label, isExam: false };
+  }
+
+  if (classIdx !== -1 && examIdx !== -1) {
+    // Both active: respect column order
+    if (classIdx < examIdx) {
+      const colDef = columns[classIdx];
+      return { key: 'classRollNo', label: colDef?.label || 'R.No.', isExam: false };
+    } else {
+      const colDef = columns[examIdx];
+      const label = colDef?.label?.includes('Exam') ? 'Exam R.No.' : (colDef?.label || 'Exam R.No.');
+      return { key: 'examRollNo', label, isExam: true };
+    }
+  }
+
+  return { key: 'classRollNo', label: 'R.No.', isExam: false };
+}
+
+/**
+ * Extracts the appropriate roll value for a candidate row based on rollColInfo.
+ */
+export function getAttendanceStudentRoll(student, rollColInfo, fallbackIdx = 1) {
+  if (!student) return '';
+  const isExam = rollColInfo?.isExam;
+  const raw = student._rawStudent || student;
+
+  if (isExam) {
+    const examVal = student.examRollNo || raw.examRollNo || raw.currExamRollNo;
+    if (examVal && examVal !== '—' && examVal !== '-') return String(examVal).trim();
+    const classVal = student.classRollNo || raw.classRollNo || raw.rollNo;
+    if (classVal && classVal !== '—' && classVal !== '-') return String(classVal).trim();
+    return student.sno ? String(student.sno) : String(fallbackIdx);
+  } else {
+    const classVal = student.classRollNo || raw.classRollNo || raw.rollNo;
+    if (classVal && classVal !== '—' && classVal !== '-') return String(classVal).trim();
+    const examVal = student.examRollNo || raw.examRollNo || raw.currExamRollNo;
+    if (examVal && examVal !== '—' && examVal !== '-') return String(examVal).trim();
+    return student.sno ? String(student.sno) : String(fallbackIdx);
+  }
+}
+
+/**
  * Print or Save PDF via Browser Print Engine with official institution letterhead,
  * clean repeating headers, configurable row heights, and signatory blocks.
  */
@@ -26,7 +92,7 @@ export function printCustomRosterTable({
   showMetaBadges = true
 }) {
   if (layoutMode === 'two_column_attendance') {
-    const hasExamRollCol = Array.isArray(columns) && columns.some(c => c.key === 'examRollNo');
+    const rollColInfo = resolveAttendanceRollCol(columns);
     const attHtml = buildTwoColumnAttendanceHtml({
       title,
       examDetails,
@@ -34,7 +100,7 @@ export function printCustomRosterTable({
       rowHeightPx,
       signatories,
       rowsPerColumn,
-      hasExamRollCol
+      rollColInfo
     });
     return executePrintIframe(attHtml, title);
   }
@@ -370,8 +436,12 @@ function buildTwoColumnAttendanceHtml({
   rowHeightPx = 36,
   signatories = ['Sig. of the Asstt. Supdt.', 'Sig. of the Centre Supdt.'],
   rowsPerColumn = 25,
-  hasExamRollCol = false
+  hasExamRollCol = false,
+  rollColInfo = null
 }) {
+  const activeRollCol = rollColInfo || (hasExamRollCol ? { key: 'examRollNo', label: 'Exam R.No.', isExam: true } : { key: 'classRollNo', label: 'R.No.', isExam: false });
+  const isExam = activeRollCol.isExam;
+  const rollLabel = activeRollCol.label || (isExam ? 'Exam R.No.' : 'R.No.');
   const studentsPerCol = Math.max(10, Math.min(60, Number(rowsPerColumn) || 25));
   const studentsPerPage = studentsPerCol * 2;
 
@@ -403,14 +473,7 @@ function buildTwoColumnAttendanceHtml({
 
   const renderTableRows = (studentList, startIdx = 0) => {
     return studentList.map((st, i) => {
-      let roll = '';
-      if (hasExamRollCol && st.examRollNo && st.examRollNo !== '—' && st.examRollNo !== '-') {
-        roll = st.examRollNo;
-      } else if (st.classRollNo && st.classRollNo !== '—' && st.classRollNo !== '-') {
-        roll = st.classRollNo;
-      } else {
-        roll = st.sno || (startIdx + i + 1);
-      }
+      const roll = getAttendanceStudentRoll(st, activeRollCol, startIdx + i + 1);
       const name = st.studentName || st.name || '—';
       return `
         <tr style="height: ${rowHeightPx}px;">
@@ -489,8 +552,8 @@ function buildTwoColumnAttendanceHtml({
             <table class="att-table">
               <thead>
                 <tr>
-                  <th style="width: ${hasExamRollCol ? '17%' : '14%'};">${hasExamRollCol ? 'Exam R.No.' : 'R.No.'}</th>
-                  <th style="width: ${hasExamRollCol ? '51%' : '54%'};">Name of the Candidate</th>
+                  <th style="width: ${isExam ? '17%' : '14%'};">${rollLabel}</th>
+                  <th style="width: ${isExam ? '51%' : '54%'};">Name of the Candidate</th>
                   <th style="width: 32%;">Sig. of the Candidate</th>
                 </tr>
               </thead>
@@ -504,8 +567,8 @@ function buildTwoColumnAttendanceHtml({
             <table class="att-table">
               <thead>
                 <tr>
-                  <th style="width: ${hasExamRollCol ? '17%' : '14%'};">${hasExamRollCol ? 'Exam R.No.' : 'R.No.'}</th>
-                  <th style="width: ${hasExamRollCol ? '51%' : '54%'};">Name of the Candidate</th>
+                  <th style="width: ${isExam ? '17%' : '14%'};">${rollLabel}</th>
+                  <th style="width: ${isExam ? '51%' : '54%'};">Name of the Candidate</th>
                   <th style="width: 32%;">Sig. of the Candidate</th>
                 </tr>
               </thead>
@@ -710,6 +773,7 @@ export function exportCustomRosterExcel({
   examDetails = {}
 }) {
   if (layoutMode === 'two_column_attendance') {
+    const rollColInfo = resolveAttendanceRollCol(columns);
     const half = Math.ceil(rows.length / 2);
     const examName = examDetails.examName || '...........................................';
     const examYear = examDetails.examYear || '.............................';
@@ -733,15 +797,15 @@ export function exportCustomRosterExcel({
       [`${examNameLabel}: ${examName}`, '', '', '', `${examYearLabel}: ${examYear}`],
       [`${classLabel}: ${className}`, `${dateLabel}: ${examDate}`, `${subjectLabel}: ${subjectName}`, '', `${paperLabel}: ${paper}${centreStr}`],
       [],
-      ['R.No.', 'Name of the Candidate', 'Sig. of the Candidate', '', 'R.No.', 'Name of the Candidate', 'Sig. of the Candidate']
+      [rollColInfo.label, 'Name of the Candidate', 'Sig. of the Candidate', '', rollColInfo.label, 'Name of the Candidate', 'Sig. of the Candidate']
     ];
 
     for (let i = 0; i < half; i++) {
       const left = rows[i];
       const right = rows[half + i];
-      const leftRoll = left ? ((left.classRollNo && left.classRollNo !== '—' && left.classRollNo !== '-') ? left.classRollNo : (left.sno || i + 1)) : '';
+      const leftRoll = left ? getAttendanceStudentRoll(left, rollColInfo, i + 1) : '';
       const leftName = left ? (left.studentName || left.name || '') : '';
-      const rightRoll = right ? ((right.classRollNo && right.classRollNo !== '—' && right.classRollNo !== '-') ? right.classRollNo : (right.sno || half + i + 1)) : '';
+      const rightRoll = right ? getAttendanceStudentRoll(right, rollColInfo, half + i + 1) : '';
       const rightName = right ? (right.studentName || right.name || '') : '';
 
       wsData.push([leftRoll, leftName, '', '', rightRoll, rightName, '']);
@@ -807,17 +871,18 @@ export function exportCustomRosterCsv({
   layoutMode = 'standard'
 }) {
   if (layoutMode === 'two_column_attendance') {
+    const rollColInfo = resolveAttendanceRollCol(columns);
     const half = Math.ceil(rows.length / 2);
     const csvLines = [
-      '"R.No.","Name of the Candidate","Sig. of the Candidate","","R.No.","Name of the Candidate","Sig. of the Candidate"'
+      `"${rollColInfo.label}","Name of the Candidate","Sig. of the Candidate","","${rollColInfo.label}","Name of the Candidate","Sig. of the Candidate"`
     ];
 
     for (let i = 0; i < half; i++) {
       const left = rows[i];
       const right = rows[half + i];
-      const leftRoll = left ? ((left.classRollNo && left.classRollNo !== '—' && left.classRollNo !== '-') ? left.classRollNo : (left.sno || i + 1)) : '';
+      const leftRoll = left ? getAttendanceStudentRoll(left, rollColInfo, i + 1) : '';
       const leftName = left ? (left.studentName || left.name || '') : '';
-      const rightRoll = right ? ((right.classRollNo && right.classRollNo !== '—' && right.classRollNo !== '-') ? right.classRollNo : (right.sno || half + i + 1)) : '';
+      const rightRoll = right ? getAttendanceStudentRoll(right, rollColInfo, half + i + 1) : '';
       const rightName = right ? (right.studentName || right.name || '') : '';
 
       csvLines.push(`"${leftRoll}","${leftName.replace(/"/g, '""')}","","","${rightRoll}","${rightName.replace(/"/g, '""')}",""`);

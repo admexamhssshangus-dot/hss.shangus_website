@@ -24,6 +24,7 @@ import {
   PageOrientation,
   ImageRun
 } from 'docx';
+import { resolveAttendanceRollCol, getAttendanceStudentRoll } from './customRosterExportUtils';
 
 /**
  * Helper to safely convert data URLs or fetch image URLs to Uint8Array for docx ImageRun.
@@ -102,7 +103,8 @@ export async function generateCustomRosterDocx({
       examDetails,
       rows,
       rowHeightDxa,
-      signatories
+      signatories,
+      columns
     });
   }
 
@@ -469,8 +471,10 @@ async function generateTwoColumnAttendanceDocx({
   examDetails = {},
   rows = [],
   rowHeightDxa = 500,
-  signatories = ['Sig. of the Asstt. Supdt.', 'Sig. of the Centre Supdt.']
+  signatories = ['Sig. of the Asstt. Supdt.', 'Sig. of the Centre Supdt.'],
+  columns = []
 }) {
+  const rollColInfo = resolveAttendanceRollCol(columns);
   const cellBorder = {
     top: { style: BorderStyle.SINGLE, size: 4, color: '666666' },
     bottom: { style: BorderStyle.SINGLE, size: 4, color: '666666' },
@@ -494,19 +498,19 @@ async function generateTwoColumnAttendanceDocx({
 
   const headerCells = [
     new TableCell({
-      width: { size: 9, type: WidthType.PERCENTAGE },
+      width: { size: rollColInfo.isExam ? 11 : 9, type: WidthType.PERCENTAGE },
       shading: { fill: 'F1F5F9' },
       borders: headerCellBorder,
       margins: { top: 80, bottom: 80, left: 60, right: 60 },
       children: [
         new Paragraph({
           alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text: 'R.No.', bold: true, size: 17, font: 'Calibri' })]
+          children: [new TextRun({ text: rollColInfo.label, bold: true, size: 17, font: 'Calibri' })]
         })
       ]
     }),
     new TableCell({
-      width: { size: 27, type: WidthType.PERCENTAGE },
+      width: { size: rollColInfo.isExam ? 25 : 27, type: WidthType.PERCENTAGE },
       shading: { fill: 'F1F5F9' },
       borders: headerCellBorder,
       margins: { top: 80, bottom: 80, left: 60, right: 60 },
@@ -535,19 +539,19 @@ async function generateTwoColumnAttendanceDocx({
       children: [new Paragraph({ children: [] })]
     }),
     new TableCell({
-      width: { size: 9, type: WidthType.PERCENTAGE },
+      width: { size: rollColInfo.isExam ? 11 : 9, type: WidthType.PERCENTAGE },
       shading: { fill: 'F1F5F9' },
       borders: headerCellBorder,
       margins: { top: 80, bottom: 80, left: 60, right: 60 },
       children: [
         new Paragraph({
           alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text: 'R.No.', bold: true, size: 17, font: 'Calibri' })]
+          children: [new TextRun({ text: rollColInfo.label, bold: true, size: 17, font: 'Calibri' })]
         })
       ]
     }),
     new TableCell({
-      width: { size: 27, type: WidthType.PERCENTAGE },
+      width: { size: rollColInfo.isExam ? 25 : 27, type: WidthType.PERCENTAGE },
       shading: { fill: 'F1F5F9' },
       borders: headerCellBorder,
       margins: { top: 80, bottom: 80, left: 60, right: 60 },
@@ -585,14 +589,14 @@ async function generateTwoColumnAttendanceDocx({
     const left = rows[i];
     const right = rows[half + i];
 
-    const leftRoll = left ? ((left.classRollNo && left.classRollNo !== '—' && left.classRollNo !== '-') ? left.classRollNo : (left.sno || i + 1)) : '';
+    const leftRoll = left ? getAttendanceStudentRoll(left, rollColInfo, i + 1) : '';
     const leftName = left ? (left.studentName || left.name || '') : '';
-    const rightRoll = right ? ((right.classRollNo && right.classRollNo !== '—' && right.classRollNo !== '-') ? right.classRollNo : (right.sno || half + i + 1)) : '';
+    const rightRoll = right ? getAttendanceStudentRoll(right, rollColInfo, half + i + 1) : '';
     const rightName = right ? (right.studentName || right.name || '') : '';
 
     const cells = [
       new TableCell({
-        width: { size: 9, type: WidthType.PERCENTAGE },
+        width: { size: rollColInfo.isExam ? 11 : 9, type: WidthType.PERCENTAGE },
         borders: cellBorder,
         margins: { top: 60, bottom: 60, left: 40, right: 40 },
         children: [
@@ -624,7 +628,7 @@ async function generateTwoColumnAttendanceDocx({
         children: [new Paragraph({ children: [] })]
       }),
       new TableCell({
-        width: { size: 9, type: WidthType.PERCENTAGE },
+        width: { size: rollColInfo.isExam ? 11 : 9, type: WidthType.PERCENTAGE },
         borders: right ? cellBorder : gapCellBorder,
         margins: { top: 60, bottom: 60, left: 40, right: 40 },
         children: [
@@ -635,7 +639,7 @@ async function generateTwoColumnAttendanceDocx({
         ]
       }),
       new TableCell({
-        width: { size: 27, type: WidthType.PERCENTAGE },
+        width: { size: rollColInfo.isExam ? 25 : 27, type: WidthType.PERCENTAGE },
         borders: right ? cellBorder : gapCellBorder,
         margins: { top: 60, bottom: 60, left: 60, right: 40 },
         children: [

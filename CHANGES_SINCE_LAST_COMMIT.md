@@ -1,87 +1,82 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Expand Custom Column Modal on Desktop & Implement Searchable Checkbox Dropdowns for Lab Subjects & Classes
+## Latest Commit: Synchronize Web Preview and Print Roll Numbers & Make Actions & Exports Ultra-Compact on Single Row
 
-**Commit Message:** `feat(roster): make custom column modal wider on desktop and integrate searchable checkbox dropdowns for lab subjects and applicable classes`
+**Commit Message:** `fix(roster): synchronize web preview and print roll numbers and make actions & exports ultra compact on single row`
 
 ---
 
 ### Context & Requirements Addressed
 
-- **User Request**:
-  > *"make this wider on desktop...and use check box dropdown where possible/relevant"* (with reference screenshot of the Create Custom Column modal).
+- **User Requests**:
+  1. *"if class roll no is active why not updating in preview/print"*
+  2. *"print and web are not consistent.... arrange all on same row using compact design for Actions & Exports"*
 
-- **Root Causes & Issues Addressed**:
-  1. **Narrow Modal on Desktop**:
-     - The "Create Custom Column" modal previously had `max-w-xl` (~576px), causing the entire formula matrix, surcharge inputs, and subject list to be squeezed vertically into an uncomfortably cramped dialog with excessive vertical scrolling on desktop monitors.
-  2. **Cluttered Inline Subject Checkbox List**:
-     - Chargeable lab subjects were previously rendered as an inline flex-wrap container with dozens of small buttons with awkward text wrapping, overlapping count badges, and confusing visual clutter.
-  3. **Lack of Grade/Class Scoping for Custom Columns**:
-     - Custom fee columns could not be cleanly restricted to specific grades (e.g. Higher Secondary 11th & 12th RR Fee vs Secondary 9th & 10th).
+- **Root Causes Identified**:
+  1. **Web Preview & Print Inconsistency**:
+     - In Web Preview (`CustomRosterDocumentBuilderView.jsx`), the 2-column attendance sheet checked `hasExamRollCol = activeColumns.some(c => c.key === 'examRollNo')`. If `examRollNo` was present in `activeColumns` (even if positioned after `classRollNo`), it blindly forced the header to `Exam R.No.` and displayed the JKBOSE Exam Roll Number (`row.examRollNo`), completely ignoring the user's active `classRollNo`.
+     - In Print (`customRosterExportUtils.js`), `buildTwoColumnAttendanceHtml` was not receiving `rollColInfo`, causing `hasExamRollCol` to default to `false` and rendering `R.No.` with `st.classRollNo` (`1, 2, 3...`).
+     - Result: The web preview displayed `Exam R.No.` (`201003072, 201003073...`), while the browser print dialog displayed `R.No.` (`1, 2, 3...`)!
+  2. **Actions & Exports Card Layout**:
+     - Card 4 ("Actions & Exports") previously stacked 6 controls into 3 separate vertical rows (a giant full-width print button, a 3-button export grid, and a 2-button inclusion toggle row), consuming excessive vertical space in the right control sidebar.
 
 ---
 
 ### Solutions Implemented
 
-1. **Wider Responsive Desktop Modal**:
-   - Expanded modal width to `w-full max-w-xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl` with `p-4 sm:p-6 space-y-4`.
-   - On desktop screens, reorganizes the Fee Matrix into a balanced, spacious 2-column grid (`lg:grid-cols-12 gap-4`):
-     - **Left Column (`lg:col-span-6`)**: Base Fee Matrix table with Class 11th, 12th, 10th, 9th rates for 5 Subjects (Standard) and 6 Subjects (+Voc / Add), Lab Surcharge input, and Applicable Classes filter.
-     - **Right Column (`lg:col-span-6`)**: Chargeable Lab Subjects selection via Searchable Checkbox Dropdown, Active Surcharge Tags tray, and Formula breakdown options.
+1. **Universal Attendance Roll Number Resolution (`resolveAttendanceRollCol` & `getAttendanceStudentRoll`)**:
+   - Added shared resolution logic in `src/utils/customRosterExportUtils.js`:
+     - Checks the positions of `classRollNo` and `examRollNo` in `activeColumns`.
+     - If only `classRollNo` is active: renders `R.No.` with student's class roll number.
+     - If only `examRollNo` is active: renders `Exam R.No.` with student's JKBOSE exam roll number.
+     - If **both** are active: respects user's explicit column order (`classIdx < examIdx` prioritizes `classRollNo`, and vice versa).
+   - Wired seamlessly across:
+     - **Web Preview** (`CustomRosterDocumentBuilderView.jsx`)
+     - **Browser Print Dialog** (`customRosterExportUtils.js` - `buildTwoColumnAttendanceHtml`)
+     - **Word (.docx) Export** (`customRosterDocxGenerator.js` - `generateTwoColumnAttendanceDocx`)
+     - **Excel (.xlsx) Export** (`customRosterExportUtils.js` - `exportCustomRosterExcel`)
+     - **CSV Export** (`customRosterExportUtils.js` - `exportCustomRosterCsv`)
+   - All 5 formats are now 100% synchronized and consistent.
 
-2. **Searchable Multi-Select Checkbox Dropdown for Chargeable Lab Subjects (`ChargeableSubjectsDropdown`)**:
-   - Replaced the cluttered inline list with a professional dropdown:
-     - **Trigger Button**: Displays lab icon, selected count, and cumulative rate (`5 Lab Subjects Selected (+₹100 each)`).
-     - **Floating Popover**:
-       - Quick action toolbar: `Default Labs (5)`, `Select All`, and `Clear`.
-       - Real-time search filter across all distinct subjects found in the school database.
-       - Clean checkbox rows with subject titles and student enrollment counts.
-       - Inline "Add Other Subject" input with Enter key support.
-     - **Active Chips Tray**: Displays active surcharge subjects as neat removable tag chips with `×` buttons for instant 1-click removal.
+2. **Quick Roll Number Mode Switcher & Interactive Header**:
+   - Added an explicit `Roll No: [ Class R.No. ✓ ] [ Exam R.No. ]` pill toggle directly inside the `Examination Attendance Sheet Setup` toolbar.
+   - Administrators can instantly switch between Class Roll No and Exam Roll No with a single click.
+   - Clicking the table header (`th`) in the live preview also toggles between Class Roll No and Exam Roll No with smooth hover feedback.
 
-3. **Applicable Classes Scoping Checkbox Dropdown (`ApplicableClassesDropdown`)**:
-   - Added class-level scoping allowing administrators to choose which grades the custom fee applies to (`11th`, `12th`, `10th`, `9th`).
-   - Integrated into `evaluateCustomColumnValue`: unselected grades display `—` automatically in generated rosters.
-   - Non-applicable class rows are dimmed and badged with "Excluded" in the matrix table.
-
-4. **Enhanced Fixed / Signature Box Mode**:
-   - Added quick presets: `Pen Signature (Empty)`, `Paid`, `Pending`, `Exempted`, `₹500`, `₹1,000`.
+3. **Ultra-Compact Single-Row Actions & Exports Bar**:
+   - Redesigned Card 4 ("Actions & Exports") into a sleek, unified single-row toolbar:
+     - `[ 🖨️ Print / PDF (Ctrl+P) ] [ 📊 Excel ] [ 📄 Word ] [ ⬇ CSV ] [ ☑ All / Deselect ] [ 👁 Skipped ]`
+     - Eliminates multi-row vertical stacking and saves valuable screen space on both desktop and tablet views.
 
 ---
 
 ### Exact List of Files Changed
 
 - `src/portal/admin/CustomRosterDocumentBuilderView.jsx`
+- `src/utils/customRosterExportUtils.js`
+- `src/utils/customRosterDocxGenerator.js`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
 ### Verification & Build Status
 
-- **Build Verification**: `npm run build` executed and verified with **Exit Code 0**.
-- Zero syntax, linting, or runtime errors.
-- Dev server hot-reloaded the updated bundle seamlessly.
+- **Build Command**: `npm run build`
+- **Result**: `Exit Code 0` (Zero breaking errors, production bundle compiled cleanly with SEO checks passed).
 
 ---
 
-### Instructions for User: Manual Review, Amend & Push
+### Manual Inspection & Git Instructions for User
 
-1. **Inspect Commit History**:
-   ```bash
-   git log -n 1 --stat
-   ```
-2. **Review Code Diff**:
-   ```bash
-   git diff HEAD~1
-   ```
-3. **Amend Commit Message (if desired)**:
-   ```bash
-   git reset --soft HEAD~1
-   git commit -m "feat(roster): make custom column modal wider on desktop and integrate searchable checkbox dropdowns for lab subjects and applicable classes"
-   ```
-4. **Push to Remote (STRICT MANUAL RULE)**:
-   ```bash
-   git push origin main
-   ```
+```bash
+# 1. Review the committed changes
+git status
+git log -n 1 --stat
 
+# 2. (Optional) If you want to amend or re-execute the commit:
+git reset --soft HEAD~1
+git commit -m "fix(roster): synchronize web preview and print roll numbers and make actions & exports ultra compact on single row"
 
+# 3. Push to remote repository (STRICT MANUAL PUSH RULE)
+git push origin main
+```
