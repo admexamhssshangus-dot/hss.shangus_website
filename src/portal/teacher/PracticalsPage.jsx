@@ -5311,10 +5311,10 @@ export default function PracticalsPage() {
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate m-0">
-                    My Assessment Submissions Log
+                    My Practical Submissions Log
                   </h3>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate m-0">
-                    Your submitted practical awards <span className="hidden sm:inline">(Internal Assessment & External Practical)</span>
+                    Your submitted practical awards <span className="hidden sm:inline">(Internal Assessment &amp; External Practical only)</span>
                   </p>
                 </div>
               </div>

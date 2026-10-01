@@ -42,7 +42,11 @@ export default function TeacherDashboard() {
           .filter(d => {
             if (!d) return false;
             const rawId = String(d.id || d.docId || '');
-            if (rawId.startsWith('history_')) return false;
+            if (rawId.startsWith('history_') || rawId.startsWith('bin_')) return false;
+
+            // Strict Rule 8: Practicals portal strictly holds practical data only (Internal Assessment & External Practical)
+            const evalTypeRaw = d.practicalType || d.evaluationType || d.examTitle || d.title || '';
+            if (!isPracticalEvaluationType(evalTypeRaw)) return false;
 
             const recCount = Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0);
             const subj = String(d.subject || d.subjectName || d.subjectCode || '').trim();
@@ -358,9 +362,15 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-              <span className="text-[10.5px] font-bold text-purple-700 dark:text-purple-400">
-                School Exams
-              </span>
+              <Link
+                to="/portal/teacher/assessments?history=true"
+                state={{ openHistory: true }}
+                className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 flex items-center gap-1.5 transition-colors cursor-pointer group underline decoration-purple-300 dark:decoration-purple-700 underline-offset-2 bg-transparent border-none p-0 text-left"
+                title="Click to view all school-based assessment submissions (Pre-Board, Golden Test, etc.)"
+              >
+                <History size={13} className="text-purple-600 dark:text-purple-400 group-hover:rotate-[-20deg] transition-transform" />
+                <span className="font-extrabold">Submissions Log</span>
+              </Link>
               <Link
                 to="/portal/teacher/assessments"
                 className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-500 shadow-2xs transition-all inline-flex items-center justify-center gap-1 cursor-pointer active:scale-98"
@@ -385,10 +395,10 @@ export default function TeacherDashboard() {
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate m-0">
-                    My Assessment Submissions Log
+                    My Practical Submissions Log
                   </h3>
                   <p className="text-[10px] text-slate-400 font-medium truncate m-0">
-                    Showing your own submitted evaluations only
+                    Your submitted practical awards (Internal Assessment &amp; External Practical only)
                   </p>
                 </div>
               </div>
