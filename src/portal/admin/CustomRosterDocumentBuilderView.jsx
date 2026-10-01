@@ -174,6 +174,13 @@ export function evaluateCustomColumnValue(col, st) {
 
   // 4. Special Dynamic Fee with Subject Surcharges (Base Fee + ₹100 per Lab/Practical Subject)
   if (calcType === 'fee_with_subject_surcharge') {
+    // If column is scoped to specific classes, return '—' for other classes
+    if (Array.isArray(col.applicableClasses) && col.applicableClasses.length > 0) {
+      const normClass = sClass.toLowerCase();
+      const isApplicable = col.applicableClasses.some(c => normClass.includes(c.toLowerCase()));
+      if (!isApplicable) return '—';
+    }
+
     // Detect student's exact subject count (5 vs 6 subjects)
     const studentSubjs = extractSubjects(st, false);
     const subList = studentSubjs && studentSubjs !== '—'
@@ -2652,6 +2659,313 @@ function RosterPageSetupDropdown({
   );
 }
 
+// ─── Multi-Select Searchable Checkbox Dropdown for Chargeable Lab Subjects ───
+function ChargeableSubjectsDropdown({
+  allSubjects = [],
+  selected = [],
+  onChange,
+  surcharge = 100,
+  defaultSubjects = []
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [newSubInput, setNewSubInput] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMousedown = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleMousedown);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleMousedown);
+      document.removeEventListener('keydown', handleKeydown);
+    };
+  }, [isOpen]);
+
+  const filtered = useMemo(() => {
+    if (!searchTerm.trim()) return allSubjects;
+    const q = searchTerm.toLowerCase().trim();
+    return allSubjects.filter(s => s.name.toLowerCase().includes(q));
+  }, [allSubjects, searchTerm]);
+
+  const toggleSubject = (name) => {
+    const isSel = selected.some(s => s.toLowerCase().trim() === name.toLowerCase().trim());
+    if (isSel) {
+      onChange(selected.filter(s => s.toLowerCase().trim() !== name.toLowerCase().trim()));
+    } else {
+      onChange([...selected, name]);
+    }
+  };
+
+  const handleAddCustom = (e) => {
+    if (e) e.preventDefault();
+    if (newSubInput.trim()) {
+      const trimmed = newSubInput.trim();
+      if (!selected.some(s => s.toLowerCase().trim() === trimmed.toLowerCase().trim())) {
+        onChange([...selected, trimmed]);
+      }
+      setNewSubInput('');
+    }
+  };
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      {/* Trigger Button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className={`w-full px-3 py-2 rounded-xl border font-bold text-xs flex items-center justify-between gap-2 shadow-2xs transition-all cursor-pointer text-left ${
+          selected.length > 0
+            ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-400 dark:border-amber-700/80 text-amber-950 dark:text-amber-200 hover:border-amber-500'
+            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0 truncate">
+          <FlaskConical size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+          <span className="truncate">
+            {selected.length === 0
+              ? 'Select Chargeable Lab Subjects...'
+              : `${selected.length} Lab Subjects Selected (+₹${surcharge} each)`}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {selected.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-600 text-white">
+              {selected.length}
+            </span>
+          )}
+          <ChevronDown
+            size={13}
+            className={`transition-transform duration-200 text-slate-400 ${isOpen ? 'rotate-180' : ''}`}
+          />
+        </div>
+      </button>
+
+      {/* Floating Popover Menu */}
+      {isOpen && (
+        <div className="absolute left-0 right-0 mt-1.5 z-[9999999] rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2.5 space-y-2 animate-fadeIn max-w-full">
+          {/* Header & Quick Actions */}
+          <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px]">
+            <span className="font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Lab Surcharge Subjects (+₹{surcharge})
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onChange(defaultSubjects)}
+                className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-extrabold text-[9px] hover:bg-amber-200 cursor-pointer transition-colors"
+                title="Select 5 default science lab subjects"
+              >
+                Default Labs (5)
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange(allSubjects.map(s => s.name))}
+                className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[9px] hover:bg-slate-200 cursor-pointer transition-colors"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold text-[9px] hover:bg-rose-100 cursor-pointer transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          {/* Search Box */}
+          <div className="relative">
+            <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search subjects in school database..."
+              className="w-full pl-7 pr-7 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:bg-white focus:ring-1 focus:ring-amber-500"
+              autoFocus
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Scrollable Checkbox List */}
+          <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1 divide-y divide-slate-100/60 dark:divide-slate-800/60">
+            {filtered.length === 0 ? (
+              <div className="py-4 text-center text-xs text-slate-400 font-medium">
+                No matching subjects found
+              </div>
+            ) : (
+              filtered.map((item) => {
+                const sub = item.name;
+                const isChecked = selected.some(
+                  s => s.toLowerCase().trim() === sub.toLowerCase().trim()
+                );
+                return (
+                  <label
+                    key={sub}
+                    className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer text-xs transition-colors ${
+                      isChecked
+                        ? 'bg-amber-50/80 dark:bg-amber-950/50 text-amber-950 dark:text-amber-100 font-extrabold'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 font-medium'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 truncate">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleSubject(sub)}
+                        className="w-3.5 h-3.5 rounded text-amber-600 accent-amber-600 cursor-pointer shrink-0"
+                      />
+                      <span className="truncate">{sub}</span>
+                    </div>
+                    {item.count > 0 && (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
+                        {item.count}
+                      </span>
+                    )}
+                  </label>
+                );
+              })
+            )}
+          </div>
+
+          {/* Add Custom Subject Form */}
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
+            <input
+              type="text"
+              value={newSubInput}
+              onChange={(e) => setNewSubInput(e.target.value)}
+              placeholder="Add other subject (e.g. Geology)..."
+              className="flex-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:bg-white focus:ring-1 focus:ring-amber-500"
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustom(e); }}
+            />
+            <button
+              type="button"
+              onClick={handleAddCustom}
+              disabled={!newSubInput.trim()}
+              className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs cursor-pointer disabled:opacity-40 transition-colors"
+            >
+              + Add
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Checkbox Dropdown for Applicable Classes ───
+function ApplicableClassesDropdown({
+  selected = [],
+  onChange
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const classesList = ['11th', '12th', '10th', '9th'];
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMousedown = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setIsOpen(false);
+    };
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleMousedown);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleMousedown);
+      document.removeEventListener('keydown', handleKeydown);
+    };
+  }, [isOpen]);
+
+  const toggleClass = (cls) => {
+    if (selected.includes(cls)) {
+      onChange(selected.filter(c => c !== cls));
+    } else {
+      onChange([...selected, cls]);
+    }
+  };
+
+  const displayText = selected.length === 0
+    ? 'None (Excluded)'
+    : selected.length === classesList.length
+      ? 'All Classes (11th, 12th, 10th, 9th)'
+      : `Class ${selected.join(', ')}`;
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(p => !p)}
+        className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-[11px] flex items-center justify-between gap-1 shadow-2xs hover:border-slate-400 cursor-pointer text-left text-slate-800 dark:text-slate-200"
+      >
+        <span className="truncate">{displayText}</span>
+        <ChevronDown size={11} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''} shrink-0`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 mt-1 w-60 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2 z-[9999999] space-y-1 animate-fadeIn">
+          <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black text-slate-500 uppercase">
+            <span>Apply To Classes</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onChange(classesList)}
+                className="text-amber-700 dark:text-amber-400 hover:underline cursor-pointer font-bold"
+              >
+                All
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => onChange(['11th', '12th'])}
+                className="text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer font-bold"
+              >
+                11th & 12th
+              </button>
+            </div>
+          </div>
+          {classesList.map(cls => {
+            const isChecked = selected.includes(cls);
+            return (
+              <label
+                key={cls}
+                className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200"
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => toggleClass(cls)}
+                  className="rounded text-amber-600 accent-amber-600 cursor-pointer"
+                />
+                <span>Class {cls}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Reusable Compact Columns Group Dropdown for Mobile Field Selection ───
 function RosterColumnsDropdown({
   activeColumns,
@@ -3949,6 +4263,7 @@ export default function CustomRosterDocumentBuilderView({
   const [modalClassBaseFees6Subs, setModalClassBaseFees6Subs] = useState({ '11th': '1760', '12th': '1800', '10th': '1850', '9th': '1850' });
   const [modalSubjectSurcharge, setModalSubjectSurcharge] = useState(100);
   const [modalChargeableSubjects, setModalChargeableSubjects] = useState(['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education']);
+  const [modalApplicableClasses, setModalApplicableClasses] = useState(['11th', '12th', '10th', '9th']);
   const [modalNewSubjectInput, setModalNewSubjectInput] = useState('');
   const [modalClassRules, setModalClassRules] = useState({ '11th': '', '12th': '', '10th': '', '9th': '' });
   const [modalStreamRules, setModalStreamRules] = useState({ 'Science': '', 'Humanities': '', 'Commerce': '', 'General': '' });
@@ -3973,6 +4288,7 @@ export default function CustomRosterDocumentBuilderView({
       setModalClassBaseFees6Subs(preset.classBaseFees6Subs || { '11th': '1760', '12th': '1800', '10th': '1850', '9th': '1850' });
       setModalSubjectSurcharge(preset.subjectSurcharge !== undefined ? preset.subjectSurcharge : 100);
       setModalChargeableSubjects(preset.chargeableSubjects || ['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education']);
+      setModalApplicableClasses(preset.applicableClasses || ['11th', '12th', '10th', '9th']);
       setModalClassRules(preset.classRules || { '11th': '', '12th': '', '10th': '', '9th': '' });
       setModalStreamRules(preset.streamRules || { 'Science': '', 'Humanities': '', 'Commerce': '', 'General': '' });
       setModalStatusRules(preset.statusRules || { 'Approved': '', 'Submitted': '', 'Draft': '', 'Provisional': '' });
@@ -3987,6 +4303,7 @@ export default function CustomRosterDocumentBuilderView({
       setModalClassBaseFees6Subs({ '11th': '1760', '12th': '1800', '10th': '1850', '9th': '1850' });
       setModalSubjectSurcharge(100);
       setModalChargeableSubjects(['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education']);
+      setModalApplicableClasses(['11th', '12th', '10th', '9th']);
       setModalClassRules({ '11th': '', '12th': '', '10th': '', '9th': '' });
       setModalStreamRules({ 'Science': '', 'Humanities': '', 'Commerce': '', 'General': '' });
       setModalStatusRules({ 'Approved': '', 'Submitted': '', 'Draft': '', 'Provisional': '' });
@@ -4008,6 +4325,7 @@ export default function CustomRosterDocumentBuilderView({
     setModalClassBaseFees6Subs(col.classBaseFees6Subs || { '11th': '1760', '12th': '1800', '10th': '1850', '9th': '1850' });
     setModalSubjectSurcharge(col.subjectSurcharge !== undefined ? col.subjectSurcharge : 100);
     setModalChargeableSubjects(col.chargeableSubjects || ['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education']);
+    setModalApplicableClasses(col.applicableClasses || ['11th', '12th', '10th', '9th']);
     setModalClassRules(col.classRules || { '11th': '', '12th': '', '10th': '', '9th': '' });
     setModalStreamRules(col.streamRules || { 'Science': '', 'Humanities': '', 'Commerce': '', 'General': '' });
     setModalStatusRules(col.statusRules || { 'Approved': '', 'Submitted': '', 'Draft': '', 'Provisional': '' });
@@ -4029,6 +4347,7 @@ export default function CustomRosterDocumentBuilderView({
       baseFee: Number(modalBaseFee || 0),
       classBaseFees: modalClassBaseFees,
       classBaseFees6Subs: modalClassBaseFees6Subs,
+      applicableClasses: modalApplicableClasses,
       subjectSurcharge: Number(modalSubjectSurcharge !== undefined ? modalSubjectSurcharge : 100),
       chargeableSubjects: modalChargeableSubjects,
       classRules: modalClassRules,
@@ -6278,56 +6597,56 @@ export default function CustomRosterDocumentBuilderView({
         </div>
       )}
 
-      {/* ── Sub-Modal: Add / Edit Dynamic Custom Column (Ultra-Modern & Compact) ── */}
+      {/* ── Sub-Modal: Add / Edit Dynamic Custom Column (Spacious Desktop Layout) ── */}
       {showAddCustomModal && (
-        <div className="fixed inset-0 z-[999999] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3 max-h-[95vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[999999] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 md:p-6 overflow-y-auto animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto">
             
-            {/* Modal Header (Compact) */}
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  <Calculator size={17} />
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <Calculator size={20} />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-black text-sm text-slate-900 dark:text-white tracking-tight">
+                    <h3 className="font-black text-base text-slate-900 dark:text-white tracking-tight">
                       {editingColKey ? 'Edit Custom Column Formula & Rates' : 'Create Custom Column'}
                     </h3>
-                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-extrabold text-[8.5px] flex items-center gap-0.5 border border-emerald-200 dark:border-emerald-800">
-                      <Cloud size={9} />
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-extrabold text-[9px] flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
+                      <Cloud size={10} />
                       <span>Cloud Sync</span>
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                    Configure base fees, 5 vs 6 subject rates, and lab surcharges.
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    Configure base fees, 5 vs 6 subject rates, applicable classes, and lab surcharges.
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => { setShowAddCustomModal(false); setEditingColKey(null); }}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
                 title="Close"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
             {/* Quick Templates (Only when adding new) */}
             {!editingColKey && (
-              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1">
-                  <Sparkles size={10} className="text-amber-500" />
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex items-center gap-2 flex-wrap">
+                <span className="text-[9.5px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1 shrink-0">
+                  <Sparkles size={11} className="text-amber-500" />
                   <span>Presets:</span>
                 </span>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5 flex-1">
                   {QUICK_CUSTOM_TEMPLATES.map((tpl) => (
                     <button
                       key={tpl.name}
                       type="button"
                       onClick={() => handleOpenAddModal(tpl)}
-                      className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-amber-50 text-slate-800 dark:text-slate-200 text-[9.5px] font-bold border border-slate-300 dark:border-slate-700 cursor-pointer shadow-2xs hover:border-amber-400 transition-all"
+                      className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-800 dark:text-slate-200 text-[10px] font-bold border border-slate-300 dark:border-slate-700 cursor-pointer shadow-2xs hover:border-amber-400 transition-all"
                     >
                       + {tpl.name}
                     </button>
@@ -6336,10 +6655,10 @@ export default function CustomRosterDocumentBuilderView({
               </div>
             )}
 
-            {/* Column Label & Mode Selector (Compact Grid) */}
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
-              <div className="sm:col-span-6">
-                <label className="block text-[10.5px] font-black text-slate-800 dark:text-slate-200 mb-1">
+            {/* Column Label & Mode Selector (Spacious Grid) */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+              <div className="md:col-span-7">
+                <label className="block text-[11px] font-black text-slate-800 dark:text-slate-200 mb-1">
                   Column Title: <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -6347,258 +6666,253 @@ export default function CustomRosterDocumentBuilderView({
                   value={modalColLabel}
                   onChange={(e) => setModalColLabel(e.target.value)}
                   placeholder="e.g. Exam Fee, RR Fee"
-                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 shadow-2xs"
                 />
               </div>
 
               {/* Segmented Mode Selector Pills */}
-              <div className="sm:col-span-6">
-                <label className="block text-[10.5px] font-black text-slate-800 dark:text-slate-200 mb-1">
+              <div className="md:col-span-5">
+                <label className="block text-[11px] font-black text-slate-800 dark:text-slate-200 mb-1">
                   Calculation Engine:
                 </label>
                 <div className="grid grid-cols-2 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                   <button
                     type="button"
                     onClick={() => setModalCalcType('fee_with_subject_surcharge')}
-                    className={`py-1 px-2 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                    className={`py-1.5 px-2 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                       modalCalcType === 'fee_with_subject_surcharge'
                         ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 shadow-xs'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
-                    <Zap size={11} className="text-amber-500" />
+                    <Zap size={12} className="text-amber-500" />
                     <span>Fee + Labs</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setModalCalcType('fixed')}
-                    className={`py-1 px-2 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                    className={`py-1.5 px-2 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                       modalCalcType === 'fixed'
                         ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-400 shadow-xs'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
-                    <Edit3 size={11} className="text-purple-500" />
+                    <Edit3 size={12} className="text-purple-500" />
                     <span>Fixed / Box</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* ── MODE 1: DYNAMIC FEE + PRACTICAL/LAB SUBJECT SURCHARGE (ULTRA-COMPACT MATRIX) ── */}
+            {/* ── MODE 1: DYNAMIC FEE + PRACTICAL/LAB SUBJECT SURCHARGE (RESPONSIVE 2-COLUMN DESKTOP GRID) ── */}
             {modalCalcType === 'fee_with_subject_surcharge' && (
-              <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 space-y-2.5">
-                
-                {/* Table Header with Inline Surcharge Rate */}
-                <div className="flex items-center justify-between flex-wrap gap-1.5 pb-1 border-b border-slate-200 dark:border-slate-700">
-                  <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider">
-                    Base Fee Matrix (Auto-Applied by Class & Subjects)
-                  </span>
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                   
-                  {/* Compact Inline Surcharge Input */}
-                  <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
-                    <FlaskConical size={11} className="text-amber-600" />
-                    <span className="text-[9.5px] font-bold text-slate-600 dark:text-slate-300">Lab Surcharge:</span>
-                    <div className="relative w-14">
-                      <span className="absolute left-1.5 top-0 text-[10px] font-bold text-slate-400">₹</span>
-                      <input
-                        type="number"
-                        value={modalSubjectSurcharge}
-                        onChange={(e) => setModalSubjectSurcharge(Number(e.target.value) || 0)}
-                        className="w-full pl-3.5 pr-1 py-0 rounded border-0 bg-transparent text-[11px] font-black text-slate-900 dark:text-white text-center focus:ring-0"
+                  {/* Left Column: Base Fee Matrix Table */}
+                  <div className="lg:col-span-6 space-y-2.5">
+                    {/* Header with Lab Surcharge Rate */}
+                    <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 border-b border-slate-200 dark:border-slate-700">
+                      <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider">
+                        Base Fee Matrix (by Class)
+                      </span>
+                      
+                      {/* Compact Inline Surcharge Input */}
+                      <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                        <FlaskConical size={11} className="text-amber-600 shrink-0" />
+                        <span className="text-[9.5px] font-bold text-slate-600 dark:text-slate-300">Lab Surcharge:</span>
+                        <div className="relative w-14">
+                          <span className="absolute left-1.5 top-0 text-[10px] font-bold text-slate-400">₹</span>
+                          <input
+                            type="number"
+                            value={modalSubjectSurcharge}
+                            onChange={(e) => setModalSubjectSurcharge(Number(e.target.value) || 0)}
+                            className="w-full pl-3.5 pr-1 py-0 rounded border-0 bg-transparent text-[11px] font-black text-slate-900 dark:text-white text-center focus:ring-0"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Applicable Classes Filter Checkbox Dropdown */}
+                    <div className="space-y-1">
+                      <label className="block text-[9.5px] font-black uppercase text-slate-500 tracking-wider">
+                        Applicable Classes:
+                      </label>
+                      <ApplicableClassesDropdown
+                        selected={modalApplicableClasses}
+                        onChange={setModalApplicableClasses}
                       />
                     </div>
+
+                    {/* Rates Matrix Table */}
+                    <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xs">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100/70 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <th className="py-1.5 px-2.5">Class</th>
+                            <th className="py-1.5 px-2.5 text-center">5 Subjects (Standard)</th>
+                            <th className="py-1.5 px-2.5 text-center">6 Subjects (+Voc / Add)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-[11px]">
+                          {[
+                            { key: '11th', label: 'Class 11th', def5: '1520', def6: '1760' },
+                            { key: '12th', label: 'Class 12th', def5: '1560', def6: '1800' },
+                            { key: '10th', label: 'Class 10th', def5: '1300', def6: '1550' },
+                            { key: '9th',  label: 'Class 9th',  def5: '1550', def6: '1850' }
+                          ].map(({ key, label, def5, def6 }) => {
+                            const isApplicable = modalApplicableClasses.includes(key);
+                            return (
+                              <tr key={key} className={`transition-colors ${isApplicable ? 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30' : 'bg-slate-100/40 dark:bg-slate-800/20 opacity-60'}`}>
+                                <td className="py-1.5 px-2.5 font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{label}</span>
+                                    {!isApplicable && (
+                                      <span className="text-[7.5px] px-1 py-0.2 rounded font-black bg-slate-200 dark:bg-slate-800 text-slate-500">
+                                        Excluded
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-1.5 px-2.5">
+                                  <div className="relative max-w-[120px] mx-auto">
+                                    <span className="absolute left-2 top-0.5 text-[10px] font-bold text-slate-400">₹</span>
+                                    <input
+                                      type="number"
+                                      disabled={!isApplicable}
+                                      value={modalClassBaseFees[key] !== undefined ? modalClassBaseFees[key] : (modalBaseFee || def5)}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setModalClassBaseFees({ ...modalClassBaseFees, [key]: val });
+                                        if (key === '11th') setModalBaseFee(Number(val) || 0);
+                                      }}
+                                      placeholder={def5}
+                                      className="w-full pl-5 pr-1 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-black text-slate-900 dark:text-white text-center focus:bg-white focus:ring-1 focus:ring-amber-500 disabled:opacity-50"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="py-1.5 px-2.5">
+                                  <div className="relative max-w-[120px] mx-auto">
+                                    <span className="absolute left-2 top-0.5 text-[10px] font-bold text-amber-500">₹</span>
+                                    <input
+                                      type="number"
+                                      disabled={!isApplicable}
+                                      value={modalClassBaseFees6Subs[key] !== undefined ? modalClassBaseFees6Subs[key] : def6}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setModalClassBaseFees6Subs({ ...modalClassBaseFees6Subs, [key]: val });
+                                      }}
+                                      placeholder={def6}
+                                      className="w-full pl-5 pr-1 py-0.5 rounded-md border border-amber-200 dark:border-amber-900/60 bg-amber-50/20 dark:bg-amber-950/20 text-[11px] font-black text-amber-950 dark:text-amber-200 text-center focus:bg-white focus:ring-1 focus:ring-amber-500 disabled:opacity-50"
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400">
+                      * Auto-detects student's enrolled class and subject count (5 vs 6 subjects). Excluded classes will output "—".
+                    </p>
                   </div>
-                </div>
 
-                {/* Compact Rates Matrix Table */}
-                <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xs">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100/60 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        <th className="py-1 px-2.5">Class</th>
-                        <th className="py-1 px-2.5 text-center">5 Subjects (Standard)</th>
-                        <th className="py-1 px-2.5 text-center">6 Subjects (+Voc / Add)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-[11px]">
-                      {[
-                        { key: '11th', label: 'Class 11th', def5: '1520', def6: '1760' },
-                        { key: '12th', label: 'Class 12th', def5: '1560', def6: '1800' },
-                        { key: '10th', label: 'Class 10th', def5: '1300', def6: '1550' },
-                        { key: '9th',  label: 'Class 9th',  def5: '1550', def6: '1850' }
-                      ].map(({ key, label, def5, def6 }) => (
-                        <tr key={key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                          <td className="py-1 px-2.5 font-bold text-slate-800 dark:text-slate-200 text-[11px]">
-                            {label}
-                          </td>
-                          <td className="py-1 px-2.5">
-                            <div className="relative max-w-[120px] mx-auto">
-                              <span className="absolute left-2 top-0.5 text-[10px] font-bold text-slate-400">₹</span>
-                              <input
-                                type="number"
-                                value={modalClassBaseFees[key] !== undefined ? modalClassBaseFees[key] : (modalBaseFee || def5)}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setModalClassBaseFees({ ...modalClassBaseFees, [key]: val });
-                                  if (key === '11th') setModalBaseFee(Number(val) || 0);
-                                }}
-                                placeholder={def5}
-                                className="w-full pl-5 pr-1 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-black text-slate-900 dark:text-white text-center focus:bg-white focus:ring-1 focus:ring-amber-500"
-                              />
-                            </div>
-                          </td>
-                          <td className="py-1 px-2.5">
-                            <div className="relative max-w-[120px] mx-auto">
-                              <span className="absolute left-2 top-0.5 text-[10px] font-bold text-amber-500">₹</span>
-                              <input
-                                type="number"
-                                value={modalClassBaseFees6Subs[key] !== undefined ? modalClassBaseFees6Subs[key] : def6}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setModalClassBaseFees6Subs({ ...modalClassBaseFees6Subs, [key]: val });
-                                }}
-                                placeholder={def6}
-                                className="w-full pl-5 pr-1 py-0.5 rounded-md border border-amber-200 dark:border-amber-900/60 bg-amber-50/20 dark:bg-amber-950/20 text-[11px] font-black text-amber-950 dark:text-amber-200 text-center focus:bg-white focus:ring-1 focus:ring-amber-500"
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Compact Practical Subjects Checklist */}
-                <div className="space-y-1.5 pt-1 border-t border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center justify-between text-[9.5px] font-black text-slate-700 dark:text-slate-300 flex-wrap gap-1">
-                    <span>Chargeable Lab Subjects (+₹{modalSubjectSurcharge}):</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 text-[8.5px] font-black">
-                        {modalChargeableSubjects.length} Selected
+                  {/* Right Column: Chargeable Lab Subjects Checkbox Dropdown & Chips */}
+                  <div className="lg:col-span-6 space-y-2.5">
+                    <div className="flex items-center justify-between text-[10px] font-black text-slate-700 dark:text-slate-300 pb-1.5 border-b border-slate-200 dark:border-slate-700">
+                      <span className="uppercase tracking-wider">Chargeable Lab Subjects:</span>
+                      <span className="px-2 py-0.5 rounded-full bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 text-[8.5px] font-black">
+                        {modalChargeableSubjects.length} Selected (+₹{modalChargeableSubjects.length * modalSubjectSurcharge})
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setModalChargeableSubjects(DEFAULT_CHARGEABLE_SUBJECTS)}
-                        className="text-[8.5px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
-                      >
-                        Default Labs
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setModalChargeableSubjects(dynamicStudentSubjects.map(s => s.name))}
-                        className="text-[8.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                      >
-                        All
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setModalChargeableSubjects([])}
-                        className="text-[8.5px] font-bold text-slate-500 hover:underline cursor-pointer"
-                      >
-                        Clear
-                      </button>
+                    </div>
+
+                    {/* Searchable Multi-Select Checkbox Dropdown */}
+                    <ChargeableSubjectsDropdown
+                      allSubjects={dynamicStudentSubjects}
+                      selected={modalChargeableSubjects}
+                      onChange={setModalChargeableSubjects}
+                      surcharge={modalSubjectSurcharge}
+                      defaultSubjects={DEFAULT_CHARGEABLE_SUBJECTS}
+                    />
+
+                    {/* Active Selected Subjects Tags Tray */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[9px] font-black uppercase text-slate-500 tracking-wider">
+                        <span>Active Surcharge Subjects:</span>
+                        {modalChargeableSubjects.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setModalChargeableSubjects([])}
+                            className="text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1 p-2 rounded-xl bg-slate-100/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 min-h-[58px] max-h-[110px] overflow-y-auto">
+                        {modalChargeableSubjects.length === 0 ? (
+                          <span className="text-[10px] text-slate-400 italic py-1 px-1">
+                            No lab subjects selected. (A flat base fee will be applied to all students).
+                          </span>
+                        ) : (
+                          modalChargeableSubjects.map((sub) => (
+                            <span
+                              key={sub}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-amber-300 dark:border-amber-700/60 shadow-2xs group"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                              <span className="truncate max-w-[140px]">{sub}</span>
+                              <button
+                                type="button"
+                                onClick={() => setModalChargeableSubjects(modalChargeableSubjects.filter(s => s !== sub))}
+                                className="text-slate-400 hover:text-rose-600 font-black cursor-pointer ml-0.5 text-xs leading-none"
+                                title={`Remove ${sub}`}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Show Breakdown Option Checkbox */}
+                    <div className="pt-1">
+                      <label className="flex items-center gap-2 text-[11px] font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={modalShowBreakdown}
+                          onChange={(e) => setModalShowBreakdown(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded text-amber-600 accent-amber-600 cursor-pointer"
+                        />
+                        <span>Show formula breakdown in table (e.g. ₹2150 (1750+400))</span>
+                      </label>
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap gap-1 max-h-[90px] overflow-y-auto p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
-                    {dynamicStudentSubjects.map((subItem) => {
-                      const sub = subItem.name;
-                      const isIncluded = modalChargeableSubjects.some(
-                        s => s.toLowerCase().trim() === sub.toLowerCase().trim()
-                      );
-                      return (
-                        <button
-                          key={sub}
-                          type="button"
-                          onClick={() => {
-                            if (isIncluded) {
-                              setModalChargeableSubjects(
-                                modalChargeableSubjects.filter(s => s.toLowerCase().trim() !== sub.toLowerCase().trim())
-                              );
-                            } else {
-                              setModalChargeableSubjects([...modalChargeableSubjects, sub]);
-                            }
-                          }}
-                          className={`px-2 py-0.5 rounded text-[9.5px] font-bold flex items-center gap-1 border cursor-pointer transition-all ${
-                            isIncluded
-                              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 border-slate-900 dark:border-slate-100 shadow-2xs'
-                              : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-400'
-                          }`}
-                        >
-                          {isIncluded ? <CheckSquare size={9} className="text-amber-400 dark:text-amber-600" /> : <Square size={9} className="text-slate-300" />}
-                          <span>{sub}</span>
-                          {subItem.count > 0 && (
-                            <span className={`text-[8px] px-1 rounded-full ${isIncluded ? 'bg-slate-800 text-slate-200 dark:bg-slate-300 dark:text-slate-800' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'}`}>
-                              {subItem.count}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Add Custom Subject Input */}
-                  <div className="flex items-center gap-1.5 pt-0.5">
-                    <input
-                      type="text"
-                      value={modalNewSubjectInput}
-                      onChange={(e) => setModalNewSubjectInput(e.target.value)}
-                      placeholder="Add custom subject name..."
-                      className="flex-1 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[10.5px] font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (modalNewSubjectInput.trim()) {
-                          if (!modalChargeableSubjects.includes(modalNewSubjectInput.trim())) {
-                            setModalChargeableSubjects([...modalChargeableSubjects, modalNewSubjectInput.trim()]);
-                          }
-                          setModalNewSubjectInput('');
-                        }
-                      }}
-                      disabled={!modalNewSubjectInput.trim()}
-                      className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-[10.5px] font-bold cursor-pointer disabled:opacity-40"
-                    >
-                      + Add
-                    </button>
-                  </div>
-                </div>
-
-                {/* Compact Breakdown Option */}
-                <div className="flex items-center justify-between pt-0.5">
-                  <label className="flex items-center gap-1.5 text-[10.5px] font-medium text-slate-600 dark:text-slate-400 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={modalShowBreakdown}
-                      onChange={(e) => setModalShowBreakdown(e.target.checked)}
-                      className="w-3 h-3 rounded text-amber-600 accent-amber-600 cursor-pointer"
-                    />
-                    <span>Show formula breakdown in table (e.g. ₹2150 (1750+400))</span>
-                  </label>
                 </div>
               </div>
             )}
 
             {/* ── MODE 2: CLASS / STREAM MAP ── */}
             {modalCalcType === 'class_map' && (
-              <div className="p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/60 space-y-2">
-                <label className="block text-[10.5px] font-black text-indigo-950 dark:text-indigo-200">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/60 space-y-2.5">
+                <label className="block text-[11px] font-black text-indigo-950 dark:text-indigo-200">
                   Set Value per Class:
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {['11th', '12th', '10th', '9th'].map((clsKey) => (
-                    <div key={clsKey} className="bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 text-center">
-                      <label className="block text-[9px] font-bold text-slate-500 mb-0.5">Class {clsKey}</label>
+                    <div key={clsKey} className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 text-center shadow-2xs">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-1">Class {clsKey}</label>
                       <div className="relative">
-                        <span className="absolute left-1.5 top-1 text-[10px] font-bold text-slate-400">₹</span>
+                        <span className="absolute left-2 top-1 text-[11px] font-bold text-slate-400">₹</span>
                         <input
                           type="text"
                           value={modalClassRules[clsKey] || ''}
                           onChange={(e) => setModalClassRules({ ...modalClassRules, [clsKey]: e.target.value })}
                           placeholder="1750"
-                          className="w-full pl-4 pr-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-black text-center"
+                          className="w-full pl-5 pr-1 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-black text-center"
                         />
                       </div>
                     </div>
@@ -6609,34 +6923,59 @@ export default function CustomRosterDocumentBuilderView({
 
             {/* ── MODE 3: FIXED VALUE / SIGNATURE BOX ── */}
             {modalCalcType === 'fixed' && (
-              <div className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/60 space-y-1.5">
-                <label className="block text-[10.5px] font-black text-purple-950 dark:text-purple-200">
-                  Default Value / Placeholder:
-                </label>
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-black text-purple-950 dark:text-purple-200">
+                    Default Value / Placeholder:
+                  </label>
+                  <span className="text-[9.5px] text-purple-600 dark:text-purple-400 font-bold">
+                    Leave completely blank for a signature box
+                  </span>
+                </div>
+
                 <input
                   type="text"
                   value={modalFixedVal}
                   onChange={(e) => setModalFixedVal(e.target.value)}
                   placeholder="e.g. ₹500, Paid, or leave empty for physical pen signature"
-                  className="w-full px-2.5 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white"
                 />
-                <p className="text-[9.5px] text-slate-500">
-                  Leave completely blank for an empty box where students or teachers physically sign.
-                </p>
+
+                {/* Quick Value Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[9px] font-black uppercase text-purple-700 dark:text-purple-400">Quick Fill:</span>
+                  {[
+                    { label: 'Pen Signature (Empty)', val: '' },
+                    { label: 'Paid', val: 'Paid' },
+                    { label: 'Pending', val: 'Pending' },
+                    { label: 'Exempted', val: 'Exempted' },
+                    { label: '₹500', val: '500' },
+                    { label: '₹1,000', val: '1000' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setModalFixedVal(opt.val)}
+                      className="px-2 py-0.5 rounded-lg text-[9.5px] font-bold bg-white dark:bg-slate-900 text-purple-900 dark:text-purple-300 border border-purple-300 dark:border-purple-700 hover:bg-purple-100 cursor-pointer shadow-2xs"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Modal Actions (Compact Footer) */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="text-[9.5px] text-slate-400 flex items-center gap-1">
-                <Cloud size={11} className="text-emerald-600" />
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                <Cloud size={12} className="text-emerald-600" />
                 <span>Auto-saves to Firebase</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => { setShowAddCustomModal(false); setEditingColKey(null); }}
-                  className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   Cancel
                 </button>
@@ -6644,7 +6983,7 @@ export default function CustomRosterDocumentBuilderView({
                   type="button"
                   disabled={!modalColLabel.trim() || isSavingCustomToCloud}
                   onClick={handleSaveCustomColumn}
-                  className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 font-black text-xs disabled:opacity-50 cursor-pointer shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
+                  className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 font-black text-xs disabled:opacity-50 cursor-pointer shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
                 >
                   {isSavingCustomToCloud ? (
                     <>
@@ -6660,6 +6999,7 @@ export default function CustomRosterDocumentBuilderView({
                 </button>
               </div>
             </div>
+
           </div>
         </div>
       )}

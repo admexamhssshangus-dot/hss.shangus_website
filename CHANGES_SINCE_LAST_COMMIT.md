@@ -1,36 +1,51 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Arrange Cohort Filters into Exactly Two Rows and Fix Duplicate Session Count
+## Latest Commit: Expand Custom Column Modal on Desktop & Implement Searchable Checkbox Dropdowns for Lab Subjects & Classes
 
-**Commit Message:** `feat(roster): arrange cohort filters into two rows (3x2 grid) and eliminate duplicate session count`
+**Commit Message:** `feat(roster): make custom column modal wider on desktop and integrate searchable checkbox dropdowns for lab subjects and applicable classes`
 
 ---
 
 ### Context & Requirements Addressed
 
 - **User Request**:
-  > *"arrange into two rows only"* (with reference screenshot of Card 1 Cohort Filters).
+  > *"make this wider on desktop...and use check box dropdown where possible/relevant"* (with reference screenshot of the Create Custom Column modal).
 
 - **Root Causes & Issues Addressed**:
-  1. **3-Row Vertical Layout**:
-     - The 6 cohort filters (Session, Class, Stream, Subject, Gender, Status) were previously arranged in a 2-column by 3-row grid, which took extra vertical height and separated related filters across 3 rows.
-  2. **Duplicate Session Count Bug**:
-     - `Session 2025–26 (513) (513)` was displayed because `dynamicSessions` embedded `(${counts[sess]})` into the label property, and `CohortCheckboxDropdown` subsequently appended `(${match.count})` a second time.
+  1. **Narrow Modal on Desktop**:
+     - The "Create Custom Column" modal previously had `max-w-xl` (~576px), causing the entire formula matrix, surcharge inputs, and subject list to be squeezed vertically into an uncomfortably cramped dialog with excessive vertical scrolling on desktop monitors.
+  2. **Cluttered Inline Subject Checkbox List**:
+     - Chargeable lab subjects were previously rendered as an inline flex-wrap container with dozens of small buttons with awkward text wrapping, overlapping count badges, and confusing visual clutter.
+  3. **Lack of Grade/Class Scoping for Custom Columns**:
+     - Custom fee columns could not be cleanly restricted to specific grades (e.g. Higher Secondary 11th & 12th RR Fee vs Secondary 9th & 10th).
 
 ---
 
 ### Solutions Implemented
 
-1. **Two-Row Arrangement (3 Columns x 2 Rows)**:
-   - Configured the cohort filters grid to `grid grid-cols-3 gap-1.5`, creating exactly two clean rows:
-     - **Row 1**: `SESSION`, `CLASS`, `STREAM`
-     - **Row 2**: `SUBJECT`, `GENDER`, `STATUS`
-   - Added compact uppercase headers above each dropdown (`SESSION`, `CLASS`, etc.) in `text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5`.
-   - Tuned popover alignments: Left column anchored left, Center column anchored left, Right column anchored right (`align="right"` for Stream and Status) to prevent dropdown popover clipping.
+1. **Wider Responsive Desktop Modal**:
+   - Expanded modal width to `w-full max-w-xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl` with `p-4 sm:p-6 space-y-4`.
+   - On desktop screens, reorganizes the Fee Matrix into a balanced, spacious 2-column grid (`lg:grid-cols-12 gap-4`):
+     - **Left Column (`lg:col-span-6`)**: Base Fee Matrix table with Class 11th, 12th, 10th, 9th rates for 5 Subjects (Standard) and 6 Subjects (+Voc / Add), Lab Surcharge input, and Applicable Classes filter.
+     - **Right Column (`lg:col-span-6`)**: Chargeable Lab Subjects selection via Searchable Checkbox Dropdown, Active Surcharge Tags tray, and Formula breakdown options.
 
-2. **Eliminated Duplicate Session Count**:
-   - In `dynamicSessions`, fixed the label string to `Session ${sess}`, allowing the single count to be dynamically rendered by the dropdown component.
-   - Added regex safety (`/\(\d+\)\s*$/`) in `CohortCheckboxDropdown` to ensure no count is ever duplicated even if an upstream label already contains parenthesized numbers.
+2. **Searchable Multi-Select Checkbox Dropdown for Chargeable Lab Subjects (`ChargeableSubjectsDropdown`)**:
+   - Replaced the cluttered inline list with a professional dropdown:
+     - **Trigger Button**: Displays lab icon, selected count, and cumulative rate (`5 Lab Subjects Selected (+₹100 each)`).
+     - **Floating Popover**:
+       - Quick action toolbar: `Default Labs (5)`, `Select All`, and `Clear`.
+       - Real-time search filter across all distinct subjects found in the school database.
+       - Clean checkbox rows with subject titles and student enrollment counts.
+       - Inline "Add Other Subject" input with Enter key support.
+     - **Active Chips Tray**: Displays active surcharge subjects as neat removable tag chips with `×` buttons for instant 1-click removal.
+
+3. **Applicable Classes Scoping Checkbox Dropdown (`ApplicableClassesDropdown`)**:
+   - Added class-level scoping allowing administrators to choose which grades the custom fee applies to (`11th`, `12th`, `10th`, `9th`).
+   - Integrated into `evaluateCustomColumnValue`: unselected grades display `—` automatically in generated rosters.
+   - Non-applicable class rows are dimmed and badged with "Excluded" in the matrix table.
+
+4. **Enhanced Fixed / Signature Box Mode**:
+   - Added quick presets: `Pen Signature (Empty)`, `Paid`, `Pending`, `Exempted`, `₹500`, `₹1,000`.
 
 ---
 
@@ -43,7 +58,7 @@
 
 ### Verification & Build Status
 
-- **Build Verification**: `npm run build` executed and passed with **Exit Code 0**.
+- **Build Verification**: `npm run build` executed and verified with **Exit Code 0**.
 - Zero syntax, linting, or runtime errors.
 - Dev server hot-reloaded the updated bundle seamlessly.
 
@@ -62,10 +77,11 @@
 3. **Amend Commit Message (if desired)**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(roster): arrange cohort filters into two rows (3x2 grid) and eliminate duplicate session count"
+   git commit -m "feat(roster): make custom column modal wider on desktop and integrate searchable checkbox dropdowns for lab subjects and applicable classes"
    ```
 4. **Push to Remote (STRICT MANUAL RULE)**:
    ```bash
    git push origin main
    ```
+
 
