@@ -23,6 +23,7 @@ import {
   HeightRule
 } from 'docx';
 import { findStudentMarkRecord, resolveAwardRollTitles } from './practicalsPdfGenerator';
+import { isStudentExamDropped } from './studentApprovalStatus';
 
 export const CSV_COLUMNS = [
   'Class',
@@ -237,6 +238,7 @@ export function exportCurrentRosterToExcel({
   teacherName = '',
   teacherEmail = ''
 }) {
+  students = (students || []).filter(st => !isStudentExamDropped(st));
   const subName = VALID_SUBJECT_CODES[subjectCode] || subjectCode;
 
   const rows = students.map((st, idx) => {
@@ -329,6 +331,8 @@ export function exportConsolidatedAwardsToExcel({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
+  students = (students || []).filter(st => !isStudentExamDropped(st));
+  if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
@@ -631,6 +635,8 @@ export async function exportConsolidatedAwardsToDocx({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
+  students = (students || []).filter(st => !isStudentExamDropped(st));
+  if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';

@@ -2,51 +2,48 @@
 
 ## Current Working Changes
 
-### Direct Cloud Firestore Notice Synchronization & Instant CMS Saving
-- **User Request Addressed:**
-  - *"notice saving takjng lot of time and not seems to update on live site...showing on local site not live....local/live login shall always CRUD to firebase"*
+### Exclude Exam-Dropped / Discharged Students from All Practicals Outputs
 
-- **Root Causes Identified & Resolved:**
-  1. **Monolithic Slow Save (10–15s):**
-     - Previously, every time any edit was saved (even adding or removing a single notice), `saveToFirebase` executed an all-in-one multi-stage batch that queried all documents in `facultyPublic`, queued individual deletions for every faculty document, processed private and public faculty lists, and saved settings, slideshow, and recycle bin.
-     - **Fix:** Added `targetTab` fast-path execution to `saveToFirebase` and `handleSaveToLocalStorage`. When saving from the Notices tab, it performs a targeted, direct write to `doc(db, 'site', 'notices')` with `updatedAt: serverTimestamp()` in **under 100ms** without touching unrelated collections.
-  2. **Showing on Localhost But Not on Live:**
-     - The Notices loader in `AdminPortal.jsx` checked `localStorage.getItem('site_notices')` **first** and immediately returned, completely skipping Cloud Firestore if any local storage existed. Local edits were written to browser local storage, giving the false illusion that data was saved even if Firestore failed or was never queried.
-     - **Fix:** Inverted the read hierarchy in `AdminPortal.jsx` to query Cloud Firestore `doc(db, 'site', 'notices')` **first** as the single source of truth across all environments (local & live). Local storage is now retained strictly as an offline fallback.
-  3. **Overly Restrictive or Desynced Admin Claims:**
-     - In `handleSaveToLocalStorage`, the admin authorization check rejected users who logged in via embedded administrative sessions or who lacked custom claims (`claims.admin === true`), even though they had valid staff permissions or bootstrap admin status.
-     - **Fix:** Expanded authorization in `saveToFirebase` and `handleSaveToLocalStorage` to support `isBootstrapAdminEmail`, `isBootstrapSuperAdminEmail`, embedded user permissions (`embeddedUser.role`, `embeddedPerms.includes('cms')`), and `resolveStaffRoleAndPerms`.
-  4. **Live Site 15-Minute Cache Invalidation:**
-     - Previously, `Home.jsx` and `NoticeBoard.jsx` had a 15-minute TTL (`15 * 60 * 1000`) where visits would short-circuit without checking Firestore.
-     - **Fix:**
-       - In `AdminPortal.jsx`, saving notices now sets `site_notices_ts = Date.now().toString()`, invalidates `site_home_data_ts`, posts a sync message over `BroadcastChannel('hss_data_sync')`, and dispatches `hss-notices-updated`.
-       - In `NoticeBoard.jsx`, removed the 15-minute blocking check so background Firestore queries always verify the latest notices, and added real-time listeners for instant updates.
-       - In `Home.jsx`, refined the cache freshness check so notices updates immediately trigger SWR background re-fetch, and added real-time listeners.
-  5. **Quick "Save Notices" Action:**
-     - Added a dedicated, highly visible **"Save Notices"** button directly in the Latest Notices configuration header next to the badge expiry control.
+- **Feature Addressed:**
+  - Exam-dropped and discharged students were previously appearing in printed award rolls, attendance sheets, Excel exports, and DOCX consolidated award matrices. These students should be fully excluded from all practicals output at every layer.
+
+- **Changes Made:**
+
+  1. **`studentApprovalStatus.js` — Broadened `isStudentExamDropped()` detection:**
+     - Now also detects `isDropped`, `dropped` boolean flags on student records.
+     - Reads generic `status`, `Status`, `admissionStatus`, `studentStatus`, `Admission Status` fields for dropped detection.
+     - Added `discharged` / `discharge` as recognized dropped-status keywords.
+     - Updated `resolveStudentAdmissionStatus()` to return `'Dropped'` for `drop` status strings.
+
+  2. **`practicalsPdfGenerator.js` — Filter before every print function:**
+     - `printIndividualAwardRoll` — filters records before rendering.
+     - `printConsolidatedAwardRoll` — filters students before rendering.
+     - `printAttendanceSheet` — filters students before rendering.
+     - `printAllIndividualAwardRolls` — filters students before rendering.
+     - `printFailList` — filters students before rendering.
+
+  3. **`practicalsCsvManager.js` — Filter before every export function:**
+     - `exportCurrentRosterToExcel` — filters students at start.
+     - `exportConsolidatedAwardsToExcel` — filters students at start; returns false if none remain.
+     - `exportConsolidatedAwardsToDocx` — filters students at start; returns false if none remain.
+
+  4. **`AdminPracticals.jsx` — UI-layer filter on print/export buttons:**
+     - `AwardsSummaryView` print buttons now filter `selectedStudentsList`/`sortedStudents` through `isStudentExamDropped` before passing to print/export functions.
 
 ---
 
 ## Files Added / Modified
-- `src/pages/AdminPortal.jsx`:
-  - Added `targetTab` fast-path to `saveToFirebase` (direct single write for notices).
-  - Inverted notice loading hierarchy to query Cloud Firestore first.
-  - Upgraded `handleSaveToLocalStorage` with robust multi-factor admin auth, cache busting, and cross-tab broadcasts.
-  - Added direct "Save Notices" button in the notices module header.
-- `src/pages/Home.jsx`:
-  - Refined cache freshness check to immediately revalidate when notice timestamps update.
-  - Added listeners for `BroadcastChannel('hss_data_sync')` and `hss-notices-updated`.
-- `src/pages/NoticeBoard.jsx`:
-  - Removed 15-minute blocking check so live Firestore data is always queried in the background.
-  - Added real-time cross-tab sync listeners.
-- `CHANGES_SINCE_LAST_COMMIT.md`:
-  - Maintained memory log and commit instructions.
+- `src/utils/studentApprovalStatus.js` — Extended dropped detection logic.
+- `src/utils/practicalsPdfGenerator.js` — All print functions filter dropped students.
+- `src/utils/practicalsCsvManager.js` — All export functions filter dropped students.
+- `src/portal/admin/AdminPracticals.jsx` — UI buttons filter dropped students before invoking exports.
+- `CHANGES_SINCE_LAST_COMMIT.md` — Updated memory log.
 
 ---
 
 ## Local Commit Message
 ```bash
-fix(cms): optimize notice saving to direct firestore crud and ensure live cloud synchronization
+fix(practicals): exclude exam-dropped and discharged students from all PDF, Excel, and DOCX outputs
 ```
 
 ---
@@ -64,7 +61,7 @@ git show HEAD
 ```bash
 git reset --soft HEAD~1
 # Make any additional changes if needed
-git commit -m "fix(cms): optimize notice saving to direct firestore crud and ensure live cloud synchronization"
+git commit -m "fix(practicals): exclude exam-dropped and discharged students from all PDF, Excel, and DOCX outputs"
 ```
 
 ### Manual Push (Mandatory Policy):

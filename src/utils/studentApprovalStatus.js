@@ -74,6 +74,7 @@ export function resolveStudentAdmissionStatus(student) {
 
   if (rawStatus.includes('withdraw')) return 'Withdrawn';
   if (rawStatus.includes('reject') || rawStatus.includes('rejt') || rawStatus.includes('cancel')) return 'Rejected';
+  if (rawStatus.includes('drop') || isStudentExamDropped(student)) return 'Dropped';
   if (rawStatus.includes('draft') || rawStatus.includes('dft')) return 'Draft';
 
   if (
@@ -105,6 +106,8 @@ export function isStudentExamDropped(student) {
 
   if (student.isExamDropped === true || raw.isExamDropped === true) return true;
   if (student.examDropped === true || raw.examDropped === true) return true;
+  if (student.isDropped === true || raw.isDropped === true) return true;
+  if (student.dropped === true || raw.dropped === true) return true;
 
   const statusStr = String(
     student.examStatus ||
@@ -115,6 +118,16 @@ export function isStudentExamDropped(student) {
     raw['JKBOSE Exam Status'] ||
     student.examinationStatus ||
     raw.examinationStatus ||
+    student.status ||
+    raw.status ||
+    student.Status ||
+    raw.Status ||
+    student.admissionStatus ||
+    raw.admissionStatus ||
+    student['Admission Status'] ||
+    raw['Admission Status'] ||
+    student.studentStatus ||
+    raw.studentStatus ||
     ''
   ).trim().toLowerCase();
 
@@ -122,7 +135,9 @@ export function isStudentExamDropped(student) {
     statusStr === 'dropped' ||
     statusStr === 'exam dropped' ||
     statusStr === 'dropped from exam' ||
-    statusStr.includes('dropped')
+    statusStr.includes('dropped') ||
+    statusStr === 'discharged' ||
+    statusStr.includes('discharge')
   );
 }
 
