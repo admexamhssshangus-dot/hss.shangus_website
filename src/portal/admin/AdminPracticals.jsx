@@ -130,39 +130,55 @@ export function getStudentSubjectsStr(st, cls) {
   const is11 = clsStr.includes('11') || (!is12 && !is10);
   const is9 = clsStr.includes('9');
 
+  const isSameAs11 = val => val && /same\s+as\s+(in\s+)?class\s*(11|eleventh)/i.test(String(val));
+
   const multiSubCols = [
     st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
     st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
     st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
-  ].filter(Boolean).join(', ');
+  ].filter(val => val && !isSameAs11(val)).join(', ');
 
-  const arraySubs = Array.isArray(st.selectedSubjects) ? st.selectedSubjects.join(', ') : (
-    Array.isArray(st.subjects) ? st.subjects.map(s => typeof s === 'string' ? s : s?.name || s?.code).filter(Boolean).join(', ') : ''
+  const arraySubs = Array.isArray(st.selectedSubjects) ? st.selectedSubjects.filter(val => !isSameAs11(val)).join(', ') : (
+    Array.isArray(st.subjects) ? st.subjects.map(s => typeof s === 'string' ? s : s?.name || s?.code).filter(val => val && !isSameAs11(val)).join(', ') : ''
   );
 
   // Class-specific subject fields ALWAYS take authoritative precedence over generic/legacy Subs
-  const classSpecificSubs = is11
-    ? (st['Subjects to be taken in Class 11th'] || st['Subjects in Class 11th'] || st['Subjects Studied in Class 11th'])
-    : is12
-    ? (st['Subjects to be taken in Class 12th'] || st['Stream & Subjects for Class 12th'] || st['Subjects in Class 12th'] || st['Subjects Studied in Class 11th'])
-    : is10
-    ? (st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th'] || st['Subjects Studied in Class 9th'])
-    : is9
-    ? (st['Subjects to be taken in Class 9th'] || st['Subjects in Class 9th'])
-    : '';
+  let classSpecificSubs = '';
+  if (is11) {
+    classSpecificSubs = st['Subjects to be taken in Class 11th'] || st['Subjects in Class 11th'] || st['Subjects Studied in Class 11th'] || '';
+  } else if (is12) {
+    const cands12 = [
+      st['Subjects to be taken in Class 12th'],
+      st['Stream & Subjects for Class 12th'],
+      st['Subjects in Class 12th'],
+      st['Subjects Studied in Class 11th'],
+      st['Subjects to be taken in Class 11th'],
+      st['Subjects in Class 11th']
+    ];
+    for (const c of cands12) {
+      if (c && !isSameAs11(c) && String(c).trim() && String(c).trim() !== '—') {
+        classSpecificSubs = String(c).trim();
+        break;
+      }
+    }
+  } else if (is10) {
+    classSpecificSubs = st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th'] || st['Subjects Studied in Class 9th'] || '';
+  } else if (is9) {
+    classSpecificSubs = st['Subjects to be taken in Class 9th'] || st['Subjects in Class 9th'] || '';
+  }
 
-  return String(
-    classSpecificSubs ||
+  const rawCandidate = classSpecificSubs ||
     arraySubs ||
-    st['Subs'] ||
-    st['subs'] ||
-    st['Subjects'] ||
+    (!isSameAs11(st['Subs']) ? st['Subs'] : null) ||
+    (!isSameAs11(st['subs']) ? st['subs'] : null) ||
+    (!isSameAs11(st['Subjects']) ? st['Subjects'] : null) ||
     st['Subject Combination'] ||
     st['streamSubjects'] ||
     multiSubCols ||
-    st.subjects ||
-    ''
-  );
+    (!isSameAs11(st.subjects) ? st.subjects : null) ||
+    '';
+
+  return String(rawCandidate);
 }
 
 export function getStudentStreamStr(st, cls = '') {
@@ -223,6 +239,12 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
   const code = subCode.toUpperCase().trim();
   const subStr = getStudentSubjectsStr(st, cls).toUpperCase().trim();
   const streamStr = getStudentStreamStr(st, cls).toLowerCase();
+  const isScience = streamStr.includes('science') || streamStr.includes('med') || streamStr.includes('sci');
+
+  // Strict Stream Guard: Science students NEVER take Arts-only subjects or Secondary 'SC'
+  if (isScience && ['ED', 'HT', 'PS', 'SO', 'AR', 'PR', 'SC'].includes(code)) {
+    return false;
+  }
 
   // 1. Direct Subject Match in Student's Enrolled Subjects String
   if (subStr && subStr.length > 1) {
@@ -239,7 +261,7 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
     } else if (code === 'ED') {
       const cleanSubj = subStr
         .replace(/\b(NON-MED|NON\s*MED|NON-MEDICAL|MEDICAL|MED)\b/gi, '')
-        .replace(/\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.ED|PED|P\.E)\b/gi, '');
+        .replace(/\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.ED|PED|P\.E|PD|PE)\b/gi, '');
       if (/\b(ED|EDU|EDUCATION)\b/i.test(cleanSubj)) return true;
     } else if (code === 'HT') {
       const cleanSubj = subStr.replace(/\b(HTC|HC|HEALTHCARE|HEALTH\s*CARE|HEALTH)\b/gi, '');
@@ -287,7 +309,6 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
   }
 
   // Fallback defaults for completely unconfigured subject records
-  const isScience = streamStr.includes('science') || streamStr.includes('med') || streamStr.includes('sci');
   const isMedical = streamStr.includes('med') || subStr.includes('BOTANY') || subStr.includes('ZOOLOGY') || subStr.includes('BIOLOGY');
   const isNonMedical = streamStr.includes('non-med') || streamStr.includes('nonmed') || subStr.includes('MATH');
   const isArts = streamStr.includes('arts') || streamStr.includes('humanities');

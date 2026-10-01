@@ -700,35 +700,52 @@ export function extractRawSubjectsString(rec, targetClass = '') {
 
   const cls = String(targetClass || rec['Class'] || rec['class'] || rec['className'] || rec['Admission sought for class'] || '').trim();
   const isSecondary = cls.includes('9') || cls.includes('10');
+  const is12 = cls.includes('12');
+  const is11 = cls.includes('11');
+  const is10 = cls.includes('10');
+  const is9 = cls.includes('9');
 
-  const classSpecific =
-    (cls.includes('11') ? rec['Subjects to be taken in Class 11th'] : null) ||
-    (cls.includes('12') ? (rec['Subjects to be taken in Class 12th'] || rec['Subjects Studied in Class 11th']) : null) ||
-    (cls.includes('10') ? (rec['Subjects to be taken in Class 10th'] || rec['Subjects Studied in Class 9th']) : null) ||
-    (cls.includes('9') ? (rec['Subjects to be taken in Class 9th'] || rec['Subjects Studied in Class 8th']) : null);
+  const SAME_AS_11_RE = /same\s+as\s+(in\s+)?class\s*(11|eleventh)/i;
+  const isInvalidPlaceholder = val => !val || SAME_AS_11_RE.test(String(val)) || String(val).trim() === '—';
 
-  // 1. Check multi-subject array or string fields with class-specific precedence
-  const subjectArrayOrStr = 
-    classSpecific ||
-    rec['Subjects to be taken in Class 11th'] ||
-    rec['Subjects to be taken in Class 12th'] ||
-    rec['Subjects to be taken in Class 10th'] ||
-    rec['Subjects to be taken in Class 9th'] ||
-    rec['selectedSubjects'] ||
-    rec['Subjects to be taken in Class 8th'] ||
-    rec['Subjects Studied in Class 11th'] ||
-    rec['Subjects Studied in Class 9th'] ||
-    rec['Subjects Studied in Class 8th'] ||
-    rec['Stream & Subjects for Class 12th'] ||
-    rec['Subjects Studied in Class 10th'] ||
-    rec['Subject Combination'] ||
-    rec['Subjects Opted'] ||
-    rec['Elective Subjects'] ||
-    rec['Subs'] ||
-    rec['subs'] ||
-    rec['Subjects'] ||
-    rec['subjects'] ||
-    rec['subjectCombination'];
+  const candidates = [
+    is12 ? rec['Subjects to be taken in Class 12th'] : null,
+    is12 ? rec['Stream & Subjects for Class 12th'] : null,
+    is10 ? (rec['Subjects to be taken in Class 10th'] || rec['Subjects in Class 10th']) : null,
+    is9 ? (rec['Subjects to be taken in Class 9th'] || rec['Subjects in Class 9th']) : null,
+    is11 ? (rec['Subjects to be taken in Class 11th'] || rec['Subjects in Class 11th']) : null,
+    rec['Subjects Studied in Class 11th'],
+    rec['Subjects to be taken in Class 11th'],
+    rec['selectedSubjects'],
+    rec['Subjects Studied in Class 9th'],
+    rec['Subjects Studied in Class 8th'],
+    rec['Subjects to be taken in Class 10th'],
+    rec['Subjects to be taken in Class 9th'],
+    rec['Subject Combination'],
+    rec['Subjects Opted'],
+    rec['Elective Subjects'],
+    rec['Subs'],
+    rec['subs'],
+    rec['Subjects'],
+    rec['subjects'],
+    rec['subjectCombination']
+  ];
+
+  let subjectArrayOrStr = null;
+  for (const c of candidates) {
+    if (c) {
+      if (Array.isArray(c) && c.length > 0) {
+        const cleanArr = c.filter(item => !isInvalidPlaceholder(item));
+        if (cleanArr.length > 0) {
+          subjectArrayOrStr = cleanArr;
+          break;
+        }
+      } else if (typeof c === 'string' && !isInvalidPlaceholder(c)) {
+        subjectArrayOrStr = c.trim();
+        break;
+      }
+    }
+  }
 
   let extracted = '';
   if (Array.isArray(subjectArrayOrStr) && subjectArrayOrStr.length > 0) {
@@ -746,7 +763,7 @@ export function extractRawSubjectsString(rec, targetClass = '') {
 
     subjKeys.forEach(k => {
       const val = rec[k];
-      if (val && typeof val === 'string' && val.trim() && val.trim() !== '—' && !subjList.includes(val.trim())) {
+      if (val && typeof val === 'string' && !isInvalidPlaceholder(val) && !subjList.includes(val.trim())) {
         subjList.push(val.trim());
       }
     });
@@ -756,15 +773,13 @@ export function extractRawSubjectsString(rec, targetClass = '') {
     } else {
       // 3. Fallback to single subject fields
       const fallback = rec['subjects'] || rec['Subject'] || rec['subject'];
-      if (fallback && String(fallback).trim() && String(fallback).trim() !== '—') {
+      if (fallback && String(fallback).trim() && !isInvalidPlaceholder(fallback)) {
         extracted = String(fallback).trim();
       }
     }
   }
 
   // Secondary Class Intelligence:
-  // In JKBOSE, all Class 9th and Class 10th students take Urdu as their compulsory language (unless Hindi is taken).
-  // Bulk-imported secondary records often only recorded the 4 non-language/core subjects (English, Mathematics, Science, Social Science).
   if (isSecondary) {
     if (!extracted || ['science', 'arts', 'commerce', 'humanities', 'medical', 'general'].includes(extracted.toLowerCase())) {
       extracted = 'English, Mathematics, Science, Social Science, Urdu';
@@ -799,6 +814,7 @@ export function getAbbreviatedSubjects(st, targetClass = '') {
     const streamRaw = String(
       st['Stream for Class 11th'] ||
       st['Stream opted in Class 11th'] ||
+      st['Stream for Class 12th'] ||
       st['Stream'] ||
       st.stream ||
       ''
@@ -892,6 +908,12 @@ export function getAbbreviatedSubjects(st, targetClass = '') {
       } else if (/\b(PH|CH|BI|BO|ZO)\b/i.test(subjectsStr)) {
         streamCode = 'S';
       }
+    }
+
+    if (streamCode === 'S') {
+      const artsOnly = new Set(['ED', 'HT', 'PS', 'SO', 'AR', 'PR', 'SC']);
+      const tokens = subjectsStr.split(/[\s,]+/).filter(t => !artsOnly.has(t.toUpperCase()));
+      subjectsStr = tokens.join(', ');
     }
   }
 

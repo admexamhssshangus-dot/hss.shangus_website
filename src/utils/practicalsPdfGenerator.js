@@ -1247,6 +1247,8 @@ function resolveStudentSubjectsRaw(st, className = '') {
   if (!st) return '';
   const clsName = String(className || st.Class || st.class || '').toLowerCase();
   const is12 = clsName.includes('12');
+  const is10 = clsName.includes('10');
+  const is9 = clsName.includes('9');
   const stStream = String(st.stream || st.Stream || '').toLowerCase();
 
   const SAME_AS_11_RE = /same\s+as\s+(in\s+)?class\s*(11|eleventh)/i;
@@ -1255,7 +1257,7 @@ function resolveStudentSubjectsRaw(st, className = '') {
     st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
     st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
     st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
-  ].filter(Boolean).join(', ');
+  ].filter(val => val && !SAME_AS_11_RE.test(String(val))).join(', ');
 
   // Ordered candidate fields — most authoritative first
   const candidates = [
@@ -1263,10 +1265,18 @@ function resolveStudentSubjectsRaw(st, className = '') {
     st['subs'],
     is12 ? st['Subjects to be taken in Class 12th'] : null,
     is12 ? st['Subjects in Class 12th'] : null,
+    is12 ? st['Stream & Subjects for Class 12th'] : null,
+    is10 ? (st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th']) : null,
+    is9 ? (st['Subjects to be taken in Class 9th'] || st['Subjects in Class 9th']) : null,
     multiSubCols || null,
     st['Subjects to be taken in Class 11th'],
     st['Subjects Studied in Class 11th'],
     st['Subjects in Class 11th'],
+    st['Subjects to be taken in Class 10th'],
+    st['Subjects in Class 10th'],
+    st['Subjects Studied in Class 9th'],
+    st['Subjects to be taken in Class 9th'],
+    st['Subjects in Class 9th'],
     st['Subjects'],
     st['Subject Combination'],
     st['streamSubjects'],
@@ -1282,11 +1292,14 @@ function resolveStudentSubjectsRaw(st, className = '') {
     return s;
   }
 
+  // Secondary Fallback
+  if (is10 || is9) return 'English, Mathematics, Science, Social Science, Urdu';
+
   // Stream-based fallback
-  if (stStream.includes('non-med') || stStream.includes('nonmed')) return 'EN, PH, CH, MA';
-  if (stStream.includes('med') || stStream.includes('science') || stStream.includes('sci')) return 'EN, PH, CH, BI';
-  if (stStream.includes('arts') || stStream.includes('humanities')) return 'EN, UR, ED, PS, EC';
-  if (stStream.includes('commerce')) return 'EN, AY, BS, EC, MA';
+  if (stStream.includes('non-med') || stStream.includes('nonmed')) return 'General English, Physics, Chemistry, Mathematics';
+  if (stStream.includes('med') || stStream.includes('science') || stStream.includes('sci')) return 'General English, Physics, Chemistry, Biology';
+  if (stStream.includes('arts') || stStream.includes('humanities')) return 'General English, Urdu, Education, Political Science, Economics';
+  if (stStream.includes('commerce')) return 'General English, Accountancy, Business Studies, Economics, Mathematics';
   return '';
 }
 
@@ -1303,45 +1316,85 @@ export function getAbbreviatedSubjects(st, className = '') {
     if (stStream.includes('non-med') || stStream.includes('nonmed')) return 'EN, PH, CH, MA';
     if (stStream.includes('med') || stStream.includes('science')) return 'EN, PH, CH, BI';
     if (stStream.includes('arts') || stStream.includes('humanities')) return 'EN, UR, ED, PS, EC';
+    if (stStream.includes('commerce')) return 'EN, AY, BS, EC, MA';
     return stStream ? stStream.toUpperCase() : 'GENERAL';
   }
 
-  // Map known keywords to standard uppercase abbreviations (Biology/Botany/Zoology mapped to BI)
+  let cleanRaw = ' ' + raw.trim() + ' ';
+
+  // 1. Pre-tokenize multi-word and compound subjects FIRST to prevent partial overlaps
+  cleanRaw = cleanRaw
+    .replace(/\b(physical\s+education|phy\s+edu|phy\.\s+edu\.|p\.ed|ped|p\.e)\b/gi, ' __SUB_PD__ ')
+    .replace(/\b(environmental\s+science|envir\s+sci|evs|es)\b/gi, ' __SUB_ES__ ')
+    .replace(/\b(political\s+science|pol\s+sc|pol\.\s+sc\.|pol\s+science|ps)\b/gi, ' __SUB_PS__ ')
+    .replace(/\b(computer\s+science|comp\s+sci|cs)\b/gi, ' __SUB_CS__ ')
+    .replace(/\b(social\s+science|social\s+studies|sst|ss)\b/gi, ' __SUB_SS__ ')
+    .replace(/\b(general\s+english|gen\s+eng|ge)\b/gi, ' __SUB_EN__ ')
+    .replace(/\b(it\s*&\s*ites|it\s+and\s+ites|it&ites|information\s+technology)\b/gi, ' __SUB_ITE__ ')
+    .replace(/\b(health\s*care|healthcare|htc)\b/gi, ' __SUB_HTC__ ')
+    .replace(/\b(business\s+studies|bs)\b/gi, ' __SUB_BS__ ')
+    .replace(/\b(entrepreneurship|ep)\b/gi, ' __SUB_EP__ ')
+    .replace(/\b(applied\s+mathematics|app\s+math|am)\b/gi, ' __SUB_AM__ ')
+    .replace(/\b(public\s+administration|pub\s+ad|pa)\b/gi, ' __SUB_PA__ ')
+    .replace(/\b(home\s+science|home\s+sci|hsc)\b/gi, ' __SUB_HSC__ ')
+    .replace(/\b(islamic\s+studies|isl\s+stud|is)\b/gi, ' __SUB_IS__ ');
+
+  // Map known keywords / tokens to standard uppercase abbreviations
   const subMap = [
-    { regex: /\b(general english|gen eng|english|eng|ge|en)\b/i, code: 'EN' },
+    { regex: /__SUB_EN__|\b(english|eng|en)\b/i, code: 'EN' },
     { regex: /\b(physics|ph)\b/i, code: 'PH' },
     { regex: /\b(chemistry|chem|ch)\b/i, code: 'CH' },
     { regex: /\b(biology|botany|zoology|bio|bot|zoo|bi|bo|zo)\b/i, code: 'BI' },
-    { regex: /\b(mathematics|maths|math|ma)\b/i, code: 'MA' },
-    { regex: /\b(social science|social studies|sst|ss)\b/i, code: 'SS' },
-    { regex: /\b(science|sci|sc)\b/i, code: 'SC' },
+    { regex: /__SUB_AM__|\b(mathematics|maths|math|ma)\b/i, code: 'MA' },
+    { regex: /__SUB_SS__\b/i, code: 'SS' },
     { regex: /\b(urdu|ur)\b/i, code: 'UR' },
     { regex: /\b(hindi|hn)\b/i, code: 'HN' },
     { regex: /\b(education|edu|ed)\b/i, code: 'ED' },
     { regex: /\b(history|hist|ht)\b/i, code: 'HT' },
-    { regex: /\b(political science|pol sc|pol\. sc\.|pol science|ps)\b/i, code: 'PS' },
+    { regex: /__SUB_PS__\b/i, code: 'PS' },
     { regex: /\b(economics|eco|ec)\b/i, code: 'EC' },
-    { regex: /\b(environmental science|evs|es)\b/i, code: 'ES' },
-    { regex: /\b(physical education|phy edu|phy\. edu\.|pd|pe)\b/i, code: 'PD' },
-    { regex: /\b(healthcare|health care|htc)\b/i, code: 'HTC' },
-    { regex: /\b(it & ites|it and ites|it&ites|ite|it)\b/i, code: 'ITE' },
+    { regex: /__SUB_ES__\b/i, code: 'ES' },
+    { regex: /__SUB_PD__\b/i, code: 'PD' },
+    { regex: /__SUB_HTC__\b/i, code: 'HTC' },
+    { regex: /__SUB_ITE__|\b(ite|it)\b/i, code: 'ITE' },
     { regex: /\b(sociology|soc|so)\b/i, code: 'SO' },
     { regex: /\b(arabic|ar)\b/i, code: 'AR' },
-    { regex: /\b(persian|pr)\b/i, code: 'PR' },
+    { regex: /\b(persian|pr|pe)\b/i, code: 'PR' },
     { regex: /\b(kashmiri|ks)\b/i, code: 'KS' },
     { regex: /\b(geography|geo|gg)\b/i, code: 'GG' },
     { regex: /\b(geology|gl)\b/i, code: 'GL' },
-    { regex: /\b(computer science|cs)\b/i, code: 'CS' }
+    { regex: /__SUB_CS__\b/i, code: 'CS' },
+    { regex: /__SUB_BS__\b/i, code: 'BS' },
+    { regex: /__SUB_EP__\b/i, code: 'EP' },
+    { regex: /__SUB_PA__\b/i, code: 'PA' },
+    { regex: /__SUB_HSC__\b/i, code: 'HSC' },
+    { regex: /__SUB_IS__\b/i, code: 'IS' },
+    { regex: /\b(accountancy|accounts|acc|ay)\b/i, code: 'AY' },
+    ...(isSecondary ? [{ regex: /\b(science|sci|sc)\b/i, code: 'SC' }] : [])
   ];
 
   const foundCodes = [];
   subMap.forEach(item => {
-    if (item.regex.test(raw)) {
+    if (item.regex.test(cleanRaw)) {
       if (!foundCodes.includes(item.code)) {
         foundCodes.push(item.code);
       }
     }
   });
+
+  // Strict Stream Guard for Higher Secondary (11th & 12th)
+  if (!isSecondary) {
+    const stStream = String(st.stream || st.Stream || '').toLowerCase();
+    const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || foundCodes.includes('PH') || foundCodes.includes('CH');
+    if (isScience) {
+      const artsOnly = new Set(['ED', 'HT', 'PS', 'SO', 'AR', 'PR', 'SC']);
+      for (let i = foundCodes.length - 1; i >= 0; i--) {
+        if (artsOnly.has(foundCodes[i])) {
+          foundCodes.splice(i, 1);
+        }
+      }
+    }
+  }
 
   if (isSecondary) {
     if (!foundCodes.includes('UR') && !foundCodes.includes('HN')) {
@@ -1375,6 +1428,42 @@ export function getAbbreviatedSubjects(st, className = '') {
 }
 
 /**
+ * Canonical enrollment validation for a student in a specific practical / assessment subject.
+ * Guaranteed to respect stream boundaries (e.g. Science students never enrolled in Arts subjects like ED).
+ */
+export function isStudentEnrolledInPracticalSubject(st, subCode, className = '') {
+  if (!st || !subCode) return false;
+  const code = subCode.toUpperCase().trim();
+  const clsName = String(className || st.Class || st.class || '').toLowerCase();
+  const isSecondary = clsName.includes('9') || clsName.includes('10');
+  const stStream = String(st.stream || st.Stream || '').toLowerCase();
+  const isScience = !isSecondary && (stStream.includes('science') || stStream.includes('med') || stStream.includes('sci'));
+
+  // Science Stream Guard: Science students are NEVER enrolled in Arts-only electives or Secondary 'SC'
+  if (isScience && ['ED', 'HT', 'PS', 'SO', 'AR', 'PR', 'SC'].includes(code)) {
+    return false;
+  }
+
+  const abbrStr = getAbbreviatedSubjects(st, className);
+  const abbrList = abbrStr.split(',').map(s => s.trim().toUpperCase());
+
+  if (abbrList.includes(code)) return true;
+
+  // Biology equivalence: BI encompasses BO and ZO
+  if (code === 'BI' && (abbrList.includes('BO') || abbrList.includes('ZO'))) return true;
+  if ((code === 'BO' || code === 'ZO') && abbrList.includes('BI')) return true;
+
+  // Physical Education alias: PD / PE
+  if (code === 'PD' && abbrList.includes('PE')) return true;
+  if (code === 'PE' && abbrList.includes('PD')) return true;
+
+  // General English is taken by all Higher Secondary students
+  if (code === 'EN' && !isSecondary) return true;
+
+  return false;
+}
+
+/**
  * 4. Print Attendance Sheet for Selected Students
  * Enhanced with separate Class Roll No & Exam Roll No columns, Board Reg No, compact abbreviated subjects, and standard 50px row height for signatures.
  */
@@ -1393,27 +1482,11 @@ export function printAttendanceSheet({
   students = students.filter(st => !isStudentExamDropped(st));
   if (students.length === 0) return false;
 
-  // Subject-specific attendance: filter to students enrolled in the given subject
+  // Subject-specific attendance: filter to students authentically enrolled in the given subject
   const filterSubCode = (subjectCode || '').trim().toUpperCase();
   if (filterSubCode) {
-    const subDef = PRACTICAL_SUBJECT_DEFS.find(s => s.code === filterSubCode);
-    if (subDef) {
-      students = students.filter(st => {
-        const stStream = String(st.stream || st.Stream || '').toLowerCase();
-        // resolveStudentSubjectsRaw correctly skips "Same as in Class 11th" and falls back to stream
-        const stSubs = resolveStudentSubjectsRaw(st, className).toLowerCase();
-        const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry');
-        const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
-        if (filterSubCode === 'EN') return true;
-        if (filterSubCode === 'PH' || filterSubCode === 'CH') return isScience || stSubs.includes(subDef.keywords[0]);
-        if (filterSubCode === 'BO' || filterSubCode === 'ZO' || filterSubCode === 'BI') {
-          return stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs) || (isScience && !isNonMed);
-        }
-        if (filterSubCode === 'MA') return stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed);
-        return subDef.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
-      });
-      if (students.length === 0) return false;
-    }
+    students = students.filter(st => isStudentEnrolledInPracticalSubject(st, filterSubCode, className));
+    if (students.length === 0) return false;
   }
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType, isExternal);
@@ -1550,43 +1623,7 @@ export function printAllIndividualAwardRolls({
     const subjectStudents = [];
 
     students.forEach((st, idx) => {
-      let isEnrolled = false;
-      const stStream = String(st.stream || st.Stream || '').toLowerCase();
-      const multiSubCols = [
-        st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
-        st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
-        st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
-      ].filter(Boolean).join(', ');
-
-      const stSubs = String(
-        st['Subs'] ||
-        st['subs'] ||
-        (isClass12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
-        multiSubCols ||
-        st['Subjects to be taken in Class 11th'] ||
-        st['Subjects Studied in Class 11th'] ||
-        st['Subjects'] ||
-        st['Subject Combination'] ||
-        st['streamSubjects'] ||
-        st.subjects ||
-        ''
-      ).toLowerCase();
-
-      const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
-      const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
-
-      if (sub.code === 'EN') {
-        isEnrolled = true;
-      } else if (sub.code === 'PH' || sub.code === 'CH') {
-        isEnrolled = isScience || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
-      } else if (sub.code === 'BO' || sub.code === 'ZO' || sub.code === 'BI') {
-        isEnrolled = stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs) || (isScience && !isNonMed);
-      } else if (sub.code === 'MA') {
-        isEnrolled = stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed);
-      } else {
-        isEnrolled = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
-      }
-
+      const isEnrolled = isStudentEnrolledInPracticalSubject(st, sub.code, className);
       const markRec = findStudentMarkRecord(subDoc, st);
       if (isEnrolled || markRec) {
         const rawMark = markRec ? String(markRec.totalMarks ?? markRec.practicalMarks ?? '').trim() : '';

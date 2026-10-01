@@ -20,7 +20,10 @@ import {
   extractRawSubjectsString,
   getAbbreviatedSubjects
 } from './PracticalsPage';
-import { getAbbreviatedSubjects as getPdfAbbreviatedSubjects } from '../../utils/practicalsPdfGenerator';
+import { 
+  getAbbreviatedSubjects as getPdfAbbreviatedSubjects,
+  isStudentEnrolledInPracticalSubject
+} from '../../utils/practicalsPdfGenerator';
 
 describe('Practicals Dynamic Configuration and Roster Logic', () => {
   describe('Dynamic Subject Overrides from Edit School Assessment', () => {
@@ -398,6 +401,53 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
 
       const abbr = getAbbreviatedSubjects(student12th, '12th');
       expect(abbr).toBe('EN, PH, CH, BI (S)');
+    });
+
+    test('Science student with Physical Education does NOT receive Arts subject ED (Education)', () => {
+      const studentSciPd = {
+        name: 'Irtiza Maqbool',
+        class: '12th',
+        stream: 'Science',
+        'Subjects to be taken in Class 12th': 'General English, Physics, Chemistry, Biology, Physical Education'
+      };
+
+      // PracticalsPage abbreviation
+      const pageAbbr = getAbbreviatedSubjects(studentSciPd, '12th');
+      expect(pageAbbr).toContain('PD');
+      expect(pageAbbr).not.toContain('ED');
+
+      // PDF generator abbreviation
+      const pdfAbbr = getPdfAbbreviatedSubjects(studentSciPd, '12th');
+      expect(pdfAbbr).toContain('PD');
+      expect(pdfAbbr).not.toContain('ED');
+
+      // Enrollment checks
+      expect(isStudentEnrolledInPracticalSubject(studentSciPd, 'PD', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(studentSciPd, 'ED', '12th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(studentSciPd, 'BI', '12th')).toBe(true);
+    });
+
+    test('Class 12th student with "Same as in Class 11th" resolves authentic subjects from 11th records', () => {
+      const studentWith11Placeholder = {
+        name: 'Aaqib Ahmad',
+        class: '12th',
+        stream: 'Science',
+        'Subjects to be taken in Class 12th': 'Same as in Class 11th',
+        'Subjects Studied in Class 11th': 'General English, Physics, Chemistry, Mathematics, Physical Education'
+      };
+
+      const raw = extractRawSubjectsString(studentWith11Placeholder, '12th');
+      expect(raw).toContain('Physics');
+      expect(raw).toContain('Mathematics');
+      expect(raw).not.toContain('Same as in Class 11th');
+
+      const pdfAbbr = getPdfAbbreviatedSubjects(studentWith11Placeholder, '12th');
+      expect(pdfAbbr).toBe('EN, PH, CH, MA, PD');
+      expect(pdfAbbr).not.toContain('ED');
+
+      expect(isStudentEnrolledInPracticalSubject(studentWith11Placeholder, 'MA', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(studentWith11Placeholder, 'PD', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(studentWith11Placeholder, 'ED', '12th')).toBe(false);
     });
   });
 });
