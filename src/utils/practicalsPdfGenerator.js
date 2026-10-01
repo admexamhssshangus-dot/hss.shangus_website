@@ -9,6 +9,7 @@
 
 import { getSubjectMarksConfig, isTeacherSubjectMatch } from './practicalsSettingsManager';
 import { toTitleCase } from './textFormatting';
+import { isStudentExamDropped } from './studentApprovalStatus';
 
 export function numberToWordsInr(num) {
   if (!num || num === 'AB' || num === 'A' || String(num).toUpperCase() === 'ABSENT') return '-';
@@ -554,6 +555,8 @@ export function printIndividualAwardRoll({
   centreNo = ''
 }) {
   if (!records || records.length === 0) return false;
+  records = records.filter(r => !isStudentExamDropped(r));
+  if (records.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || examTitle, isExternal);
   const heading = titles.heading;
@@ -867,6 +870,8 @@ export function printConsolidatedAwardRoll({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
+  students = students.filter(st => !isStudentExamDropped(st));
+  if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
@@ -1359,6 +1364,8 @@ export function printAttendanceSheet({
   subjectTitle = ''
 }) {
   if (!students || students.length === 0) return false;
+  students = students.filter(st => !isStudentExamDropped(st));
+  if (students.length === 0) return false;
   const titles = resolveAwardRollTitles(evaluationType || practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
   const examAttendanceTitle = titles.heading.replace(/\s+AWARD\s+ROLL$/i, '');
@@ -1445,6 +1452,8 @@ export function printAllIndividualAwardRolls({
   centreNo = ''
 }) {
   if (!students || students.length === 0) return false;
+  students = students.filter(st => !isStudentExamDropped(st));
+  if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || examTitle || printDetails?.practicalType, isExternal);
   const heading = titles.heading;
@@ -1740,6 +1749,8 @@ export function printFailList({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
+  students = students.filter(st => !isStudentExamDropped(st));
+  if (students.length === 0) return false;
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
   const examType = titles.examLabel;
