@@ -712,7 +712,7 @@ export default function AdminDashboard() {
                 <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 ml-auto">
 
                   {/* Setup / Configuration Button (Shown on sm+ screens; each module has its own focused mobile setup) */}
-                  {(activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate' || activeTab === 'customRoster' || activeTab === 'docStudio') && (
+                  {(activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate') && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1072,8 +1072,6 @@ export default function AdminDashboard() {
                         allStudents={identityStudents}
                         onClose={() => setActiveTab('reports')}
                         isActive={activeTab === 'customRoster' || activeTab === 'docStudio'}
-                        showSettingsDrawerProp={isStudioSetupOpen}
-                        onToggleSettingsDrawer={(val) => setIsStudioSetupOpen(typeof val === 'boolean' ? val : !isStudioSetupOpen)}
                       />
                     </div>
                   )}
