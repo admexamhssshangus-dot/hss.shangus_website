@@ -510,6 +510,14 @@ service cloud.firestore {
       allow delete: if canUseAny(['practicals', 'gkTest']);
     }
 
+    // Practicals Submission Recycle Bin — soft-deleted award submissions awaiting
+    // restoration or permanent purge. Strictly admin-only write access.
+    match /practicalsRecycleBin/{documentId} {
+      allow read: if isAdmin() || canUseAny(['practicals', 'gkTest']);
+      allow create, update: if canUseAny(['practicals', 'gkTest']) && validStaffDocument(request.resource.data);
+      allow delete: if canUseAny(['practicals', 'gkTest']);
+    }
+
     match /activityLogs/{documentId} {
       allow create: if (isTeacher() || isAuthenticated()) && validStaffDocument(request.resource.data);
       allow read, delete: if isAdmin();

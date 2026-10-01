@@ -7,7 +7,9 @@ import {
   setDoc,
   deleteDoc,
   query,
-  where
+  where,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { invalidateCollectionCache } from './dbCache';
 import { logAdminActivity } from './adminActivityLogger';
@@ -200,4 +202,173 @@ export async function restoreVersionFromBin(binDocId, canonicalDocId, adminUser 
   });
 
   return restoredPayload;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Practicals Submission Recycle Bin
+// Separate from the version-history bin above. This handles admin soft-deletion
+// of entire pending/approved submission documents so teachers can re-submit.
+// Collection: 'practicalsRecycleBin'
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SUBMISSION_BIN_COLLECTION = 'practicalsRecycleBin';
+/** How many days before a recycled submission is auto-expirable (UI hint only; no TTL enforced here) */
+const SUBMISSION_BIN_RETENTION_DAYS = 90;
+
+/**
+ * Moves a practicalsData document into the practicalsRecycleBin.
+ * The original document is then deleted from practicalsData so the
+ * teacher's submission slot becomes empty again.
+ *
+ * @param {object} submissionDoc - The full submission document object (must have .id)
+ * @param {object} deletedByMeta - { name, email } of the admin performing the deletion
+ * @returns {Promise<string>} - The recycled document ID in practicalsRecycleBin
+ */
+export async function moveSubmissionToRecycleBin(submissionDoc, deletedByMeta = {}) {
+  if (!submissionDoc || !submissionDoc.id) {
+    throw new Error('Invalid submission document: missing ID.');
+  }
+
+  const currentUser = auth.currentUser;
+  const adminName = deletedByMeta.name || currentUser?.displayName || 'Administrator';
+  const adminEmail = deletedByMeta.email || currentUser?.email || '';
+  const now = new Date();
+  const expiresAt = new Date(now);
+  expiresAt.setDate(expiresAt.getDate() + SUBMISSION_BIN_RETENTION_DAYS);
+
+  const binDocId = `pbin_${submissionDoc.id}_${Date.now()}`;
+
+  const binPayload = sanitizeForFirestore({
+    binDocId,
+    originalDocId: submissionDoc.id,
+    originalCollection: 'practicalsData',
+    // Preserve core identifiers for display
+    subject: submissionDoc.subject || submissionDoc.subjectName || '',
+    subjectCode: submissionDoc.subjectCode || '',
+    className: submissionDoc.className || submissionDoc.class || '',
+    practicalType: submissionDoc.practicalType || submissionDoc.evaluationType || '',
+    yearSuffix: submissionDoc.yearSuffix || submissionDoc.session || '',
+    submittedBy: submissionDoc.submittedBy || submissionDoc.submittedByName || '',
+    submittedByEmail: submissionDoc.submittedByEmail || submissionDoc.teacherEmail || '',
+    recordsCount: Array.isArray(submissionDoc.records) ? submissionDoc.records.length : 0,
+    originalStatus: submissionDoc.status || 'pending',
+    isPendingApproval: Boolean(submissionDoc.isPendingApproval || submissionDoc.status === 'pending_approval'),
+    // Preserve the full submission payload for restoration
+    submissionData: submissionDoc,
+    // Audit trail
+    deletedAt: now.toISOString(),
+    deletedBy: adminName,
+    deletedByEmail: adminEmail,
+    expiresAt: expiresAt.toISOString(),
+    retentionDays: SUBMISSION_BIN_RETENTION_DAYS,
+    restorable: true,
+  });
+
+  // 1. Write to recycle bin
+  await setDoc(doc(db, SUBMISSION_BIN_COLLECTION, binDocId), binPayload);
+
+  // 2. Delete from active practicalsData so the slot is free
+  await deleteDoc(doc(db, 'practicalsData', submissionDoc.id));
+
+  // 3. Invalidate cache
+  invalidateCollectionCache('practicalsData');
+
+  return binDocId;
+}
+
+/**
+ * Returns all items currently in the practicalsRecycleBin, ordered newest first.
+ * @returns {Promise<Array>}
+ */
+export async function getPracticalsRecycleBinItems() {
+  try {
+    const snap = await getDocs(
+      query(collection(db, SUBMISSION_BIN_COLLECTION), orderBy('deletedAt', 'desc'), limit(200))
+    );
+    return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  } catch (err) {
+    // Fallback if composite index not yet built
+    try {
+      const snap2 = await getDocs(collection(db, SUBMISSION_BIN_COLLECTION));
+      const items = snap2.docs.map(d => ({ ...d.data(), id: d.id }));
+      items.sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+      return items;
+    } catch (e2) {
+      console.warn('[practicalsBin] Failed to fetch recycle bin items:', e2);
+      return [];
+    }
+  }
+}
+
+/**
+ * Restores a soft-deleted submission from the recycle bin back into practicalsData.
+ * @param {string} binDocId - The ID in practicalsRecycleBin
+ * @param {object} restoredByMeta - { name, email } of the admin restoring
+ * @returns {Promise<object>} - The restored submission document
+ */
+export async function restoreSubmissionFromBin(binDocId, restoredByMeta = {}) {
+  if (!binDocId) throw new Error('Missing recycle bin document ID.');
+
+  const currentUser = auth.currentUser;
+  const adminName = restoredByMeta.name || currentUser?.displayName || 'Administrator';
+  const adminEmail = restoredByMeta.email || currentUser?.email || '';
+
+  // 1. Fetch the bin document
+  const binSnap = await getDoc(doc(db, SUBMISSION_BIN_COLLECTION, binDocId));
+  if (!binSnap.exists()) {
+    throw new Error('Submission not found in recycle bin.');
+  }
+  const binData = binSnap.data();
+  const originalDoc = binData.submissionData;
+  const originalDocId = binData.originalDocId;
+
+  if (!originalDoc || !originalDocId) {
+    throw new Error('Recycle bin item is missing original submission data.');
+  }
+
+  // 2. Check for conflict — if a document already exists at that ID
+  const existingSnap = await getDoc(doc(db, 'practicalsData', originalDocId));
+  if (existingSnap.exists()) {
+    throw new Error(
+      `Cannot restore: A submission with ID "${originalDocId}" already exists in practicalsData. ` +
+      'The teacher may have already resubmitted. Please review before restoring.'
+    );
+  }
+
+  // 3. Restore the document back to practicalsData
+  const restoredPayload = sanitizeForFirestore({
+    ...originalDoc,
+    restoredFromBin: true,
+    restoredFromBinId: binDocId,
+    restoredAt: new Date().toISOString(),
+    restoredBy: adminName,
+    restoredByEmail: adminEmail,
+  });
+
+  await setDoc(doc(db, 'practicalsData', originalDocId), restoredPayload);
+
+  // 4. Mark the bin item as restored (don't purge it yet — leave an audit trail)
+  await setDoc(doc(db, SUBMISSION_BIN_COLLECTION, binDocId), sanitizeForFirestore({
+    ...binData,
+    restorable: false,
+    wasRestored: true,
+    restoredAt: new Date().toISOString(),
+    restoredBy: adminName,
+    restoredByEmail: adminEmail,
+  }));
+
+  // 5. Invalidate cache
+  invalidateCollectionCache('practicalsData');
+
+  return restoredPayload;
+}
+
+/**
+ * Permanently and irreversibly purges a submission from the recycle bin.
+ * @param {string} binDocId - The ID in practicalsRecycleBin
+ * @returns {Promise<void>}
+ */
+export async function purgeSubmissionFromBin(binDocId) {
+  if (!binDocId) throw new Error('Missing recycle bin document ID.');
+  await deleteDoc(doc(db, SUBMISSION_BIN_COLLECTION, binDocId));
 }
