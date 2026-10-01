@@ -1,47 +1,40 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Enforce Strict Deduplication Hierarchy & Flagged Fallback in Custom Roster Builder
+## Latest Commit: Right-Side Controls with 2/3 Table Space & Compact Searchable Column Dropdown
 
-**Commit Message:** `fix(roster): enforce board reg then form no hierarchy with flagged name-father-mobile fallback`
-
----
-
-### Deduplication Hierarchy & Architectural Overview
-
-Following institutional identity requirements:
-1. **Primary Key**: `board reg no_class_session` (`reg_${cleanReg}_${cls}_${sess}`)
-   - Matches official JKBOSE Board Registration Number scoped to the student's class and academic session.
-2. **Secondary Key**: `form number_class_session` (`form_${cleanForm}_${cls}_${sess}`)
-   - Matches institutional Admission Form Number (with `adm_` prefix normalized) scoped to class and session.
-3. **Tertiary Fallback**: `student name_father name_mobile_class_session` (`nfm_${cleanName}_${cleanFather}_${cleanMob}_${cls}_${sess}`)
-   - Applied only when both Board Registration Number and Form Number are unavailable or unlinked across intake documents.
-   - Requires normalized 10-digit mobile number in addition to student name, father name, class, and session to prevent false merges of distinct students/cousins with identical names and parentage.
-   - **Flagged Record**: Records merged via this fallback heuristic are automatically tagged with `_isFallbackMerge: true` and an explicit reason string.
-4. **Final Fallback**: `docId_class_session` (`doc_${cleanDocId}`)
-   - Isolates unique documents when no matching identifiers exist.
+**Commit Message:** `feat(roster): move controls to right with 2/3 table space and compact searchable columns dropdown`
 
 ---
 
-### Summary of Changes
+### Architectural & UI Overview
 
-1. **Authoritative Hierarchy Implementation (`src/portal/admin/CustomRosterDocumentBuilderView.jsx`)**:
-   - Updated `getRosterRowId` to generate scoped row keys strictly following the hierarchy:
-     1. Primary: `reg_${cleanReg}_${cls}_${sess}`
-     2. Secondary: `form_${cleanForm}_${cls}_${sess}`
-     3. Tertiary Fallback: `nfm_${cleanName}_${cleanFather}_${cleanMob}_${cls}_${sess}`
-     4. Default: `doc_${row.docId}_${cls}_${sess}`
-   - Updated `combinedRawStudents`:
-     - Keys `seenMap` by `reg:${reg}:${cls}:${sess}`, `fno:${fNo}:${cls}:${sess}`, and fallback `nfm:${name}:${father}:${mob}:${cls}:${sess}`.
-     - Flags fallback merges with `_isFallbackMerge = true`.
-   - Updated `unifiedStudentPool`:
-     - Multi-index registry with `indexByReg`, `indexByForm`, `indexByNameFatherMobile`, and `indexByDoc`.
-     - Completely removed unsafe `indexByNameFather` and `indexByNameRoll` heuristics that risked conflating cousins or students sharing identical first and father names.
-     - Automatically flags merged candidate records with `_isFallbackMerge: true`.
-
-2. **Visual Flagging & Audit UI (`src/portal/admin/CustomRosterDocumentBuilderView.jsx`)**:
-   - In the live document preview table, whenever a student record was merged via the Name+Father+Mobile fallback, a prominent amber `[⚠️ Fallback Merge]` badge with explanatory tooltip is rendered next to the student's name.
-   - In the Cohort Filter summary header, an active indicator badge (`[⚠️ N Flagged]`) alerts administrators whenever fallback-merged students exist within the active filtered cohort.
-   - In the 2-column examination attendance preview, candidate cells display an audit warning indicator `⚠` with full tooltip explanation.
+Per user request:
+1. **Layout Reorientation (Table Preview on Left, Controls on Right)**:
+   - Live document preview & roster table now occupies the **LEFT** side with a default allocation of **67% (2/3 of desktop viewport width)**.
+   - Filter & configuration controls have been moved to the **RIGHT** side with a default allocation of **33% (1/3 of desktop viewport width)**.
+   - The central vertical splitter handle allows smooth real-time drag resizing between 45% and 80%, with a double-click shortcut to instantly reset back to the default 2/3 (67%) layout.
+2. **Compact Searchable Database Column Dropdown (`RosterColumnsDropdown`)**:
+   - Replaced the bulky, open 3-column card grid with an ultra-compact checkbox dropdown anchored cleanly to the right side of the control panel.
+   - Equipped with a real-time live search bar that searches across **all 35+ columns registered in the database** (e.g. typing `roll`, `dob`, `photo`, `stream`, `marks`, `aadhaar`, `blood`, `fee`).
+   - Categorized database field groups (Core Identity, Academic Details, Contact & Addresses, etc.) with check boxes, match count indicator, quick toggle between Core and All 35 columns, "+ Custom Column" launcher, and "Reset Default Columns" shortcut.
+3. **Logically Grouped Control Palette (4 Cohesive Cards)**:
+   - **Card 1: Cohort Filters**:
+     - Header with matched student count (`X/Y Matched`), fallback merge alert indicator (`[⚠️ N Flagged]`), and 1-click `Reset` button.
+     - Clean 2-column compact grid of filter dropdowns: Session, Class, Stream, Subject (with real-time search), Gender, and Form Status.
+   - **Card 2: Table Columns & Database Fields**:
+     - Full-width compact `RosterColumnsDropdown`.
+     - Quick toolbar: `⚡ Abbr (GE, PH)` vs `📝 Full` subject toggle, `+ Custom` column button, `Save Default` layout button, and system default reset button.
+     - Active column sequence chips with `◀` and `▶` 1-click reorder arrows, column labels (clickable to edit custom formula/fee columns), and `×` removal button.
+   - **Card 3: Document Layout & Page Setup**:
+     - Document Title input with printed register placeholder.
+     - Layout mode buttons (`Standard` vs `2-Col Attendance`).
+     - Orientation buttons (`Portrait` vs `Landscape`).
+     - Row Height preset selector dropdown.
+     - Collapsible accordion for Institutional Letterhead & Signatories (School Name override, Subtitle, Cohort Badges ON/OFF, and Left/Right Signatory titles).
+   - **Card 4: Actions & Exports**:
+     - Primary, high-contrast `Print Register / Save PDF (Ctrl+P)` button.
+     - 3-column quick export buttons: Excel (`.xlsx`), Word (`.docx`), and CSV (`.csv`).
+     - Student inclusion toggles: `Include All / Deselect All` and `Show / Hide Skipped Rows`.
 
 ---
 
@@ -54,11 +47,10 @@ Following institutional identity requirements:
 
 ### Verification & Build Status
 
-- **Build Verification**: `npm run build` executed and passed with **Exit Code 0** (`main.f846225d.js`).
-- **Algorithm Verification**: Verified via simulation script that:
-  - Arif Maqbool (Record A with Board Reg No + Form No and Record B with Form No only) cleanly consolidates into 1 candidate row.
-  - Distinct students with identical names and father names but different form numbers / phone numbers are preserved as distinct candidates.
-  - Candidates merged via the Name+Father+Mobile fallback are cleanly flagged and highlighted in the UI.
+- **Build Verification**: `npm run build` executed and passed with **Exit Code 0** (`main.734bcd04.js`).
+- Zero syntax or runtime compilation errors.
+- Desktop layout verified with 67% table preview width on the left and 33% control pane on the right.
+- Mobile view (`< lg`) continues to provide the dedicated mobile options modal with the unified control palette.
 
 ---
 
@@ -75,7 +67,7 @@ Following institutional identity requirements:
 3. **Amend Commit Message (if desired)**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "fix(roster): enforce board reg then form no hierarchy with flagged name-father-mobile fallback"
+   git commit -m "feat(roster): move controls to right with 2/3 table space and compact searchable columns dropdown"
    ```
 4. **Push to Remote (STRICT MANUAL RULE)**:
    ```bash
