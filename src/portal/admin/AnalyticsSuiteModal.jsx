@@ -19,6 +19,12 @@ import {
   isStudentExamDropped
 } from '../../utils/studentApprovalStatus';
 import {
+  fetchExamineeDropOverrides,
+  checkIsStudentDropped,
+  persistStudentExamDropStatus,
+  getStudentDropLookupKeys
+} from '../../services/examineeDropService';
+import {
   getStudentDisplayName,
   getStudentFatherName,
   getStudentClass,
@@ -210,8 +216,8 @@ export default function AnalyticsSuiteModal({
   // Expandable Subject Rows in Table
   const [expandedSubject, setExpandedSubject] = useState(null);
 
-  // In-memory overrides map for instantaneous UI updates when dropping / restoring
-  const [droppedOverrides, setDroppedOverrides] = useState(new Map());
+  // Persistent cloud-synced overrides map for instantaneous UI updates when dropping / restoring
+  const [droppedOverrides, setDroppedOverrides] = useState(() => new Map());
 
   // On-demand session hydration
   const [onDemandStudents, setOnDemandStudents] = useState([]);
@@ -220,6 +226,19 @@ export default function AnalyticsSuiteModal({
   // Dynamic fallback seed data for offline / instantaneous historical analytics
   const [internalSeedRecords, setInternalSeedRecords] = useState([]);
   const [isLoadingSeed, setIsLoadingSeed] = useState(false);
+
+  // Sync persistent drop overrides from Firestore on mount
+  useEffect(() => {
+    let isMounted = true;
+    fetchExamineeDropOverrides().then((overridesMap) => {
+      if (isMounted && overridesMap) {
+        setDroppedOverrides(overridesMap);
+      }
+    }).catch((err) => {
+      console.warn('[AnalyticsSuite] Drop overrides fetch note:', err);
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   // Fetch student records on-demand whenever the session filter changes
   useEffect(() => {
@@ -250,7 +269,13 @@ export default function AnalyticsSuiteModal({
     const hasHistoryInProps = (historicalRecords && historicalRecords.length > 0) || (students && students.length > 1000);
     const hasWindowCache = typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0;
 
-    if (!hasHistoryInProps && !hasWindowCache && internalSeedRecords.length === 0) {
+    // High performance optimization: Only fetch 7MB masterSeedData if user is explicitly inspecting legacy cohorts (<2018)
+    const isLegacyInspection = selectedSessions.some(ses => {
+      const year = parseInt(String(ses).match(/\d{4}/)?.[0] || '2026', 10);
+      return year < 2018;
+    });
+
+    if (isLegacyInspection && !hasHistoryInProps && !hasWindowCache && internalSeedRecords.length === 0) {
       setIsLoadingSeed(true);
       import('../../data/masterSeedData.json')
         .then((mod) => {
@@ -266,7 +291,7 @@ export default function AnalyticsSuiteModal({
           setIsLoadingSeed(false);
         });
     }
-  }, [isOpen, isPage, historicalRecords, students, internalSeedRecords.length]);
+  }, [isOpen, isPage, historicalRecords, students, internalSeedRecords.length, selectedSessions]);
 
   // Combine live active admissions + allStudents + onDemand + historical registers + seed fallback
   const combinedRawStudents = useMemo(() => {
@@ -300,9 +325,11 @@ export default function AnalyticsSuiteModal({
       }
 
       const overrideUpdates = (docId && droppedOverrides.has(docId)) ? droppedOverrides.get(docId) : {};
+      const isDropped = checkIsStudentDropped(item, droppedOverrides);
       const enrichedItem = {
         ...item,
         ...overrideUpdates,
+        ...(isDropped ? { isExamDropped: true, examStatus: 'dropped' } : {}),
         _isCurrentScope: isCurrent ? true : item._isCurrentScope,
       };
 
@@ -316,6 +343,7 @@ export default function AnalyticsSuiteModal({
           ...item,
           ...existing,
           ...overrideUpdates,
+          ...(isDropped ? { isExamDropped: true, examStatus: 'dropped' } : {}),
           ...(newHasRoll && !existingHasRoll ? {
             classRollNo: roll,
             rollNo: roll,
@@ -1287,7 +1315,7 @@ export default function AnalyticsSuiteModal({
       }
       if (!isStudentAdmissionApproved(s)) return false;
 
-      const isDropped = isStudentExamDropped(s);
+      const isDropped = checkIsStudentDropped(s, droppedOverrides);
       if (drawerFilter === 'active' && isDropped) return false;
       if (drawerFilter === 'dropped' && !isDropped) return false;
 
@@ -1303,46 +1331,35 @@ export default function AnalyticsSuiteModal({
       }
       return true;
     });
-  }, [deduplicatedStudents, selectedClasses, drawerFilter, drawerSearch]);
+  }, [deduplicatedStudents, selectedClasses, drawerFilter, drawerSearch, droppedOverrides]);
 
-  // Mark a student as dropped or active in Firestore
+  // Mark a student as dropped or active in Firestore with resilient cross-collection persistence
   const handleToggleExamDropped = async (student, shouldDrop, reasonText = '') => {
-    const docId = student.id || student._id || student.docId;
-    if (!docId) {
-      showToast('Cannot update student: missing document ID.', 'error');
-      return;
-    }
-
+    const docId = student.id || student._id || student.docId || 'target';
     setSavingStudentId(docId);
     try {
-      const updates = {
-        isExamDropped: shouldDrop,
-        examStatus: shouldDrop ? 'dropped' : 'active',
-        examDroppedReason: shouldDrop ? (reasonText || 'Administrative exclusion') : null,
-        examDroppedAt: shouldDrop ? new Date().toISOString() : null,
-        examDroppedBy: user?.email || 'admin',
-        updatedAt: new Date().toISOString(),
-      };
+      const res = await persistStudentExamDropStatus(
+        student,
+        shouldDrop,
+        reasonText,
+        user?.email || 'admin'
+      );
 
-      await updateDoc(doc(db, 'admissions', docId), updates);
-
-      // Update local cache
-      const updatedStudent = { ...student, ...updates };
-      updateCachedItem('admissions', updatedStudent);
-
+      // Instantaneous UI update with all student keys
       setDroppedOverrides((prev) => {
         const next = new Map(prev);
-        next.set(docId, updates);
+        res.keys.forEach((k) => next.set(k, res.updatedStudent));
+        if (docId) next.set(docId, res.updatedStudent);
         return next;
       });
 
       if (onDataUpdated) {
-        onDataUpdated(updatedStudent);
+        onDataUpdated(res.updatedStudent);
       }
 
       logAdminActivity({
         action: shouldDrop ? 'EXAMINEE_DROPPED' : 'EXAMINEE_RESTORED',
-        details: `${shouldDrop ? 'Marked as dropped from exam' : 'Restored to exam return'}: ${getStudentDisplayName(student)} (${updates.examDroppedReason || ''})`,
+        details: `${shouldDrop ? 'Marked as dropped from exam' : 'Restored to exam return'}: ${getStudentDisplayName(student)} (${reasonText || ''})`,
         adminEmail: user?.email || 'admin',
       });
 
@@ -1400,50 +1417,51 @@ export default function AnalyticsSuiteModal({
       }
 
       let updatedCount = 0;
+      const allKeysUpdated = [];
       for (const st of targets) {
-        const docId = st.id || st._id || st.docId || st._docId;
-        if (!docId) continue;
         try {
-          const updates = {
-            isExamDropped: shouldDrop,
-            examStatus: shouldDrop ? 'dropped' : 'active',
-            examDroppedReason: shouldDrop ? (reasonText || 'Administrative exclusion') : null,
-            examDroppedAt: shouldDrop ? new Date().toISOString() : null,
-            examDroppedBy: user?.email || 'admin',
-            updatedAt: new Date().toISOString(),
-          };
-
-          await updateDoc(doc(db, 'admissions', docId), updates);
-          const updated = { ...st, ...updates };
-          updateCachedItem('admissions', updated);
-          setDroppedOverrides((prev) => {
-            const next = new Map(prev);
-            next.set(docId, updates);
-            return next;
-          });
-          if (onDataUpdated) onDataUpdated(updated);
+          const res = await persistStudentExamDropStatus(
+            st,
+            shouldDrop,
+            reasonText,
+            user?.email || 'admin'
+          );
+          allKeysUpdated.push(...res.keys);
+          if (st.id) allKeysUpdated.push(st.id);
+          if (onDataUpdated) onDataUpdated(res.updatedStudent);
           updatedCount++;
         } catch (e) {
-          console.error('Bulk update error for doc:', docId, e);
+          console.error('Bulk update error for student:', st, e);
         }
       }
 
-      logAdminActivity({
-        action: shouldDrop ? 'EXAMINEES_BULK_DROPPED' : 'EXAMINEES_BULK_RESTORED',
-        details: `${shouldDrop ? 'Bulk marked dropped' : 'Bulk restored'} ${updatedCount} examinees (${reasonText || ''})`,
-        adminEmail: user?.email || 'admin',
-      });
+      if (updatedCount > 0) {
+        setDroppedOverrides((prev) => {
+          const next = new Map(prev);
+          allKeysUpdated.forEach((k) => {
+            next.set(k, { isExamDropped: shouldDrop, examStatus: shouldDrop ? 'dropped' : 'active' });
+          });
+          return next;
+        });
+
+        logAdminActivity({
+          action: shouldDrop ? 'EXAMINEES_BULK_DROPPED' : 'EXAMINEES_BULK_RESTORED',
+          details: `${shouldDrop ? 'Bulk marked dropped' : 'Bulk restored'} ${updatedCount} examinees (${reasonText || ''})`,
+          adminEmail: user?.email || 'admin',
+        });
+
+        showToast(
+          shouldDrop
+            ? `🚫 ${updatedCount} examinee(s) marked as dropped from examination.`
+            : `✅ ${updatedCount} examinee(s) restored to active exam return.`,
+          'success'
+        );
+      }
 
       setSelectedStudentIds(new Set());
       setIsBulkDropPending(false);
       setCustomDropReason('');
       setDropReason(COMMON_DROPPED_REASONS[0]);
-      showToast(
-        shouldDrop
-          ? `🚫 ${updatedCount} examinee(s) marked as dropped from examination.`
-          : `✅ ${updatedCount} examinee(s) restored to active exam return.`,
-        'success'
-      );
     } finally {
       setSavingStudentId(null);
       setIsBulkDropPending(false);

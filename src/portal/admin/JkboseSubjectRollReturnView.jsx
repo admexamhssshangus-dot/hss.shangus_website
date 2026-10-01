@@ -30,6 +30,11 @@ import {
 } from '../../utils/jkboseRollSeriesFormatter';
 import { isStudentAdmissionApproved, isStudentExamDropped, getAssignedClassRollNumber } from '../../utils/studentApprovalStatus';
 import {
+  fetchExamineeDropOverrides,
+  checkIsStudentDropped,
+  persistStudentExamDropStatus
+} from '../../services/examineeDropService';
+import {
   getStudentDisplayName,
   getStudentFatherName,
   getStudentClass,
@@ -203,7 +208,7 @@ export default function JkboseSubjectRollReturnView({
       if (selectedClass !== 'all' && normClass !== selectedClass) return false;
       if (!isStudentAdmissionApproved(s)) return false;
 
-      const isDropped = isStudentExamDropped(s);
+      const isDropped = checkIsStudentDropped(s);
       if (drawerFilter === 'active' && isDropped) return false;
       if (drawerFilter === 'dropped' && !isDropped) return false;
 
@@ -221,38 +226,25 @@ export default function JkboseSubjectRollReturnView({
     });
   }, [dataset, selectedClass, drawerFilter, drawerSearch]);
 
-  // Mark a student as dropped or active in Firestore
+  // Mark a student as dropped or active in Firestore with resilient cross-collection persistence
   const handleToggleExamDropped = async (student, shouldDrop, reasonText = '') => {
-    const docId = student.id || student._id || student.docId;
-    if (!docId) {
-      showToast('error', 'Cannot update student: missing document ID.');
-      return;
-    }
-
+    const docId = student.id || student._id || student.docId || 'target';
     setSavingStudentId(docId);
     try {
-      const updates = {
-        isExamDropped: shouldDrop,
-        examStatus: shouldDrop ? 'dropped' : 'active',
-        examDroppedReason: shouldDrop ? (reasonText || 'Administrative exclusion') : null,
-        examDroppedAt: shouldDrop ? new Date().toISOString() : null,
-        examDroppedBy: user?.email || 'admin',
-        updatedAt: new Date().toISOString(),
-      };
-
-      await updateDoc(doc(db, 'admissions', docId), updates);
-
-      // Update local cache
-      const updatedStudent = { ...student, ...updates };
-      updateCachedItem('admissions', updatedStudent);
+      const res = await persistStudentExamDropStatus(
+        student,
+        shouldDrop,
+        reasonText,
+        user?.email || 'admin'
+      );
 
       if (onDataUpdated) {
-        onDataUpdated(updatedStudent);
+        onDataUpdated(res.updatedStudent);
       }
 
       logAdminActivity({
         action: shouldDrop ? 'EXAMINEE_DROPPED' : 'EXAMINEE_RESTORED',
-        details: `${shouldDrop ? 'Marked as dropped from exam' : 'Restored to exam return'}: ${student.studentName || docId} (${updates.examDroppedReason || ''})`,
+        details: `${shouldDrop ? 'Marked as dropped from exam' : 'Restored to exam return'}: ${student.studentName || docId} (${reasonText || ''})`,
         adminEmail: user?.email || 'admin',
       });
 
@@ -286,16 +278,12 @@ export default function JkboseSubjectRollReturnView({
       const student = dataset.find((s) => (s.id || s._id) === docId);
       if (student) {
         try {
-          const updates = {
-            isExamDropped: shouldDrop,
-            examStatus: shouldDrop ? 'dropped' : 'active',
-            examDroppedReason: shouldDrop ? 'Bulk status update' : null,
-            examDroppedAt: shouldDrop ? new Date().toISOString() : null,
-            examDroppedBy: user?.email || 'admin',
-            updatedAt: new Date().toISOString(),
-          };
-          await updateDoc(doc(db, 'admissions', docId), updates);
-          updateCachedItem('admissions', { ...student, ...updates });
+          await persistStudentExamDropStatus(
+            student,
+            shouldDrop,
+            'Bulk status update',
+            user?.email || 'admin'
+          );
           successCount++;
         } catch (_) {}
       }

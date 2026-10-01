@@ -26,13 +26,15 @@ export function printCustomRosterTable({
   showMetaBadges = true
 }) {
   if (layoutMode === 'two_column_attendance') {
+    const hasExamRollCol = Array.isArray(columns) && columns.some(c => c.key === 'examRollNo');
     const attHtml = buildTwoColumnAttendanceHtml({
       title,
       examDetails,
       rows,
       rowHeightPx,
       signatories,
-      rowsPerColumn
+      rowsPerColumn,
+      hasExamRollCol
     });
     return executePrintIframe(attHtml, title);
   }
@@ -367,7 +369,8 @@ function buildTwoColumnAttendanceHtml({
   rows = [],
   rowHeightPx = 36,
   signatories = ['Sig. of the Asstt. Supdt.', 'Sig. of the Centre Supdt.'],
-  rowsPerColumn = 25
+  rowsPerColumn = 25,
+  hasExamRollCol = false
 }) {
   const studentsPerCol = Math.max(10, Math.min(60, Number(rowsPerColumn) || 25));
   const studentsPerPage = studentsPerCol * 2;
@@ -400,7 +403,14 @@ function buildTwoColumnAttendanceHtml({
 
   const renderTableRows = (studentList, startIdx = 0) => {
     return studentList.map((st, i) => {
-      const roll = (st.classRollNo && st.classRollNo !== '—' && st.classRollNo !== '-') ? st.classRollNo : (st.sno || (startIdx + i + 1));
+      let roll = '';
+      if (hasExamRollCol && st.examRollNo && st.examRollNo !== '—' && st.examRollNo !== '-') {
+        roll = st.examRollNo;
+      } else if (st.classRollNo && st.classRollNo !== '—' && st.classRollNo !== '-') {
+        roll = st.classRollNo;
+      } else {
+        roll = st.sno || (startIdx + i + 1);
+      }
       const name = st.studentName || st.name || '—';
       return `
         <tr style="height: ${rowHeightPx}px;">
@@ -479,8 +489,8 @@ function buildTwoColumnAttendanceHtml({
             <table class="att-table">
               <thead>
                 <tr>
-                  <th style="width: 14%;">R.No.</th>
-                  <th style="width: 54%;">Name of the Candidate</th>
+                  <th style="width: ${hasExamRollCol ? '17%' : '14%'};">${hasExamRollCol ? 'Exam R.No.' : 'R.No.'}</th>
+                  <th style="width: ${hasExamRollCol ? '51%' : '54%'};">Name of the Candidate</th>
                   <th style="width: 32%;">Sig. of the Candidate</th>
                 </tr>
               </thead>
@@ -494,8 +504,8 @@ function buildTwoColumnAttendanceHtml({
             <table class="att-table">
               <thead>
                 <tr>
-                  <th style="width: 14%;">R.No.</th>
-                  <th style="width: 54%;">Name of the Candidate</th>
+                  <th style="width: ${hasExamRollCol ? '17%' : '14%'};">${hasExamRollCol ? 'Exam R.No.' : 'R.No.'}</th>
+                  <th style="width: ${hasExamRollCol ? '51%' : '54%'};">Name of the Candidate</th>
                   <th style="width: 32%;">Sig. of the Candidate</th>
                 </tr>
               </thead>

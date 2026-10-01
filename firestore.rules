@@ -103,7 +103,8 @@ service cloud.firestore {
     function canEditStudents() {
       return canUseAny([
         'reports', 'admRegisterSuite', 'controls', 'rollNo', 'certStudio',
-        'mergeStudio', 'boardSync', 'quickCellEdit', 'directEntryAction', 'bulkToolsAction'
+        'mergeStudio', 'boardSync', 'quickCellEdit', 'directEntryAction', 'bulkToolsAction',
+        'analyticsReports', 'customRoster'
       ]);
     }
     function settingsModule(documentId) {
@@ -111,6 +112,7 @@ service cloud.firestore {
         documentId in ['attendanceConfig', 'attendanceSummary'] ? 'attendanceMgmt' :
         documentId == 'admission_register_layout' ? 'admRegisterSuite' :
         documentId == 'rosterFeeRules' ? 'customRoster' :
+        documentId in ['examineeDropOverrides', 'examinee_drop_overrides'] ? 'analyticsReports' :
         documentId == 'idCardConfig' ? 'idCards' :
         documentId in ['facultyPrivate', 'taxConfig'] ? 'accounts' : 'controls';
     }
