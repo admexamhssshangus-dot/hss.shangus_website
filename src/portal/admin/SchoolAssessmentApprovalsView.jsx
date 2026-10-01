@@ -11,7 +11,7 @@ import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import ConfirmModal from '../components/ConfirmModal';
 import { sanitizeForFirestore } from '../../utils/firestoreSanitizer';
-import { saveVersionToBin } from '../../services/practicalsBinService';
+import { saveVersionToBin, moveSubmissionToRecycleBin } from '../../services/practicalsBinService';
 import { isSchoolAssessmentType } from '../../utils/evaluationTypes';
 import { printIndividualAwardRoll } from '../../utils/practicalsPdfGenerator';
 
@@ -297,29 +297,35 @@ export default function SchoolAssessmentApprovalsView({ allStudents = [], onPend
   // ── Deletion Handler ─────────────────────────────────────────────
   const handleDeleteSubmission = (sub) => {
     if (!sub) return;
+    const label = `${sub.subject || 'Subject'} (${sub.className || 'Class'}) — ${sub.evaluationType || 'Assessment'}`;
+    const teacher = sub.submittedBy || sub.teacherName || 'Teacher';
+
     setConfirmModal({
       isOpen: true,
-      title: 'Delete Assessment Record?',
-      subtitle: `Are you sure you want to permanently delete this submission for ${sub.subject} (${sub.className})? This cannot be undone.`,
-      badgeText: 'Permanent Deletion',
-      confirmText: 'Delete Record',
+      title: 'Move Submission to Recycle Bin?',
+      subtitle: `Move the ${sub.evaluationType || 'school assessment'} submission for ${sub.subject} (${sub.className}) by ${teacher} (${sub.recordsCount} students) to the Practicals Recycle Bin? The teacher's slot will be freed so they can submit afresh.`,
+      badgeText: 'Soft Delete — Recoverable',
+      confirmText: 'Move to Recycle Bin',
       confirmBtnStyle: 'danger',
       icon: Trash2,
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         setActionLoading(true);
         try {
-          await deleteDoc(doc(db, 'practicalsData', sub.id));
+          await moveSubmissionToRecycleBin(sub, {
+            name: auth.currentUser?.displayName || 'Administrator',
+            email: auth.currentUser?.email || ''
+          });
           invalidateCollectionCache('practicalsData');
 
           logAdminActivity({
             actionType: 'delete',
-            actionTitle: 'Deleted School Assessment Submission',
-            details: `Deleted ${sub.evaluationType} submission for ${sub.subject} (${sub.className}) [${sub.id}]`,
-            metadata: { docId: sub.id }
+            actionTitle: 'Moved School Assessment Submission to Recycle Bin',
+            details: `Moved ${sub.evaluationType} submission for ${sub.subject} (${sub.className}) by ${teacher} to Practicals Recycle Bin — teacher slot freed`,
+            metadata: { docId: sub.id, evaluationType: sub.evaluationType, subject: sub.subject }
           });
 
-          showToast('Assessment submission deleted successfully.', 'success');
+          showToast(`Submission moved to Recycle Bin. ${teacher} can now re-submit.`, 'success');
           fetchSubmissions(true);
         } catch (err) {
           console.error('Failed to delete submission:', err);
@@ -769,6 +775,20 @@ export default function SchoolAssessmentApprovalsView({ allStudents = [], onPend
                       Approve & Publish
                     </button>
                   </>
+                )}
+                {handleDeleteSubmission && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInspectModalOpen(false);
+                      handleDeleteSubmission(selectedSub);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/50 hover:bg-rose-100 border border-rose-200 dark:border-rose-900 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    title="Move to Recycle Bin"
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete</span>
+                  </button>
                 )}
                 <button
                   type="button"

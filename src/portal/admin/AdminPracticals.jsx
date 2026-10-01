@@ -15,7 +15,8 @@ import ModernLoader from '../../components/ModernLoader';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
-import { saveVersionToBin, getVersionsForDoc, restoreVersionFromBin } from '../../services/practicalsBinService';
+import { saveVersionToBin, getVersionsForDoc, restoreVersionFromBin, moveSubmissionToRecycleBin } from '../../services/practicalsBinService';
+import PracticalsRecycleBinModal from './PracticalsRecycleBinModal';
 import { sanitizeForFirestore } from '../../utils/firestoreSanitizer';
 import {
   printIndividualAwardRoll,
@@ -60,6 +61,9 @@ export const DEFAULT_MX11 = Object.fromEntries(
 export const DEFAULT_MX12 = Object.fromEntries(
   Object.entries(DEFAULT_PRACTICAL_MARKS_CONFIG['12th'].internal).map(([k, v]) => [k, v.max])
 );
+export const DEFAULT_MX10 = Object.fromEntries(
+  Object.entries(DEFAULT_PRACTICAL_MARKS_CONFIG['10th']?.internal || {}).map(([k, v]) => [k, v.max])
+);
 
 export const DEFAULT_EXCLUDED_TEACHERS = [
   'teacher@hssshangus.in',
@@ -86,6 +90,7 @@ export const isClassMatch = (stc, trc) => {
   return (
     s.includes(t) ||
     s.includes(String(trc).toLowerCase()) ||
+    (t === '10' && (/\bx\b/i.test(s) || s.includes('ten'))) ||
     (t === '11' && (s.includes('xi') || s.includes('eleven'))) ||
     (t === '12' && (s.includes('xii') || s.includes('twelve')))
   );
@@ -97,7 +102,7 @@ export const getRollNo = (st) => {
     'Class Roll No', 'Class Roll No.', 'classRollNo', 'Class Roll', 'Class R.No.', 'Class R.No', 'Class R. No.',
     'rollNo', 'RollNo', 'Roll No', 'Roll No.', 'roll_no', 'roll', 'ClassRoll', 'ClassRollNo', 'class_roll_no',
     'RollNumber', 'Roll_No', 'classRoll', 'crNo', 'class_roll', 'assignedRollNo', 'currentRollNo',
-    'Class Roll No (Class 12th)', 'Class Roll No (Class 11th)', 'Class Roll No.', 'Roll_Number'
+    'Class Roll No (Class 12th)', 'Class Roll No (Class 11th)', 'Class Roll No (Class 10th)', 'Class Roll No.', 'Roll_Number'
   ];
   for (const k of keys) {
     if (st[k] !== undefined && st[k] !== null) {
@@ -432,6 +437,7 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
   const studentName = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '';
   const fatherName = st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '';
   const stream = getStudentStreamStr(st) || 'Humanities';
+  const subjects10 = st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th'] || '';
   const subjects11 = st['Subjects to be taken in Class 11th'] || st['Subjects'] || st['Subs'] || '';
   const subjects12 = st['Subjects to be taken in Class 12th'] || st['Subjects'] || st['Subs'] || '';
 
@@ -502,6 +508,7 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
     'Stream': stream,
     'Stream for Class 11th': stream,
     'Stream for Class 12th': stream,
+    'Subjects to be taken in Class 10th': subjects10,
     'Subjects to be taken in Class 11th': subjects11,
     'Subjects to be taken in Class 12th': subjects12,
     'Subjects': st['Subjects'] || st['Subs'] || subjects11,
@@ -539,9 +546,9 @@ export default function AdminPracticals() {
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const urlSubTab = searchParams.get('subtab');
-      if (urlSubTab && ['class11', 'class12', 'teachers', 'settings'].includes(urlSubTab)) return urlSubTab;
+      if (urlSubTab && ['class10', 'class11', 'class12', 'teachers', 'settings'].includes(urlSubTab)) return urlSubTab;
       const saved = sessionStorage.getItem('hss_admin_practicals_tab');
-      if (saved && ['class11', 'class12', 'teachers', 'settings'].includes(saved)) return saved;
+      if (saved && ['class10', 'class11', 'class12', 'teachers', 'settings'].includes(saved)) return saved;
     } catch (_) {}
     return 'class11';
   };
@@ -622,6 +629,9 @@ export default function AdminPracticals() {
     children: null,
     onConfirm: () => {}
   });
+
+  // Practicals Submission Recycle Bin Modal
+  const [showPracticalsRecycleBin, setShowPracticalsRecycleBin] = useState(false);
 
   const showAlert = (type, text) => {
     setAlertMsg({ type, text });
@@ -1075,34 +1085,45 @@ export default function AdminPracticals() {
     }
   };
 
-  const handleDeleteSubmission = (subId) => {
+  const handleDeleteSubmission = (subId, subDoc) => {
     if (!subId) return;
+    const label = subDoc
+      ? `${subDoc.subject || 'Subject'} (${subDoc.className || 'Class'}) — ${subDoc.practicalType || subDoc.evaluationType || 'Submission'}`
+      : `"${subId}"`;
+    const teacher = subDoc?.submittedBy || subDoc?.submittedByName || 'the teacher';
+
     setGeneralConfirmModal({
       isOpen: true,
-      title: 'Delete Submission Record?',
-      subtitle: `Are you sure you want to delete submission record "${subId}"? This action cannot be undone.`,
-      badgeText: 'Permanent Deletion',
-      confirmText: 'Delete Record',
+      title: 'Move Submission to Recycle Bin?',
+      subtitle: `This will soft-delete the award submission ${label} by ${teacher} and move it to the Practicals Recycle Bin. The teacher's slot will be freed so they can submit afresh.`,
+      badgeText: 'Soft Delete — Recoverable',
+      confirmText: 'Move to Recycle Bin',
       cancelText: 'Cancel',
       confirmBtnStyle: 'danger',
       icon: Trash2,
       onConfirm: async () => {
         setGeneralConfirmModal(p => ({ ...p, isOpen: false }));
         try {
-          await deleteAcademicRecord('practicalsData', subId);
+          const currentUser = auth.currentUser;
+          const docToDelete = subDoc || { id: subId };
+          await moveSubmissionToRecycleBin(docToDelete, {
+            name: currentUser?.displayName || 'Administrator',
+            email: currentUser?.email || ''
+          });
           invalidateCollectionCache('practicalsData');
           invalidatePracticalsCache();
           setSubmissions(prev => prev.filter(s => s.id !== subId));
+          setPendingApprovals(prev => prev.filter(p => p.id !== subId));
           logAdminActivity({
             actionType: 'delete',
-            actionTitle: 'Deleted Practical Submission',
-            details: `Deleted practical award submission "${subId}"`,
-            metadata: { subId }
+            actionTitle: 'Moved Practical Submission to Recycle Bin',
+            details: `Moved award submission ${label} (by ${teacher}) to Practicals Recycle Bin — teacher slot freed for re-submission`,
+            metadata: { subId, label, teacher }
           });
-          showAlert('success', `Submission "${subId}" deleted successfully.`);
+          showAlert('success', `Submission moved to Recycle Bin. ${teacher} can now submit afresh.`);
         } catch (e) {
           console.error(e);
-          showAlert('error', `Failed to delete submission "${subId}".`);
+          showAlert('error', `Failed to delete submission: ${e.message || e}`);
         }
       }
     });
@@ -1451,6 +1472,19 @@ export default function AdminPracticals() {
             <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-2xs shrink-0">
               <button
                 type="button"
+                onClick={() => setTab('class10')}
+                className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                  tab === 'class10'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Award size={12} className="shrink-0" />
+                <span className="sm:hidden">10th</span>
+                <span className="hidden sm:inline">Class 10th</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setTab('class11')}
                 className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
                   tab === 'class11'
@@ -1528,9 +1562,20 @@ export default function AdminPracticals() {
                 <Upload size={12} />
                 <span>Import Excel</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setShowPracticalsRecycleBin(true)}
+                className="px-2.5 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer border border-violet-200 dark:border-violet-800 shadow-2xs shrink-0"
+                title="Open Practicals Submission Recycle Bin"
+              >
+                <Archive size={12} />
+                <span className="hidden sm:inline">Recycle Bin</span>
+                <span className="sm:hidden">Bin</span>
+              </button>
             </div>
           </div>
         </div>
+
 
         {alertMsg && (
           <div className={'p-3 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs ' + (alertMsg.type === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100')}>
@@ -1540,6 +1585,16 @@ export default function AdminPracticals() {
 
         {/* Content Area */}
         <div className="min-h-[500px] space-y-3">
+          {tab === 'class10' && (
+            <AwardsSummaryView
+              cls="10th"
+              students={students}
+              submissions={submissions}
+              getPD={getPD}
+              settings={settings}
+            />
+          )}
+
           {tab === 'class11' && (
             <AwardsSummaryView
               cls="11th"
@@ -1610,6 +1665,10 @@ export default function AdminPracticals() {
             onApprove={handleApproveSubmission}
             onReject={(doc) => setRejectReasonModal({ isOpen: true, pendingDoc: doc, reason: '' })}
             onSaveDirect={handleSaveSubmissionDirect}
+            onDelete={(subId, subDoc) => {
+              setSelSub(null);
+              handleDeleteSubmission(subId, subDoc);
+            }}
           />
         )}
 
@@ -1694,6 +1753,13 @@ export default function AdminPracticals() {
         >
           {generalConfirmModal.children}
         </ConfirmationModal>
+
+        {/* Practicals Submission Recycle Bin Modal */}
+        <PracticalsRecycleBinModal
+          isOpen={showPracticalsRecycleBin}
+          onClose={() => setShowPracticalsRecycleBin(false)}
+          onRestoreSuccess={() => { loadData(true); }}
+        />
       </div>
     </div>
   );
@@ -1759,13 +1825,16 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     }));
   }, [settings, cls, getPD]);
 
-  // Calculate visible codes based on bioMode
+  // Calculate visible codes based on class and bioMode
   const activeCodesList = useMemo(() => {
+    if (String(cls || '').includes('10')) {
+      return ['EN', 'MA', 'SC', 'SS', 'UR', 'HTC', 'ITE'];
+    }
     if (bioMode === 'separate') {
       return ['EN', 'PH', 'CH', 'BO', 'ZO', 'MA', 'UR', 'ED', 'HT', 'PS', 'EC', 'ES', 'PD', 'HTC', 'ITE'];
     }
     return ['EN', 'PH', 'CH', 'BI', 'MA', 'UR', 'ED', 'HT', 'PS', 'EC', 'ES', 'PD', 'HTC', 'ITE'];
-  }, [bioMode]);
+  }, [cls, bioMode]);
 
   // Helper to compute default checked subjects based on Evaluation Type & Non-Practical Settings
   const getDefaultCheckedCodes = useCallback(() => {
@@ -3038,7 +3107,7 @@ function CsvImportModal({ onClose, onSuccess }) {
 // ─────────────────────────────────────────────────────────────
 // SELECTED SUBMISSION RECORDS MODAL (MINIMAL-COMPACT & RESPONSIVE)
 // ─────────────────────────────────────────────────────────────
-function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMarker, allStudents = [], onApprove, onReject, onSaveDirect }) {
+function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMarker, allStudents = [], onApprove, onReject, onSaveDirect, onDelete }) {
   const [modalSearch, setModalSearch] = useState('');
   const [diffFilter, setDiffFilter] = useState('all'); // 'all' | 'changed_only' | 'absent_only'
   const [fetchedCanonicalDoc, setFetchedCanonicalDoc] = useState(null);
@@ -3569,6 +3638,17 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
               <Printer size={12} />
               <span>Print Award Roll</span>
             </button>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(selSub.id, selSub)}
+                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 dark:text-rose-300 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 shadow-2xs"
+                title="Move this submission to the Practicals Recycle Bin"
+              >
+                <Trash2 size={12} />
+                <span>Delete</span>
+              </button>
+            )}
             <button onClick={onClose} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-slate-600">
               <X size={18} />
             </button>
@@ -3862,6 +3942,17 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                 >
                   <Save size={12} />
                   <span>{isSavingDirect ? 'Saving...' : `Save ${editedIndices.size} Edits`}</span>
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(selSub.id, selSub)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs cursor-pointer flex items-center gap-1"
+                  title="Move this submission to the Practicals Recycle Bin"
+                >
+                  <Trash2 size={12} />
+                  <span>Delete</span>
                 </button>
               )}
               <button
@@ -4210,6 +4301,16 @@ function FacultySubmissionsView({
                       <Eye size={12} /> Inspect
                     </button>
                     <div className="flex items-center gap-1">
+                      {handleDeleteSubmission && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSubmission(pendingDoc.id, pendingDoc)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 border border-transparent hover:border-rose-200 dark:hover:border-rose-900 transition-colors cursor-pointer"
+                          title="Move to Recycle Bin"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => onRejectSubmission && onRejectSubmission(pendingDoc)}
@@ -4428,7 +4529,7 @@ function FacultySubmissionsView({
                                       <History size={10} />
                                     </button>
                                     <button
-                                      onClick={() => handleDeleteSubmission(g.internal.id)}
+                                      onClick={() => handleDeleteSubmission(g.internal.id, g.internal)}
                                       className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer"
                                       title="Delete Internal Submission"
                                     >
@@ -4459,7 +4560,7 @@ function FacultySubmissionsView({
                                       <History size={10} />
                                     </button>
                                     <button
-                                      onClick={() => handleDeleteSubmission(g.external.id)}
+                                      onClick={() => handleDeleteSubmission(g.external.id, g.external)}
                                       className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer"
                                       title="Delete External Submission"
                                     >
@@ -4529,6 +4630,7 @@ function FacultySubmissionsView({
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
             >
               <option value="all">All Classes</option>
+              <option value="10th">Class 10th</option>
               <option value="11th">Class 11th</option>
               <option value="12th">Class 12th</option>
             </select>
@@ -4592,7 +4694,7 @@ function FacultySubmissionsView({
                           <History size={12} /> Bin
                         </button>
                         <button
-                          onClick={() => handleDeleteSubmission(s.id)}
+                          onClick={() => handleDeleteSubmission(s.id, s)}
                           className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
                         >
                           <Trash2 size={12} /> Delete
