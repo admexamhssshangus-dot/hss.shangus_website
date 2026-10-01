@@ -2208,7 +2208,6 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 )}
               </div>
 
-              {/* Attendance Sheet Button */}
               <button
                 type="button"
                 onClick={() => {
@@ -2218,20 +2217,26 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                     showToast(`No student records available to print for Class ${cls}.`, 'warning');
                     return;
                   }
+                  // If exactly one subject is selected, print subject-specific attendance
+                  const singleSubCode = activeSubjects.length === 1 ? activeSubjects[0] : '';
+                  const singleSubName = singleSubCode ? (NAMES[singleSubCode] || singleSubCode) : '';
                   printAttendanceSheet({
                     className: cls,
                     session: localPrintOpts.sessionText,
                     students: listToPrint,
                     isExternal: localPrintOpts.practicalType === 'external',
-                    evaluationType: localPrintOpts.practicalType
+                    evaluationType: localPrintOpts.practicalType,
+                    subjectCode: singleSubCode,
+                    subjectName: singleSubName
                   });
                 }}
                 className="px-2 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
+                title={activeSubjects.length === 1 ? `Print ${NAMES[activeSubjects[0]] || activeSubjects[0]} attendance` : 'Print attendance sheet for all active subjects'}
               >
-                <ClipboardCheck size={11} /> Attendance
+                <ClipboardCheck size={11} /> Attendance{activeSubjects.length === 1 ? ` (${activeSubjects[0]})` : ''}
               </button>
 
-              {/* Fail List Button */}
+              {/* Fail / Absent List Button */}
               <button
                 type="button"
                 onClick={() => {
@@ -2254,7 +2259,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 }}
                 className="px-2 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
               >
-                <AlertTriangle size={11} /> Fail List
+                <AlertTriangle size={11} /> Fail / Absent
               </button>
 
               {/* Settings Button */}
@@ -2521,9 +2526,8 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               const streamDisplay = streamRaw ? toTitleCase(streamRaw) : 'Science';
               const streamLower = streamRaw.toLowerCase();
               const rawExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim();
-              const isCurrSession = normalizePracticalSession(getStudentSession(st)) === '2025-26';
-              // For current session 2025-26, board exam roll numbers are not yet issued. Show '—'.
-              const examRoll = (!isCurrSession && rawExam && rawExam !== '—' && rawExam !== 'NA' && rawExam !== 'N/A') ? rawExam : '—';
+              // Always show exam roll if available (board issues rolls well before the exam)
+              const examRoll = (rawExam && rawExam !== '—' && rawExam !== 'NA' && rawExam !== 'N/A') ? rawExam : '—';
               
               const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
               const cleanReg = cleanRegistrationNumber(rawReg);
