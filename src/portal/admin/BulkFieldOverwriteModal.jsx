@@ -2659,7 +2659,12 @@ export default function BulkFieldOverwriteModal({
       if (onIngestSuccess) onIngestSuccess({ updatedCount });
     } catch (err) {
       console.error('Execution error during bulk field overwrite:', err);
-      setErrorMsg('Failed during overwrite execution: ' + err.message);
+      const isQuota = /quota exceeded|resource.?exhausted/i.test(err?.message || '') || err?.code === 'resource-exhausted';
+      if (isQuota) {
+        setErrorMsg('Firebase Cloud Firestore daily free-tier quota (20,000 writes / 50,000 reads per day) has been reached for today on project "hsssdb". To resume immediately without waiting for the daily reset, upgrade project "hsssdb" to the Blaze (Pay-as-you-go) plan in the Firebase Console (the first 20k writes/50k reads remain 100% free daily).');
+      } else {
+        setErrorMsg('Failed during overwrite execution: ' + (err.message || err));
+      }
       setIsMinimized(false);
       setStep('preview');
     } finally {
