@@ -1,32 +1,40 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Move Actions & Exports to Top of Student Rosters & Registers Control Palette
+## Latest Commit: Fix Column Selector and Cohort Filter Popups Cropping at Viewport Bottom
 
-**Commit Message:** `refactor(roster): move actions and exports card to top of control palette`
+**Commit Message:** `fix(roster): prevent column selector and cohort popups from cropping at viewport bottom`
 
 ---
 
 ### Context & Requirements Addressed
 
-- **User Request**:
-  > *"move "Actions & Exports" to top in Student Rosters & Registers"*
-
-- **UI & Ergonomics Enhancement**:
-  - Previously, the **Actions & Exports** card was positioned at the very bottom (Card 4) of the control palette in `CustomRosterDocumentBuilderView.jsx`.
-  - Administrators frequently needed to scroll down past *Cohort Filters*, *Table Columns*, and *Page & Table Setup* just to trigger printing, Excel/Word/CSV exports, or toggle candidate inclusions.
-  - Moving **Actions & Exports** to the very top (Card 1) ensures instant 1-click access to all primary document generation and export functions (`Print / PDF`, `Excel`, `Word`, `CSV`, `Selection`, `Skipped`) immediately upon viewing the student roster.
+- **User Issue**:
+  > *"the popup is cropped from down"*
+  - Screenshot showed the `Select Table Columns` popover (`CONFIGURE COLUMNS (4 ACTIVE)`) extending beyond the bottom edge of the browser viewport.
+  - The bottom categories, "Reset Default Columns", and "Done" buttons were inaccessible / cut off because the popup was anchored downwards (`top-full mt-1`) with a fixed `max-h-[460px]`, which exceeded the remaining viewport space below the button.
 
 ---
 
 ### Solutions Implemented
 
-1. **Reordered Control Palette Hierarchy**:
-   - In [src/portal/admin/CustomRosterDocumentBuilderView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/CustomRosterDocumentBuilderView.jsx):
-     - **Card 1 (Top)**: `Actions & Exports` (Print / PDF with shortcut `Ctrl+P`, Excel, Word, CSV, Select/Deselect All, Skipped Candidates toggle).
-     - **Card 2**: `Cohort Filters` (Session, Class, Stream, Subject, Gender, Status filters with match counter).
-     - **Card 3**: `Table Columns & Database Fields` (Columns dropdown, chips, reorder, abbreviations).
-     - **Card 4**: `Page & Table Setup` (Standard / 2-Col layout, Portrait / Landscape, Signature size, Letterhead & Sign accordion).
-   - Both desktop sidebar and mobile options drawer now display the export and action toolbar at the top without requiring vertical scrolling.
+1. **Smart Viewport-Aware Dropup / Dropdown Positioning**:
+   - In [src/portal/admin/CustomRosterDocumentBuilderView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/CustomRosterDocumentBuilderView.jsx) inside `RosterColumnsDropdown`:
+     - Dynamically measures `getBoundingClientRect()` to compute available vertical space:
+       - `spaceBelow = window.innerHeight - rect.bottom - 16`
+       - `spaceAbove = rect.top - 16`
+     - If `spaceBelow < 360px` and `spaceAbove > spaceBelow`, the dropdown automatically opens upwards (`bottom-full mb-1`) instead of downwards (`top-full mt-1`).
+     - Constrains `maxHeight` to `Math.min(500, availableSpace)` so the popup is always 100% contained within the visible viewport bounds.
+     - Listens to `window.resize` and `window.scroll` (capture phase) to dynamically re-adjust if the user resizes the window or scrolls the control palette.
+
+2. **Flexbox Architecture with Pinned Header & Sticky Footer**:
+   - Transformed the popup container into a vertical flex container (`flex flex-col`):
+     - **Header** (`shrink-0`): Stays pinned at the top with "Configure Columns", count badge, "+ All 35", "+ Custom", and close button.
+     - **Search Bar** (`shrink-0`): Always visible below the header.
+     - **Columns & Categories List** (`flex-1 min-h-0 overflow-y-auto`): Scrolls smoothly within the constrained height.
+     - **Footer** (`shrink-0`): Stays permanently pinned at the bottom, ensuring the "Reset Default Columns" and "Done" buttons are never cropped off or hidden.
+
+3. **Synchronized `CohortCheckboxDropdown`**:
+   - Applied the same viewport-aware positioning (`dropUp` and responsive `maxHeight`) and `flex flex-col` layout to `CohortCheckboxDropdown` (Subjects, Genders, Statuses in Cohort Filters) to prevent bottom cropping across all popovers in the suite.
 
 ---
 
@@ -39,7 +47,7 @@
 
 ### Build & Quality Verification
 
-- **Production Build**: Verified with `npm run build` — compiled successfully with `Exit Code 0` and zero breaking errors.
+- **Production Build**: Verified with `npm run build` — compiled with `Exit Code 0` and zero breaking errors.
 - **Firebase Security Rules**: No Firestore or Storage rules were modified in this change.
 
 ---
@@ -58,7 +66,7 @@ If you want to inspect, amend, or re-commit:
    ```bash
    git reset --soft HEAD~1
    git add .
-   git commit -m "refactor(roster): move actions and exports card to top of control palette"
+   git commit -m "fix(roster): prevent column selector and cohort popups from cropping at viewport bottom"
    ```
 
 3. **Push to Remote (When Ready)**:
