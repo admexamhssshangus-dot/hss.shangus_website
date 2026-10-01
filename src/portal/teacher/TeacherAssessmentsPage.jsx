@@ -583,6 +583,15 @@ export default function TeacherAssessmentsPage() {
     }
   }, [user]);
 
+  // Auto-open Submissions History if navigated from Dashboard link (?view=history or state.openHistory)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('view') === 'history' || params.get('history') === 'true' || location.state?.openHistory) {
+      setShowHistoryModal(true);
+      fetchMyHistory();
+    }
+  }, [location, fetchMyHistory]);
+
   useEffect(() => {
     if (showHistoryModal) {
       fetchMyHistory();

@@ -1,61 +1,58 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Fix Unstyled Site Rendering Caused by CSP Blocking media="print" Stylesheet Onload Handler
+## Latest Commit: Enforce Strict Practical vs School Assessment Separation in Teacher Submissions History per Rule 8
 
-**Commit Message:** `fix(seo): restore direct stylesheet linking to prevent csp inline handler blockage`
+**Commit Message:** `fix(teacher): strictly isolate practical submissions from school-based assessments in history logs`
 
 ---
 
 ### Context & Root Cause Analysis
 
-When inspecting `https://hssshangus.in/`, the site rendered as raw, unstyled HTML with default serif/sans fonts, unstyled form controls, and plain blue links.
+The user reported:
+> *"why history still shows preboard under practicals portal"*
+
+When opening the Submissions Log from Card 2 (**Practical Evaluation Portal**) on the Teacher Dashboard, the modal listed:
+1. `11th • Botany Pre-Board Test`
+2. `12th • Botany Pre-Board Test`
+3. `11th • Botany (BO) external`
+4. `12th • Botany (BO) internal`
+5. `11th • Botany (BO) internal`
 
 #### Root Cause:
-1. In `scripts/generate-search-pages.js`, an asynchronous CSS loading optimization was replacing the standard CRA stylesheet tag with:
-   ```html
-   <link href="/static/css/main.xxx.css" rel="stylesheet" media="print" onload="this.media='all'">
-   ```
-2. Netlify's production `Content-Security-Policy` header in `netlify.toml` specifies:
-   ```text
-   script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://apis.google.com https://cdnjs.cloudflare.com;
-   ```
-   Crucially, `script-src` intentionally omits `'unsafe-inline'`.
-3. In strict compliance with CSP, modern browsers (Chrome, Edge, Safari, Firefox) **blocked the inline `onload="this.media='all'"` event handler attribute**.
-4. Because the `onload` handler never fired, the browser never switched `media` from `"print"` to `"all"`.
-5. The browser therefore treated the entire stylesheet as print-only, applying **zero CSS rules** to the screen rendering, resulting in completely raw unstyled HTML.
+1. While `PracticalsPage.jsx` and `TeacherAssessmentsPage.jsx` already had strict evaluation-type filtering, the initial submissions query in `src/portal/teacher/TeacherDashboard.jsx` was missing the `isPracticalEvaluationType(...)` filter in `fetchSubmissionHistory`.
+2. As a result, both Pre-Board examination entries and Practical entries from `practicalsData` were lumped together into the Practical Submissions count and modal.
+3. This violated **Rule 8 (Practicals & Academic Evaluation Data Boundary Rule)**, which mandates clean end-to-end separation: practical portals hold ONLY practical data (Internal Assessment & External Practical), while all other exams (Pre-Board, Golden Test, Term End, Unit Tests) belong exclusively to School-Based Assessment.
 
 ---
 
 ### Changes Made
 
-1. **`scripts/generate-search-pages.js`**:
-   - Removed the `media="print" onload="this.media='all'"` inline handler replacement.
-   - Replaced with direct preload + unconditional stylesheet link:
-     ```javascript
-     '<link rel="preload" as="style" href="$1"><link href="$1" rel="stylesheet">'
-     ```
-   - This maintains browser preload priority while ensuring CSS applies immediately on screen without executing any inline JavaScript.
+1. **`src/portal/teacher/TeacherDashboard.jsx`**:
+   - Added strict `isPracticalEvaluationType(evalTypeRaw)` check inside `fetchSubmissionHistory`.
+   - Pre-Board, Golden Tests, and other non-practical examinations are now strictly excluded from the Practical Submissions count and modal.
+   - Updated modal title to **"My Practical Submissions Log"** with subtitle explicitly stating: *"Your submitted practical awards (Internal Assessment & External Practical only)"*.
+   - Added a dedicated **"Submissions Log"** link to Card 3 (**School Based Assessment**), enabling teachers to directly access their School-Based Assessment submissions (Pre-Board Tests, Golden Tests, Unit Tests, etc.) in the correct portal.
 
-2. **`public/index.html`**:
-   - Replaced Google Fonts preload with direct `<link rel="stylesheet">`, eliminating the inline `onload="this.onload=null;this.rel='stylesheet'"` handler that was also blocked by CSP.
+2. **`src/portal/teacher/TeacherAssessmentsPage.jsx`**:
+   - Added auto-open effect for `?history=true` and `state.openHistory`, allowing seamless navigation from Card 3's Submissions Log link directly into the School-Based Assessment drawer.
 
-3. **Verification**:
-   - Verified that `npm run build` succeeds cleanly with **Exit Code 0** and passes all 11 SEO regression checks.
-   - Verified local rendering via browser subagent: the site renders 100% styled, vibrant, with full themes, navigation bar, cards, hero, and fonts.
+3. **`src/portal/teacher/PracticalsPage.jsx`**:
+   - Clarified submissions modal header to **"My Practical Submissions Log"** (*Internal Assessment & External Practical only*).
 
 ---
 
 ### Exact List of Files Changed
 
-- [scripts/generate-search-pages.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/generate-search-pages.js) (Restored direct stylesheet link without inline onload handler)
-- [public/index.html](file:///d:/Shk_Gulfam/Projects/hss_shangus/public/index.html) (Switched Google Fonts to standard stylesheet link compliant with strict CSP)
+- [src/portal/teacher/TeacherDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/TeacherDashboard.jsx) (Enforced `isPracticalEvaluationType` filter on practical history and added School-Based Assessment Submissions Log link)
+- [src/portal/teacher/TeacherAssessmentsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/TeacherAssessmentsPage.jsx) (Enabled auto-open of assessments history drawer on navigation)
+- [src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx) (Clarified modal title to My Practical Submissions Log)
 - [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md) (Updated memory log)
 
 ---
 
 ### Build Verification & Metrics
 
-- `npm run build`: **Exit Code 0** (completed with zero breaking errors; 11 HTML pages, sitemap, canonical links generated cleanly).
+- `npm run build`: **Exit Code 0** (production bundle built cleanly; passed all 11 static SEO checks).
 
 ---
 
@@ -68,7 +65,7 @@ git log -1 --stat
 
 # If you wish to amend or re-commit:
 git reset --soft HEAD~1
-git commit -m "fix(seo): restore direct stylesheet linking to prevent csp inline handler blockage"
+git commit -m "fix(teacher): strictly isolate practical submissions from school-based assessments in history logs"
 
 # Push manually whenever ready (DO NOT push automatically):
 git push origin main
