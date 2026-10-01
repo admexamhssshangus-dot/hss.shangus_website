@@ -1,40 +1,44 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Right-Side Controls with 2/3 Table Space & Compact Searchable Column Dropdown
+## Latest Commit: Fix `dId.toLowerCase` Crash via Defensive String Sanitization
 
-**Commit Message:** `feat(roster): move controls to right with 2/3 table space and compact searchable columns dropdown`
+**Commit Message:** `fix(roster): sanitize docId and formNo as string to prevent toLowerCase runtime crash on numeric IDs`
 
 ---
 
-### Architectural & UI Overview
+### Issue Resolved
 
-Per user request:
-1. **Layout Reorientation (Table Preview on Left, Controls on Right)**:
-   - Live document preview & roster table now occupies the **LEFT** side with a default allocation of **67% (2/3 of desktop viewport width)**.
-   - Filter & configuration controls have been moved to the **RIGHT** side with a default allocation of **33% (1/3 of desktop viewport width)**.
-   - The central vertical splitter handle allows smooth real-time drag resizing between 45% and 80%, with a double-click shortcut to instantly reset back to the default 2/3 (67%) layout.
-2. **Compact Searchable Database Column Dropdown (`RosterColumnsDropdown`)**:
-   - Replaced the bulky, open 3-column card grid with an ultra-compact checkbox dropdown anchored cleanly to the right side of the control panel.
-   - Equipped with a real-time live search bar that searches across **all 35+ columns registered in the database** (e.g. typing `roll`, `dob`, `photo`, `stream`, `marks`, `aadhaar`, `blood`, `fee`).
-   - Categorized database field groups (Core Identity, Academic Details, Contact & Addresses, etc.) with check boxes, match count indicator, quick toggle between Core and All 35 columns, "+ Custom Column" launcher, and "Reset Default Columns" shortcut.
-3. **Logically Grouped Control Palette (4 Cohesive Cards)**:
-   - **Card 1: Cohort Filters**:
-     - Header with matched student count (`X/Y Matched`), fallback merge alert indicator (`[⚠️ N Flagged]`), and 1-click `Reset` button.
-     - Clean 2-column compact grid of filter dropdowns: Session, Class, Stream, Subject (with real-time search), Gender, and Form Status.
-   - **Card 2: Table Columns & Database Fields**:
-     - Full-width compact `RosterColumnsDropdown`.
-     - Quick toolbar: `⚡ Abbr (GE, PH)` vs `📝 Full` subject toggle, `+ Custom` column button, `Save Default` layout button, and system default reset button.
-     - Active column sequence chips with `◀` and `▶` 1-click reorder arrows, column labels (clickable to edit custom formula/fee columns), and `×` removal button.
-   - **Card 3: Document Layout & Page Setup**:
-     - Document Title input with printed register placeholder.
-     - Layout mode buttons (`Standard` vs `2-Col Attendance`).
-     - Orientation buttons (`Portrait` vs `Landscape`).
-     - Row Height preset selector dropdown.
-     - Collapsible accordion for Institutional Letterhead & Signatories (School Name override, Subtitle, Cohort Badges ON/OFF, and Left/Right Signatory titles).
-   - **Card 4: Actions & Exports**:
-     - Primary, high-contrast `Print Register / Save PDF (Ctrl+P)` button.
-     - 3-column quick export buttons: Excel (`.xlsx`), Word (`.docx`), and CSV (`.csv`).
-     - Student inclusion toggles: `Include All / Deselect All` and `Show / Hide Skipped Rows`.
+- **Symptom**:
+  Opening the Custom Roster Document Builder view (`/portal/admin?tab=customRoster`) in mobile/responsive or desktop mode caused a runtime crash caught by `ModuleErrorBoundary`:
+  ```text
+  TypeError: dId.toLowerCase is not a function
+    at CustomRosterDocumentBuilderView.jsx:3066:1
+    at Array.forEach (<anonymous>)
+    at CustomRosterDocumentBuilderView.jsx:3046:1
+    at CustomRosterDocumentBuilderView (CustomRosterDocumentBuilderView.jsx:3031:1)
+  ```
+- **Root Cause**:
+  In `CustomRosterDocumentBuilderView.jsx`:
+  - When raw students or admission records are imported with numeric IDs (e.g. integer `idx + 1` or numeric DB IDs), `st.docId || st.id` resolves to a number rather than a string.
+  - Calling `.toLowerCase()` directly on `dId` in the exam roll cross-reference pre-pass (`examRollByDocId.has(dId.toLowerCase())`) and in student deduplication (`dId.toLowerCase()`, `(st.docId || st.id || '').trim().toLowerCase()`) threw a TypeError because JavaScript Numbers do not have `.toLowerCase()` or `.trim()` methods.
+  - Similarly, `docId` and `groupKey` in `flattenMasterRegistersChunked` were susceptible to method invocation failures if provided as numeric primitives.
+
+---
+
+### Changes Applied
+
+1. **`src/portal/admin/CustomRosterDocumentBuilderView.jsx`**:
+   - In `flattenMasterRegistersChunked`:
+     - Sanitized `docId` with `String(m.id || '')`.
+     - Sanitized `groupKey` with `String(m.groupKey || '')`.
+   - In `unifiedStudentPool` (Exam Roll Cross-Reference Pre-Pass):
+     - Safely sanitized `dId` with `String(st.docId || st.id || '').trim().toLowerCase()`.
+     - Safely sanitized `cleanReg`, `cleanForm`, `cleanNameFather`, and `cleanNameClass` with `String(...)` before calling string transformations.
+     - Updated `examRollByDocId.set(dId, roll)` to use the normalized string `dId`.
+   - In `unifiedStudentPool` (Student Record Normalization & Cross-Referencing):
+     - Safely sanitized `dId` with `String(st.docId || st.id || '').trim().toLowerCase()`.
+     - Enforced `docId: String(st.docId || st.id || '')` in `studentRecord`.
+     - Safely cast `cleanReg`, `cleanForm`, `cleanName`, `cleanFather`, and `cleanDocId` to strings before `.toLowerCase()` or `.trim()`.
 
 ---
 
@@ -47,10 +51,9 @@ Per user request:
 
 ### Verification & Build Status
 
-- **Build Verification**: `npm run build` executed and passed with **Exit Code 0** (`main.734bcd04.js`).
-- Zero syntax or runtime compilation errors.
-- Desktop layout verified with 67% table preview width on the left and 33% control pane on the right.
-- Mobile view (`< lg`) continues to provide the dedicated mobile options modal with the unified control palette.
+- **Build Verification**: `npm run build` executed and passed with **Exit Code 0** (`main.4f00133c.js`).
+- Zero syntax, linting, or runtime errors.
+- Roster component now safely loads without crashing on records with numeric or non-string IDs across all screen sizes (mobile, tablet, desktop).
 
 ---
 
@@ -67,7 +70,7 @@ Per user request:
 3. **Amend Commit Message (if desired)**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(roster): move controls to right with 2/3 table space and compact searchable columns dropdown"
+   git commit -m "fix(roster): sanitize docId and formNo as string to prevent toLowerCase runtime crash on numeric IDs"
    ```
 4. **Push to Remote (STRICT MANUAL RULE)**:
    ```bash
