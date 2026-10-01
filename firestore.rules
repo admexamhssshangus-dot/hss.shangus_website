@@ -485,6 +485,11 @@ service cloud.firestore {
       allow delete: if canUse('reports');
     }
 
+    match /studentPhotos/{documentId} {
+      allow read: if canReadStudents();
+      allow write: if canEditStudents() && validStaffDocument(request.resource.data);
+    }
+
     match /attendance/{documentId} {
       allow read: if isTeacher();
       allow create, update: if isTeacher() && validStaffDocument(request.resource.data);

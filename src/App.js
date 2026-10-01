@@ -7,6 +7,7 @@ import SEOHead from './components/SEOHead';
 import GlobalToast from './components/common/GlobalToast';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 import { isBootstrapSuperAdminEmail } from './utils/authRoles';
+import Home from './pages/Home';
 import './styles/ui-system.css';
 
 // Lazy-loaded route components with chunk recovery
@@ -17,7 +18,6 @@ const ThemeSelector = lazyWithChunkRecovery(() => import('./components/ThemeSele
 const GlobalTooltip = lazyWithChunkRecovery(() => import('./components/common/GlobalTooltip'), 'global-tooltip');
 const NetworkStatusIndicator = lazyWithChunkRecovery(() => import('./components/NetworkStatusIndicator'), 'network-status');
 
-const Home = lazyWithChunkRecovery(() => import('./pages/Home'), 'home');
 const About = lazyWithChunkRecovery(() => import('./pages/About'), 'about');
 const Academics = lazyWithChunkRecovery(() => import('./pages/Academics'), 'academics');
 const Admissions = lazyWithChunkRecovery(() => import('./pages/Admissions'), 'admissions');
