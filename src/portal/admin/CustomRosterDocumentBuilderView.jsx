@@ -15,7 +15,7 @@ import {
   ChevronDown, ChevronUp, ArrowLeft, ArrowRight, GripVertical,
   ArrowUpDown, ArrowUp, ArrowDown, Edit3, Save, RotateCcw, Check, Bookmark, Award,
   Calculator, IndianRupee, FlaskConical, CheckCircle2, Cloud, Info, Zap,
-  Columns, ClipboardList, Search, Underline, Type
+  Columns, ClipboardList, Search, Underline, Type, AlertTriangle
 } from 'lucide-react';
 import { generateCustomRosterDocx } from '../../utils/customRosterDocxGenerator';
 import {
@@ -1651,17 +1651,32 @@ function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
   );
 }
 
-// ─── Unique Stable Identifier for Roster Student Rows (Strictly Scoped by Session & Class) ───
+// ─── Unique Stable Identifier for Roster Student Rows ───
+// Hierarchy:
+// 1. Primary: Board Reg No_Class_Session
+// 2. Secondary: Form No_Class_Session
+// 3. Fallback: Student Name_Father Name_Mobile_Class_Session
+// 4. Fallback: docId_Class_Session
 export function getRosterRowId(row) {
   if (!row) return '';
-  const sess = String(row.session || '').trim().toLowerCase();
   const cls = String(row.className || '').trim().toLowerCase();
+  const sess = String(row.session || '').trim().toLowerCase();
   const cleanReg = row.boardRegNo && row.boardRegNo !== '—' ? String(row.boardRegNo).replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
   const cleanForm = row.formNo && row.formNo !== '—' ? String(row.formNo).trim().toLowerCase().replace(/^adm_/, '') : '';
+  
+  if (cleanReg) return `reg_${cleanReg}_${cls}_${sess}`;
+  if (cleanForm) return `form_${cleanForm}_${cls}_${sess}`;
+
   const cleanName = row.studentName && row.studentName !== '—' ? String(row.studentName).trim().toLowerCase() : '';
   const cleanFather = row.fatherName && row.fatherName !== '—' ? String(row.fatherName).trim().toLowerCase() : '';
-  const baseId = cleanReg ? `reg_${cleanReg}` : (cleanForm ? `form_${cleanForm}` : (row.docId ? `doc_${row.docId}` : `${cleanName}_${cleanFather}_${row._originalIdx || ''}`));
-  return `${sess}_${cls}_${baseId}`;
+  const rawMob = (row.mobile && row.mobile !== '—') ? row.mobile : (row.parentMobile && row.parentMobile !== '—' ? row.parentMobile : '');
+  const cleanMob = rawMob ? String(rawMob).replace(/[^0-9]/g, '').slice(-10) : '';
+
+  if (cleanName && cleanFather && cleanMob && cleanMob.length >= 10) {
+    return `nfm_${cleanName}_${cleanFather}_${cleanMob}_${cls}_${sess}`;
+  }
+
+  return row.docId ? `doc_${row.docId}_${cls}_${sess}` : `${row._originalIdx || ''}_${cls}_${sess}`;
 }
 
 // ─── Reusable Multi-Select Checkbox Dropdown for Cohort Filters ───
@@ -2876,22 +2891,20 @@ export default function CustomRosterDocumentBuilderView({
         const father = String(extractFatherName(s) || s.fatherName || s["Father's Name"] || s.parentName || '').trim().toLowerCase();
         const sess = String(extractSession(s) || s.session || s.Session || '').trim().toLowerCase();
         const cls = String(extractClass(s) || s.className || s.class || s.Class || '').trim().toLowerCase();
-        const roll = String(getStudentRollNumber(s) || '').trim();
+        const rawMob = extractMobile(s) !== '—' ? extractMobile(s) : extractParentMobile(s);
+        const mob = rawMob && rawMob !== '—' ? String(rawMob).replace(/[^0-9]/g, '').slice(-10) : '';
 
         if (id) seenMap.set(`id:${id}`, s);
-        if (fNo && fNo !== '—') {
-          seenMap.set(`fno:${fNo}`, s);
-          seenMap.set(`fno:${sess}:${cls}:${fNo}`, s);
-        }
         if (reg && reg !== '—') {
+          seenMap.set(`reg:${reg}:${cls}:${sess}`, s);
           seenMap.set(`reg:${reg}`, s);
-          seenMap.set(`reg:${sess}:${cls}:${reg}`, s);
         }
-        if (name && name !== '—' && father && father !== '—') {
-          seenMap.set(`name:${sess}:${cls}:${name}:${father}`, s);
+        if (fNo && fNo !== '—') {
+          seenMap.set(`fno:${fNo}:${cls}:${sess}`, s);
+          seenMap.set(`fno:${fNo}`, s);
         }
-        if (name && name !== '—' && roll && roll !== '—' && roll !== '0') {
-          seenMap.set(`roll:${sess}:${cls}:${roll}:${name}`, s);
+        if (name && name !== '—' && father && father !== '—' && mob && mob.length >= 10) {
+          seenMap.set(`nfm:${name}:${father}:${mob}:${cls}:${sess}`, s);
         }
       });
 
@@ -2903,16 +2916,29 @@ export default function CustomRosterDocumentBuilderView({
         const father = String(extractFatherName(m) || m.fatherName || m["Father's Name"] || m.parentName || '').trim().toLowerCase();
         const sess = String(extractSession(m) || m.session || m.Session || '').trim().toLowerCase();
         const cls = String(extractClass(m) || m.className || m.class || m.Class || '').trim().toLowerCase();
-        const roll = String(getStudentRollNumber(m) || '').trim();
+        const rawMob = extractMobile(m) !== '—' ? extractMobile(m) : extractParentMobile(m);
+        const mob = rawMob && rawMob !== '—' ? String(rawMob).replace(/[^0-9]/g, '').slice(-10) : '';
 
-        const match = 
-          (id && seenMap.get(`id:${id}`)) ||
-          (fNo && fNo !== '—' && (seenMap.get(`fno:${fNo}`) || seenMap.get(`fno:${sess}:${cls}:${fNo}`))) ||
-          (reg && reg !== '—' && (seenMap.get(`reg:${reg}`) || seenMap.get(`reg:${sess}:${cls}:${reg}`))) ||
-          (name && name !== '—' && father && father !== '—' && seenMap.get(`name:${sess}:${cls}:${name}:${father}`)) ||
-          (name && name !== '—' && roll && roll !== '—' && roll !== '0' && seenMap.get(`roll:${sess}:${cls}:${roll}:${name}`));
+        // Primary: board reg no_class_session, then form number_class_session, then fallback student name_father name_mobile_class_session, then docId
+        let match = null;
+        let isFallback = false;
+
+        if (reg && reg !== '—' && (seenMap.get(`reg:${reg}:${cls}:${sess}`) || seenMap.get(`reg:${reg}`))) {
+          match = seenMap.get(`reg:${reg}:${cls}:${sess}`) || seenMap.get(`reg:${reg}`);
+        } else if (fNo && fNo !== '—' && (seenMap.get(`fno:${fNo}:${cls}:${sess}`) || seenMap.get(`fno:${fNo}`))) {
+          match = seenMap.get(`fno:${fNo}:${cls}:${sess}`) || seenMap.get(`fno:${fNo}`);
+        } else if (name && name !== '—' && father && father !== '—' && mob && mob.length >= 10 && seenMap.get(`nfm:${name}:${father}:${mob}:${cls}:${sess}`)) {
+          match = seenMap.get(`nfm:${name}:${father}:${mob}:${cls}:${sess}`);
+          isFallback = true;
+        } else if (id && seenMap.get(`id:${id}`)) {
+          match = seenMap.get(`id:${id}`);
+        }
 
         if (match) {
+          if (isFallback) {
+            match._isFallbackMerge = true;
+            match._fallbackMergeReason = `Merged via Name+Father+Mobile fallback (${extractStudentName(m)}, ${extractFatherName(m)}, ${rawMob}, ${cls}, ${sess})`;
+          }
           // Enrich the existing student in list with any non-empty fields from m (especially exam roll numbers)
           Object.keys(m).forEach(k => {
             const v = m[k];
@@ -2923,19 +2949,16 @@ export default function CustomRosterDocumentBuilderView({
         } else {
           list.push(m);
           if (id) seenMap.set(`id:${id}`, m);
-          if (fNo && fNo !== '—') {
-            seenMap.set(`fno:${fNo}`, m);
-            seenMap.set(`fno:${sess}:${cls}:${fNo}`, m);
-          }
           if (reg && reg !== '—') {
+            seenMap.set(`reg:${reg}:${cls}:${sess}`, m);
             seenMap.set(`reg:${reg}`, m);
-            seenMap.set(`reg:${sess}:${cls}:${reg}`, m);
           }
-          if (name && name !== '—' && father && father !== '—') {
-            seenMap.set(`name:${sess}:${cls}:${name}:${father}`, m);
+          if (fNo && fNo !== '—') {
+            seenMap.set(`fno:${fNo}:${cls}:${sess}`, m);
+            seenMap.set(`fno:${fNo}`, m);
           }
-          if (name && name !== '—' && roll && roll !== '—' && roll !== '0') {
-            seenMap.set(`roll:${sess}:${cls}:${roll}:${name}`, m);
+          if (name && name !== '—' && father && father !== '—' && mob && mob.length >= 10) {
+            seenMap.set(`nfm:${name}:${father}:${mob}:${cls}:${sess}`, m);
           }
         }
       });
@@ -2949,8 +2972,7 @@ export default function CustomRosterDocumentBuilderView({
     const poolList = [];
     const indexByReg = new Map();
     const indexByForm = new Map();
-    const indexByNameFather = new Map();
-    const indexByNameRoll = new Map();
+    const indexByNameFatherMobile = new Map();
     const indexByDoc = new Map();
 
     // ── Pre-pass: Build Cross-Reference Registry for Exam Roll Numbers across ALL records ──
@@ -3112,30 +3134,51 @@ export default function CustomRosterDocumentBuilderView({
       // Skip empty or container objects that lack any identifying candidate details
       if (studentName === '—' && fName === '—' && boardRegNo === '—' && formNo === '—') return;
 
-      // Multi-index deduplication within unified student pool (scoped to session + class so academic progression is preserved)
-      const normSession = String(session || '').trim().toLowerCase();
+      // Multi-index deduplication within unified student pool
+      // Hierarchy:
+      // 1. Primary: board reg no_class_session
+      // 2. Secondary: form number_class_session
+      // 3. Fallback: student name_father name_mobile_class_session (Flagged)
+      // 4. Fallback: docId
       const normClass = String(className || '').trim().toLowerCase();
+      const normSession = String(session || '').trim().toLowerCase();
       const cleanReg = boardRegNo && boardRegNo !== '—' ? boardRegNo.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
       const cleanForm = formNo && formNo !== '—' ? String(formNo).trim().toLowerCase().replace(/^adm_/, '') : '';
       const cleanName = studentName && studentName !== '—' ? studentName.trim().toLowerCase() : '';
       const cleanFather = fName && fName !== '—' ? fName.trim().toLowerCase() : '';
-      const cleanRoll = classRollNo && classRollNo !== '—' && classRollNo !== '0' ? String(classRollNo).trim().replace(/[^0-9]/g, '') : '';
+      const rawMob = (mobile && mobile !== '—') ? mobile : (parentMobile && parentMobile !== '—' ? parentMobile : '');
+      const cleanMob = rawMob ? String(rawMob).replace(/[^0-9]/g, '').slice(-10) : '';
       const cleanDocId = (st.docId || st.id || '').trim().toLowerCase();
 
-      const regKey = cleanReg ? `reg_${normSession}_${normClass}_${cleanReg}` : '';
-      const formKey = cleanForm ? `form_${normSession}_${normClass}_${cleanForm}` : '';
-      const nameFatherKey = (cleanName && cleanFather) ? `nf_${normSession}_${normClass}_${cleanName}_${cleanFather}` : '';
-      const nameRollKey = (cleanName && cleanRoll) ? `nr_${normSession}_${normClass}_${cleanName}_${cleanRoll}` : '';
+      // Primary: board reg no_class_session
+      const regKey = cleanReg ? `reg_${cleanReg}_${normClass}_${normSession}` : '';
+      // Secondary: form number_class_session
+      const formKey = cleanForm ? `form_${cleanForm}_${normClass}_${normSession}` : '';
+      // Tertiary Fallback: student name_father name_mobile_class_session
+      const nameFatherMobileKey = (cleanName && cleanFather && cleanMob && cleanMob.length >= 10)
+        ? `nfm_${cleanName}_${cleanFather}_${cleanMob}_${normClass}_${normSession}`
+        : '';
       const docKey = cleanDocId ? `doc_${cleanDocId}` : '';
 
-      const existing = 
-        (regKey && indexByReg.get(regKey)) ||
-        (formKey && indexByForm.get(formKey)) ||
-        (docKey && indexByDoc.get(docKey)) ||
-        (nameFatherKey && indexByNameFather.get(nameFatherKey)) ||
-        (nameRollKey && indexByNameRoll.get(nameRollKey));
+      let existing = null;
+      let isFallbackMatch = false;
+
+      if (regKey && indexByReg.has(regKey)) {
+        existing = indexByReg.get(regKey);
+      } else if (formKey && indexByForm.has(formKey)) {
+        existing = indexByForm.get(formKey);
+      } else if (nameFatherMobileKey && indexByNameFatherMobile.has(nameFatherMobileKey)) {
+        existing = indexByNameFatherMobile.get(nameFatherMobileKey);
+        isFallbackMatch = true;
+      } else if (docKey && indexByDoc.has(docKey)) {
+        existing = indexByDoc.get(docKey);
+      }
 
       if (existing) {
+        if (isFallbackMatch || st._isFallbackMerge) {
+          existing._isFallbackMerge = true;
+          existing._fallbackMergeReason = st._fallbackMergeReason || `Merged via Name+Father+Mobile fallback (${studentName}, ${fName}, ${rawMob}, ${className}, ${session})`;
+        }
         // Merge enriched fields from studentRecord into existing
         Object.keys(studentRecord).forEach(k => {
           if ((existing[k] === '—' || existing[k] === '' || existing[k] === undefined || existing[k] === null) &&
@@ -3155,16 +3198,18 @@ export default function CustomRosterDocumentBuilderView({
         // Link all identifiers to the merged record
         if (regKey && !indexByReg.has(regKey)) indexByReg.set(regKey, existing);
         if (formKey && !indexByForm.has(formKey)) indexByForm.set(formKey, existing);
+        if (nameFatherMobileKey && !indexByNameFatherMobile.has(nameFatherMobileKey)) indexByNameFatherMobile.set(nameFatherMobileKey, existing);
         if (docKey && !indexByDoc.has(docKey)) indexByDoc.set(docKey, existing);
-        if (nameFatherKey && !indexByNameFather.has(nameFatherKey)) indexByNameFather.set(nameFatherKey, existing);
-        if (nameRollKey && !indexByNameRoll.has(nameRollKey)) indexByNameRoll.set(nameRollKey, existing);
       } else {
+        if (st._isFallbackMerge) {
+          studentRecord._isFallbackMerge = true;
+          studentRecord._fallbackMergeReason = st._fallbackMergeReason;
+        }
         poolList.push(studentRecord);
         if (regKey) indexByReg.set(regKey, studentRecord);
         if (formKey) indexByForm.set(formKey, studentRecord);
+        if (nameFatherMobileKey) indexByNameFatherMobile.set(nameFatherMobileKey, studentRecord);
         if (docKey) indexByDoc.set(docKey, studentRecord);
-        if (nameFatherKey) indexByNameFather.set(nameFatherKey, studentRecord);
-        if (nameRollKey) indexByNameRoll.set(nameRollKey, studentRecord);
       }
     });
 
@@ -4596,6 +4641,15 @@ export default function CustomRosterDocumentBuilderView({
                 <span className="font-mono font-black text-[8.5px] text-emerald-600 dark:text-emerald-400">
                   {filteredStudents.length}/{unifiedStudentPool.length} Matched
                 </span>
+                {filteredStudents.some(s => s && s._isFallbackMerge) && (
+                  <span
+                    className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[7.5px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 cursor-help"
+                    title={`${filteredStudents.filter(s => s && s._isFallbackMerge).length} student record(s) deduplicated via Name + Father + Mobile fallback. Please verify Board Reg No or Form No.`}
+                  >
+                    <AlertTriangle size={8} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>{filteredStudents.filter(s => s && s._isFallbackMerge).length} Flagged</span>
+                  </span>
+                )}
                 {(selectedSessions.length > 0 || selectedClasses.length > 0 || selectedStreams.length > 0 || selectedSubjects.length > 0 || selectedGenders.length > 0 || selectedStatuses.length > 0) && (
                   <button
                     type="button"
@@ -6039,7 +6093,10 @@ export default function CustomRosterDocumentBuilderView({
                                   return (
                                     <tr key={i} className="h-8.5 hover:bg-slate-50">
                                       <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>
-                                      <td className="border-r border-slate-400 font-semibold text-[9px] px-1.5 truncate text-slate-900">{row.studentName || row.name || '—'}</td>
+                                      <td className="border-r border-slate-400 font-semibold text-[9px] px-1.5 truncate text-slate-900" title={row?._isFallbackMerge ? (row._fallbackMergeReason || "Flagged: Merged via fallback") : undefined}>
+                                        {row.studentName || row.name || '—'}
+                                        {row?._isFallbackMerge && <span className="ml-1 text-amber-600 font-black" title="Merged via fallback">⚠</span>}
+                                      </td>
                                       <td className="bg-white"></td>
                                     </tr>
                                   );
@@ -6069,7 +6126,10 @@ export default function CustomRosterDocumentBuilderView({
                                   return (
                                     <tr key={i} className="h-8.5 hover:bg-slate-50">
                                       <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>
-                                      <td className="border-r border-slate-400 font-semibold text-[9px] px-1.5 truncate text-slate-900">{row ? (row.studentName || row.name || '') : ''}</td>
+                                      <td className="border-r border-slate-400 font-semibold text-[9px] px-1.5 truncate text-slate-900" title={row?._isFallbackMerge ? (row._fallbackMergeReason || "Flagged: Merged via fallback") : undefined}>
+                                        {row ? (row.studentName || row.name || '') : ''}
+                                        {row?._isFallbackMerge && <span className="ml-1 text-amber-600 font-black" title="Merged via fallback">⚠</span>}
+                                      </td>
                                       <td className="bg-white"></td>
                                     </tr>
                                   );
@@ -6456,6 +6516,19 @@ export default function CustomRosterDocumentBuilderView({
                                       <span className="text-slate-400 font-normal">—</span>
                                     )}
                                   </span>
+                                ) : col.key === 'studentName' ? (
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-semibold text-slate-900 dark:text-slate-100">{row.studentName || '—'}</span>
+                                    {row._isFallbackMerge && (
+                                      <span
+                                        title={row._fallbackMergeReason || "Flagged Record: Merged via fallback (Student Name + Father Name + Mobile + Class + Session). Please verify Board Reg No or Form No."}
+                                        className="inline-flex items-center gap-0.5 px-1 py-0.2 text-[8px] font-bold text-amber-800 bg-amber-100 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-700/80 rounded cursor-help select-none shrink-0"
+                                      >
+                                        <AlertTriangle size={8.5} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                                        <span>Fallback Merge</span>
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="block break-words whitespace-normal">{row[col.key] !== undefined ? row[col.key] : '—'}</span>
                                 )}
