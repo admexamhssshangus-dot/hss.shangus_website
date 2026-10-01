@@ -446,9 +446,10 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       // In Class 12th admissions, students often had the form selection "Same as in class 11th".
       // We resolve the true academic stream using resolveCertificateStream, explicit stream keys,
       // catalog matches, enrolled subjects, and examination subject marks.
-      let resolvedStream = resolveCertificateStream(student, allStudents, selectedClass);
+      const isSecondaryClass = selectedClass === '9th' || selectedClass === '10th' || targetClass === '9th' || targetClass === '10th' || targetClass === '9' || targetClass === '10';
+      let resolvedStream = isSecondaryClass ? 'General' : resolveCertificateStream(student, allStudents, selectedClass);
 
-      if (!resolvedStream || resolvedStream === 'General' || resolvedStream.toLowerCase().includes('same as')) {
+      if (!isSecondaryClass && (!resolvedStream || resolvedStream === 'General' || resolvedStream.toLowerCase().includes('same as'))) {
         const streamCandidates = [
           student.stream,
           student.Stream,
@@ -488,7 +489,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       }
 
       // Infer stream from enrolled/studied subjects if still empty or 'General'
-      if (!resolvedStream || resolvedStream === 'General' || resolvedStream.toLowerCase().includes('same as')) {
+      if (!isSecondaryClass && (!resolvedStream || resolvedStream === 'General' || resolvedStream.toLowerCase().includes('same as'))) {
         const subStr = String(
           student['Subjects to be taken in Class 11th'] ||
           student['Subjects Studied in Class 11th'] ||
@@ -521,7 +522,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
       if (!resolvedRegNo) resolvedRegNo = '—';
       if (!resolvedStream || resolvedStream.toLowerCase().includes('same as')) {
-        resolvedStream = (selectedClass === '9th' || selectedClass === '10th') ? 'General' : '';
+        resolvedStream = isSecondaryClass ? 'General' : '';
       }
 
       const subjectMarks = {};
@@ -579,6 +580,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                   foundRecordDoc = sec;
                   isFromBiology = false;
                 }
+              } else if (!foundRecord) {
+                // Keep record even if marks cell was kept empty by teacher
+                foundRecord = match;
+                foundRecordDoc = sec;
+                isFromBiology = false;
               }
             }
           }
@@ -593,111 +599,112 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               const recs = sec.records || [];
               const match = recs.find(r => matchStudentRecord(r, student, identity));
               if (match) {
-                foundRecord = match;
-                foundRecordDoc = sec;
-                isFromBiology = true;
-                break;
+                const rawM = match.totalMarks ?? match.practicalMarks;
+                if (rawM !== '' && rawM !== null && rawM !== undefined) {
+                  foundRecord = match;
+                  foundRecordDoc = sec;
+                  isFromBiology = true;
+                  break;
+                } else if (!foundRecord) {
+                  foundRecord = match;
+                  foundRecordDoc = sec;
+                  isFromBiology = true;
+                }
               }
             }
           }
         }
 
-        if (foundRecord) {
-          const rawMark = foundRecord.totalMarks ?? foundRecord.practicalMarks;
-          const isAbsent = /^(a|ab|absent)$/i.test(String(rawMark).trim());
-          const numeric = Number(rawMark);
-          const hasNumeric = !isAbsent && Number.isFinite(numeric) && numeric >= 0;
+        const belongsToStudent = isStudentEnrolledInSubject(student, code, selectedClass);
 
-          if (isAbsent) {
-            absentSubjectsCount++;
-            evaluatedSubjectsCount++;
-            totalMax += sMeta.maxMarks;
-            const isAdmMod = Boolean(foundRecord.updatedByAdmin || foundRecord.adminModified || foundRecord.isOverride || foundRecord.isAdmMod);
-            subjectMarks[code] = {
-              obtained: 'AB',
-              isAbsent: true,
-              isPass: false,
-              isFailed: false,
-              maxMarks: sMeta.maxMarks,
-              minMarks: sMeta.minMarks,
-              updatedByAdmin: isAdmMod,
-              updatedBy: isAdmMod ? (foundRecord.updatedBy || 'Administrator') : '',
-              updatedAt: isAdmMod ? (foundRecord.updatedAt || '') : '',
-              editReason: isAdmMod ? (foundRecord.editReason || '') : '',
-              docId: foundRecordDoc?.id || '',
-            };
-          } else if (hasNumeric) {
-            evaluatedSubjectsCount++;
-            // Calculate scaled score:
-            // Fetch subject-specific paper override for this class & subject (e.g. Botany 25M, Zoology 50M)
-            const override = getSubjectOverride(activeEvalConfig?.subjectOverrides, code, selectedClass);
-            let nativePaperMax = Number(foundRecordDoc?.maxMarks);
-            if (!nativePaperMax || nativePaperMax <= 0) {
-              if (override && Number(override.maxMarks) > 0) {
-                nativePaperMax = Number(override.maxMarks);
-              } else if (code === 'BO') {
-                // Botany default in Pre-Board is 25M
-                nativePaperMax = 25;
-              } else if (code === 'ZO') {
-                // Zoology default in Pre-Board is 50M
-                nativePaperMax = 50;
-              } else {
-                nativePaperMax = isPreBoard ? 50 : sMeta.maxMarks;
-              }
-            }
+        const rawMark = foundRecord ? (foundRecord.totalMarks ?? foundRecord.practicalMarks) : null;
+        const isExplicitAbsent = rawMark !== null && rawMark !== undefined && /^(a|ab|absent)$/i.test(String(rawMark).trim());
+        const numeric = (rawMark !== null && rawMark !== undefined && rawMark !== '') ? Number(rawMark) : NaN;
+        const hasNumeric = !isExplicitAbsent && Number.isFinite(numeric) && numeric >= 0;
 
-            let marksVal = numeric;
-            if (isPreBoard) {
-              if (isFromBiology) {
-                // Biology combined paper (e.g. 50M combined)
-                const biMax = Number(foundRecordDoc?.maxMarks) || 50;
-                marksVal = Math.round((numeric / biMax) * 50);
-              } else if (nativePaperMax > 0 && nativePaperMax !== 50) {
-                // Asymmetric scaling: Botany 25M scales 2x into 50M, Zoology 50M scales 1x into 50M
-                marksVal = Math.round((numeric / nativePaperMax) * 50);
-              }
-              marksVal = Math.min(50, Math.max(0, marksVal));
+        if (hasNumeric) {
+          evaluatedSubjectsCount++;
+          // Calculate scaled score:
+          // Fetch subject-specific paper override for this class & subject (e.g. Botany 25M, Zoology 50M)
+          const override = getSubjectOverride(activeEvalConfig?.subjectOverrides, code, selectedClass);
+          let nativePaperMax = Number(foundRecordDoc?.maxMarks);
+          if (!nativePaperMax || nativePaperMax <= 0) {
+            if (override && Number(override.maxMarks) > 0) {
+              nativePaperMax = Number(override.maxMarks);
+            } else if (code === 'BO') {
+              // Botany default in Pre-Board is 25M
+              nativePaperMax = 25;
+            } else if (code === 'ZO') {
+              // Zoology default in Pre-Board is 50M
+              nativePaperMax = 50;
             } else {
-              // Non-Pre-Board (Term End, Mid Term, Unit Test, Internal, External)
-              // Retains the exact marks entered on the native paper scale
-              marksVal = numeric;
-              if (nativePaperMax > 0) {
-                marksVal = Math.min(nativePaperMax, Math.max(0, marksVal));
-              }
+              nativePaperMax = isPreBoard ? 50 : sMeta.maxMarks;
             }
-
-            const isPass = marksVal >= sMeta.minMarks;
-            totalObtained += marksVal;
-            totalMax += sMeta.maxMarks;
-            if (!isPass) failedSubjectsCount++;
-
-            const isAdmMod = Boolean(foundRecord.updatedByAdmin || foundRecord.adminModified || foundRecord.isOverride || foundRecord.isAdmMod);
-            subjectMarks[code] = {
-              obtained: marksVal,
-              nativeMark: numeric,
-              nativeMax: nativePaperMax,
-              isAbsent: false,
-              isPass,
-              isFailed: !isPass,
-              maxMarks: sMeta.maxMarks,
-              minMarks: sMeta.minMarks,
-              updatedByAdmin: isAdmMod,
-              updatedBy: isAdmMod ? (foundRecord.updatedBy || 'Administrator') : '',
-              updatedAt: isAdmMod ? (foundRecord.updatedAt || '') : '',
-              editReason: isAdmMod ? (foundRecord.editReason || '') : '',
-              docId: foundRecordDoc?.id || '',
-            };
-          } else {
-            subjectMarks[code] = {
-              obtained: null,
-              isAbsent: false,
-              isPass: false,
-              isFailed: false,
-              maxMarks: sMeta.maxMarks,
-              minMarks: sMeta.minMarks,
-            };
           }
+
+          let marksVal = numeric;
+          if (isPreBoard) {
+            if (isFromBiology) {
+              // Biology combined paper (e.g. 50M combined)
+              const biMax = Number(foundRecordDoc?.maxMarks) || 50;
+              marksVal = Math.round((numeric / biMax) * 50);
+            } else if (nativePaperMax > 0 && nativePaperMax !== 50) {
+              // Asymmetric scaling: Botany 25M scales 2x into 50M, Zoology 50M scales 1x into 50M
+              marksVal = Math.round((numeric / nativePaperMax) * 50);
+            }
+            marksVal = Math.min(50, Math.max(0, marksVal));
+          } else {
+            // Non-Pre-Board (Term End, Mid Term, Unit Test, Internal, External)
+            // Retains the exact marks entered on the native paper scale
+            marksVal = numeric;
+            if (nativePaperMax > 0) {
+              marksVal = Math.min(nativePaperMax, Math.max(0, marksVal));
+            }
+          }
+
+          const isPass = marksVal >= sMeta.minMarks;
+          totalObtained += marksVal;
+          totalMax += sMeta.maxMarks;
+          if (!isPass) failedSubjectsCount++;
+
+          const isAdmMod = Boolean(foundRecord.updatedByAdmin || foundRecord.adminModified || foundRecord.isOverride || foundRecord.isAdmMod);
+          subjectMarks[code] = {
+            obtained: marksVal,
+            nativeMark: numeric,
+            nativeMax: nativePaperMax,
+            isAbsent: false,
+            isPass,
+            isFailed: !isPass,
+            maxMarks: sMeta.maxMarks,
+            minMarks: sMeta.minMarks,
+            updatedByAdmin: isAdmMod,
+            updatedBy: isAdmMod ? (foundRecord.updatedBy || 'Administrator') : '',
+            updatedAt: isAdmMod ? (foundRecord.updatedAt || '') : '',
+            editReason: isAdmMod ? (foundRecord.editReason || '') : '',
+            docId: foundRecordDoc?.id || '',
+          };
+        } else if (belongsToStudent || (isExplicitAbsent && foundRecord)) {
+          // If subject belongs to student and mark was kept empty by teacher or not entered or marked AB,
+          // recognize as ABSENT (AB)
+          absentSubjectsCount++;
+          evaluatedSubjectsCount++;
+          totalMax += sMeta.maxMarks;
+          const isAdmMod = Boolean(foundRecord?.updatedByAdmin || foundRecord?.adminModified || foundRecord?.isOverride || foundRecord?.isAdmMod);
+          subjectMarks[code] = {
+            obtained: 'AB',
+            isAbsent: true,
+            isPass: false,
+            isFailed: false,
+            maxMarks: sMeta.maxMarks,
+            minMarks: sMeta.minMarks,
+            updatedByAdmin: isAdmMod,
+            updatedBy: isAdmMod ? (foundRecord?.updatedBy || 'Administrator') : '',
+            updatedAt: isAdmMod ? (foundRecord?.updatedAt || '') : '',
+            editReason: isAdmMod ? (foundRecord?.editReason || '') : '',
+            docId: foundRecordDoc?.id || '',
+          };
         } else {
+          // Subject does NOT belong to student and no marks entered -> remains un-enrolled / placeholder (—)
           subjectMarks[code] = {
             obtained: null,
             isAbsent: false,
@@ -710,7 +717,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       });
 
       // Further stream inference from recorded subject marks if still 'General', empty, or placeholder
-      if (!resolvedStream || resolvedStream === 'General' || resolvedStream.toLowerCase().includes('same as')) {
+      if (!isSecondaryClass && (!resolvedStream || resolvedStream === 'General' || resolvedStream.toLowerCase().includes('same as'))) {
         if (
           subjectMarks.PH?.obtained !== null ||
           subjectMarks.CH?.obtained !== null ||
@@ -737,7 +744,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       }
 
       if (!resolvedStream || resolvedStream.toLowerCase().includes('same as')) {
-        resolvedStream = (selectedClass === '9th' || selectedClass === '10th') ? 'General' : 'Science';
+        resolvedStream = isSecondaryClass ? 'General' : 'Science';
       }
 
       // Calculate totals, percentage, result status, and grade
@@ -868,7 +875,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       const m = r?.subjectMarks?.[code];
       return m && (m.obtained !== null || m.isAbsent);
     });
-    const appearedCount = rowsWithSubject.length;
+    const appearedCount = rowsWithSubject.filter(r => !r?.subjectMarks?.[code]?.isAbsent).length;
     const passedCount = rowsWithSubject.filter(r => r?.subjectMarks?.[code]?.isPass).length;
     const failedCount = rowsWithSubject.filter(r => r?.subjectMarks?.[code]?.isFailed && !r?.subjectMarks?.[code]?.isAbsent).length;
     const absentCount = rowsWithSubject.filter(r => r?.subjectMarks?.[code]?.isAbsent).length;
