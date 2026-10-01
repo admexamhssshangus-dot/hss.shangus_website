@@ -1,63 +1,58 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Fix Role Precedence & Add Dual-Role Workspace Switcher for Standard Admins
+## Latest Commit: Synchronize JKBOSE Subject Roll Return Statement in Permissions Catalog & Enforce Mandatory Audit Rule
 
-**Commit Message:** `fix(auth): prioritize admin dashboard routing for dual-role staff and add workspace switcher`
+**Commit Message:** `feat(permissions): sync jkboseSubjectRolls into catalog and enforce mandatory module audit rule`
 
 ---
 
-### Root Cause Analysis
+### Audit & Root Cause Analysis
 
-1. **Dual Responsibility of Nawaz Ahmad Shah (`shahnawaz13678@gmail.com`)**:
-   - In administrative settings (`adminSettings/permissions`, `staffAuthService.js`, and `authRoles.js`), Nawaz is registered as a **Standard Admin** (`role: 'Admin'`, permissions: `reports`, `analyticsReports`, `officialLetter`, `certStudio`).
-   - Concurrently, in school practical evaluation registers (`cleanPracticalsSeedData.js`), Nawaz is also an authorized **Faculty Evaluator** for Political Science laboratory practicals and classroom attendance.
+1. **Standalone Studio Omission in Permissions Catalog (`adminModuleCatalog.js`)**:
+   - `JkboseSubjectRollReturnView` (`jkboseSubjectRolls`) is an interactive, standalone administrative module with roll range compression, multi-class support, dropped examinee drawer, and Word/Excel/PDF exports.
+   - However, in `adminModuleCatalog.js`, `jkboseSubjectRolls` was previously buried as a secondary alias under `analyticsReports` instead of existing as a distinct, selectable module in the catalog.
+   - As a result, it did not appear as an independent permission tile or checkbox in `StaffPermissionsManager.jsx`, preventing administrators from assigning it specifically to examination staff without granting full analytics suite permissions.
+   - Similarly, in `AdminToolsDropdown.jsx`, it lacked a dedicated launcher tile in the dropdown menu.
 
-2. **Why the Teacher Dashboard Appeared**:
-   - **Login Tab Selection (`/portal/login`)**:
-     On the login portal, if the user or browser session opened with the *Faculty / Teacher* tab active, `LoginPage.jsx` set `redirectPath = '/portal/teacher'`. Because Nawaz has faculty evaluator privileges, the system validated the session and routed him directly to `/portal/teacher`.
-     Conversely, signing in with the *Administration* tab active set `redirectPath = '/portal/admin'`, loading the Admin Dashboard (`Analytics & Statistical Reports Suite`).
-   - **Student Tab Fallback Auto-Detection**:
-     In `LoginPage.jsx`, if someone entered credentials on the *Student* tab, the handler checked `if (isTeacher && selectedRole === 'student')` and set `redirectPath = '/portal/teacher'` without checking `isAdmin` first.
-   - **Role Priority Inversion in `staffAuthService.js`**:
-     Line 256 previously checked `isTeacher ? 'Teacher' : (isAdmin ? 'Admin' : 'Teacher')`, which prioritized `'Teacher'` over `'Admin'` whenever educator or subject flags were present.
-   - **Missing Bootstrap Admin Check in `PortalLayout.jsx`**:
-     `PortalLayout._redirectToDashboard` only verified `isBootstrapSuperAdminEmail` on mount/restore, omitting `isBootstrapAdminEmail`, allowing dual-role accounts to default to teacher routes if session state varied.
-   - **No Dual-Role Navigation Switcher on `TeacherDashboard.jsx`**:
-     In `App.js`, `RoleGuard` intentionally allows administrators (`portalArea(role) === 'admin'`) to access `/portal/teacher`. However, `TeacherDashboard.jsx` previously had no button to return to `/portal/admin`, nor did it indicate that an administrator was viewing the educator workspace.
+2. **Role Presets Out of Sync**:
+   - `ROLE_PRESETS.academic_incharge` and `ROLE_PRESETS.records_incharge` omitted `jkboseSubjectRolls` from their active permission lists.
+   - The preset descriptions stated "23 administrative modules" despite the platform housing 25 distinct modules and quick-action tools.
+
+3. **Missing Systemic Rule for Future Module Changes**:
+   - There was previously no documented rule in `AGENTS.md` or `.agents/AGENTS.md` compelling the assistant to automatically audit and update `adminModuleCatalog.js`, `StaffPermissionsManager.jsx`, and `AdminToolsDropdown.jsx` whenever modules are added, renamed, or modified.
 
 ---
 
 ### Summary of Changes
 
-1. **Role Precedence Optimization (`src/services/staffAuthService.js`)**:
-   - Updated `resolveStaffRoleAndPerms` to evaluate `isAdmin` before `isTeacher`.
-   - Guaranteed that administrative privileges remain dominant (`role: 'Admin'` or `'SuperAdmin'`), while retaining `isAdmin: true` and `isTeacher: true` for full educator workflow capabilities.
+1. **Standalone Module Entry (`src/portal/admin/adminModuleCatalog.js`)**:
+   - Registered `jkboseSubjectRolls` as a first-class module under the `Records & Registers` category with `launcher: true`, official description, maturity note, and aliases (`subjectRolls`, `jkboseRolls`).
+   - Refined `analyticsReports` description to focus accurately on class enrollment analysis, stream metrics, and gender/subject breakdown.
+   - Updated `ROLE_PRESETS`:
+     - Included `'jkboseSubjectRolls'` in `academic_incharge` and `records_incharge` presets.
+     - Updated `full_admin` description to reflect all 24 administrative modules & tools.
 
-2. **Login Routing & Account Auto-Recognition (`src/portal/LoginPage.jsx`)**:
-   - Updated `isLikelyTeacherEmail` to exclude all bootstrap administrators and superadmins, preventing teacher role hints on admin accounts.
-   - In `handlePasswordSignIn`: Added automatic admin detection on the *Student* tab (`isAdmin && selectedRole === 'student'`) to set `redirectPath = '/portal/admin'` before checking teacher fallbacks.
+2. **Backward-Compatibility & Dropdown Launching (`src/portal/admin/AdminToolsDropdown.jsx`)**:
+   - Enhanced `isUserPermittedForModule` with automatic inheritance: any administrator who already possesses `'analyticsReports'`, `'analytics'`, or `'admRegisterSuite'` permissions automatically inherits authorized access to `'jkboseSubjectRolls'` without requiring manual Firestore record updates.
+   - Added direct launcher navigation to `jkboseSubjectRolls`.
 
-3. **Session Dashboard Routing Gate (`src/portal/layout/PortalLayout.jsx`)**:
-   - Updated `_redirectToDashboard` to verify both `isBootstrapSuperAdminEmail` and `isBootstrapAdminEmail`, ensuring standard administrators are consistently routed to `/portal/admin`.
+3. **Staff & Permissions UI Sync (`src/portal/admin/StaffPermissionsManager.jsx`)**:
+   - Verified that `ALL_ADMIN_MODULES` dynamically renders `jkboseSubjectRolls` with its proper title, category, description, and permission checkbox.
+   - Updated `DEFAULT_ADMIN_USERS` to include active modules for Nawaz Ahmad Shah (`shahnawaz13678@gmail.com`).
 
-4. **Dual-Role Recognition & Portal Switcher (`src/portal/teacher/TeacherDashboard.jsx`)**:
-   - Detected `isAdminUser` using `user.isAdmin`, `isBootstrapAdminEmail`, `isSuperAdminEmail`, and role strings.
-   - Rendered an `Admin & Educator` role badge instead of a generic `Educator` tag when administrators access the workspace.
-   - Added a direct **"Admin Portal"** switch button in the header card beside the Logout button.
-   - Added an administrative guidance banner explaining that the user is currently in the practical evaluation & attendance module, with a 1-click button to jump to the Admin Dashboard.
-
-5. **Quick Navigation from Admin Dashboard (`src/portal/admin/AdminDashboard.jsx`)**:
-   - Added a `Teacher Portal` header button beside the `Modules` dropdown, enabling administrators with teaching duties to quickly switch to attendance and practical evaluation.
+4. **Permanent Workflow Rule Added (`AGENTS.md` & `.agents/AGENTS.md`)**:
+   - Added **Section 7: Module & Permissions Catalog Synchronization Rule** to both agent instruction files.
+   - Requires mandatory 5-point audit (catalog, permissions manager, dropdown launchers, dashboard loaders, and security rules) whenever a module is added, renamed, or removed.
 
 ---
 
 ### Exact List of Files Changed
 
-- `src/services/staffAuthService.js`
-- `src/portal/LoginPage.jsx`
-- `src/portal/layout/PortalLayout.jsx`
-- `src/portal/teacher/TeacherDashboard.jsx`
-- `src/portal/admin/AdminDashboard.jsx`
+- `src/portal/admin/adminModuleCatalog.js`
+- `src/portal/admin/StaffPermissionsManager.jsx`
+- `src/portal/admin/AdminToolsDropdown.jsx`
+- `AGENTS.md`
+- `.agents/AGENTS.md`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
@@ -65,7 +60,7 @@
 ### Verification & Build Status
 
 - **Build Verification**: `npm run build` completed with **Exit Code 0** and zero breaking errors.
-- **Firebase Security Rules**: Unchanged (`firestore.rules` and `storage.rules` remain synced with remote).
+- **Firebase Security Rules**: Checked and verified (unchanged).
 
 ---
 
@@ -82,7 +77,7 @@
 3. **Amend Commit Message (if desired)**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "fix(auth): prioritize admin dashboard routing for dual-role staff and add workspace switcher"
+   git commit -m "feat(permissions): sync jkboseSubjectRolls into catalog and enforce mandatory module audit rule"
    ```
 4. **Push to Remote (STRICT MANUAL RULE)**:
    ```bash

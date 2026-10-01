@@ -90,7 +90,7 @@ const DEFAULT_ADMIN_USERS = [
     name: 'Nawaz Ahmad Shah (Admin)',
     email: 'shahnawaz13678@gmail.com',
     role: 'Admin',
-    perms: ['reports'],
+    perms: ['reports', 'analyticsReports', 'jkboseSubjectRolls', 'officialLetter', 'certStudio'],
   },
   {
     name: 'Bilal Ahmad Khandy',
