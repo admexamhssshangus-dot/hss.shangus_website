@@ -46,6 +46,8 @@ import { loadSiteSettings } from '../utils/settingsLoader';
 const isLikelyTeacherEmail = (rawEmail) => {
   const clean = String(rawEmail || '').trim().toLowerCase();
   if (!clean || !clean.includes('@')) return false;
+  // Administrative accounts should never be suggested to switch to Teacher-only tab
+  if (isBootstrapAdminEmail(clean) || isSuperAdminEmail(clean)) return false;
   if (clean === 'socialshiftz@gmail.com') return true;
   if (FALLBACK_STAFF_PROFILES[clean]?.isTeacher || FALLBACK_STAFF_PROFILES[clean]?.role === 'Teacher') return true;
   try {
@@ -954,6 +956,18 @@ export default function LoginPage() {
         const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
         verifiedSession.redirectPath = '/portal/teacher';
         setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
+        onLoginSuccess(verifiedSession, keepLoggedIn);
+        return;
+      }
+
+      // --- AUTO-RECOGNIZE ADMIN / SUPERADMIN ACCOUNT (On Student Tab) ---
+      if (isAdmin && selectedRole === 'student') {
+        const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/admin';
+        setAlert({ 
+          type: 'success', 
+          text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Admin Portal...` 
+        });
         onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
       }

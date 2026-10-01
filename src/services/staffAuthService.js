@@ -253,19 +253,20 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
   const isSuper = isSuperAdminEmail(email);
   const isAdmin = isSuper || isBootstrap || normalizedRole === 'admin' || normalizedRole === 'superadmin' || Boolean(profile.isAdmin);
   const isTeacher = normalizedRole === 'teacher' || normalizedRole === 'faculty' || Boolean(profile.isTeacher) || Boolean(profile.teachingSubject || profile.subject);
-  const role = isSuper ? 'SuperAdmin' : (normalizedRole === 'faculty' ? 'Faculty' : (isTeacher ? 'Teacher' : (isAdmin ? 'Admin' : 'Teacher')));
+  // Administrative privileges take precedence: staff with admin roles default to Admin/SuperAdmin, preserving educator flags
+  const role = isSuper ? 'SuperAdmin' : (isAdmin ? 'Admin' : (normalizedRole === 'faculty' ? 'Faculty' : (isTeacher ? 'Teacher' : 'Student')));
 
   const resolved = {
     ...profile,
     uid: user?.uid || profile.uid || null,
     email,
     role: isSuper ? 'SuperAdmin' : role,
+    isAdmin,
+    isTeacher: isTeacher || Boolean(profile.teachingSubject || profile.subject),
     perms: isSuper
       ? ['*']
       : (Array.isArray(profile.perms) ? profile.perms : ['reports']),
     isSuperAdmin: isSuper,
-    isAdmin,
-    isTeacher,
     isStaff: true,
     name: profile.name || user?.displayName || email.split('@')[0],
     subject: profile.subject || profile.teachingSubject || '',

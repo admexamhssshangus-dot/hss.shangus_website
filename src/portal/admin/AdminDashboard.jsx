@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { Lock, ChevronDown, Wrench, Sliders, ArrowLeft } from 'lucide-react';
+import { useOutletContext, Link } from 'react-router-dom';
+import { Lock, ChevronDown, Wrench, Sliders, ArrowLeft, BookOpen } from 'lucide-react';
 import SEO from '../../components/SEO';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown, { ADMIN_TOOL_MODULES, isUserPermittedForModule } from './AdminToolsDropdown';
@@ -733,6 +733,16 @@ export default function AdminDashboard() {
                       <span>Setup</span>
                     </button>
                   )}
+
+                  {/* Dual-Role Quick Link: Teacher & Evaluator Workspace */}
+                  <Link
+                    to="/portal/teacher"
+                    className="hidden sm:flex h-6 sm:h-7 items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded sm:rounded-lg border border-teal-300 dark:border-teal-700 bg-teal-50/80 dark:bg-teal-950/50 text-teal-800 dark:text-teal-200 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition-all cursor-pointer shadow-2xs font-bold text-[9.5px] sm:text-xs shrink-0 active:scale-95"
+                    title="Switch to Faculty & Practical Evaluator Workspace"
+                  >
+                    <BookOpen size={11} className="text-teal-600 dark:text-teal-400" />
+                    <span>Teacher Portal</span>
+                  </Link>
 
                   {/* Administrative Tools Switcher Dropdown (Positioned on Right Side) */}
                   <div className="relative inline-block text-left" ref={dropdownRef}>
