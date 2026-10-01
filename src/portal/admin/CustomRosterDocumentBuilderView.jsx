@@ -1701,7 +1701,39 @@ function CohortCheckboxDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dropUp, setDropUp] = useState(false);
+  const [popoverMaxHeight, setPopoverMaxHeight] = useState(260);
   const dropdownRef = useRef(null);
+
+  const updatePlacement = useCallback(() => {
+    if (!dropdownRef.current) return;
+    const rect = dropdownRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+    const spaceBelow = viewportHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+
+    if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+      setDropUp(true);
+      setPopoverMaxHeight(Math.max(160, Math.min(360, spaceAbove)));
+    } else {
+      setDropUp(false);
+      setPopoverMaxHeight(Math.max(160, Math.min(360, spaceBelow)));
+    }
+  }, []);
+
+  // Recalculate on resize or scroll while open
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleScrollOrResize = () => {
+      updatePlacement();
+    };
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+    };
+  }, [isOpen, updatePlacement]);
 
   // Close when clicking outside or pressing Escape
   useEffect(() => {
@@ -1791,7 +1823,10 @@ function CohortCheckboxDropdown({
     <div className="relative w-full text-left" ref={dropdownRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(prev => !prev)}
+        onClick={() => {
+          updatePlacement();
+          setIsOpen(prev => !prev);
+        }}
         className={`w-full px-1.5 py-0 h-6.5 rounded-md border font-extrabold text-[9px] sm:text-[9.5px] flex items-center justify-between gap-1 shadow-2xs transition-colors cursor-pointer text-left ${
           isFiltered
             ? 'bg-amber-500/10 border-amber-500 text-amber-800 dark:text-amber-300'
@@ -1810,10 +1845,13 @@ function CohortCheckboxDropdown({
 
       {isOpen && (
         <div
-          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-56 sm:w-64 max-w-[calc(100vw-32px)] rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[9999] p-1.5 space-y-1 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}
+          style={{ maxHeight: `${popoverMaxHeight}px` }}
+          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} ${
+            dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+          } w-56 sm:w-64 max-w-[calc(100vw-32px)] rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[9999] p-1.5 space-y-1 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col`}
         >
           {/* Header with Title & Quick Controls */}
-          <div className="flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-500">
+          <div className="shrink-0 flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-500">
             <span className="truncate font-extrabold">{label} Filter</span>
             <div className="flex items-center gap-1 shrink-0">
               <button
@@ -1839,7 +1877,7 @@ function CohortCheckboxDropdown({
 
           {/* Search box for long lists like subjects */}
           {(searchable || normalizedOptions.length > 6) && (
-            <div className="relative px-0.5">
+            <div className="shrink-0 relative px-0.5">
               <input
                 type="text"
                 value={searchTerm}
@@ -1862,7 +1900,7 @@ function CohortCheckboxDropdown({
           )}
 
           {/* Options List */}
-          <div className="max-h-52 overflow-y-auto space-y-0.5 pr-0.5">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-0.5 pr-0.5">
             {/* "All" Option at the top if no search term */}
             {!searchTerm && (
               <button
@@ -2983,7 +3021,40 @@ function RosterColumnsDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dropUp, setDropUp] = useState(false);
+  const [popoverMaxHeight, setPopoverMaxHeight] = useState(440);
   const dropdownRef = useRef(null);
+
+  const updatePlacement = useCallback(() => {
+    if (!dropdownRef.current) return;
+    const rect = dropdownRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+    const spaceBelow = viewportHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
+
+    // If space below is less than 360px and space above is greater than space below, flip upwards!
+    if (spaceBelow < 360 && spaceAbove > spaceBelow) {
+      setDropUp(true);
+      setPopoverMaxHeight(Math.max(220, Math.min(500, spaceAbove)));
+    } else {
+      setDropUp(false);
+      setPopoverMaxHeight(Math.max(220, Math.min(500, spaceBelow)));
+    }
+  }, []);
+
+  // Recalculate on window resize or scroll while open
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleScrollOrResize = () => {
+      updatePlacement();
+    };
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+    };
+  }, [isOpen, updatePlacement]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -3023,7 +3094,10 @@ function RosterColumnsDropdown({
     <div className={`relative ${fullWidth ? 'block w-full' : 'inline-block'} text-left`} ref={dropdownRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(prev => !prev)}
+        onClick={() => {
+          updatePlacement();
+          setIsOpen(prev => !prev);
+        }}
         className={`${
           fullWidth
             ? 'w-full px-2 py-0 h-6.5 rounded-md border font-extrabold text-[9.5px] flex items-center justify-between shadow-2xs'
@@ -3050,9 +3124,14 @@ function RosterColumnsDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-1 w-84 sm:w-96 max-w-[calc(100vw-24px)] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2.5 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 max-h-[460px] overflow-y-auto space-y-2">
-          {/* Header */}
-          <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800 text-[9.5px] font-black uppercase tracking-wider text-slate-500">
+        <div
+          style={{ maxHeight: `${popoverMaxHeight}px` }}
+          className={`absolute right-0 ${
+            dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+          } w-84 sm:w-96 max-w-[calc(100vw-24px)] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2.5 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 flex flex-col`}
+        >
+          {/* Header (Shrink-0) */}
+          <div className="shrink-0 flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800 text-[9.5px] font-black uppercase tracking-wider text-slate-500">
             <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
               <Layers size={11} />
               <span>Configure Columns ({activeColumns.length} Active)</span>
@@ -3061,7 +3140,7 @@ function RosterColumnsDropdown({
               <button
                 type="button"
                 onClick={() => setShowMoreFields(prev => !prev)}
-                className="px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-[8.5px] font-bold cursor-pointer"
+                className="px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-[8.5px] font-bold cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-colors"
                 title="Toggle between core columns and all 35 database columns"
               >
                 {showMoreFields ? 'Core Only' : '+ All 35'}
@@ -3069,7 +3148,7 @@ function RosterColumnsDropdown({
               <button
                 type="button"
                 onClick={() => handleOpenAddModal()}
-                className="px-1.5 py-0.5 rounded bg-amber-600 text-white text-[8.5px] font-bold cursor-pointer hover:bg-amber-500 shadow-2xs"
+                className="px-1.5 py-0.5 rounded bg-amber-600 text-white text-[8.5px] font-bold cursor-pointer hover:bg-amber-500 shadow-2xs transition-colors"
               >
                 + Custom
               </button>
@@ -3084,37 +3163,38 @@ function RosterColumnsDropdown({
             </div>
           </div>
 
-          {/* Search Box */}
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search column fields (e.g. roll, dob, photo, stream, aadhaar, marks)..."
-              className="w-full px-2 py-1 pl-6 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-indigo-500"
-              autoFocus
-            />
-            <Search size={10} className="absolute left-2 top-2 text-slate-400" />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600"
-              >
-                <X size={10} />
-              </button>
+          {/* Search Box & Counter (Shrink-0) */}
+          <div className="shrink-0 pt-1.5 pb-1 space-y-1">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search column fields (e.g. roll, dob, photo, stream, aadhaar, marks)..."
+                className="w-full px-2 py-1 pl-6 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-indigo-500"
+                autoFocus
+              />
+              <Search size={10} className="absolute left-2 top-2 text-slate-400" />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+
+            {term && (
+              <div className="text-[8.5px] font-bold text-indigo-600 dark:text-indigo-400 px-0.5">
+                Found {totalMatches} matching field{totalMatches === 1 ? '' : 's'} across database
+              </div>
             )}
           </div>
 
-          {/* Search match counter if searching */}
-          {term && (
-            <div className="text-[8.5px] font-bold text-indigo-600 dark:text-indigo-400 px-0.5">
-              Found {totalMatches} matching field{totalMatches === 1 ? '' : 's'} across database
-            </div>
-          )}
-
-          {/* Category Groups with Checkboxes */}
-          <div className="space-y-2">
+          {/* Scrollable Column Groups & Custom Columns (Flex-1) */}
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 my-1">
             {dbColumnGroups.map((grp) => {
               const candidateCols = (term || showMoreFields)
                 ? grp.columns
@@ -3161,32 +3241,32 @@ function RosterColumnsDropdown({
                 </div>
               );
             })}
+
+            {/* Custom Column Tags inside dropdown */}
+            {activeColumns.some(c => c.isCustom) && (
+              <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 space-y-1">
+                <div className="text-[8.5px] uppercase font-black text-amber-600 dark:text-amber-400">Custom Columns:</div>
+                <div className="flex flex-wrap gap-1">
+                  {activeColumns.filter(c => c.isCustom).map((c) => (
+                    <span
+                      key={c.key}
+                      className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 text-[9px] font-bold inline-flex items-center gap-1 shadow-2xs"
+                    >
+                      <span onClick={() => handleOpenEditModal(c)} className="cursor-pointer hover:underline truncate max-w-[120px]">
+                        {c.label}
+                      </span>
+                      <button type="button" onClick={() => handleRemoveColumn(c.key)} className="text-rose-600 cursor-pointer">
+                        <X size={9} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Custom Column Tags inside dropdown */}
-          {activeColumns.some(c => c.isCustom) && (
-            <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 space-y-1">
-              <div className="text-[8.5px] uppercase font-black text-amber-600 dark:text-amber-400">Custom Columns:</div>
-              <div className="flex flex-wrap gap-1">
-                {activeColumns.filter(c => c.isCustom).map((c) => (
-                  <span
-                    key={c.key}
-                    className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 text-[9px] font-bold inline-flex items-center gap-1 shadow-2xs"
-                  >
-                    <span onClick={() => handleOpenEditModal(c)} className="cursor-pointer hover:underline truncate max-w-[120px]">
-                      {c.label}
-                    </span>
-                    <button type="button" onClick={() => handleRemoveColumn(c.key)} className="text-rose-600 cursor-pointer">
-                      <X size={9} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Quick Footer */}
-          <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-200 dark:border-slate-800 text-[8.5px] font-bold">
+          {/* Quick Footer (Shrink-0) */}
+          <div className="shrink-0 flex items-center justify-between gap-1 pt-1.5 border-t border-slate-200 dark:border-slate-800 text-[8.5px] font-bold">
             {handleResetToSystemDefault && (
               <button
                 type="button"
@@ -3194,7 +3274,7 @@ function RosterColumnsDropdown({
                   handleResetToSystemDefault();
                   setIsOpen(false);
                 }}
-                className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
+                className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
                 title="Reset to default columns"
               >
                 Reset Default Columns
@@ -3203,7 +3283,7 @@ function RosterColumnsDropdown({
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-black cursor-pointer shadow-2xs ml-auto"
+              className="px-2.5 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-black cursor-pointer shadow-2xs ml-auto transition-colors"
             >
               Done
             </button>
