@@ -21,7 +21,6 @@ import { generateCustomRosterDocx } from '../../utils/customRosterDocxGenerator'
 import {
   printCustomRosterTable,
   exportCustomRosterExcel,
-  exportCustomRosterCsv,
   resolveAttendanceRollCol,
   getAttendanceStudentRoll
 } from '../../utils/customRosterExportUtils';
@@ -5161,15 +5160,6 @@ export default function CustomRosterDocumentBuilderView({
     });
   };
 
-  // Export to CSV — Includes only checked rows with sequential S.No.
-  const handleExportCsv = () => {
-    exportCustomRosterCsv({
-      title: docTitle || (layoutMode === 'two_column_attendance' ? 'Daily_Attendance_Sheet' : 'Student_Roster'),
-      columns: activeTableColumns,
-      rows: activeIncludedRows,
-      layoutMode
-    });
-  };
 
   const currentRowHeightPx = ROW_HEIGHT_PRESETS[selectedRowHeightIdx].px;
 
@@ -5186,31 +5176,31 @@ export default function CustomRosterDocumentBuilderView({
   const renderRosterControlPalette = () => (
     <div className="space-y-1.5 text-xs">
       
-      {/* ── CARD 1: ACTIONS & EXPORTS (Compact Single-Row Design) ── */}
+      {/* ── CARD 1: ACTIONS & EXPORTS ── */}
       <div className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shadow-2xs space-y-1">
         <div className="flex items-center justify-between text-[8.5px] uppercase font-black tracking-wider text-slate-500 pb-0.5 border-b border-slate-200/80 dark:border-slate-800">
           <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
             <Printer size={10} className="shrink-0" />
             <span className="font-extrabold tracking-wide text-slate-800 dark:text-slate-200">Actions & Exports</span>
           </div>
-          <span className="text-[7.5px] font-mono font-bold text-slate-500">
-            {activeIncludedRows.length}/{processedRows.length} Students
+          <span className="text-[8px] font-mono font-bold text-slate-500">
+            {processedRows.length} {processedRows.length === 1 ? 'Student' : 'Students'}
           </span>
         </div>
 
-        {/* All Actions on Single Compact Row */}
-        <div className="flex items-center gap-1">
+        {/* All Primary Actions on Single Clean Row */}
+        <div className="flex items-center gap-1.5">
           {/* Primary Print Button */}
           <button
             type="button"
             onClick={handlePrint}
             disabled={processedRows.length === 0}
-            className="flex-1 min-w-0 h-6.5 px-2 rounded-lg bg-gradient-to-r from-amber-600 via-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[9.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+            className="flex-1 min-w-0 h-7 px-2.5 rounded-lg bg-gradient-to-r from-amber-600 via-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[9.5px] flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50 transition-all active:scale-95"
             title="Print Official Institutional Register / Save PDF (Ctrl+P)"
           >
-            <Printer size={10} className="shrink-0" />
+            <Printer size={11} className="shrink-0" />
             <span className="truncate">Print / PDF</span>
-            <span className="text-[7.5px] opacity-75 font-normal ml-0.5 hidden sm:inline">(Ctrl+P)</span>
+            <span className="text-[8px] opacity-80 font-normal ml-0.5 hidden sm:inline">(Ctrl+P)</span>
           </button>
 
           {/* Excel */}
@@ -5218,10 +5208,10 @@ export default function CustomRosterDocumentBuilderView({
             type="button"
             onClick={handleExportExcel}
             disabled={processedRows.length === 0}
-            className="h-6.5 px-2 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
-            title="Export filtered records to Microsoft Excel spreadsheet"
+            className="h-7 px-2.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
+            title="Export filtered records to Microsoft Excel spreadsheet (.xlsx)"
           >
-            <FileSpreadsheet size={9.5} className="shrink-0" />
+            <FileSpreadsheet size={10.5} className="shrink-0" />
             <span>Excel</span>
           </button>
 
@@ -5230,45 +5220,11 @@ export default function CustomRosterDocumentBuilderView({
             type="button"
             onClick={handleExportDocx}
             disabled={processedRows.length === 0 || isExporting}
-            className="h-6.5 px-2 rounded-md bg-blue-700 hover:bg-blue-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
+            className="h-7 px-2.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
             title="Export formatted roster to Microsoft Word document (.docx)"
           >
-            {isExporting ? <RefreshCw size={9.5} className="animate-spin shrink-0" /> : <FileText size={9.5} className="shrink-0" />}
+            {isExporting ? <RefreshCw size={10.5} className="animate-spin shrink-0" /> : <FileText size={10.5} className="shrink-0" />}
             <span>Word</span>
-          </button>
-
-          {/* CSV */}
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            disabled={processedRows.length === 0}
-            className="h-6.5 px-2 rounded-md bg-slate-700 hover:bg-slate-600 text-white font-bold text-[8.5px] flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
-            title="Export raw data to CSV file"
-          >
-            <Download size={9.5} className="shrink-0" />
-            <span>CSV</span>
-          </button>
-
-          {/* Selection Toggle (All / None) */}
-          <button
-            type="button"
-            onClick={toggleSelectAllRows}
-            className="h-6.5 px-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-[8px] font-bold flex items-center justify-center gap-0.5 cursor-pointer transition-all shrink-0"
-            title={isAllRowsIncluded ? 'Deselect All Candidates' : 'Include All Candidates'}
-          >
-            {isAllRowsIncluded ? <CheckSquare size={9} className="text-emerald-600 shrink-0" /> : <Square size={9} className="shrink-0" />}
-            <span>{isAllRowsIncluded ? 'Deselect' : 'All'}</span>
-          </button>
-
-          {/* Skipped Toggle */}
-          <button
-            type="button"
-            onClick={() => setHideSkippedRows(prev => !prev)}
-            className="h-6.5 px-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-[8px] font-bold flex items-center justify-center gap-0.5 cursor-pointer transition-all shrink-0"
-            title={hideSkippedRows ? 'Click to show skipped candidates' : 'Click to hide skipped candidates'}
-          >
-            <Eye size={9} className={`shrink-0 ${hideSkippedRows ? 'text-indigo-600' : 'opacity-50'}`} />
-            <span>{hideSkippedRows ? 'Hidden' : 'Skipped'}</span>
           </button>
         </div>
       </div>
