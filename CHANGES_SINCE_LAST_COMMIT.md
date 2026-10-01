@@ -1,58 +1,56 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Synchronize JKBOSE Subject Roll Return Statement in Permissions Catalog & Enforce Mandatory Audit Rule
+## Latest Commit: Fix Duplicate Student Entries & Isolate Class Row Selections in Custom Roster Builder
 
-**Commit Message:** `feat(permissions): sync jkboseSubjectRolls into catalog and enforce mandatory module audit rule`
+**Commit Message:** `fix(roster): resolve duplicate student entries and isolate class row selections`
 
 ---
 
-### Audit & Root Cause Analysis
+### Root Cause Analysis
 
-1. **Standalone Studio Omission in Permissions Catalog (`adminModuleCatalog.js`)**:
-   - `JkboseSubjectRollReturnView` (`jkboseSubjectRolls`) is an interactive, standalone administrative module with roll range compression, multi-class support, dropped examinee drawer, and Word/Excel/PDF exports.
-   - However, in `adminModuleCatalog.js`, `jkboseSubjectRolls` was previously buried as a secondary alias under `analyticsReports` instead of existing as a distinct, selectable module in the catalog.
-   - As a result, it did not appear as an independent permission tile or checkbox in `StaffPermissionsManager.jsx`, preventing administrators from assigning it specifically to examination staff without granting full analytics suite permissions.
-   - Similarly, in `AdminToolsDropdown.jsx`, it lacked a dedicated launcher tile in the dropdown menu.
+1. **Brittle Mutually-Exclusive Key in `unifiedStudentPool`**:
+   - `unifiedStudentPool` previously created deduplication keys using a chained ternary:
+     `regKey ? reg_... : (fNoKey ? form_... : (nameKey ? name_... : doc_...))`
+   - In institutional workflows, a student often exists in two databases simultaneously:
+     - **Board / Master Register**: Has an official JKBOSE Board Registration Number (`regKey`).
+     - **Online Admissions (Google Form Intake)**: Does not have a Board Registration Number yet (`regKey` is blank, falls back to `formKey` or `nameKey`).
+   - Because `reg_...` and `form_...` are distinct string keys, the `poolMap.has()` check always returned `false`. Both records were inserted into the pool, causing duplicate rows for the same candidate (e.g. **Arif Maqbool** appearing at both S.No. 72 and S.No. 73 with Class Roll No. 72).
 
-2. **Role Presets Out of Sync**:
-   - `ROLE_PRESETS.academic_incharge` and `ROLE_PRESETS.records_incharge` omitted `jkboseSubjectRolls` from their active permission lists.
-   - The preset descriptions stated "23 administrative modules" despite the platform housing 25 distinct modules and quick-action tools.
+2. **Incomplete Field Extraction in `combinedRawStudents`**:
+   - When building `seenMap` for initial deduplication, `s.studentName` was read directly instead of invoking `extractStudentName(s)`.
+   - In online admission intake forms, student names are stored under `"Student's Name (as per school records)"`. Consequently, `name` and `father` resolved to empty strings, causing name/father match lookups to fail.
+   - Form numbers also retained the `adm_` prefix (e.g. `adm_250054` vs `250054`), preventing form number reconciliation between admissions and master registers.
+   - Raw chunk documents with `.data` arrays were not filtered out of `allStudents`.
 
-3. **Missing Systemic Rule for Future Module Changes**:
-   - There was previously no documented rule in `AGENTS.md` or `.agents/AGENTS.md` compelling the assistant to automatically audit and update `adminModuleCatalog.js`, `StaffPermissionsManager.jsx`, and `AdminToolsDropdown.jsx` whenever modules are added, renamed, or modified.
+3. **Unscoped Row Identifiers & Cross-Class Selection Bleed**:
+   - `getRosterRowId` returned `reg_${row.boardRegNo}` or `form_${row.formNo}` without scoping to `session` or `className`.
+   - If an administrator unchecked a student in Class 11th, the exclusion key stored in `deselectedRowKeys` could bleed into Class 12th if the student had historical records in both classes.
 
 ---
 
 ### Summary of Changes
 
-1. **Standalone Module Entry (`src/portal/admin/adminModuleCatalog.js`)**:
-   - Registered `jkboseSubjectRolls` as a first-class module under the `Records & Registers` category with `launcher: true`, official description, maturity note, and aliases (`subjectRolls`, `jkboseRolls`).
-   - Refined `analyticsReports` description to focus accurately on class enrollment analysis, stream metrics, and gender/subject breakdown.
-   - Updated `ROLE_PRESETS`:
-     - Included `'jkboseSubjectRolls'` in `academic_incharge` and `records_incharge` presets.
-     - Updated `full_admin` description to reflect all 24 administrative modules & tools.
+1. **Multi-Index Unified Pool Deduplication (`src/portal/admin/CustomRosterDocumentBuilderView.jsx`)**:
+   - Replaced the single-key `poolMap` with an index registry (`indexByReg`, `indexByForm`, `indexByDoc`, `indexByNameFather`, and `indexByNameRoll`).
+   - When a student record is processed, it checks for an existing record across all 5 indices.
+   - If an existing record matches on *any* valid identifier (same registration number, same form number, same docId, or same student name + father name / roll number in that session and class), the records are seamlessly merged, enriching photos, registration numbers, and roll numbers into a single candidate row.
+   - All 5 index keys are subsequently linked to the merged record to guarantee bidirectional deduplication regardless of record ingestion order.
 
-2. **Backward-Compatibility & Dropdown Launching (`src/portal/admin/AdminToolsDropdown.jsx`)**:
-   - Enhanced `isUserPermittedForModule` with automatic inheritance: any administrator who already possesses `'analyticsReports'`, `'analytics'`, or `'admRegisterSuite'` permissions automatically inherits authorized access to `'jkboseSubjectRolls'` without requiring manual Firestore record updates.
-   - Added direct launcher navigation to `jkboseSubjectRolls`.
+2. **Enhanced Extractors & Form Cleaning (`src/portal/admin/CustomRosterDocumentBuilderView.jsx`)**:
+   - Updated `combinedRawStudents` to use `extractStudentName`, `extractFatherName`, `extractFormNo`, `extractBoardRegNo`, and `getStudentRollNumber`.
+   - Stripped `adm_` prefixes from form numbers to guarantee matching between `adm_250054` and `250054`.
+   - Added `!Array.isArray(s.data)` to chunk filtering.
 
-3. **Staff & Permissions UI Sync (`src/portal/admin/StaffPermissionsManager.jsx`)**:
-   - Verified that `ALL_ADMIN_MODULES` dynamically renders `jkboseSubjectRolls` with its proper title, category, description, and permission checkbox.
-   - Updated `DEFAULT_ADMIN_USERS` to include active modules for Nawaz Ahmad Shah (`shahnawaz13678@gmail.com`).
-
-4. **Permanent Workflow Rule Added (`AGENTS.md` & `.agents/AGENTS.md`)**:
-   - Added **Section 7: Module & Permissions Catalog Synchronization Rule** to both agent instruction files.
-   - Requires mandatory 5-point audit (catalog, permissions manager, dropdown launchers, dashboard loaders, and security rules) whenever a module is added, renamed, or removed.
+3. **Session- and Class-Scoped Row IDs (`src/portal/admin/CustomRosterDocumentBuilderView.jsx`)**:
+   - Updated `getRosterRowId` to return `${sess}_${cls}_${baseId}`.
+   - Guarantees that unchecking a student in Class 11th strictly affects Class 11th and never bleeds into Class 12th.
+   - Updated table row `key` and photo cell `key` to `rowId` and `photo-${rowId}` for guaranteed key uniqueness.
 
 ---
 
 ### Exact List of Files Changed
 
-- `src/portal/admin/adminModuleCatalog.js`
-- `src/portal/admin/StaffPermissionsManager.jsx`
-- `src/portal/admin/AdminToolsDropdown.jsx`
-- `AGENTS.md`
-- `.agents/AGENTS.md`
+- `src/portal/admin/CustomRosterDocumentBuilderView.jsx`
 - `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
@@ -60,7 +58,7 @@
 ### Verification & Build Status
 
 - **Build Verification**: `npm run build` completed with **Exit Code 0** and zero breaking errors.
-- **Firebase Security Rules**: Checked and verified (unchanged).
+- **Deduplication Verification**: Verified that duplicate candidate rows merge into a single row with unified exam rolls, photos, and class rolls.
 
 ---
 
@@ -77,7 +75,7 @@
 3. **Amend Commit Message (if desired)**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(permissions): sync jkboseSubjectRolls into catalog and enforce mandatory module audit rule"
+   git commit -m "fix(roster): resolve duplicate student entries and isolate class row selections"
    ```
 4. **Push to Remote (STRICT MANUAL RULE)**:
    ```bash
