@@ -89,7 +89,7 @@ assert(/When the deleted record has an exact Firestore ID[\s\S]{0,240}if \(normI
 assert(/selectedIncludesAssignedRoll/.test(reports), 'Bulk workflow status changes do not protect approved roll-number records');
 assert(!/classPhoto = p9 \|\| p10 \|\| p11 \|\| p12/.test(photoResolver), 'Secondary-class photos can still fall through to the higher-secondary band');
 assert(!/classPhoto = p11 \|\| p12 \|\| p9 \|\| p10/.test(photoResolver), 'Higher-secondary photos can still fall through to the secondary band');
-assert(/const printableRows = await Promise\.all\(processedRows\.map/.test(rosterBuilder), 'Roster printing does not wait for canonical photo resolution');
+assert(/(?:printableRows = await Promise\.all\(processedRows\.map|chunkResults = await Promise\.all\(chunk\.map)/.test(rosterBuilder), 'Roster printing does not wait for canonical photo resolution');
 assert(/setImgError\(false\);[\s\S]{0,80}\[photoSrc\]/.test(rosterBuilder), 'Roster photo error state is not reset when the student image changes');
 assert(!['public/slides/admins.json', 'public/slides/messages.json', 'public/slides/faculty_roster.csv', 'public/slides/faculty_roster_custom.csv']
   .some(file => fs.existsSync(path.join(root, file))), 'A legacy sensitive public file still exists');

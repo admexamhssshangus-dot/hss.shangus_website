@@ -133,10 +133,10 @@ requireMatch(
   /if \(hasRunMissedAudit\) auditMissedDates\(\)/,
   'Missed-attendance auditing must be explicitly activated before it reads history.'
 );
-requireMatch(
+forbidMatch(
   'src/portal/teacher/TeacherDashboard.jsx',
-  /getCountFromServer\(collection\(db, 'practicalsData'\)\)/,
-  'Teacher dashboard must count practical records server-side instead of downloading them.'
+  /useEffect\(\(\) => \{[\s\S]*getCachedCollection\('practicalsData'\)/,
+  'Teacher dashboard must not download practical records on initial mount.'
 );
 forbidMatch(
   'src/portal/admin/FundDistribution.jsx',

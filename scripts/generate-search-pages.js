@@ -67,7 +67,7 @@ function renderOverview(page) {
       <p class="search-overview__eyebrow">Shangus · Anantnag · Jammu and Kashmir</p>
       <h1>${escapeHtml(page.heading)}</h1>
       <figure class="search-overview__hero-media" style="margin: 0 0 24px 0; border-radius: 12px; overflow: hidden; border: 1px solid #d9e5e1; max-width: 100%;">
-        <img src="/slides/og-card.jpg" width="1200" height="630" alt="${escapeHtml(page.heading)} - Govt. Higher Secondary School Shangus" style="width: 100%; height: auto; display: block; object-fit: cover;" loading="eager" decoding="async">
+        <img src="/slides/og-card.webp" width="1200" height="630" alt="${escapeHtml(page.heading)} - Govt. Higher Secondary School Shangus" style="width: 100%; height: auto; display: block; object-fit: cover;" loading="lazy" decoding="async">
       </figure>
       ${page.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('\n')}
       <nav aria-label="Related pages" class="search-overview__links">${page.links.map(link).join(' ')}</nav>

@@ -2,16 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <script defer src="%PUBLIC_URL%/error-guard.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
-    <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com" />
-    <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
-    <!-- Preload the hero slide image — the single most impactful LCP resource -->
-    <link rel="preload" as="image" href="%PUBLIC_URL%/slides/6.jpg" type="image/jpeg" fetchpriority="high" />
+    <!-- Preload the hero slide image — modern WebP format for sub-second LCP -->
+    <link rel="preload" as="image" href="%PUBLIC_URL%/slides/6.webp" type="image/webp" fetchpriority="high" />
     <!-- Google Fonts (Loaded asynchronously with display=swap to prevent render blocking) -->
     <link
       rel="preload"

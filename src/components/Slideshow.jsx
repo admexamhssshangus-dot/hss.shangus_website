@@ -244,6 +244,29 @@ export default function Slideshow({
         const containerAnimClass = isActive && isEntranceAnim ? animClass : '';
         const imageAnimClass = isActive && isContinuousAnim ? animClass : (isActive && animMode === 'zoom' ? animClass : '');
 
+        const isJpg = typeof s.image === 'string' && s.image.endsWith('.jpg');
+        const webpSrc = isJpg ? s.image.replace(/\.jpg$/, '.webp') : null;
+
+        const renderSlideImg = (imgClassName) => {
+          const imgEl = (
+            <img
+              src={s.image}
+              alt={s.title || "Govt HSS Shangus"}
+              fetchPriority={i === 0 ? "high" : "auto"}
+              decoding="async"
+              loading={i === 0 ? "eager" : "lazy"}
+              className={imgClassName}
+            />
+          );
+          if (!webpSrc) return imgEl;
+          return (
+            <picture>
+              <source srcSet={webpSrc} type="image/webp" />
+              {imgEl}
+            </picture>
+          );
+        };
+
         return (
           <div
             key={`slide-${i}-${isActive ? 'active' : 'idle'}`}
@@ -265,14 +288,7 @@ export default function Slideshow({
                     />
                     {/* Foreground uncropped full photo with animation (padded to stay within clear visible area) */}
                     <div className="absolute inset-0 flex items-center justify-center p-1 sm:p-4 md:p-6 pt-2 sm:pt-4 md:pt-6 pb-7 sm:pb-16 md:pb-24">
-                      <img
-                        src={s.image}
-                        alt={s.title || "Govt HSS Shangus"}
-                        fetchPriority={i === 0 ? "high" : "auto"}
-                        decoding="async"
-                        loading={i === 0 ? "eager" : "lazy"}
-                        className={`max-w-full max-h-full object-contain rounded-md sm:rounded-lg shadow-[0_15px_40px_rgba(0,0,0,0.85)] drop-shadow-2xl border border-white/10 ${imageAnimClass}`}
-                      />
+                      {renderSlideImg(`max-w-full max-h-full object-contain rounded-md sm:rounded-lg shadow-[0_15px_40px_rgba(0,0,0,0.85)] drop-shadow-2xl border border-white/10 ${imageAnimClass}`)}
                     </div>
                   </>
                 )}
@@ -280,42 +296,21 @@ export default function Slideshow({
                 {/* 2. COVER MODE: Widescreen filled banner (full-bleed edge-to-edge) */}
                 {fitMode === 'cover' && (
                   <div className="absolute inset-0 overflow-hidden">
-                    <img
-                      src={s.image}
-                      alt={s.title || "Govt HSS Shangus"}
-                      fetchPriority={i === 0 ? "high" : "auto"}
-                      decoding="async"
-                      loading={i === 0 ? "eager" : "lazy"}
-                      className={`w-full h-full object-cover object-center ${imageAnimClass}`}
-                    />
+                    {renderSlideImg(`w-full h-full object-cover object-center ${imageAnimClass}`)}
                   </div>
                 )}
 
                 {/* 3. CONTAIN MODE: Centered uncropped with dark backdrop */}
                 {fitMode === 'contain' && (
                   <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center p-1 sm:p-4 md:p-6 pt-2 sm:pt-4 md:pt-6 pb-7 sm:pb-16 md:pb-24">
-                    <img
-                      src={s.image}
-                      alt={s.title || "Govt HSS Shangus"}
-                      fetchPriority={i === 0 ? "high" : "auto"}
-                      decoding="async"
-                      loading={i === 0 ? "eager" : "lazy"}
-                      className={`max-w-full max-h-full object-contain rounded-md shadow-2xl ${imageAnimClass}`}
-                    />
+                    {renderSlideImg(`max-w-full max-h-full object-contain rounded-md shadow-2xl ${imageAnimClass}`)}
                   </div>
                 )}
 
                 {/* 4. STRETCH MODE: Stretch to fit full available space/sides */}
                 {fitMode === 'stretch' && (
                   <div className="absolute inset-0 overflow-hidden">
-                    <img
-                      src={s.image}
-                      alt={s.title || "Govt HSS Shangus"}
-                      fetchPriority={i === 0 ? "high" : "auto"}
-                      decoding="async"
-                      loading={i === 0 ? "eager" : "lazy"}
-                      className={`w-full h-full object-fill ${imageAnimClass}`}
-                    />
+                    {renderSlideImg(`w-full h-full object-fill ${imageAnimClass}`)}
                   </div>
                 )}
               </>
