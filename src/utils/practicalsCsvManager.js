@@ -22,7 +22,7 @@ import {
   PageOrientation,
   HeightRule
 } from 'docx';
-import { findStudentMarkRecord, resolveAwardRollTitles } from './practicalsPdfGenerator';
+import { findStudentMarkRecord, resolveAwardRollTitles, isStudentEnrolledInPracticalSubject, getAbbreviatedSubjects } from './practicalsPdfGenerator';
 import { isStudentExamDropped } from './studentApprovalStatus';
 
 export const CSV_COLUMNS = [
@@ -249,7 +249,9 @@ export function exportCurrentRosterToExcel({
     const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').trim();
     const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').trim();
     const stream = String(st.stream || st.Stream || 'Science').trim();
-    const subjects = String(st.subjects || st.Subjects || st.Subs || '').trim();
+    const resolvedSubs = getAbbreviatedSubjects(st, className);
+    const rawSubs = String(st.subjects || st.Subjects || st.Subs || '').trim();
+    const subjects = resolvedSubs || (!/same\s+as/i.test(rawSubs) ? rawSubs : '');
 
     return [
       className,
@@ -494,36 +496,7 @@ export function exportConsolidatedAwardsToExcel({
     let rowHash = 0;
 
     const marksCols = activeSubs.map(sub => {
-      let isEnrolled = false;
-      const stStream = stream.toLowerCase();
-      const multiSubCols = [
-        st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
-        st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
-        st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
-      ].filter(Boolean).join(', ');
-
-      const stSubs = String(
-        st['Subs'] ||
-        st['subs'] ||
-        (isClass12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
-        multiSubCols ||
-        st['Subjects to be taken in Class 11th'] ||
-        st['Subjects Studied in Class 11th'] ||
-        st['Subjects'] ||
-        st['Subject Combination'] ||
-        st['streamSubjects'] ||
-        st.subjects ||
-        ''
-      ).toLowerCase();
-
-      if (sub.code === 'EN') isEnrolled = true;
-      else if (sub.code === 'PH' || sub.code === 'CH') {
-        isEnrolled = stStream.includes('science') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
-      } else if (sub.code === 'BO' || sub.code === 'ZO') {
-        isEnrolled = stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs);
-      } else {
-        isEnrolled = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
-      }
+      const isEnrolled = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
       if (sub.code === 'BI') {
         const boDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('BO'));
@@ -892,34 +865,10 @@ export async function exportConsolidatedAwardsToDocx({
   const matrixDataRows = students.map((st, idx) => {
     const rawExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
     const examRoll = (rawExam && rawExam !== '—' && rawExam !== 'N/A' && rawExam !== 'NA') ? rawExam : '—';
-    const stSubsStr = String(
-      st['Subs'] ||
-      st['subs'] ||
-      (isClass12 ? st['Subjects to be taken in Class 12th'] : st['Subjects to be taken in Class 11th']) ||
-      st['Subjects'] ||
-      st['Subject Combination'] ||
-      st.subjects ||
-      ''
-    ).toLowerCase();
-    const stStream = String(
-      st['Stream'] ||
-      st['stream'] ||
-      (isClass12 ? st['Stream for Class 12th'] : st['Stream for Class 11th']) ||
-      ''
-    ).toLowerCase();
-
     let rowHashTotal = 0;
 
     const subjectCells = activeSubs.map(sub => {
-      let isEnrolled = false;
-      if (sub.code === 'EN') isEnrolled = true;
-      else if (sub.code === 'PH' || sub.code === 'CH') {
-        isEnrolled = stStream.includes('science') || stSubsStr.includes('physics') || stSubsStr.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubsStr);
-      } else if (sub.code === 'BO' || sub.code === 'ZO') {
-        isEnrolled = stSubsStr.includes('botany') || stSubsStr.includes('zoology') || stSubsStr.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubsStr);
-      } else {
-        isEnrolled = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubsStr) || stSubsStr.includes(kw));
-      }
+      const isEnrolled = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
       let markText = isEnrolled ? '—' : 'x';
       let markColor = isEnrolled ? '1E40AF' : '94A3B8';

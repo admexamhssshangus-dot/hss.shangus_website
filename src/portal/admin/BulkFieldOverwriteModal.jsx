@@ -3719,74 +3719,78 @@ export default function BulkFieldOverwriteModal({
       </div>
   );
 
-  // Inspect Student Profile Diff Modal
-  const inspectModalNode = inspectStudent ? (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
-              <div>
-                <h3 className="text-xs font-black text-slate-900 dark:text-white">
-                  Student Field Diff (Old vs New)
-                </h3>
-                <p className="text-[11px] text-slate-500 font-mono">
-                  {inspectStudent.rawReg} • {getStudentDisplayName(inspectStudent.matchedStudent)} (Class {getStudentDisplayClass(inspectStudent.matchedStudent)} • Session {getStudentDisplaySession(inspectStudent.matchedStudent)})
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInspectStudent(null)}
-                className="p-1 rounded text-slate-400 hover:text-slate-700"
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto space-y-2 text-xs">
-              {allFieldDefinitions.filter(f => selectedFields[f.key]).map(f => {
-                const diff = inspectStudent.diffs[f.key];
-                const incVal = inspectStudent.incomingFields[f.key];
-                let currentVal = '';
-                if (inspectStudent.matchedStudent) {
-                  for (const k of f.dbKeys) {
-                    if (inspectStudent.matchedStudent[k] !== undefined && String(inspectStudent.matchedStudent[k]).trim() !== '') {
-                      currentVal = String(inspectStudent.matchedStudent[k]).trim();
-                      break;
-                    }
-                  }
-                }
-                const hasDiff = Boolean(diff);
-
-                return (
-                  <div key={f.key} className={`p-2 rounded-xl border grid grid-cols-2 gap-2 ${hasDiff ? 'bg-emerald-50/40 border-emerald-300 dark:border-emerald-800' : 'bg-slate-50 border-slate-200 dark:border-slate-800'}`}>
-                    <div>
-                      <div className="text-[9px] font-black uppercase text-slate-400">{f.label} (Current)</div>
-                      <div className={`font-bold ${hasDiff ? 'line-through text-rose-600' : 'text-slate-700 dark:text-slate-300'}`}>{currentVal || '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] font-black uppercase text-slate-400">Incoming Board</div>
-                      <div className={`font-bold ${hasDiff ? 'text-emerald-700 dark:text-emerald-400 font-black' : 'text-slate-500'}`}>{incVal || '—'}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="px-5 py-2 border-t border-slate-200 dark:border-slate-800 flex justify-end bg-slate-50 dark:bg-slate-950">
-              <button
-                type="button"
-                onClick={() => setInspectStudent(null)}
-                className="px-4 py-1 rounded-xl bg-slate-800 text-white font-bold text-xs cursor-pointer"
-              >
-                Done
-              </button>
-            </div>
+  // Inspect Student Profile Diff Modal (Rendered via Portal with high z-index to prevent sticky table header poke-through)
+  const inspectModalContent = inspectStudent ? (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-xs p-2 sm:p-4 animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-[95vw] sm:w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="px-4 py-3 sm:px-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 flex-shrink-0">
+          <div className="min-w-0 pr-2">
+            <h3 className="text-xs font-black text-slate-900 dark:text-white truncate">
+              Student Field Diff (Old vs New)
+            </h3>
+            <p className="text-[11px] text-slate-500 font-mono truncate">
+              {inspectStudent.rawReg} • {getStudentDisplayName(inspectStudent.matchedStudent)} (Class {getStudentDisplayClass(inspectStudent.matchedStudent)} • Session {getStudentDisplaySession(inspectStudent.matchedStudent)})
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setInspectStudent(null)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex-shrink-0 transition-colors"
+          >
+            <X size={16} />
+          </button>
         </div>
+
+        <div className="p-3 sm:p-4 overflow-y-auto space-y-2 text-xs flex-1 custom-scrollbar">
+          {allFieldDefinitions.filter(f => selectedFields[f.key]).map(f => {
+            const diff = inspectStudent.diffs[f.key];
+            const incVal = inspectStudent.incomingFields[f.key];
+            let currentVal = '';
+            if (inspectStudent.matchedStudent) {
+              for (const k of f.dbKeys) {
+                if (inspectStudent.matchedStudent[k] !== undefined && String(inspectStudent.matchedStudent[k]).trim() !== '') {
+                  currentVal = String(inspectStudent.matchedStudent[k]).trim();
+                  break;
+                }
+              }
+            }
+            const hasDiff = Boolean(diff);
+
+            return (
+              <div key={f.key} className={`p-2.5 rounded-xl border grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2 ${hasDiff ? 'bg-emerald-50/40 border-emerald-300 dark:border-emerald-800' : 'bg-slate-50 border-slate-200 dark:border-slate-800'}`}>
+                <div className="min-w-0 pr-0.5">
+                  <div className="text-[9px] font-black uppercase text-slate-400 truncate">{f.label} (Current)</div>
+                  <div className={`font-bold break-words text-xs ${hasDiff ? 'line-through text-rose-600' : 'text-slate-700 dark:text-slate-300'}`}>{currentVal || '—'}</div>
+                </div>
+                <div className="min-w-0 pl-0.5">
+                  <div className="text-[9px] font-black uppercase text-slate-400 truncate">Incoming Board</div>
+                  <div className={`font-bold break-words text-xs ${hasDiff ? 'text-emerald-700 dark:text-emerald-400 font-black' : 'text-slate-500'}`}>{incVal || '—'}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="px-4 py-2.5 sm:px-5 border-t border-slate-200 dark:border-slate-800 flex justify-end bg-slate-50 dark:bg-slate-950 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setInspectStudent(null)}
+            className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   ) : null;
 
-  // Non-Blocking Async Processing & Overwrite Progress Overlay
-  const progressOverlayNode = (isProcessingRows || step === 'executing') ? (
-        <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-fadeIn">
+  const inspectModalNode = (inspectModalContent && typeof document !== 'undefined')
+    ? createPortal(inspectModalContent, document.body)
+    : inspectModalContent;
+
+  // Non-Blocking Async Processing & Overwrite Progress Overlay (Portaled)
+  const progressOverlayContent = (isProcessingRows || step === 'executing') ? (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col p-6 space-y-5">
             
             {/* Header: Parsing vs Executing */}
@@ -3925,6 +3929,10 @@ export default function BulkFieldOverwriteModal({
           </div>
         </div>
   ) : null;
+
+  const progressOverlayNode = (progressOverlayContent && typeof document !== 'undefined')
+    ? createPortal(progressOverlayContent, document.body)
+    : progressOverlayContent;
 
   if (isPage) {
     return (
