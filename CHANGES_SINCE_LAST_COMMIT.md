@@ -1,48 +1,36 @@
 # Changes Log & Commit Reference
 
-## Latest Commit: Eliminate Control Redundancy, Fit All Controls on Screen, and Enforce Independent Scroll for Roster Studio
+## Latest Commit: Arrange Cohort Filters into Exactly Two Rows and Fix Duplicate Session Count
 
-**Commit Message:** `feat(roster): eliminate duplicate controls, fit all filters/actions in viewport, and enforce independent scroll for table and controls`
+**Commit Message:** `feat(roster): arrange cohort filters into two rows (3x2 grid) and eliminate duplicate session count`
 
 ---
 
 ### Context & Requirements Addressed
 
 - **User Request**:
-  > *"ensure no repetition or duplicacy....and ensure allcontrols/filters are visible on screen and table ad controls are independt in scroll"*
+  > *"arrange into two rows only"* (with reference screenshot of Card 1 Cohort Filters).
 
-- **Problems Identified**:
-  1. **Duplication of Controls**:
-     - The desktop view had duplicate toolbars and action bars (top bar with Print/Export, and an action bar over the table with "Include All", "Show Skipped", and "Save Order") that repeated the exact controls present in the right-side control pane.
-  2. **Off-Screen Controls & Awkward Scrolling**:
-     - The 4 cards in the right pane were vertically tall (~500–600px), with the Column Order chip list alone occupying ~144px, causing the cohort filters at the top to scroll off-screen and the primary Print/Export buttons at the bottom to be cut off.
-  3. **Lack of Independent Scrolling & Double Scrollbars**:
-     - The outer layout had unconstrained vertical height and `sticky top-3` positioning on both the table and control panes, creating nested double scrollbars on the right and causing the outer dashboard window to scroll alongside inner containers.
+- **Root Causes & Issues Addressed**:
+  1. **3-Row Vertical Layout**:
+     - The 6 cohort filters (Session, Class, Stream, Subject, Gender, Status) were previously arranged in a 2-column by 3-row grid, which took extra vertical height and separated related filters across 3 rows.
+  2. **Duplicate Session Count Bug**:
+     - `Session 2025–26 (513) (513)` was displayed because `dynamicSessions` embedded `(${counts[sess]})` into the label property, and `CohortCheckboxDropdown` subsequently appended `(${match.count})` a second time.
 
 ---
 
 ### Solutions Implemented
 
-1. **Zero Duplication & Single Source of Truth**:
-   - Removed duplicate top action bars on desktop.
-   - Replaced the repetitive controls bar above the table with a clean, slim informational status strip (`X Students Active • Drag table header edges to resize • Official Print Layout`).
-   - Unified all filtering, column selection, page setup, and document actions inside the dedicated 4-card Right Control Palette:
-     - **Card 1 (Cohort Filters)**: Session, Class, Stream, Subject, Gender, Status filters with match counter and reset.
-     - **Card 2 (Table Columns)**: Columns selection popover with search, Abbr/Full names toggle, `+ Custom` column creator, `Save Default` button, and an on-demand collapsible `Order ▾` chip sequence panel.
-     - **Card 3 (Page & Table Setup)**: Document title input, Standard/2-Column Attendance layout switcher, Portrait/Landscape orientation toggle, Row Height preset selector, and collapsible Letterhead & Signatories accordion.
-     - **Card 4 (Actions & Exports)**: Primary `Print Register / Save PDF (Ctrl+P)` button, 1-click `Excel (.xlsx)`, `Word (.docx)`, and `CSV` export buttons, plus `Include All` and `Show Skipped` row toggles.
+1. **Two-Row Arrangement (3 Columns x 2 Rows)**:
+   - Configured the cohort filters grid to `grid grid-cols-3 gap-1.5`, creating exactly two clean rows:
+     - **Row 1**: `SESSION`, `CLASS`, `STREAM`
+     - **Row 2**: `SUBJECT`, `GENDER`, `STATUS`
+   - Added compact uppercase headers above each dropdown (`SESSION`, `CLASS`, etc.) in `text-[8px] font-black text-slate-500 uppercase tracking-wider mb-0.5`.
+   - Tuned popover alignments: Left column anchored left, Center column anchored left, Right column anchored right (`align="right"` for Stream and Status) to prevent dropdown popover clipping.
 
-2. **All Controls & Filters 100% Visible on Screen**:
-   - Engineered an ultra-compact vertical footprint for all 4 cards (~340px total combined height):
-     - Dropdowns tightened to `h-6.5` with `text-[9.5px]` font sizing.
-     - Column sequence chips collapsed by default under `Order ▾` (taking 0px resting space).
-     - Letterhead & Signatories collapsed by default (taking 0px resting space).
-     - All 4 cards and all action buttons now fit comfortably in the viewport simultaneously on 1080p, 900p, and 768p displays without requiring vertical scrolling.
-
-3. **True Independent Scrolling**:
-   - Constrained the studio root to `h-[calc(100dvh-54px)] overflow-hidden`, completely eliminating outer dashboard and browser page scrollbars.
-   - Configured the Left Pane (Live Document Preview) as `w-full lg:flex-1 h-full min-h-0 flex flex-col overflow-hidden` with the paper sheet container set to `flex-1 min-h-0 overflow-auto`. The table preview now scrolls horizontally and vertically completely independently.
-   - Configured the Right Pane (Control Palette) as `h-full min-h-0 overflow-y-auto`. The controls scroll independently without moving or triggering a scroll on the table preview.
+2. **Eliminated Duplicate Session Count**:
+   - In `dynamicSessions`, fixed the label string to `Session ${sess}`, allowing the single count to be dynamically rendered by the dropdown component.
+   - Added regex safety (`/\(\d+\)\s*$/`) in `CohortCheckboxDropdown` to ensure no count is ever duplicated even if an upstream label already contains parenthesized numbers.
 
 ---
 
@@ -55,7 +43,7 @@
 
 ### Verification & Build Status
 
-- **Build Verification**: `npm run build` executed and passed with **Exit Code 0** (`main.3253bbcd.js`).
+- **Build Verification**: `npm run build` executed and passed with **Exit Code 0**.
 - Zero syntax, linting, or runtime errors.
 - Dev server hot-reloaded the updated bundle seamlessly.
 
@@ -74,9 +62,10 @@
 3. **Amend Commit Message (if desired)**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(roster): eliminate duplicate controls, fit all filters/actions in viewport, and enforce independent scroll for table and controls"
+   git commit -m "feat(roster): arrange cohort filters into two rows (3x2 grid) and eliminate duplicate session count"
    ```
 4. **Push to Remote (STRICT MANUAL RULE)**:
    ```bash
    git push origin main
    ```
+

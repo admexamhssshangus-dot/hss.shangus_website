@@ -1767,7 +1767,9 @@ function CohortCheckboxDropdown({
     if (selected.length === 1) {
       const match = normalizedOptions.find(o => o.value === selected[0]);
       if (match) {
-        return match.count !== null ? `${match.label || match.value} (${match.count})` : (match.label || match.value);
+        const rawLabel = match.label || match.value;
+        const hasCountInLabel = rawLabel && /\(\d+\)\s*$/.test(rawLabel);
+        return match.count !== null && !hasCountInLabel ? `${rawLabel} (${match.count})` : rawLabel;
       }
       return selected[0];
     }
@@ -4192,7 +4194,7 @@ export default function CustomRosterDocumentBuilderView({
       if (yearB !== yearA) return yearB - yearA;
       return b.localeCompare(a, undefined, { numeric: true });
     });
-    return list.map(sess => ({ value: sess, label: `Session ${sess} (${counts[sess]})`, count: counts[sess] }));
+    return list.map(sess => ({ value: sess, label: `Session ${sess}`, count: counts[sess] }));
   }, [unifiedStudentPool]);
 
   const sessionStudents = useMemo(() => {
@@ -4734,9 +4736,12 @@ export default function CustomRosterDocumentBuilderView({
           </div>
         </div>
 
-        {/* 2-Column Compact Grid of Dropdowns */}
-        <div className="grid grid-cols-2 gap-1">
+        {/* 2-Row Compact Grid of Dropdowns (3 columns x 2 rows) */}
+        <div className="grid grid-cols-3 gap-1.5">
           <div>
+            <label className="block text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
+              Session
+            </label>
             <CohortCheckboxDropdown
               label="Session"
               pluralLabel="Sessions"
@@ -4749,6 +4754,9 @@ export default function CustomRosterDocumentBuilderView({
           </div>
 
           <div>
+            <label className="block text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
+              Class
+            </label>
             <CohortCheckboxDropdown
               label="Class"
               pluralLabel="Classes"
@@ -4761,6 +4769,9 @@ export default function CustomRosterDocumentBuilderView({
           </div>
 
           <div>
+            <label className="block text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
+              Stream
+            </label>
             <CohortCheckboxDropdown
               label="Stream"
               pluralLabel="Streams"
@@ -4768,11 +4779,14 @@ export default function CustomRosterDocumentBuilderView({
               selected={selectedStreams}
               onChange={setSelectedStreams}
               totalCount={sessionClassStudents.length}
-              align="left"
+              align="right"
             />
           </div>
 
           <div>
+            <label className="block text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
+              Subject
+            </label>
             <CohortCheckboxDropdown
               label="Subject"
               pluralLabel="Subjects"
@@ -4781,11 +4795,14 @@ export default function CustomRosterDocumentBuilderView({
               onChange={handleSubjectsChange}
               totalCount={sessionClassStreamStudents.length}
               searchable={true}
-              align="right"
+              align="left"
             />
           </div>
 
           <div>
+            <label className="block text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
+              Gender
+            </label>
             <CohortCheckboxDropdown
               label="Gender"
               pluralLabel="Genders"
@@ -4801,6 +4818,9 @@ export default function CustomRosterDocumentBuilderView({
           </div>
 
           <div>
+            <label className="block text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
+              Status
+            </label>
             <CohortCheckboxDropdown
               label="Status"
               pluralLabel="Statuses"
