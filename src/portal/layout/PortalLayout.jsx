@@ -126,7 +126,7 @@ export default function PortalLayout() {
   // Redirect to role-appropriate dashboard
   const _redirectToDashboard = useCallback((user) => {
     const emailLower = String(user?.email || '').toLowerCase().trim();
-    if (isBootstrapSuperAdminEmail(emailLower)) {
+    if (isBootstrapSuperAdminEmail(emailLower) || isBootstrapAdminEmail(emailLower)) {
       navigate('/portal/admin', { replace: true });
       return;
     }
