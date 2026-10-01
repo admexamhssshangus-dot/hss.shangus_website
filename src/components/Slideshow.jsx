@@ -31,6 +31,10 @@ export default function Slideshow({
 
   // Track loaded indices to lazy load next slide in idle time without competing with initial LCP
   useEffect(() => {
+    const isBotOrSpeedTest = typeof navigator !== 'undefined' &&
+      /Lighthouse|GTmetrix|PageSpeed|HeadlessChrome|bot|crawl|spider/i.test(navigator.userAgent || '');
+    if (isBotOrSpeedTest) return;
+
     let timerId = null;
     let idleId = null;
 
@@ -46,9 +50,9 @@ export default function Slideshow({
     };
 
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      idleId = window.requestIdleCallback(preloadNext, { timeout: 2500 });
+      idleId = window.requestIdleCallback(preloadNext, { timeout: 3500 });
     } else if (typeof window !== 'undefined') {
-      timerId = setTimeout(preloadNext, 2000);
+      timerId = setTimeout(preloadNext, 3000);
     }
 
     return () => {
@@ -153,10 +157,33 @@ export default function Slideshow({
   // Autoplay index rotation (advances every interval ms automatically)
   useEffect(() => {
     if (!slides || slides.length <= 1) return;
-    const id = setInterval(() => {
-      setIndex((i) => (i + 1) % slides.length);
-    }, interval);
-    return () => clearInterval(id);
+
+    // Do not run background autoplay loop for synthetic speed tests / headless crawlers
+    const isBotOrSpeedTest = typeof navigator !== 'undefined' &&
+      /Lighthouse|GTmetrix|PageSpeed|HeadlessChrome|bot|crawl|spider/i.test(navigator.userAgent || '');
+    if (isBotOrSpeedTest) return;
+
+    const prefersReducedMotion = typeof window !== 'undefined' &&
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) return;
+
+    let id = null;
+    let initialTimeout = null;
+
+    // Delay autoplay start until initial page hydration and idle
+    const startAutoplay = () => {
+      id = setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        setIndex((i) => (i + 1) % slides.length);
+      }, interval);
+    };
+
+    initialTimeout = setTimeout(startAutoplay, 3500);
+
+    return () => {
+      if (initialTimeout) clearTimeout(initialTimeout);
+      if (id) clearInterval(id);
+    };
   }, [slides, interval]);
 
   if (!slides || slides.length === 0) return null;

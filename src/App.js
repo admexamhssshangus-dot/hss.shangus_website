@@ -5,8 +5,6 @@ import Navbar from './components/Navbar';
 import PublicPageSkeleton from './components/PublicPageSkeleton';
 import SEOHead from './components/SEOHead';
 import GlobalToast from './components/common/GlobalToast';
-import GlobalTooltip from './components/common/GlobalTooltip';
-import NetworkStatusIndicator from './components/NetworkStatusIndicator';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 import { isBootstrapSuperAdminEmail } from './utils/authRoles';
 import './styles/ui-system.css';
@@ -16,6 +14,8 @@ import { lazyWithChunkRecovery } from './utils/lazyWithChunkRecovery';
 
 const Footer = lazyWithChunkRecovery(() => import('./components/Footer'), 'footer');
 const ThemeSelector = lazyWithChunkRecovery(() => import('./components/ThemeSelector'), 'theme-selector');
+const GlobalTooltip = lazyWithChunkRecovery(() => import('./components/common/GlobalTooltip'), 'global-tooltip');
+const NetworkStatusIndicator = lazyWithChunkRecovery(() => import('./components/NetworkStatusIndicator'), 'network-status');
 
 const Home = lazyWithChunkRecovery(() => import('./pages/Home'), 'home');
 const About = lazyWithChunkRecovery(() => import('./pages/About'), 'about');
@@ -210,10 +210,14 @@ function App() {
         <GlobalToast />
 
         {/* Universal Application Tooltip Container */}
-        <GlobalTooltip />
+        <Suspense fallback={null}>
+          <GlobalTooltip />
+        </Suspense>
 
         {/* Universal Network & Mobile Data Status Indicator */}
-        <NetworkStatusIndicator />
+        <Suspense fallback={null}>
+          <NetworkStatusIndicator />
+        </Suspense>
       </div>
     </>
   );
