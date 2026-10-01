@@ -1239,13 +1239,17 @@ export function printConsolidatedAwardRoll({
 }
 
 /**
- * Get clean compact abbreviated subject list for a student (e.g. "EN, PH, CH, BO, ZO")
+ * Resolves the canonical raw subject string for a student record.
+ * Handles "Same as in Class 11th" placeholder text by falling back to the
+ * actual 11th-class subject fields or deriving from stream when nothing is found.
  */
-export function getAbbreviatedSubjects(st, className = '') {
+function resolveStudentSubjectsRaw(st, className = '') {
   if (!st) return '';
   const clsName = String(className || st.Class || st.class || '').toLowerCase();
-  const isSecondary = clsName.includes('9') || clsName.includes('10');
   const is12 = clsName.includes('12');
+  const stStream = String(st.stream || st.Stream || '').toLowerCase();
+
+  const SAME_AS_11_RE = /same\s+as\s+(in\s+)?class\s*(11|eleventh)/i;
 
   const multiSubCols = [
     st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
@@ -1253,25 +1257,45 @@ export function getAbbreviatedSubjects(st, className = '') {
     st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
   ].filter(Boolean).join(', ');
 
-  const raw = String(
-    st['Subs'] ||
-    st['subs'] ||
-    (is12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
-    (clsName.includes('10') ? (st['Subjects to be taken in Class 10th'] || st['Subjects Studied in Class 9th']) : '') ||
-    (clsName.includes('9') ? (st['Subjects to be taken in Class 9th'] || st['Subjects Studied in Class 8th']) : '') ||
-    multiSubCols ||
-    st['Subjects to be taken in Class 11th'] ||
-    st['Subjects Studied in Class 11th'] ||
-    st['Subjects to be taken in Class 10th'] ||
-    st['Subjects to be taken in Class 9th'] ||
-    st['Subjects Studied in Class 10th'] ||
-    st['Subjects Studied in Class 9th'] ||
-    st['Subjects'] ||
-    st['Subject Combination'] ||
-    st['streamSubjects'] ||
-    st.subjects ||
-    ''
-  ).trim();
+  // Ordered candidate fields — most authoritative first
+  const candidates = [
+    st['Subs'],
+    st['subs'],
+    is12 ? st['Subjects to be taken in Class 12th'] : null,
+    is12 ? st['Subjects in Class 12th'] : null,
+    multiSubCols || null,
+    st['Subjects to be taken in Class 11th'],
+    st['Subjects Studied in Class 11th'],
+    st['Subjects in Class 11th'],
+    st['Subjects'],
+    st['Subject Combination'],
+    st['streamSubjects'],
+    st.subjects,
+  ];
+
+  for (const c of candidates) {
+    if (!c) continue;
+    const s = String(c).trim();
+    if (!s) continue;
+    // Skip "Same as in Class 11th" placeholder — keep looking
+    if (SAME_AS_11_RE.test(s)) continue;
+    return s;
+  }
+
+  // Stream-based fallback
+  if (stStream.includes('non-med') || stStream.includes('nonmed')) return 'EN, PH, CH, MA';
+  if (stStream.includes('med') || stStream.includes('science') || stStream.includes('sci')) return 'EN, PH, CH, BI';
+  if (stStream.includes('arts') || stStream.includes('humanities')) return 'EN, UR, ED, PS, EC';
+  if (stStream.includes('commerce')) return 'EN, AY, BS, EC, MA';
+  return '';
+}
+
+export function getAbbreviatedSubjects(st, className = '') {
+  if (!st) return '';
+  const clsName = String(className || st.Class || st.class || '').toLowerCase();
+  const isSecondary = clsName.includes('9') || clsName.includes('10');
+
+  const raw = resolveStudentSubjectsRaw(st, className);
 
   if (!raw) {
     if (isSecondary) return 'EN, MA, SC, SS, UR';
@@ -1376,18 +1400,8 @@ export function printAttendanceSheet({
     if (subDef) {
       students = students.filter(st => {
         const stStream = String(st.stream || st.Stream || '').toLowerCase();
-        const multiSubCols = [
-          st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
-          st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
-          st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
-        ].filter(Boolean).join(', ');
-        const stSubs = String(
-          st['Subs'] || st['subs'] ||
-          (className.includes('12') ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th']) : '') ||
-          multiSubCols ||
-          st['Subjects to be taken in Class 11th'] || st['Subjects Studied in Class 11th'] ||
-          st['Subjects'] || st['Subject Combination'] || st['streamSubjects'] || st.subjects || ''
-        ).toLowerCase();
+        // resolveStudentSubjectsRaw correctly skips "Same as in Class 11th" and falls back to stream
+        const stSubs = resolveStudentSubjectsRaw(st, className).toLowerCase();
         const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry');
         const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
         if (filterSubCode === 'EN') return true;

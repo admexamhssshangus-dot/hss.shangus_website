@@ -2,54 +2,34 @@
 
 ## Current Working Changes
 
-### Practicals — Subject-Specific Attendance, Fail/Absent List & Exam Roll Display
+### Practicals — Fix Subject Resolution for Class 12 Attendance
 
-- **User Requests Addressed:**
-  - *"admin shall be able to print subject specific attendance"*
-  - *"turn fail list into fail/absent"*
-  - *"ensure exam roll no is displayed in web version of award also"*
+- **Bug Reported:** Subjects column in attendance sheet showed "SAME AS IN CLASS 11TH" for many Class 12 students; subject-specific attendance lists were not being generated correctly.
 
----
+- **Root Cause:**
+  - Class 12 admission records store `Subjects to be taken in Class 12th` as the literal text *"Same as in Class 11th"* (copied from the admission form).
+  - The old `getAbbreviatedSubjects()` function picked up this text, ran it through keyword mapping (no subject keywords found), and fell through to return it uppercased → **"SAME AS IN CLASS 11TH"**.
+  - The subject filter inside `printAttendanceSheet` had the same broken inline reading, so `stSubs` became `"same as in class 11th"` → no physics/chemistry/etc. keywords matched → subject-specific filtering produced wrong lists.
 
-### 1. Subject-Specific Attendance Sheet
-
-**`practicalsPdfGenerator.js` — `printAttendanceSheet()`:**
-- Added `subjectCode` and `subjectName` parameters.
-- When a `subjectCode` is provided, filters students to only those enrolled in that subject using the same stream/keyword logic used by award rolls (handles EN=all, PH/CH=science, BI/BO/ZO=bio-science, MA=non-med, and keyword match for all others).
-- PDF heading and browser `<title>` both include the subject name (e.g. "Internal Practical Attendance Sheet — HSE-I (Class 11th) — Physics (PH)").
-
-**`AdminPracticals.jsx` — Attendance Button:**
-- When exactly **one subject** is selected in the Subjects dropdown → button shows **`Attendance (PH)`** (or whichever code) with a tooltip, and prints subject-specific attendance (only students of that subject).
-- When **multiple subjects** selected → button shows **`Attendance`** and prints all students as before.
-
----
-
-### 2. Fail List → Fail / Absent
-
-- Button label changed: `Fail List` → **`Fail / Absent`**
-- PDF heading changed: `ABSENTEE / FAIL STUDENTS LIST` → **`FAIL / ABSENT LIST`**
-- Print window title updated to: `Fail & Absent List (...)`
-- *(The logic was already collecting both fail + absent records — this was purely a label correction.)*
-
----
-
-### 3. Always Show Exam Roll in Web Awards Table
-
-- Removed the `!isCurrSession` guard that previously suppressed exam roll numbers for 2025–26 session students (on the assumption rolls aren't issued yet).
-- Now shows exam roll whenever the field is populated on the student record, regardless of session year.
+- **Fix:**
+  - Introduced a new internal helper `resolveStudentSubjectsRaw(st, className)` that:
+    - Iterates candidate subject fields in priority order.
+    - **Detects and skips** any value matching `/same\s+as\s+(in\s+)?class\s*(11|eleventh)/i`.
+    - Falls back to stream-based derivation: Science → `EN, PH, CH, BI`; Non-Med → `EN, PH, CH, MA`; Arts → `EN, UR, ED, PS, EC`; Commerce → `EN, AY, BS, EC, MA`.
+  - `getAbbreviatedSubjects()` now calls `resolveStudentSubjectsRaw()` — correctly shows actual subject codes for all Class 12 students.
+  - `printAttendanceSheet` filter now calls `resolveStudentSubjectsRaw()` — subject-specific attendance lists now correctly include only students enrolled in the selected subject.
 
 ---
 
 ## Files Added / Modified
-- `src/utils/practicalsPdfGenerator.js` — Subject-specific attendance filter logic; renamed fail/absent heading.
-- `src/portal/admin/AdminPracticals.jsx` — Smart attendance button (single-subject mode); fail/absent label; always-show exam roll.
+- `src/utils/practicalsPdfGenerator.js` — Added `resolveStudentSubjectsRaw()`; fixed `getAbbreviatedSubjects()` and attendance filter to use it.
 - `CHANGES_SINCE_LAST_COMMIT.md` — Updated memory log.
 
 ---
 
 ## Local Commit Message
 ```bash
-feat(practicals): subject-specific attendance print, rename fail to fail/absent, always show exam roll in web awards table
+fix(practicals): resolve 'Same as in Class 11th' placeholder in subjects display and attendance filter
 ```
 
 ---
@@ -66,8 +46,7 @@ git show HEAD
 ### How to Amend or Re-commit (if desired):
 ```bash
 git reset --soft HEAD~1
-# Make any additional changes if needed
-git commit -m "feat(practicals): subject-specific attendance print, rename fail to fail/absent, always show exam roll in web awards table"
+git commit -m "fix(practicals): resolve 'Same as in Class 11th' placeholder in subjects display and attendance filter"
 ```
 
 ### Manual Push (Mandatory Policy):
