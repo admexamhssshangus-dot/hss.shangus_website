@@ -2194,6 +2194,14 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
   }, [submissions]);
 
   const activeSubjects = activeCodesList.filter(c => selectedSubCodes.includes(c));
+  const [exportSubjectTarget, setExportSubjectTarget] = useState('all');
+
+  // If user has filtered table to exactly 1 subject in toolbar, align export target
+  useEffect(() => {
+    if (activeSubjects.length === 1) {
+      setExportSubjectTarget(activeSubjects[0]);
+    }
+  }, [activeSubjects]);
 
   return (
     <div className="space-y-2.5 animate-in fade-in duration-300">
@@ -2217,7 +2225,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               </span>
             </div>
 
-            {/* Action Buttons: Awards/Export dropdown, Attendance, Fail List, Settings */}
+            {/* Action Buttons: Awards/Export dropdown, Fail List, Settings */}
             <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
               {/* Unified Print / Export Awards Dropdown Menu */}
               <div className="relative shrink-0" ref={awardsMenuRef}>
@@ -2235,269 +2243,359 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 </button>
 
                 {showAwardsMenu && (
-                  <div className="absolute right-0 mt-1.5 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150 text-xs">
-                    <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                      Print & Export Options
+                  <div className="absolute right-0 mt-1.5 w-80 sm:w-84 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150 text-xs">
+                    
+                    {/* Header & Target Subject Control */}
+                    <div className="bg-slate-50 dark:bg-slate-800/80 p-2 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          Target Subject Control
+                        </span>
+                        <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 truncate max-w-[170px]">
+                          {exportSubjectTarget === 'all'
+                            ? `All Active Subjects (${activeSubjects.length})`
+                            : `${NAMES[exportSubjectTarget] || exportSubjectTarget} (${exportSubjectTarget})`}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setExportSubjectTarget('all')}
+                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black cursor-pointer text-center transition-all ${
+                            exportSubjectTarget === 'all'
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          All Subjects ({activeSubjects.length})
+                        </button>
+
+                        <select
+                          value={exportSubjectTarget === 'all' ? '' : exportSubjectTarget}
+                          onChange={(e) => setExportSubjectTarget(e.target.value)}
+                          className={`px-2 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all bg-white dark:bg-slate-900 border ${
+                            exportSubjectTarget !== 'all'
+                              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 font-black'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                          }`}
+                        >
+                          <option value="" disabled>Particular Subject...</option>
+                          {activeSubjects.map(code => (
+                            <option key={code} value={code}>
+                              {code} - {NAMES[code] || code}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     {/* Pre-Board notice — consolidated awards not applicable */}
                     {/pre.?board/i.test(localPrintOpts.practicalType) && (
-                      <div className="mx-1 my-1 px-2.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[10px] font-semibold text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
+                      <div className="mx-0.5 my-1 px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[10px] font-semibold text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
                         <span className="text-amber-500 shrink-0 mt-0.5">ⓘ</span>
-                        <span>Pre-Board consolidated awards are managed via the Competitive Exams &amp; OMR system — not this portal.</span>
+                        <span>Pre-Board consolidated awards are managed via the School Based Assessment Suite.</span>
                       </div>
                     )}
 
-                    {/* 1. Print Consolidated Awards Matrix — not for Pre-Board */}
-                    {!/pre.?board/i.test(localPrintOpts.practicalType) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAwardsMenu(false);
-                        const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                        const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                        if (!listToPrint || listToPrint.length === 0) {
-                          showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                          return;
-                        }
-                        printConsolidatedAwardRoll({
-                          className: cls,
-                          session: localPrintOpts.sessionText,
-                          students: listToPrint,
-                          submissions,
-                          isExternal: localPrintOpts.practicalType === 'external',
-                          evaluationType: localPrintOpts.practicalType,
-                          selectedSubjectCodes: activeSubjects,
-                          printDetails: localPrintOpts
-                        });
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <Printer size={13} className="text-indigo-600 shrink-0" />
-                      <div>
-                        <div className="text-[11.5px] font-black">Print Consolidated Awards & Letter</div>
-                        <div className="text-[10px] text-slate-400 font-semibold">Forwarding cover letter + subject hash totals matrix</div>
+                    {/* SECTION 1: PRINT EVALUATION & ATTENDANCE */}
+                    <div className="space-y-1">
+                      <div className="px-1.5 pt-0.5 text-[9.5px] font-black uppercase tracking-wider text-slate-400">
+                        Evaluation & Attendance Prints
                       </div>
-                    </button>
-                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAwardsMenu(false);
-                        const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                        const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                        if (!listToPrint || listToPrint.length === 0) {
-                          showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                          return;
-                        }
-                        printAllIndividualAwardRolls({
-                          className: cls,
-                          session: localPrintOpts.sessionText,
-                          students: listToPrint,
-                          submissions,
-                          isExternal: localPrintOpts.practicalType === 'external',
-                          evaluationType: localPrintOpts.practicalType,
-                          selectedSubjectCodes: activeSubjects,
-                          printDetails: { ...localPrintOpts, settings }
-                        });
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <FileText size={13} className="text-blue-600 shrink-0" />
-                      <div>
-                        <div className="text-[11.5px] font-black">Print Individual Subject Award Rolls</div>
-                        <div className="text-[10px] text-slate-400 font-semibold">2-column 50/page official rolls (Figures & Words)</div>
+                      {/* 1. Marks Record Award Roll (Pract Copy / Assignment, Viva Voce, Total) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAwardsMenu(false);
+                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          if (!listToPrint || listToPrint.length === 0) {
+                            showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                            return;
+                          }
+                          const isSingle = exportSubjectTarget !== 'all';
+                          const targetCode = isSingle ? exportSubjectTarget : '';
+                          const targetName = isSingle ? (NAMES[targetCode] || targetCode) : '';
+                          printMarksRecordAwardRoll({
+                            className: cls,
+                            session: localPrintOpts.sessionText,
+                            students: listToPrint,
+                            submissions,
+                            isExternal: localPrintOpts.practicalType === 'external',
+                            evaluationType: localPrintOpts.practicalType,
+                            subjectCode: targetCode,
+                            subjectName: targetName,
+                            selectedSubjectCodes: !isSingle ? activeSubjects : null,
+                            printDetails: localPrintOpts
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                          <Printer size={13} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-black truncate">
+                            {exportSubjectTarget === 'all'
+                              ? `Print Marks Record Award Rolls (All ${activeSubjects.length} Subs)`
+                              : `Print Marks Record — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`}
+                          </div>
+                          <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                            Pract Copy / Assignment, Viva Voce & Total columns
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 2. Attendance Sheet (Candidate Signature) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAwardsMenu(false);
+                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          if (!listToPrint || listToPrint.length === 0) {
+                            showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                            return;
+                          }
+                          const isSingle = exportSubjectTarget !== 'all';
+                          const targetCode = isSingle ? exportSubjectTarget : '';
+                          const targetName = isSingle ? (NAMES[targetCode] || targetCode) : '';
+                          printAttendanceSheet({
+                            className: cls,
+                            session: localPrintOpts.sessionText,
+                            students: listToPrint,
+                            isExternal: localPrintOpts.practicalType === 'external',
+                            evaluationType: localPrintOpts.practicalType,
+                            subjectCode: targetCode,
+                            subjectName: targetName,
+                            selectedSubjectCodes: !isSingle ? activeSubjects : null
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                          <ClipboardCheck size={13} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-black truncate">
+                            {exportSubjectTarget === 'all'
+                              ? `Print Attendance Sheets (All ${activeSubjects.length} Subs)`
+                              : `Print Attendance Sheet — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`}
+                          </div>
+                          <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                            Candidate Signature sheet with Exam Roll No
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 3. Official 2-Column Subject Award Rolls (Figures & Words) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAwardsMenu(false);
+                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          if (!listToPrint || listToPrint.length === 0) {
+                            showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                            return;
+                          }
+                          const isSingle = exportSubjectTarget !== 'all';
+                          const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                          printAllIndividualAwardRolls({
+                            className: cls,
+                            session: localPrintOpts.sessionText,
+                            students: listToPrint,
+                            submissions,
+                            isExternal: localPrintOpts.practicalType === 'external',
+                            evaluationType: localPrintOpts.practicalType,
+                            selectedSubjectCodes: targetCodes,
+                            printDetails: { ...localPrintOpts, settings }
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                          <FileText size={13} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-black truncate">
+                            {exportSubjectTarget === 'all'
+                              ? `Print 2-Column Award Rolls (All ${activeSubjects.length} Subs)`
+                              : `Print 2-Column Award Roll — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`}
+                          </div>
+                          <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                            Official 50/page JKBOSE layout (Figures & Words)
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 4. Consolidated Awards Matrix & Forwarding Letter — not for Pre-Board */}
+                      {!/pre.?board/i.test(localPrintOpts.practicalType) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAwardsMenu(false);
+                            const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                            if (!listToPrint || listToPrint.length === 0) {
+                              showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                              return;
+                            }
+                            const isSingle = exportSubjectTarget !== 'all';
+                            const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                            printConsolidatedAwardRoll({
+                              className: cls,
+                              session: localPrintOpts.sessionText,
+                              students: listToPrint,
+                              submissions,
+                              isExternal: localPrintOpts.practicalType === 'external',
+                              evaluationType: localPrintOpts.practicalType,
+                              selectedSubjectCodes: targetCodes,
+                              printDetails: localPrintOpts
+                            });
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                            <Award size={13} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11.5px] font-black truncate">
+                              Print Consolidated Cover Letter & Matrix
+                            </div>
+                            <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                              Forwarding letter + subject hash totals matrix
+                            </div>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* SECTION 2: EXCEL & WORD EXPORTS */}
+                    <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                      <div className="px-1.5 pt-0.5 text-[9.5px] font-black uppercase tracking-wider text-slate-400">
+                        Export Spreadsheets & Docs
                       </div>
-                    </button>
 
-                    {/* Print Marks Record Award Roll (Pract Copy, Viva, Total) */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAwardsMenu(false);
-                        const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                        const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                        if (!listToPrint || listToPrint.length === 0) {
-                          showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                          return;
-                        }
-                        const singleSubCode = activeSubjects.length === 1 ? activeSubjects[0] : '';
-                        const singleSubName = singleSubCode ? (NAMES[singleSubCode] || singleSubCode) : '';
-                        printMarksRecordAwardRoll({
-                          className: cls,
-                          session: localPrintOpts.sessionText,
-                          students: listToPrint,
-                          submissions,
-                          isExternal: localPrintOpts.practicalType === 'external',
-                          evaluationType: localPrintOpts.practicalType,
-                          subjectCode: singleSubCode,
-                          subjectName: singleSubName,
-                          selectedSubjectCodes: activeSubjects.length > 1 ? activeSubjects : null,
-                          printDetails: localPrintOpts
-                        });
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <Printer size={13} className="text-indigo-600 shrink-0" />
-                      <div>
-                        <div className="text-[11.5px] font-black">Print Marks Record Award Roll</div>
-                        <div className="text-[10px] text-slate-400 font-semibold">Pract Copy / Assignment, Viva Voce & Total columns</div>
-                      </div>
-                    </button>
+                      {!/pre.?board/i.test(localPrintOpts.practicalType) && (<>
+                        {/* Export Consolidated Excel */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAwardsMenu(false);
+                            const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                            if (!listToPrint || listToPrint.length === 0) {
+                              showToast(`No student records available to export for Class ${cls}.`, 'warning');
+                              return;
+                            }
+                            const isSingle = exportSubjectTarget !== 'all';
+                            const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                            exportConsolidatedAwardsToExcel({
+                              className: cls,
+                              session: localPrintOpts.sessionText,
+                              students: listToPrint,
+                              submissions,
+                              isExternal: localPrintOpts.practicalType === 'external',
+                              evaluationType: localPrintOpts.practicalType,
+                              selectedSubjectCodes: targetCodes,
+                              printDetails: localPrintOpts
+                            });
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                            <FileSpreadsheet size={13} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11.5px] font-black text-emerald-700 dark:text-emerald-300 truncate">
+                              Export Consolidated Excel (.xlsx)
+                            </div>
+                            <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                              Cover Letter + Subject Matrix Sheet
+                            </div>
+                          </div>
+                        </button>
 
-                    {/* 3 & 4. Consolidated Excel + Word — not for Pre-Board */}
-                    {!/pre.?board/i.test(localPrintOpts.practicalType) && (<>
-                    <div className="h-[1px] bg-slate-100 dark:bg-slate-800 my-1" />
+                        {/* Export Official Word Doc */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAwardsMenu(false);
+                            const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                            if (!listToPrint || listToPrint.length === 0) {
+                              showToast(`No student records available to export for Class ${cls}.`, 'warning');
+                              return;
+                            }
+                            const isSingle = exportSubjectTarget !== 'all';
+                            const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                            exportConsolidatedAwardsToWord({
+                              className: cls,
+                              session: localPrintOpts.sessionText,
+                              students: listToPrint,
+                              submissions,
+                              isExternal: localPrintOpts.practicalType === 'external',
+                              evaluationType: localPrintOpts.practicalType,
+                              selectedSubjectCodes: targetCodes,
+                              printDetails: localPrintOpts
+                            });
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-xl hover:bg-sky-50 dark:hover:bg-sky-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-sky-100 dark:bg-sky-900/50 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
+                            <FileText size={13} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11.5px] font-black text-sky-700 dark:text-sky-300 truncate">
+                              Export Official Word Doc (.docx)
+                            </div>
+                            <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                              Native Word (.docx) with official styling
+                            </div>
+                          </div>
+                        </button>
+                      </>)}
 
-                    {/* 3. Export Consolidated Excel */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAwardsMenu(false);
-                        const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                        const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                        if (!listToPrint || listToPrint.length === 0) {
-                          showToast(`No student records available to export for Class ${cls}.`, 'warning');
-                          return;
-                        }
-                        exportConsolidatedAwardsToExcel({
-                          className: cls,
-                          session: localPrintOpts.sessionText,
-                          students: listToPrint,
-                          submissions,
-                          isExternal: localPrintOpts.practicalType === 'external',
-                          evaluationType: localPrintOpts.practicalType,
-                          selectedSubjectCodes: activeSubjects,
-                          printDetails: localPrintOpts
-                        });
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
-                      <div>
-                        <div className="text-[11.5px] font-black text-emerald-700 dark:text-emerald-300">Export Consolidated Excel (.xlsx)</div>
-                        <div className="text-[10px] text-slate-400 font-semibold">Sheet 1 (Cover Letter) + Sheet 2 (Awards Matrix)</div>
-                      </div>
-                    </button>
+                      {/* Export Blank Teacher Roster */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAwardsMenu(false);
+                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          const subToRoster = exportSubjectTarget !== 'all' ? exportSubjectTarget : (activeSubjects[0] || 'BO');
+                          exportCurrentRosterToExcel({
+                            className: cls,
+                            session: localPrintOpts.sessionText,
+                            students: listToPrint,
+                            subjectCode: subToRoster,
+                            evaluationType: localPrintOpts.practicalType
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 text-left font-bold text-slate-600 dark:text-slate-400 flex items-center gap-2.5 cursor-pointer transition-colors"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 shrink-0">
+                          <Download size={13} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-bold truncate">
+                            {exportSubjectTarget !== 'all'
+                              ? `Export Blank Roster (.xlsx) — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`
+                              : 'Export Blank Teacher Roster (.xlsx)'}
+                          </div>
+                          <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                            Prefilled student list for offline marks entry
+                          </div>
+                        </div>
+                      </button>
+                    </div>
 
-                    {/* 4. Export Official Word Doc (.docx) */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAwardsMenu(false);
-                        const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                        const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                        if (!listToPrint || listToPrint.length === 0) {
-                          showToast(`No student records available to export for Class ${cls}.`, 'warning');
-                          return;
-                        }
-                        exportConsolidatedAwardsToWord({
-                          className: cls,
-                          session: localPrintOpts.sessionText,
-                          students: listToPrint,
-                          submissions,
-                          isExternal: localPrintOpts.practicalType === 'external',
-                          evaluationType: localPrintOpts.practicalType,
-                          selectedSubjectCodes: activeSubjects,
-                          printDetails: localPrintOpts
-                        });
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <FileText size={13} className="text-sky-600 shrink-0" />
-                      <div>
-                        <div className="text-[11.5px] font-black text-sky-700 dark:text-sky-300">Export Official Word Doc (.docx)</div>
-                        <div className="text-[10px] text-slate-400 font-semibold">Native Word (.docx) with 0.3" margins</div>
-                      </div>
-                    </button>
-                    </>)}
-
-                    {/* 5. Export Roster Template (.xlsx) */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAwardsMenu(false);
-                        const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                        const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                        exportCurrentRosterToExcel({
-                          className: cls,
-                          session: localPrintOpts.sessionText,
-                          students: listToPrint,
-                          subjectCode: activeSubjects[0] || 'BO',
-                          evaluationType: localPrintOpts.practicalType
-                        });
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 text-left font-bold text-slate-600 dark:text-slate-400 flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <Download size={13} className="text-slate-500 shrink-0" />
-                      <div>
-                        <div className="text-[11px] font-bold">Export Blank Teacher Roster (.xlsx)</div>
-                        <div className="text-[9.5px] text-slate-400 font-semibold">Prefilled student list for offline marks entry</div>
-                      </div>
-                    </button>
                   </div>
                 )}
               </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                  const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                  if (!listToPrint || listToPrint.length === 0) {
-                    showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                    return;
-                  }
-                  // If exactly one subject is selected, print subject-specific attendance
-                  const singleSubCode = activeSubjects.length === 1 ? activeSubjects[0] : '';
-                  const singleSubName = singleSubCode ? (NAMES[singleSubCode] || singleSubCode) : '';
-                  printAttendanceSheet({
-                    className: cls,
-                    session: localPrintOpts.sessionText,
-                    students: listToPrint,
-                    isExternal: localPrintOpts.practicalType === 'external',
-                    evaluationType: localPrintOpts.practicalType,
-                    subjectCode: singleSubCode,
-                    subjectName: singleSubName
-                  });
-                }}
-                className="px-2 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
-                title={activeSubjects.length === 1 ? `Print ${NAMES[activeSubjects[0]] || activeSubjects[0]} attendance` : 'Print attendance sheet for all active subjects'}
-              >
-                <ClipboardCheck size={11} /> Attendance{activeSubjects.length === 1 ? ` (${activeSubjects[0]})` : ''}
-              </button>
-
-              {/* Marks Record Award Roll Button (Pract Copy / Assignment, Viva Voce, Total) */}
-              <button
-                type="button"
-                onClick={() => {
-                  const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                  const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                  if (!listToPrint || listToPrint.length === 0) {
-                    showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                    return;
-                  }
-                  const singleSubCode = activeSubjects.length === 1 ? activeSubjects[0] : '';
-                  const singleSubName = singleSubCode ? (NAMES[singleSubCode] || singleSubCode) : '';
-                  printMarksRecordAwardRoll({
-                    className: cls,
-                    session: localPrintOpts.sessionText,
-                    students: listToPrint,
-                    submissions,
-                    isExternal: localPrintOpts.practicalType === 'external',
-                    evaluationType: localPrintOpts.practicalType,
-                    subjectCode: singleSubCode,
-                    subjectName: singleSubName,
-                    selectedSubjectCodes: activeSubjects.length > 1 ? activeSubjects : null,
-                    printDetails: localPrintOpts
-                  });
-                }}
-                className="px-2 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
-                title={activeSubjects.length === 1 ? `Print ${NAMES[activeSubjects[0]] || activeSubjects[0]} Marks Record Award Roll` : 'Print Marks Record Award Roll (Practicals/Assignments)'}
-              >
-                <Printer size={11} /> Award Roll{activeSubjects.length === 1 ? ` (${activeSubjects[0]})` : ''}
-              </button>
 
               {/* Fail / Absent List Button */}
               <button

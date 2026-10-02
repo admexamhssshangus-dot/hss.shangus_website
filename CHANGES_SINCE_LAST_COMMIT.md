@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): fix subject counting, group excel tools, add marks record award roll print and prevent reg no page break`
+- **Commit Message**: `feat(practicals): group attendance and award roll into awards export menu with subject scope control`
 - **Date**: October 02, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally.
 
@@ -9,75 +9,58 @@
 
 ## Architectural Purpose & Enhancements
 
-### 1. Subject Counting Integrity & Cross-Contamination Audits
-- **Problem**: In the Practicals Cover Letter subject gist summary and table matrices, Education (`ED`) was erroneously reporting 113 students for Class 12th despite only 91 Arts/Commerce students being enrolled.
-- **Root Cause**: Raw keyword substring matching without stream guards caused Science students with Physical Education (`PED`/`PE`), students with words like `medical`/`med`, and subjects containing substrings like `studied` to falsely match `ED`.
+### 1. Grouped Attendance & Award Roll into Unified `Awards / Export` Menu
+- **Problem**: The standalone `[Attendance]` and `[Award Roll]` buttons occupied excessive horizontal space on the toolbar alongside `[Awards / Export ▾]`, `[Fail / Absent]`, and `[Settings]`, causing horizontal overflow or multi-line button wrapping on standard laptops and mobile screens.
 - **Solution**:
-  - Replaced raw regex/keyword looping in `printConsolidatedAwardRoll`, `exportConsolidatedAwardsToExcel`, and `exportConsolidatedAwardsToDocx` with the canonical `isStudentEnrolledInPracticalSubject` validator.
-  - Stripped non-subject tokens (`NON-MED`, `MED`, `STUDIED`, `APPLIED`) before testing for `ED`.
-  - Disentangled Persian (`PE`) from Physical Education (`PD`): removed flawed alias `if (code === 'PE' && abbrList.includes('PD')) return true;` so Physical Education students are never falsely counted under Persian.
-  - Guarded Science students against Arts electives (`ED`, `HT`, `PS`, `SO`, `AR`, `PR`, `SC`).
+  - Removed the standalone `[Attendance]` and `[Award Roll]` buttons from the `AwardsSummaryView` toolbar.
+  - Reorganized all print and export utilities inside a clean, modern dropdown menu under `[Awards / Export ▾]`.
+  - Added clear institutional labels and explanatory subtitles for every print and export option:
+    1. **Print Marks Record Award Roll**: Pract Copy / Assignment, Viva Voce & Total columns (7 institutional columns).
+    2. **Print Attendance Sheet**: Candidate Signature sheet with Exam Roll No.
+    3. **Print Official 2-Column Award Rolls**: Official 50/page JKBOSE layout (Figures & Words).
+    4. **Print Consolidated Cover Letter & Matrix**: Forwarding letter + subject hash totals matrix.
+    5. **Export Consolidated Excel (.xlsx)**: Sheet 1 (Cover Letter) + Sheet 2 (Awards Matrix).
+    6. **Export Official Word Doc (.docx)**: Native Word (.docx) with official styling.
+    7. **Export Blank Teacher Roster (.xlsx)**: Prefilled student list for offline marks entry.
 
-### 2. Grouped Excel Tools (Template & Import into Single Dropdown)
-- **Problem**: Separate `[Template]` and `[Import Excel]` buttons took up excessive horizontal space in the top navigation ribbon of `AdminPracticals.jsx`.
+### 2. Integrated Subject Target Control (Particular Subject vs. All Active Subjects)
+- **Requirement**: Users needed intuitive, one-click control to print or export awards/attendance sheets either for **All Active Subjects** or for a **Particular Subject**.
 - **Solution**:
-  - Combined both actions into a sleek, unified `[Excel ▾]` dropdown menu with outside-click detection.
-  - Provides quick access to:
-    1. **Import Excel / CSV Marks**: Launches `CsvImportModal`.
-    2. **Download Excel Template (.xlsx)**: Downloads the official spreadsheet template with prefilled instructions and subject codes.
-    3. **Download CSV Template (.csv)**: Downloads lightweight comma-separated template.
-  - Added a direct "Need the standard template? Download Excel Template" link inside `CsvImportModal` for maximum user convenience.
+  - Added an integrated **Target Subject Control** header block at the top of the `Awards / Export` dropdown menu:
+    - **`All Subjects (X)` Button**: Quickly sets the target scope to all active subjects.
+    - **`Particular Subject... ▾` Select Dropdown**: Allows instant selection of any specific subject (e.g. Physics, Chemistry, Biology, Zoology, Botany, Urdu, Education, etc.).
+    - **Live Badge & Header Feedback**: Clearly indicates the active target (e.g., `Target Subject: Physics (PH)` vs `Target Subject: All Active Subjects (15)`).
+    - **Auto-Synchronization**: Automatically switches to the single subject if the user has filtered down to exactly one subject via the subject filter pill.
+  - Dynamically updates action labels to reflect the current scope (e.g. `Print Attendance Sheets (All 15 Subs)` vs `Print Attendance Sheet — Physics`, `Print Marks Record — Chemistry`, etc.).
 
-### 3. Subject Marks Record Award Roll Printing
-- **Problem**: Teachers and administrators needed to print evaluation award rolls with specific evaluation columns (`Pract Copy / Assignment`, `Viva Voce`, `Total`) without the Subject or Candidate Signature columns.
-- **Solution**:
-  - Added a dedicated `[Award Roll]` button directly beside the `[Attendance]` button in the `AwardsSummaryView` toolbar of `AdminPracticals.jsx`.
-  - Added a corresponding option inside the `[Awards / Export ▾]` dropdown.
-  - Implemented `printMarksRecordAwardRoll` in `practicalsPdfGenerator.js`:
-    - Exactly 7 institutional columns: `S.No.`, `Class R.No.`, `Exam Roll No.`, `Student Name` (with Board Reg No), `Pract Copy / Assignment`, `Viva Voce`, and `Total`.
-    - Document header & print title formatted per institutional standard: `${className} - Marks Record (Practicals/Assignments) - ${subjectName}`.
-    - Dynamically displays evaluation marks from teacher submissions or leaves neat blank entry cells for offline evaluation records.
-    - Handles single-subject printing and multi-subject batch printing with clean `@media print` page breaks.
-
-### 4. Page Break Fix: Registration Number & Row Fragmentation
-- **Problem**: In Chromium/Edge print preview, rows near the bottom of a page (e.g. row 59 `Hamid Manzoor Bhat`) would split across page boundaries: the name remained on the first page, while `Reg: 2301000000610005` spilled onto the next page under an orphan table header.
-- **Root Cause**: In Blink/Chromium, tables with `border-collapse: collapse;` ignore `page-break-inside: avoid` on `<tr>` and `<td>` (Chromium Bug 278327). Additionally, non-monolithic child boxes allow the fragmentation engine to break between name and registration number.
-- **Solution**:
-  - Configured `border-collapse: separate !important; border-spacing: 0 !important;` on `.award-table`, `.attendance-table`, `.matrix-table`, and `.gist-table` with clean 1px border mapping, enabling Chromium to strictly respect `tr` and `td` pagination boundaries.
-  - Wrapped student names and registration numbers in `<div class="student-name-block">` configured as a monolithic box (`display: block !important; width: 100% !important; overflow: hidden !important; break-inside: avoid !important; page-break-inside: avoid !important;`).
-  - Switched row height to `46px` on `<tr>` instead of hardcoded `height: 50px` on every `<td>`, ensuring entire rows move cleanly to the next page as a single indivisible unit.
+### 3. PDF Generator Multi-Subject Batch Attendance Support
+- **Enhancement in `practicalsPdfGenerator.js`**:
+  - Upgraded `printAttendanceSheet` to accept `selectedSubjectCodes` in addition to `subjectCode`:
+    - When `selectedSubjectCodes` is provided (All Subjects mode), it automatically iterates through each subject, selects students enrolled in that subject, and builds separate pages with clean `@media print` page breaks.
+    - When a single subject is targeted (`subjectCode`), it omits the redundant `Subject(s)` column and expands the `Candidate Signature` column to 46% width for optimal signing space.
+  - Verified `printMarksRecordAwardRoll` seamlessly handles both single-subject and multi-subject batch printing.
 
 ---
 
 ## Files Changed & Synchronizations Completed
 
-### 1. `src/utils/practicalsPdfGenerator.js`
-- Enforced `border-collapse: separate !important; border-spacing: 0 !important;` in `PRINT_ENGINE_CSS` for all tables.
-- Made `.student-name-block` monolithic with `display: block; overflow: hidden; break-inside: avoid !important;`.
-- Updated `printAttendanceSheet` and `printMarksRecordAwardRoll` row layouts.
-- Added exported function `printMarksRecordAwardRoll` generating 7 columns with institutional header and marks binding.
-- Updated gist and matrix enrolled checks to use canonical `isStudentEnrolledInPracticalSubject`.
-- Refined subject abbreviations and stream isolation for `ED`, `PE`/`PD`, `HT`/`HTC`.
+### 1. `src/portal/admin/AdminPracticals.jsx`
+- Removed standalone `[Attendance]` and `[Award Roll]` buttons from the `AwardsSummaryView` toolbar.
+- Added `exportSubjectTarget` state (defaulting to `'all'`) with an auto-synchronizer for single-subject filters.
+- Implemented the Target Subject Control pill/selector at the top of the `Awards / Export` dropdown.
+- Grouped options into two distinct, beautifully styled sections: `Evaluation & Attendance Prints` and `Export Spreadsheets & Docs`.
+- Wired print and export actions to respect `exportSubjectTarget`.
 
-### 2. `src/utils/practicalsCsvManager.js`
-- Updated `gistCounts` in `exportConsolidatedAwardsToExcel` and `gistList` in `exportConsolidatedAwardsToDocx` to use `isStudentEnrolledInPracticalSubject(st, sub.code, className)`.
-- Cleaned up loop scopes and syntax.
-
-### 3. `src/portal/admin/AdminPracticals.jsx`
-- Imported `printMarksRecordAwardRoll`.
-- Updated `isStudentEnrolledInSubject` to strip `STUDIED` and `APPLIED` tokens for `ED`.
-- Added `showExcelMenu` and `excelMenuRef` state with outside-click listener.
-- Replaced separate `[Template]` and `[Import Excel]` buttons with unified `[Excel ▾]` dropdown in the top header ribbon.
-- Added `[Award Roll]` button next to `[Attendance]` in `AwardsSummaryView` toolbar.
-- Added `Print Marks Record Award Roll` in `Awards / Export` dropdown.
-- Added direct template download link inside `CsvImportModal`.
+### 2. `src/utils/practicalsPdfGenerator.js`
+- Added multi-subject batch pagination to `printAttendanceSheet` when `selectedSubjectCodes` is passed.
+- Refined single-subject attendance table formatting (removed redundant `Subject(s)` column when filtering by subject and widened signature area).
 
 ---
 
 ## Verification & Build Details
 - **Production Build**:
   - `npm run build` -> `Exit Code 0`
-  - All 11 static pages, SEO regression check, and bundle chunks verified.
+  - All static pages, SEO regression checks, and bundle chunks verified.
 
 ---
 
@@ -95,11 +78,11 @@ If you wish to adjust the commit message or files before pushing:
 git reset --soft HEAD~1
 # Make desired changes
 git add .
-git commit -m "fix(practicals): fix subject counting, group excel tools, add marks record award roll print and prevent reg no page break"
+git commit -m "feat(practicals): group attendance and award roll into awards export menu with subject scope control"
 ```
 
-### 3. Push to Remote Repository (Manual Action)
-As per institutional policy, the assistant never pushes to remote repositories:
+### 3. Manually Push to Remote Repository
+As per project policy, the assistant never pushes to remote repositories. Please push manually when ready:
 ```bash
 git push origin main
 ```

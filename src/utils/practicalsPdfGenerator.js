@@ -1480,23 +1480,102 @@ export function printAttendanceSheet({
   practicalType = '',
   subjectTitle = '',
   subjectCode = '',
-  subjectName = ''
+  subjectName = '',
+  selectedSubjectCodes = null
 }) {
   if (!students || students.length === 0) return false;
   students = students.filter(st => !isStudentExamDropped(st));
   if (students.length === 0) return false;
 
-  // Subject-specific attendance: filter to students authentically enrolled in the given subject
-  const filterSubCode = (subjectCode || '').trim().toUpperCase();
-  if (filterSubCode) {
-    students = students.filter(st => isStudentEnrolledInPracticalSubject(st, filterSubCode, className));
-    if (students.length === 0) return false;
-  }
-
   const titles = resolveAwardRollTitles(evaluationType || practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
   const examAttendanceTitle = titles.heading.replace(/\s+AWARD\s+ROLL$/i, '');
-  const resolvedSubjectTitle = subjectTitle || (filterSubCode && subjectName ? `${subjectName} (${filterSubCode})` : (filterSubCode || ''));
+
+  const singleSubCode = (subjectCode || '').trim().toUpperCase();
+
+  // 1. Multi-Subject Batch Attendance: Iterate through subjects and build separated pages
+  if (!singleSubCode && selectedSubjectCodes && Array.isArray(selectedSubjectCodes) && selectedSubjectCodes.length > 0) {
+    const targetSubs = PRACTICAL_SUBJECT_DEFS.filter(s => selectedSubjectCodes.includes(s.code));
+    let combinedHtml = '';
+
+    targetSubs.forEach((sub, subIdx) => {
+      const subStudents = students.filter(st => isStudentEnrolledInPracticalSubject(st, sub.code, className));
+      if (subStudents.length === 0) return;
+
+      const isLast = subIdx === targetSubs.length - 1;
+      combinedHtml += `
+        <div class="award-page ${!isLast ? 'page-break' : ''}">
+          <div style="text-align: center; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
+            <h1 style="font-size: 14pt; font-weight: 800; margin: 0; text-transform: uppercase; color: #0f172a;">Govt. Higher Secondary School Shangus</h1>
+            <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${examAttendanceTitle} ATTENDANCE SHEET — ${hseText} — ${sub.name} (${sub.code})</h2>
+            <p style="font-size: 9.5pt; font-weight: 700; margin: 2px 0; color: #475569;">Session & Year: <strong>${session}</strong></p>
+            <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: 700; margin-top: 6px; color: #334155;">
+              <span>No.: ____________________</span>
+              <span>Date: ____________________</span>
+            </div>
+          </div>
+
+          <table class="award-table attendance-table" style="font-size: 9.5pt; width: 100%;">
+            <thead>
+              <tr style="height: 32px;">
+                <th style="width: 5%;">S.No.</th>
+                <th style="width: 10%;">Class R.No.</th>
+                <th style="width: 15%;">Exam Roll No.</th>
+                <th style="width: 32%; text-align: left; padding-left: 8px;">Student Name</th>
+                <th style="width: 38%;">Candidate Signature</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      subStudents.forEach((st, idx) => {
+        const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
+        const examRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '—';
+        const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
+        const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
+        const regNo = String(rawReg).trim();
+
+        combinedHtml += `
+          <tr style="page-break-inside: avoid !important; break-inside: avoid !important;">
+            <td style="text-align: center; font-size: 9pt; color: #475569;">${idx + 1}</td>
+            <td style="text-align: center; font-weight: 800; font-size: 10pt; color: #0f172a;">${classRoll}</td>
+            <td style="text-align: center; font-weight: 800; font-family: monospace; font-size: 10.5pt; color: #1e293b;">${examRoll}</td>
+            <td style="text-align: left; padding: 4px 8px;">
+              <div class="student-name-block">
+                <div style="font-weight: 700; font-size: 10pt; color: #0f172a; line-height: 1.2;">${toTitleCase(name)}</div>
+                ${regNo && regNo !== '—' ? `<div style="font-family: monospace; font-size: 8pt; color: #64748b; font-weight: 600; margin-top: 2px; white-space: nowrap;">Reg: ${regNo}</div>` : ''}
+              </div>
+            </td>
+            <td>&nbsp;</td>
+          </tr>
+        `;
+      });
+
+      combinedHtml += `
+            </tbody>
+          </table>
+
+          <div class="sig-row" style="margin-top: 35px; font-size: 10pt; font-weight: bold; display: flex; justify-content: space-between;">
+            <div>Superintendent Signature: __________________</div>
+            <div>Principal Signature: __________________</div>
+          </div>
+        </div>
+      `;
+    });
+
+    if (!combinedHtml) return false;
+    triggerPrintWindow(combinedHtml, `${titles.shortType} Attendance Sheet (All Subjects) — Class ${className}`);
+    return true;
+  }
+
+  // 2. Single Subject or Combined Master Roster
+  let printStudents = students;
+  if (singleSubCode) {
+    printStudents = students.filter(st => isStudentEnrolledInPracticalSubject(st, singleSubCode, className));
+    if (printStudents.length === 0) return false;
+  }
+
+  const resolvedSubjectTitle = subjectTitle || (singleSubCode && subjectName ? `${subjectName} (${singleSubCode})` : (singleSubCode || ''));
 
   let html = `
     <div class="award-page">
@@ -1517,14 +1596,14 @@ export function printAttendanceSheet({
             <th style="width: 9%;">Class R.No.</th>
             <th style="width: 14%;">Exam Roll No.</th>
             <th style="width: 26%; text-align: left; padding-left: 8px;">Student Name</th>
-            <th style="width: 24%; text-align: left; padding-left: 8px;">Subject(s)</th>
-            <th style="width: 22%;">Candidate Signature</th>
+            ${singleSubCode ? '' : '<th style="width: 24%; text-align: left; padding-left: 8px;">Subject(s)</th>'}
+            <th style="width: ${singleSubCode ? '46%' : '22%'};">Candidate Signature</th>
           </tr>
         </thead>
         <tbody>
   `;
 
-  students.forEach((st, idx) => {
+  printStudents.forEach((st, idx) => {
     const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
     const examRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '—';
     const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
@@ -1543,7 +1622,7 @@ export function printAttendanceSheet({
             ${regNo && regNo !== '—' ? `<div style="font-family: monospace; font-size: 8pt; color: #64748b; font-weight: 600; margin-top: 2px; white-space: nowrap;">Reg: ${regNo}</div>` : ''}
           </div>
         </td>
-        <td style="text-align: left; padding: 4px 8px; font-size: 8.5pt; font-weight: 700; color: #334155; line-height: 1.3;">${subs}</td>
+        ${singleSubCode ? '' : `<td style="text-align: left; padding: 4px 8px; font-size: 8.5pt; font-weight: 700; color: #334155; line-height: 1.3;">${subs}</td>`}
         <td>&nbsp;</td>
       </tr>
     `;
