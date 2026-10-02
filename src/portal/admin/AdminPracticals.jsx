@@ -2207,10 +2207,10 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     <div className="space-y-2.5 animate-in fade-in duration-300">
       {/* Unified Compact Control Panel Card */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-2.5 sm:p-3 shadow-2xs space-y-2 relative">
-        {/* UNIFIED 2-ROW MOBILE-FIRST TOOLBAR */}
+        {/* UNIFIED SINGLE-ROW TOOLBAR (ALL CONTROLS GROUPED ON SAME ROW) */}
         <div className="space-y-2 pb-1.5 border-b border-slate-100 dark:border-slate-800/80 relative z-30">
-          {/* Row 1: Left Summary Badges & Right Primary Awards/Export Menu */}
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 flex-wrap">
+            {/* Left: Class Badge */}
             <div className="flex items-center gap-1.5 shrink-0">
               <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight">
                 Class {cls}
@@ -2227,9 +2227,138 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               </span>
             </div>
 
-            {/* Action Buttons: Awards/Export dropdown, Fail List, Settings */}
+            {/* Center: Search Input */}
+            <div className="relative flex-1 min-w-[130px] sm:min-w-[170px] max-w-full sm:max-w-xs md:max-w-sm order-last sm:order-none w-full sm:w-auto">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search students, roll, reg, father..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-7 pr-6 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-900 shadow-2xs transition-all placeholder:text-[10.5px] sm:placeholder:text-[11px] placeholder:font-semibold"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Right: ALL CONTROLS GROUPED ON THE SAME ROW */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              {/* Unified Print / Export Awards Dropdown Menu */}
+              {/* 1. Subjects Multi-Select Dropdown */}
+              <div className="relative shrink-0" ref={subjectsDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAwardsMenu(false);
+                    setShowSubjectsDropdown(prev => !prev);
+                  }}
+                  className="px-2 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[11px] font-black cursor-pointer flex items-center gap-1 border border-indigo-200 dark:border-indigo-800 shadow-2xs transition-all shrink-0"
+                  title={`Practical Subjects (${selectedSubCodes.length} active)`}
+                >
+                  <BookOpen size={11} />
+                  <span className="hidden sm:inline">Subjects</span>
+                  <span>({selectedSubCodes.length})</span>
+                  <ChevronDown size={10} className={`transition-transform duration-200 ${showSubjectsDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showSubjectsDropdown && (
+                  <div className="absolute right-0 mt-1.5 w-[min(calc(100vw-20px),16rem)] max-h-[70vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-500">
+                      <span className="flex items-center gap-1"><BookOpen size={11} /> Practical Subjects</span>
+                      <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
+                        <button type="button" onClick={() => setSelectedSubCodes(activeCodesList)} className="hover:underline cursor-pointer">All</button>
+                        <span>•</span>
+                        <button type="button" onClick={() => setSelectedSubCodes([])} className="hover:underline cursor-pointer">Clear</button>
+                      </div>
+                    </div>
+
+                    <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5 divide-y divide-slate-50 dark:divide-slate-800/40">
+                      {activeCodesList.map((code, idx) => {
+                        const isChecked = selectedSubCodes.includes(code);
+                        return (
+                          <label
+                            key={code}
+                            className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors text-xs select-none ${
+                              isChecked
+                                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 text-slate-900 dark:text-white font-bold'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-500'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleSubject(code)}
+                                className="w-3.5 h-3.5 rounded text-indigo-600 cursor-pointer shrink-0"
+                              />
+                              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 w-4 text-right shrink-0">{idx + 1}.</span>
+                              <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10.5px] w-7 shrink-0">{code}</span>
+                              <span className="text-[11px] truncate max-w-[120px]">{NAMES[code] || code}</span>
+                            </div>
+                            {isChecked && <Check size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Collapsible Filters Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setShowFilterTray(prev => !prev)}
+                className={`px-2 py-1 rounded-xl text-[11px] font-black cursor-pointer flex items-center gap-1 border shadow-2xs transition-all shrink-0 ${
+                  showFilterTray || selectedStatusFilter !== 'approved' || selectedSession !== '2025-26' || localPrintOpts.practicalType === 'external'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-100 dark:shadow-none'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}
+                title="Evaluation type & view filters"
+              >
+                <Filter size={11} />
+                <span className="hidden sm:inline">Filters</span>
+                <ChevronDown size={10} className={`transition-transform duration-200 ${showFilterTray ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* 3. Fail / Absent List Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                  const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                  if (!listToPrint || listToPrint.length === 0) {
+                    showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                    return;
+                  }
+                  const isSingle = exportSubjectTarget !== 'all';
+                  const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                  printFailList({
+                    className: cls,
+                    session: localPrintOpts.sessionText,
+                    students: listToPrint,
+                    submissions,
+                    selectedSubjectCodes: targetCodes,
+                    isExternal: localPrintOpts.practicalType === 'external',
+                    evaluationType: localPrintOpts.practicalType,
+                    printDetails: { ...localPrintOpts, settings }
+                  });
+                }}
+                className="px-2 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
+                title="Print Fail / Absent defaulters list"
+              >
+                <AlertTriangle size={11} />
+                <span className="hidden xs:inline">Fail</span>
+                <span className="hidden sm:inline"> / Absent</span>
+              </button>
+
+              {/* 4. Unified Print / Export Awards Dropdown Menu */}
               <div className="relative shrink-0" ref={awardsMenuRef}>
                 <button
                   type="button"
@@ -2641,36 +2770,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 )}
               </div>
 
-              {/* Fail / Absent List Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                  const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                  if (!listToPrint || listToPrint.length === 0) {
-                    showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                    return;
-                  }
-                  printFailList({
-                    className: cls,
-                    session: localPrintOpts.sessionText,
-                    students: listToPrint,
-                    submissions,
-                    selectedSubjectCodes: activeSubjects,
-                    isExternal: localPrintOpts.practicalType === 'external',
-                    evaluationType: localPrintOpts.practicalType,
-                    printDetails: { ...localPrintOpts, settings }
-                  });
-                }}
-                className="px-2 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
-                title="Print Fail / Absent defaulters list"
-              >
-                <AlertTriangle size={11} />
-                <span className="hidden xs:inline">Fail</span>
-                <span className="hidden sm:inline"> / Absent</span>
-              </button>
-
-              {/* Settings Button */}
+              {/* 5. Settings Button */}
               <button
                 type="button"
                 onClick={() => setShowOptsModal(true)}
@@ -2680,107 +2780,6 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 <Settings size={12} />
               </button>
             </div>
-          </div>
-
-          {/* Row 2: Search Input, Subjects Dropdown & Filters Toggle */}
-          <div className="flex items-center gap-1.5">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-0">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search students, roll, reg, father..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-7 pr-6 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-900 shadow-2xs transition-all placeholder:text-[10.5px] sm:placeholder:text-[11px] placeholder:font-semibold"
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  title="Clear search"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-
-            {/* Subjects Multi-Select Dropdown */}
-            <div className="relative shrink-0" ref={subjectsDropdownRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAwardsMenu(false);
-                  setShowSubjectsDropdown(prev => !prev);
-                }}
-                className="px-2 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[11px] font-black cursor-pointer flex items-center gap-1 border border-indigo-200 dark:border-indigo-800 shadow-2xs transition-all shrink-0"
-                title={`Practical Subjects (${selectedSubCodes.length} active)`}
-              >
-                <BookOpen size={11} />
-                <span className="hidden sm:inline">Subjects</span>
-                <span>({selectedSubCodes.length})</span>
-                <ChevronDown size={10} className={`transition-transform duration-200 ${showSubjectsDropdown ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showSubjectsDropdown && (
-                <div className="absolute right-0 mt-1.5 w-[min(calc(100vw-20px),16rem)] max-h-[70vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-500">
-                    <span className="flex items-center gap-1"><BookOpen size={11} /> Practical Subjects</span>
-                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
-                      <button type="button" onClick={() => setSelectedSubCodes(activeCodesList)} className="hover:underline cursor-pointer">All</button>
-                      <span>•</span>
-                      <button type="button" onClick={() => setSelectedSubCodes([])} className="hover:underline cursor-pointer">Clear</button>
-                    </div>
-                  </div>
-
-                  <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5 divide-y divide-slate-50 dark:divide-slate-800/40">
-                    {activeCodesList.map((code, idx) => {
-                      const isChecked = selectedSubCodes.includes(code);
-                      return (
-                        <label
-                          key={code}
-                          className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors text-xs select-none ${
-                            isChecked
-                              ? 'bg-indigo-50/70 dark:bg-indigo-950/40 text-slate-900 dark:text-white font-bold'
-                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-500'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => toggleSubject(code)}
-                              className="w-3.5 h-3.5 rounded text-indigo-600 cursor-pointer shrink-0"
-                            />
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 w-4 text-right shrink-0">{idx + 1}.</span>
-                            <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10.5px] w-7 shrink-0">{code}</span>
-                            <span className="text-[11px] truncate max-w-[120px]">{NAMES[code] || code}</span>
-                          </div>
-                          {isChecked && <Check size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Collapsible Filters Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setShowFilterTray(prev => !prev)}
-              className={`px-2 py-1 rounded-xl text-[11px] font-black cursor-pointer flex items-center gap-1 border shadow-2xs transition-all shrink-0 ${
-                showFilterTray || selectedStatusFilter !== 'approved' || selectedSession !== '2025-26' || localPrintOpts.practicalType === 'external'
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-100 dark:shadow-none'
-                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-              }`}
-              title="Evaluation type & view filters"
-            >
-              <Filter size={11} />
-              <span className="hidden sm:inline">Filters</span>
-              <ChevronDown size={10} className={`transition-transform duration-200 ${showFilterTray ? 'rotate-180' : ''}`} />
-            </button>
           </div>
         </div>
 
