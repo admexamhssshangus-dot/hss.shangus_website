@@ -37,24 +37,22 @@ import {
   isSuperAdminEmail,
   FALLBACK_STAFF_PROFILES
 } from '../services/staffAuthService';
+import { 
+  ROLES,
+  getStrictCanonicalRole,
+  enforceStrictRoleAttributes,
+  isStandardAdminEmail
+} from '../utils/authRoles';
 import { sessionManager } from '../services/sessionManager';
 import ModernCaptcha from '../components/ModernCaptcha';
 import { normalizeTeacherClasses } from '../utils/practicalsSettingsManager';
 import { loadSiteSettings } from '../utils/settingsLoader';
 
-// Helper to quickly check if an email belongs to a teacher/faculty
+// Helper to quickly check if an email belongs strictly to a teacher/faculty
 const isLikelyTeacherEmail = (rawEmail) => {
   const clean = String(rawEmail || '').trim().toLowerCase();
   if (!clean || !clean.includes('@')) return false;
-  // Administrative accounts should never be suggested to switch to Teacher-only tab
-  if (isBootstrapAdminEmail(clean) || isSuperAdminEmail(clean)) return false;
-  if (clean === 'socialshiftz@gmail.com') return true;
-  if (FALLBACK_STAFF_PROFILES[clean]?.isTeacher || FALLBACK_STAFF_PROFILES[clean]?.role === 'Teacher') return true;
-  try {
-    const rawSession = sessionStorage.getItem(`hss_staff_profile_${clean}`);
-    if (rawSession && JSON.parse(rawSession)?.profile?.isTeacher) return true;
-  } catch (_) {}
-  return false;
+  return getStrictCanonicalRole(clean) === ROLES.TEACHER;
 };
 
 // Distinct chromatic theme specifications for each role tab
@@ -324,51 +322,58 @@ export default function LoginPage() {
     const emailLower = String(activeUser?.email || overrideEmail || '').toLowerCase().trim();
     
     // Resolve role from Firestore permissions & users collection & bootstrap (force fresh on login)
-    const isBootstrapAdmin = (activeUser.emailVerified && isBootstrapSuperAdminEmail(emailLower)) || isBootstrapAdminEmail(emailLower);
+    // Resolve role from Firestore permissions & users collection & bootstrap (force fresh on login)
     const staffProfile = cachedStaffProfile || await resolveStaffRoleAndPerms(emailLower, true);
+    const strictRole = getStrictCanonicalRole(emailLower, staffProfile);
 
-    const rawRole = staffProfile?.role || 'Student';
+    if (strictRole === ROLES.SUPER_ADMIN || strictRole === ROLES.STANDARD_ADMIN) {
+      await requireVerifiedAdminSession(activeUser);
+    }
 
-    const role = rawRole.charAt(0).toUpperCase() + rawRole.slice(1);
-    const normalizedRole = role.toLowerCase();
-    if (normalizedRole.includes('admin')) await requireVerifiedAdminSession(activeUser);
+    const isSuper = strictRole === ROLES.SUPER_ADMIN;
+    const isTeacher = strictRole === ROLES.TEACHER;
 
-    const isSuper = (activeUser.emailVerified && isBootstrapSuperAdminEmail(emailLower)) || isSuperAdminEmail(emailLower) || role === 'SuperAdmin';
     const perms = isSuper
       ? ['*']
       : (Array.isArray(staffProfile?.perms) && staffProfile.perms.length > 0)
         ? staffProfile.perms
         : (Array.isArray(claims.permissions) && claims.permissions.length > 0)
           ? claims.permissions
-          : (isBootstrapAdmin ? ['reports'] : []);
+          : (strictRole === ROLES.STANDARD_ADMIN ? ['reports'] : (isTeacher ? ['attendanceMgmt', 'practicals'] : []));
 
     const sessionId = sessionManager.generateSessionId();
     sessionManager.setSessionId(sessionId);
 
-    const assignedClasses = normalizeTeacherClasses(
-      Array.isArray(staffProfile?.assignedClasses)
-        ? staffProfile.assignedClasses
-        : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : [])
-    );
-    const assignedSubjects = Array.isArray(staffProfile?.assignedSubjects) && staffProfile.assignedSubjects.length > 0
-      ? staffProfile.assignedSubjects
-      : (staffProfile?.subject ? String(staffProfile.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+    const cleanClasses = isTeacher
+      ? normalizeTeacherClasses(
+          Array.isArray(staffProfile?.assignedClasses)
+            ? staffProfile.assignedClasses
+            : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : [])
+        )
+      : [];
+    const cleanSubjects = isTeacher
+      ? (Array.isArray(staffProfile?.assignedSubjects) && staffProfile.assignedSubjects.length > 0
+          ? staffProfile.assignedSubjects
+          : (staffProfile?.subject ? String(staffProfile.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []))
+      : [];
 
-    const resolvedUser = {
+    const rawUser = {
       email: emailLower,
       name: staffProfile?.name || activeUser?.displayName || emailLower.split('@')[0],
-      role,
+      role: strictRole,
       perms,
-      subject: staffProfile?.subject || staffProfile?.teachingSubject || '',
-      teachingSubject: staffProfile?.teachingSubject || staffProfile?.subject || '',
-      assignedSubjects,
-      assignedClasses,
-      classSubjectMap: staffProfile?.classSubjectMap || null,
-      tierSubjects: staffProfile?.tierSubjects || null,
+      subject: isTeacher ? (cleanSubjects.join(', ') || staffProfile?.subject || staffProfile?.teachingSubject || '') : '',
+      teachingSubject: isTeacher ? (cleanSubjects.join(', ') || staffProfile?.teachingSubject || staffProfile?.subject || '') : '',
+      assignedSubjects: cleanSubjects,
+      assignedClasses: cleanClasses,
+      classSubjectMap: isTeacher ? (staffProfile?.classSubjectMap || null) : null,
+      tierSubjects: isTeacher ? (staffProfile?.tierSubjects || null) : null,
       mobile: staffProfile?.mobile || '',
       photoURL: activeUser?.photoURL || null,
       uid: activeUser?.uid || 'admin_handshake_auth',
     };
+
+    const resolvedUser = enforceStrictRoleAttributes(rawUser);
 
     if (activeUser?.uid && activeUser.uid !== 'admin_handshake_auth') {
       await sessionManager.registerActiveSessionInCloud(resolvedUser, sessionManager.getDeviceId(), sessionId);
@@ -723,51 +728,44 @@ export default function LoginPage() {
 
       // Authoritatively resolve whether this user is an authorized Staff member
       const staffProfile = await resolveStaffRoleAndPerms(fbUser);
-      const isStaff = !!staffProfile;
-      const assignedRole = staffProfile ? staffProfile.role : 'Student';
-      const assignedPerms = staffProfile ? (staffProfile.perms || []) : [];
-      const isSuper = staffProfile?.isSuperAdmin || staffProfile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
-      const isAdmin = isSuper || staffProfile?.isAdmin || isBootstrapAdminEmail(cleanEmail) || String(staffProfile?.role || '').toLowerCase() === 'admin';
-      const isTeacher = staffProfile?.isTeacher || ['teacher', 'faculty'].includes(String(staffProfile?.role || '').toLowerCase());
+      const strictRole = getStrictCanonicalRole(cleanEmail, staffProfile);
+      const isSuper = strictRole === ROLES.SUPER_ADMIN;
+      const isAdmin = isSuper || strictRole === ROLES.STANDARD_ADMIN;
+      const isTeacher = strictRole === ROLES.TEACHER;
+      const isStaff = isSuper || isAdmin || isTeacher;
 
       // Save demographic profile using UID as document ID without erasing staff roles
       try {
-        const userPayload = {
+        const userPayload = enforceStrictRoleAttributes({
           uid: fbUser.uid,
           email: cleanEmail,
           name: displayName,
           mobile: fbUser.phoneNumber || staffProfile?.mobile || '',
-          role: assignedRole,
-          perms: assignedPerms,
-          subject: staffProfile?.subject || staffProfile?.teachingSubject || '',
-          teachingSubject: staffProfile?.teachingSubject || staffProfile?.subject || '',
-          assignedSubjects: Array.isArray(staffProfile?.assignedSubjects) && staffProfile.assignedSubjects.length > 0
-            ? staffProfile.assignedSubjects
-            : (staffProfile?.subject ? String(staffProfile.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []),
-          assignedClasses: normalizeTeacherClasses(
-            Array.isArray(staffProfile?.assignedClasses)
-              ? staffProfile.assignedClasses
-              : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : [])
-          ),
-          classSubjectMap: staffProfile?.classSubjectMap || null,
-          tierSubjects: staffProfile?.tierSubjects || null,
+          role: strictRole,
+          perms: staffProfile?.perms || (isSuper ? ['*'] : (isTeacher ? ['attendanceMgmt', 'practicals'] : (isAdmin ? ['reports'] : []))),
+          subject: isTeacher ? (staffProfile?.subject || staffProfile?.teachingSubject || '') : '',
+          teachingSubject: isTeacher ? (staffProfile?.teachingSubject || staffProfile?.subject || '') : '',
+          assignedSubjects: isTeacher ? (staffProfile?.assignedSubjects || []) : [],
+          assignedClasses: isTeacher ? (staffProfile?.assignedClasses || []) : [],
+          classSubjectMap: isTeacher ? (staffProfile?.classSubjectMap || null) : null,
+          tierSubjects: isTeacher ? (staffProfile?.tierSubjects || null) : null,
           isStaff,
-          requestedRole: assignedRole,
+          requestedRole: strictRole,
           updatedAt: new Date().toISOString(),
-        };
+        });
         await setDoc(doc(db, 'users', fbUser.uid), userPayload, { merge: true });
       } catch (fsErr) {
         console.warn('Firestore profile sync note:', fsErr);
       }
 
-      // --- 1. TEACHER TAB ACCESS (DIRECT LOGIN, NO ADMIN 2SV) ---
+      // --- 1. TEACHER TAB ACCESS (STRICT SINGLE ROLE) ---
       if (selectedRole === 'teacher') {
-        if (!isTeacher && !isAdmin) {
+        if (!isTeacher) {
           await signOut(auth).catch(() => {});
-          setAlert({
-            type: 'error',
-            text: 'Access Denied: Unauthorized account for Faculty Portal.'
-          });
+          const hint = isAdmin 
+            ? 'Access Denied: This account is registered strictly as Administrator. One email can only have one role. Please use the Admin Login tab.'
+            : 'Access Denied: This account is registered strictly as Student. One email can only have one role.';
+          setAlert({ type: 'error', text: hint });
           setIsLoading(false);
           return;
         }
@@ -780,37 +778,36 @@ export default function LoginPage() {
         return;
       }
 
-      // --- 2. ADMIN TAB / ROLES ---
+      // --- 2. ADMIN TAB / ROLES (STRICT SINGLE ROLE) ---
       if (selectedRole === 'admin' || selectedRole === 'superadmin') {
         if (!isAdmin || (selectedRole === 'superadmin' && !isSuper)) {
           await signOut(auth).catch(() => {});
-          setAlert({
-            type: 'error',
-            text: 'Access Denied: You do not have administrator privileges.'
-          });
+          const hint = isTeacher
+            ? 'Access Denied: This account is registered strictly as Faculty/Teacher. One email can only have one role. Please use the Faculty Login tab.'
+            : 'Access Denied: You do not have administrator privileges.';
+          setAlert({ type: 'error', text: hint });
           setIsLoading(false);
           return;
         }
 
         // Direct entry for all authorized administrative accounts signing in with Google OAuth
-        // (Google OAuth already cryptographically verifies identity and active browser session)
         const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
         verifiedSession.redirectPath = '/portal/admin';
-        const roleLabel = isSuperAdminEmail(cleanEmail) ? 'Super Admin' : (verifiedSession.user.name || 'Administrator');
+        const roleLabel = isSuper ? 'Super Admin' : (verifiedSession.user.name || 'Administrator');
         setAlert({ type: 'success', text: `Welcome back, ${roleLabel}! Unlocking Admin Portal...` });
         onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
       }
 
-      // --- 3. STUDENT TAB (DEFAULT) ---
+      // --- 3. STUDENT TAB (DEFAULT / AUTO-ROUTE STRICT ROLE) ---
       const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
       if (isAdmin) {
         verifiedSession.redirectPath = '/portal/admin';
-        setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Admin Portal...` });
+        setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Administrator. Redirecting to Admin Portal...` });
       } else if (isTeacher) {
         incrementTeacherLoginCount(cleanEmail).catch(() => {});
         verifiedSession.redirectPath = '/portal/teacher';
-        setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
+        setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Faculty/Teacher. Redirecting to Teacher Portal...` });
       } else {
         verifiedSession.redirectPath = '/portal/student';
         setAlert({ type: 'success', text: 'Login successful! Redirecting to Student Portal...' });
@@ -908,9 +905,10 @@ export default function LoginPage() {
       
       // 2. Resolve account profile from Firestore (configured strictly by Super Admin)
       const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
-      const isSuper = staffProfile?.isSuperAdmin || staffProfile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
-      const isAdmin = isSuper || staffProfile?.isAdmin || isBootstrapAdminEmail(cleanEmail) || String(staffProfile?.role || '').toLowerCase() === 'admin';
-      const isTeacher = staffProfile?.isTeacher || ['teacher', 'faculty'].includes(String(staffProfile?.role || '').toLowerCase()) || Boolean(staffProfile?.subject || staffProfile?.teachingSubject);
+      const strictRole = getStrictCanonicalRole(cleanEmail, staffProfile);
+      const isSuper = strictRole === ROLES.SUPER_ADMIN;
+      const isAdmin = isSuper || strictRole === ROLES.STANDARD_ADMIN;
+      const isTeacher = strictRole === ROLES.TEACHER;
 
       // 3. STRICT TAB & ROLE ACCESS CONTROL
 
@@ -918,10 +916,10 @@ export default function LoginPage() {
       if (selectedRole === 'admin' || selectedRole === 'superadmin') {
         if (!isAdmin || (selectedRole === 'superadmin' && !isSuper)) {
           await signOut(auth).catch(() => {});
-          setAlert({
-            type: 'error',
-            text: 'Access Denied: You do not have administrator privileges.'
-          });
+          const hint = isTeacher
+            ? 'Access Denied: This account is registered strictly as Faculty/Teacher. One email can only hold one role. Please use the Faculty Login tab.'
+            : 'Access Denied: You do not have administrator privileges.';
+          setAlert({ type: 'error', text: hint });
           setIsLoading(false);
           return;
         }
@@ -944,14 +942,14 @@ export default function LoginPage() {
         return;
       }
 
-      // --- TEACHER TAB ACCESS ---
+      // --- TEACHER TAB ACCESS (STRICT SINGLE ROLE) ---
       if (selectedRole === 'teacher') {
-        if (!isTeacher && !isAdmin) {
+        if (!isTeacher) {
           await signOut(auth).catch(() => {});
-          setAlert({
-            type: 'error',
-            text: 'Access Denied: Unauthorized account for Faculty Portal.'
-          });
+          const hint = isAdmin
+            ? 'Access Denied: This account is registered strictly as Administrator. One email can only hold one role. Please switch to the Admin Login tab.'
+            : 'Access Denied: Unauthorized account for Faculty Portal. One email can only hold one role.';
+          setAlert({ type: 'error', text: hint });
           setIsLoading(false);
           return;
         }
@@ -971,7 +969,7 @@ export default function LoginPage() {
         verifiedSession.redirectPath = '/portal/admin';
         setAlert({ 
           type: 'success', 
-          text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Admin Portal...` 
+          text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Administrator. Redirecting to Admin Portal...` 
         });
         onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
@@ -984,7 +982,7 @@ export default function LoginPage() {
         verifiedSession.redirectPath = '/portal/teacher';
         setAlert({ 
           type: 'success', 
-          text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` 
+          text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Faculty/Teacher. Redirecting to Teacher Portal...` 
         });
         onLoginSuccess(verifiedSession, keepLoggedIn);
         return;

@@ -6,7 +6,7 @@ import PublicPageSkeleton from './components/PublicPageSkeleton';
 import SEOHead from './components/SEOHead';
 import GlobalToast from './components/common/GlobalToast';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
-import { isBootstrapSuperAdminEmail } from './utils/authRoles';
+import { isBootstrapSuperAdminEmail, ROLES, getStrictCanonicalRole } from './utils/authRoles';
 import Home from './pages/Home';
 import './styles/ui-system.css';
 
@@ -61,7 +61,8 @@ function ScrollToTop() {
 // ---------------------------------------------------------------------------
 // RoleGuard — protects portal sub-routes based on authenticated user role.
 // Reads the session from PortalLayout's Outlet context.
-// If the user's role doesn't match, they are redirected to their own dashboard.
+// Strictly enforces that each email belongs to ONE and ONLY ONE role:
+// Student, Teacher, Standard Admin, or Super Admin.
 // ---------------------------------------------------------------------------
 function RoleGuard({ allowedRoles, children }) {
   const { user, isAuthenticated } = useOutletContext();
@@ -71,34 +72,29 @@ function RoleGuard({ allowedRoles, children }) {
   }
 
   const emailLower = String(user.email || '').toLowerCase().trim();
-  const isSuper = isBootstrapSuperAdminEmail(emailLower);
+  const strictRole = getStrictCanonicalRole(emailLower, user);
 
-  // Bootstrap SuperAdmins are unconditionally permitted in Admin & Teacher Portals
-  if (isSuper) {
-    if (allowedRoles.includes('admin') || allowedRoles.includes('teacher')) {
-      return children;
-    }
-    // If a superadmin wanders into a student-only route, redirect to admin
-    if (allowedRoles.includes('student')) {
-      return <Navigate to="/portal/admin" replace />;
-    }
+  // Authoritative target portal area for this exact single role
+  let userArea = 'student';
+  if (strictRole === ROLES.SUPER_ADMIN || strictRole === ROLES.STANDARD_ADMIN) {
+    userArea = 'admin';
+  } else if (strictRole === ROLES.TEACHER) {
+    userArea = 'teacher';
+  } else {
+    userArea = 'student';
   }
 
-  const role = String(user.role || '').toLowerCase().trim();
-
-  // Flexible role matching to prevent flash on hard refresh
-  const allowed = allowedRoles.some((r) => {
+  // Check if current route permits this exact strict role
+  const isAllowed = allowedRoles.some((r) => {
     const normR = String(r).toLowerCase().trim();
-    if (normR === 'admin') return portalArea(role) === 'admin' || isSuper;
-    if (normR === 'teacher') return portalArea(role) === 'teacher' || portalArea(role) === 'admin' || isSuper;
-    if (normR === 'student') return portalArea(role) === 'student';
-    return role === normR;
+    if (normR === 'admin') return strictRole === ROLES.SUPER_ADMIN || strictRole === ROLES.STANDARD_ADMIN;
+    if (normR === 'teacher') return strictRole === ROLES.TEACHER;
+    if (normR === 'student') return strictRole === ROLES.STUDENT;
+    return strictRole.toLowerCase() === normR;
   });
 
-  if (!allowed) {
-    const area = isSuper ? 'admin' : portalArea(role);
-    const dest = area ? `/portal/${area}` : '/portal/login';
-    return <Navigate to={dest} replace />;
+  if (!isAllowed) {
+    return <Navigate to={`/portal/${userArea}`} replace />;
   }
 
   return children;

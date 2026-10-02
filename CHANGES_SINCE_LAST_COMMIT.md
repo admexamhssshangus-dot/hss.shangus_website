@@ -1,52 +1,89 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(overwrite): add out-of-cohort explanation banner and 1-click cohort scope aligner`
+- **Commit Message**: `fix(auth): strictly enforce mutually exclusive single role per email across portal and firestore`
 - **Date**: October 02, 2026
-- **Status**: Production Build Passed (`Exit Code 0`), verified locally.
+- **Status**: Production Build Passed (`Exit Code 0`), Firebase Security Rules Deployed (`Exit Code 0`), verified locally.
 
 ---
 
-## Why "Out of Cohort" Appeared
+## Architectural Purpose: Strict Single Institutional Role per Email
 
-### Explanation:
-1. **Target Cohort Scope**:
-   - In Step 1 of **Express Direct Record Entry -> Bulk Overwrite**, the default Target Cohort scope is configured for Senior Secondary classes: **Class 11th and 12th**.
-2. **Universal Database Cross-Match**:
-   - When an Excel spreadsheet containing **Class 10th (Session 2025-26)** students was uploaded without changing the initial class selector on Step 1, the system initially looked for these students within Class 11th and 12th.
-   - Finding no matching records in Class 11th/12th, the matching engine automatically ran an institution-wide **Universal Database Cross-Match** across all classes using their unique **Board Registration Numbers** (`2501010000610001...`).
-   - The engine successfully matched and verified all 59 students in **Class 10th (Session 2025-26)**.
-3. **Safety Warning (`⚠️ Out of Cohort`)**:
-   - To protect institutional data from accidental cross-class overwrites (e.g. accidentally overwriting Class 10th records when the user intended to update Class 11th), the engine tags these records with `⚠️ Out of Cohort`.
-4. **Overwrite Status**:
-   - The badge is informational and protective—it does **not** block the update. All 59 students were pre-selected (`59 Ready for Overwrite`), with diffs computed (`Exam Roll No. (Board): — → 101061058`), ready for commit.
+### 4 Strictly Mutually Exclusive Roles:
+1. **Super Admin (`SuperAdmin`)**:
+   - Master institutional administrator (`adm.exam.hss.shangus@gmail.com`).
+   - Root privilege across administrative tools and security rules.
+2. **Standard Admin (`Admin`)**:
+   - Institutional administrators with specific modular permissions (`BOOTSTRAP_ADMINS` or explicitly assigned `Admin`).
+   - Strictly isolated from Teacher/Educator attributes (cannot hold assigned classes or teaching subjects).
+3. **Teacher (`Teacher`)**:
+   - Faculty & educators exclusively focused on educational modules, attendance, and practical evaluations.
+   - Strictly denied administrative role/access (`isAdmin = false`, cannot enter Admin portal, cannot evaluate as admin).
+4. **Student (`Student`)**:
+   - Students & applicants exclusively focused on admissions, admit cards, and student services.
+   - Strictly denied teacher/staff privileges (`isAdmin = false`, `isTeacher = false`, `isStaff = false`).
+
+Zero dual-role leaking or role stacking is permitted: an email evaluates to one and only one canonical role everywhere.
 
 ---
 
-## Files Changed & UI Enhancements
+## Files Changed & Enhancements
 
-### 1. `src/portal/admin/BulkFieldOverwriteModal.jsx`
-- **Detected Out-of-Cohort Summary Aggregator**:
-  - Dynamically calculates the distinct classes (e.g., `Class 10th`) and academic sessions (e.g., `2025-26`) across all matched out-of-cohort records.
-- **Informative Scope Notice Banner**:
-  - Renders a prominent, styled banner above the diff table whenever out-of-cohort records are detected.
-  - Clearly explains that the uploaded file students belong to the detected class (e.g., Class 10th) while the upload filter was set to Class 11th/12th.
-  - Informs the administrator that all records are cross-matched, verified, and ready for overwrite.
-- **1-Click "Align Cohort Scope" Action Button**:
-  - Provides a one-click button in the banner that automatically:
-    1. Sets `selectedClasses` and `selectedSessions` to match the detected students (`Class 10th`, `2025-26`).
-    2. Persists the selection to `sessionStorage` (`hss_last_selected_classes`, `hss_last_selected_sessions`).
-    3. Clears the `isOutOfCohort` warning flags from the preview table in real-time.
-    4. Automatically updates the toolbar statistics (`59 Ready for Overwrite`, `0 Out of Cohort`).
-    5. Displays a success toast notification confirming the alignment.
+### 1. `src/utils/authRoles.js`
+- Added canonical `ROLES` enumeration (`SUPER_ADMIN`, `STANDARD_ADMIN`, `TEACHER`, `STUDENT`).
+- Added `isStandardAdminEmail(email)` to isolate standard admins from the super administrator.
+- Added `getStrictCanonicalRole(email, profile)` to authoritatively determine the exact single role.
+- Added `enforceStrictRoleAttributes(userOrProfile)` guaranteeing mutually exclusive flags (`isSuperAdmin`, `isAdmin`, `isTeacher`, `isStudent`, `isStaff`) and clearing teacher-specific attributes from non-teacher accounts.
+
+### 2. `src/services/staffAuthService.js`
+- Updated fallback staff profiles with explicit, mutually exclusive role attributes.
+- Refactored `resolveStaffRoleAndPerms` to strictly resolve canonical single roles without dual-flagging.
+- Updated `createStaffAccount` and `updateStaffAccount` to strictly enforce role properties and clear teacher attributes for standard admins.
+
+### 3. `src/portal/LoginPage.jsx`
+- Updated `createVerifiedSession` and role resolution to enforce canonical single roles.
+- Enhanced `handleGoogleSignIn` and `handleEmailPasswordSignIn` with strict portal cross-checks:
+  - **Teacher Tab**: Strictly rejects non-teachers with clear, descriptive alerts.
+  - **Admin Tab**: Strictly requires standard admin or super admin privileges; rejects teachers or students.
+  - **Student Tab**: Automatically detects staff/teacher emails and redirects them to their proper dedicated portals without creating invalid student sessions.
+
+### 4. `src/portal/RegisterPage.jsx`
+- Added pre-registration check preventing any staff email (`SuperAdmin`, `Admin`, `Teacher`) from registering a conflicting Student account.
+- Handled Google Sign-Up for staff emails by redirecting them directly to their appropriate dashboard instead of overwriting staff profiles.
+
+### 5. `src/App.js`
+- Upgraded `RoleGuard` to enforce strict canonical role validation:
+  - Admins (Standard & Super) can access `/portal/admin` only.
+  - Teachers can access `/portal/teacher` only (Admins can no longer access Teacher portal).
+  - Students can access `/portal/student` only.
+  - Unauthorized role navigation triggers automatic redirection to the user's canonical portal.
+
+### 6. `src/portal/teacher/TeacherDashboard.jsx`
+- Removed the "Admin & Educator" badge, admin portal switcher link, and administrator guidance banner to ensure a clean, purely faculty-focused workspace.
+
+### 7. `src/portal/admin/StaffPermissionsManager.jsx`
+- Updated `handleApplyPermissions` and `handleSaveAdminForm` to enforce strict role attributes.
+- Prevented assigning teacher subjects/classes to standard admin accounts, keeping administrative accounts cleanly separated from educator attributes.
+
+### 8. `firestore.rules`
+- Cleaned up role helper functions (`isSuperAdmin`, `isStandardAdmin`, `isAdmin`, `isTeacher`, `isStudent`):
+  - `isSuperAdmin()`: strictly checks for master super admin.
+  - `isStandardAdmin()`: strictly checks for standard admin identity while enforcing `!isSuperAdmin()`.
+  - `isAdmin()`: `isSuperAdmin() || isStandardAdmin()`.
+  - `isTeacher()`: strictly checks faculty identity while enforcing `!isAdmin()`.
+  - `isStudent()`: strictly checks authenticated identity while enforcing `!isAdmin() && !isTeacher()`.
+- Updated collection rules (`attendance`, `holidays`, `adminPracticalsSettings`, `generatedDocumentHistory`, `documentHistory`) to allow admin permissions explicitly where required without conflating admins with teachers.
+- Successfully deployed to Firebase (`npm run deploy:rules`).
 
 ---
 
 ## Verification & Build Details
-- Production build executed with `npm run build`:
-  - Result: `Exit Code 0`
-  - Zero breaking errors or bundle defects.
-  - Search pages & SEO regression checks all passed.
+1. **Firebase Security Rules**:
+   - `npm run deploy:rules` -> `Exit Code 0`
+   - Rules compiled and released to cloud.firestore.
+2. **Production Build**:
+   - `npm run build` -> `Exit Code 0`
+   - Static pages generated, SEO regression check passed.
 
 ---
 
@@ -58,15 +95,17 @@ To inspect the local commit:
 git log -n 1 --stat
 ```
 
-### 2. Amend / Re-commit (Optional)
-If you wish to modify or amend the commit:
+### 2. Manually Amend / Re-commit (Optional)
+If you wish to adjust the commit message or files before pushing:
 ```bash
 git reset --soft HEAD~1
-git commit -m "<Your custom commit message>"
+# Make desired changes
+git add .
+git commit -m "fix(auth): strictly enforce mutually exclusive single role per email across portal and firestore"
 ```
 
-### 3. Push to Remote Repository
-As per project safety policies, automatic `git push` is never run by the assistant. When you are ready, please run:
+### 3. Push to Remote Repository (Manual Action)
+As per institutional policy, the assistant never pushes to remote repositories:
 ```bash
 git push origin main
 ```

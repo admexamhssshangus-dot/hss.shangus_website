@@ -18,6 +18,12 @@ import {
   getIdTokenResult 
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
+import { 
+  ROLES, 
+  getStrictCanonicalRole, 
+  enforceStrictRoleAttributes 
+} from '../utils/authRoles';
+import { resolveStaffRoleAndPerms } from '../services/staffAuthService';
 
 export default function RegisterPage() {
   const { onLoginSuccess } = useOutletContext();
@@ -86,6 +92,19 @@ export default function RegisterPage() {
       return;
     }
 
+    // Strict Institutional Rule: One email can hold ONE role only.
+    // Prevent registering student account with an existing Staff/Faculty/Admin email
+    const staffProfile = await resolveStaffRoleAndPerms(cleanEmail).catch(() => null);
+    const existingStrictRole = getStrictCanonicalRole(cleanEmail, staffProfile);
+    if (existingStrictRole !== ROLES.STUDENT) {
+      const roleName = existingStrictRole === ROLES.SUPER_ADMIN ? 'Super Administrator' : (existingStrictRole === ROLES.STANDARD_ADMIN ? 'Administrator' : 'Faculty/Teacher');
+      setAlert({
+        type: 'error',
+        text: `Institutional Rule: ${cleanEmail} is assigned strictly as ${roleName}. Each email can hold one role only. Please sign in via the Staff Portal.`
+      });
+      return;
+    }
+
     setIsLoading(true);
     setAlert(null);
 
@@ -100,16 +119,16 @@ export default function RegisterPage() {
       });
 
       // 3. Save user demographic profile to Firestore using UID as document ID
-      // NOTE: Email verification is available on-demand inside the portal to preserve daily quotas.
-      const userData = {
+      const userData = enforceStrictRoleAttributes({
         uid: fbUser.uid,
         email: cleanEmail,
         name: cleanName,
         mobile: cleanMobile,
-        requestedRole: 'Student',
+        role: ROLES.STUDENT,
+        requestedRole: ROLES.STUDENT,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      };
+      });
 
       try {
         await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
@@ -122,7 +141,7 @@ export default function RegisterPage() {
       const userSession = {
         email: cleanEmail,
         name: cleanName,
-        role: 'Student',
+        role: ROLES.STUDENT,
         uid: fbUser.uid,
         photoURL: fbUser.photoURL || null,
         perms: [],
@@ -167,16 +186,34 @@ export default function RegisterPage() {
       const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
       const displayName = fbUser.displayName || cleanEmail.split('@')[0];
 
+      // Check if this email belongs to a strict staff role
+      const staffProfile = await resolveStaffRoleAndPerms(fbUser).catch(() => null);
+      const strictRole = getStrictCanonicalRole(cleanEmail, staffProfile);
+
+      if (strictRole !== ROLES.STUDENT) {
+        // Redirect immediately to their single strict portal
+        const targetPath = (strictRole === ROLES.TEACHER) ? '/portal/teacher' : '/portal/admin';
+        setAlert({
+          type: 'success',
+          text: `Welcome, ${displayName}! Your account is registered strictly as ${strictRole}. Redirecting to your dashboard...`
+        });
+        setTimeout(() => {
+          navigate(targetPath, { replace: true });
+        }, 500);
+        return;
+      }
+
       // Save demographic profile using UID in Firestore
-      const userData = {
+      const userData = enforceStrictRoleAttributes({
         uid: fbUser.uid,
         email: cleanEmail,
         name: displayName,
         mobile: fbUser.phoneNumber || '',
-        requestedRole: 'Student',
+        role: ROLES.STUDENT,
+        requestedRole: ROLES.STUDENT,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      };
+      });
       try {
         await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
       } catch (fsErr) {
@@ -187,10 +224,10 @@ export default function RegisterPage() {
       const userSession = {
         email: cleanEmail,
         name: displayName,
-        role: tokenResult.claims?.role || 'Student',
+        role: ROLES.STUDENT,
         uid: fbUser.uid,
         photoURL: fbUser.photoURL || null,
-        perms: tokenResult.claims?.permissions || [],
+        perms: [],
       };
 
       setAlert({ type: 'success', text: 'Google sign-in successful! Entering Student Portal...' });

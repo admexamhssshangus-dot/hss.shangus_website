@@ -26,6 +26,11 @@ import {
   normalizeSubjectIdentity,
   isTeacherSubjectMatch
 } from '../../utils/practicalsSettingsManager';
+import {
+  ROLES,
+  getStrictCanonicalRole,
+  enforceStrictRoleAttributes
+} from '../../utils/authRoles';
 
 export const ALL_ADMIN_MODULES = ADMIN_MODULE_CATALOG.map(module => ({
   code: module.id,
@@ -430,13 +435,20 @@ export default function StaffPermissionsManager() {
     try {
       const sanitizedList = listToSave.map((account) => {
         const clean = String(account.email || '').trim().toLowerCase();
-        if (clean === 'adm.exam.hss.shangus@gmail.com') {
-          return { ...account, role: 'SuperAdmin', perms: ALL_ADMIN_MODULES.map(m => m.code) };
-        }
-        return {
+        const strictRole = getStrictCanonicalRole(clean, account);
+        const isSuper = strictRole === ROLES.SUPER_ADMIN;
+        const isTeacher = strictRole === ROLES.TEACHER;
+
+        return enforceStrictRoleAttributes({
           ...account,
-          role: account.role === 'SuperAdmin' ? 'Admin' : (account.role || 'Admin'),
-        };
+          email: clean,
+          role: strictRole,
+          perms: isSuper ? ALL_ADMIN_MODULES.map(m => m.code) : (account.perms || (isTeacher ? ['attendanceMgmt', 'practicals'] : ['reports'])),
+          subject: isTeacher ? (account.subject || '') : '',
+          teachingSubject: isTeacher ? (account.teachingSubject || '') : '',
+          assignedSubjects: isTeacher ? (account.assignedSubjects || []) : [],
+          assignedClasses: isTeacher ? (account.assignedClasses || []) : [],
+        });
       });
 
       // Save to adminSettings/permissions
@@ -450,29 +462,21 @@ export default function StaffPermissionsManager() {
       await Promise.all(sanitizedList.map(async (account) => {
         const cleanEmail = String(account.email || '').trim().toLowerCase();
         if (!cleanEmail) return;
-        const isSuper = cleanEmail === 'adm.exam.hss.shangus@gmail.com';
-        const cleanClasses = Array.isArray(account.assignedClasses)
-          ? account.assignedClasses.filter(Boolean)
-          : (account.assignedClasses ? [account.assignedClasses] : []);
-        const cleanSubjects = Array.isArray(account.assignedSubjects) && account.assignedSubjects.length > 0
-          ? account.assignedSubjects.filter(Boolean)
-          : (account.subject ? String(account.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
-        const primarySubj = cleanSubjects.join(', ') || account.subject || '';
 
         try {
-          await setDoc(doc(db, 'users', cleanEmail), {
+          await setDoc(doc(db, 'users', cleanEmail), enforceStrictRoleAttributes({
             name: account.name,
             email: cleanEmail,
-            role: isSuper ? 'SuperAdmin' : (account.role || 'Admin'),
+            role: account.role,
             designation: account.designation || '',
-            perms: isSuper ? ALL_ADMIN_MODULES.map(m => m.code) : (account.perms || []),
-            subject: primarySubj,
-            teachingSubject: primarySubj,
-            assignedSubjects: cleanSubjects,
-            assignedClasses: cleanClasses,
+            perms: account.perms || [],
+            subject: account.subject || '',
+            teachingSubject: account.teachingSubject || '',
+            assignedSubjects: account.assignedSubjects || [],
+            assignedClasses: account.assignedClasses || [],
             mobile: account.mobile || '',
             updatedAt: new Date().toISOString(),
-          }, { merge: true });
+          }), { merge: true });
         } catch (syncErr) {
           console.warn(`Sync user ${cleanEmail} note:`, syncErr);
         }
@@ -616,13 +620,20 @@ export default function StaffPermissionsManager() {
       return;
     }
 
-    const cleanClasses = normalizeTeacherClasses(adminForm.assignedClasses);
-    const cleanSubjects = Array.isArray(adminForm.assignedSubjects) && adminForm.assignedSubjects.length > 0
-      ? adminForm.assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
-      : (adminForm.subject ? String(adminForm.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+    const cleanEmail = adminForm.email.trim().toLowerCase();
+    const isTeacherRole = adminForm.role === 'Teacher';
+    const isSuperTarget = cleanEmail === 'adm.exam.hss.shangus@gmail.com';
+    const resolvedRole = isSuperTarget ? 'SuperAdmin' : (isTeacherRole ? 'Teacher' : 'Admin');
+
+    const cleanClasses = isTeacherRole ? normalizeTeacherClasses(adminForm.assignedClasses) : [];
+    const cleanSubjects = isTeacherRole
+      ? (Array.isArray(adminForm.assignedSubjects) && adminForm.assignedSubjects.length > 0
+          ? adminForm.assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
+          : (adminForm.subject ? String(adminForm.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []))
+      : [];
     const primarySubject = cleanSubjects.join(', ');
 
-    if (adminForm.role === 'Teacher' && cleanSubjects.length === 0) {
+    if (isTeacherRole && cleanSubjects.length === 0) {
       setModalError('Please select or add at least one Assigned Teaching Subject for this faculty member.');
       return;
     }
@@ -630,31 +641,28 @@ export default function StaffPermissionsManager() {
       setModalError('Password must be at least 6 characters long.');
       return;
     }
-    const cleanEmail = adminForm.email.trim().toLowerCase();
     setSaving(true);
 
-    const tierSubjects = adminForm.tierSubjects || { '9th-10th': [], '11th-12th': [] };
-    const classSubjectMap = {};
-    cleanClasses.forEach(cls => {
-      const isSec = cls === '9th' || cls === '10th';
-      const tierKey = isSec ? '9th-10th' : '11th-12th';
-      const tierSubs = Array.isArray(tierSubjects[tierKey]) && tierSubjects[tierKey].length > 0
-        ? tierSubjects[tierKey]
-        : cleanSubjects.filter(sub => {
-            const norm = normalizeSubjectIdentity(sub);
-            if (isSec && norm?.code === 'SC') return true;
-            if (!isSec && norm?.code === 'ES') return true;
-            return isSec ? SECONDARY_SUBJECTS_LIST.includes(sub) : HIGHER_SECONDARY_SUBJECTS_LIST.includes(sub);
-          });
-      classSubjectMap[cls] = tierSubs;
-    });
+    const tierSubjects = isTeacherRole ? (adminForm.tierSubjects || { '9th-10th': [], '11th-12th': [] }) : null;
+    const classSubjectMap = isTeacherRole ? {} : null;
+    if (isTeacherRole) {
+      cleanClasses.forEach(cls => {
+        const isSec = cls === '9th' || cls === '10th';
+        const tierKey = isSec ? '9th-10th' : '11th-12th';
+        const tierSubs = Array.isArray(tierSubjects[tierKey]) && tierSubjects[tierKey].length > 0
+          ? tierSubs[tierKey]
+          : cleanSubjects.filter(sub => {
+              const norm = normalizeSubjectIdentity(sub);
+              if (isSec && norm?.code === 'SC') return true;
+              if (!isSec && norm?.code === 'ES') return true;
+              return isSec ? SECONDARY_SUBJECTS_LIST.includes(sub) : HIGHER_SECONDARY_SUBJECTS_LIST.includes(sub);
+            });
+        classSubjectMap[cls] = tierSubs;
+      });
+    }
 
     try {
       if (editingAdminEmail) {
-        const resolvedRole = cleanEmail === 'adm.exam.hss.shangus@gmail.com' 
-          ? 'SuperAdmin' 
-          : (adminForm.role === 'Teacher' ? 'Teacher' : 'Admin');
-
         await updateStaffAccount({
           oldEmail: editingAdminEmail,
           newEmail: cleanEmail,
@@ -674,7 +682,7 @@ export default function StaffPermissionsManager() {
 
         const updated = adminUsers.map((u) =>
           u.email.toLowerCase() === editingAdminEmail.toLowerCase()
-            ? { 
+            ? enforceStrictRoleAttributes({ 
                 ...u, 
                 name: adminForm.name.trim(), 
                 email: cleanEmail, 
@@ -687,7 +695,7 @@ export default function StaffPermissionsManager() {
                 tierSubjects,
                 classSubjectMap,
                 mobile: adminForm.mobile
-              }
+              })
             : u
         );
         setAdminUsers(updated);
@@ -705,10 +713,6 @@ export default function StaffPermissionsManager() {
           setSaving(false);
           return;
         }
-
-        const resolvedRole = cleanEmail === 'adm.exam.hss.shangus@gmail.com' 
-          ? 'SuperAdmin' 
-          : (adminForm.role === 'Teacher' ? 'Teacher' : 'Admin');
 
         const res = await createStaffAccount({
           name: adminForm.name,
@@ -728,7 +732,7 @@ export default function StaffPermissionsManager() {
 
         const updated = [
           ...adminUsers,
-          { 
+          enforceStrictRoleAttributes({ 
             name: adminForm.name.trim(), 
             email: cleanEmail, 
             role: resolvedRole, 
@@ -740,7 +744,7 @@ export default function StaffPermissionsManager() {
             tierSubjects,
             classSubjectMap,
             mobile: adminForm.mobile
-          }
+          })
         ];
         setAdminUsers(updated);
         setShowAdminModal(false);

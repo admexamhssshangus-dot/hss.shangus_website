@@ -45,34 +45,33 @@ service cloud.firestore {
         'socialshiftz@gmail.com'
       ]) && staffProfile().get('active', true) == true;
     }
-    function isBootstrapAdmin() {
-      return verifiedStaffIdentity() && authEmail() in [
-        'adm.exam.hss.shangus@gmail.com',
-        'e.educational.24@gmail.com',
-        'ghssshangus74@gmail.com',
-        'majidhassannajar@gmail.com',
-        'bilalhcu@gmail.com',
-        'shahnawaz13678@gmail.com',
-        'shahnawaz@gmail.com'
-      ];
-    }
-    function isAdmin() {
-      return isAuthenticated() && (
-        isBootstrapAdmin() ||
-        normalizedRole() in ['admin', 'superadmin'] ||
-        staffProfile().get('role', '') in ['Admin', 'SuperAdmin', 'admin', 'superadmin'] ||
-        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
-         get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['Admin', 'SuperAdmin', 'admin', 'superadmin'])
-      );
-    }
     function isSuperAdmin() {
       return isAuthenticated() && (
-        isBootstrapAdmin() ||
-        normalizedRole() in ['superadmin'] ||
+        authEmail() == 'adm.exam.hss.shangus@gmail.com' ||
+        normalizedRole() == 'superadmin' ||
         staffProfile().get('role', '') in ['SuperAdmin', 'superadmin'] ||
         (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
          get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['SuperAdmin', 'superadmin'])
       );
+    }
+    function isStandardAdmin() {
+      return isAuthenticated() && !isSuperAdmin() && (
+        (verifiedStaffIdentity() && authEmail() in [
+          'e.educational.24@gmail.com',
+          'ghssshangus74@gmail.com',
+          'majidhassannajar@gmail.com',
+          'bilalhcu@gmail.com',
+          'shahnawaz13678@gmail.com',
+          'shahnawaz@gmail.com'
+        ]) ||
+        normalizedRole() in ['admin', 'administrator'] ||
+        staffProfile().get('role', '') in ['Admin', 'admin', 'administrator'] ||
+        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
+         get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['Admin', 'admin', 'administrator'])
+      );
+    }
+    function isAdmin() {
+      return isSuperAdmin() || isStandardAdmin();
     }
     function canUseAny(modules) {
       let profile = staffProfile();
@@ -84,17 +83,20 @@ service cloud.firestore {
       );
     }
     function canUse(module) { return canUseAny([module]); }
-    function isFaculty() {
-      return isAuthenticated() && (
+    function isTeacher() {
+      return isAuthenticated() && !isAdmin() && (
+        (verifiedStaffIdentity() && authEmail() in [
+          'socialshiftz@gmail.com',
+          'hajimir91@gmail.com'
+        ]) ||
         normalizedRole() in ['teacher', 'faculty'] ||
         staffProfile().get('role', '') in ['Teacher', 'Faculty', 'teacher', 'faculty'] ||
         (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
          get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['Teacher', 'Faculty', 'teacher', 'faculty'])
       );
     }
-    function isTeacher() { return isFaculty() || isAdmin(); }
     function canReadStudents() {
-      return isFaculty() || isSuperAdmin() || canUseAny([
+      return isTeacher() || isSuperAdmin() || canUseAny([
         'reports', 'admRegisterSuite', 'customRoster', 'certStudio', 'idCards', 'rollNo', 'practicals', 'attendanceMgmt', 'funds', 'controls', 'gkTest',
         'mergeStudio', 'boardSync', 'accounts', 'cms', 'quickCellEdit', 'analyticsReports', 'directEntryAction', 'bulkToolsAction'
       ]);
@@ -124,10 +126,7 @@ service cloud.firestore {
     }
 
     function isStudent() {
-      return isAuthenticated() && (
-        normalizedRole() in ['student', 'user', ''] ||
-        isTeacher()
-      );
+      return isAuthenticated() && !isAdmin() && !isTeacher();
     }
 
     function isOwner(userId) {
@@ -490,8 +489,8 @@ service cloud.firestore {
     }
 
     match /attendance/{documentId} {
-      allow read: if isTeacher();
-      allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
+      allow read: if isTeacher() || canUse('attendanceMgmt');
+      allow create, update: if (isTeacher() || canUse('attendanceMgmt')) && validStaffDocument(request.resource.data);
       allow delete: if canUse('attendanceMgmt');
     }
 
@@ -562,7 +561,7 @@ service cloud.firestore {
 
     match /holidays/{documentId} {
       allow read: if isAuthenticated();
-      allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
+      allow create, update: if (isTeacher() || canUse('attendanceMgmt')) && validStaffDocument(request.resource.data);
       allow delete: if canUse('attendanceMgmt');
     }
 
@@ -598,8 +597,8 @@ service cloud.firestore {
     }
 
     match /adminPracticalsSettings/{documentId} {
-      allow get: if documentId == 'config' || isTeacher();
-      allow list: if isTeacher();
+      allow get: if documentId == 'config' || isTeacher() || canUse('practicals');
+      allow list: if isTeacher() || canUse('practicals');
       allow create, update: if canUse('practicals') && hasNoCredentialFields(request.resource.data);
       allow delete: if canUse('practicals');
     }
@@ -611,14 +610,14 @@ service cloud.firestore {
     }
 
     match /generatedDocumentHistory/{documentId} {
-      allow read: if isTeacher();
-      allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
+      allow read: if isTeacher() || canUseAny(['officialLetter', 'accounts']) || isSuperAdmin();
+      allow create, update: if (isTeacher() || canUseAny(['officialLetter', 'accounts']) || isSuperAdmin()) && validStaffDocument(request.resource.data);
       allow delete: if canUseAny(['officialLetter', 'accounts']) || isSuperAdmin();
     }
 
     match /documentHistory/{documentId} {
-      allow read: if isTeacher();
-      allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
+      allow read: if isTeacher() || canUseAny(['officialLetter', 'accounts', 'certStudio']) || isSuperAdmin();
+      allow create, update: if (isTeacher() || canUseAny(['officialLetter', 'accounts', 'certStudio']) || isSuperAdmin()) && validStaffDocument(request.resource.data);
       allow delete: if canUseAny(['officialLetter', 'accounts', 'certStudio']) || isSuperAdmin();
     }
 
