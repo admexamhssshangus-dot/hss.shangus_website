@@ -183,6 +183,7 @@ export default function AnalyticsSuiteModal({
   isOpen = true,
   onClose,
   isPage = false,
+  initialMode = 'enrollment',
   students = [],
   allStudents = [],
   historicalRecords = [],
@@ -193,7 +194,13 @@ export default function AnalyticsSuiteModal({
   onDataUpdated
 }) {
   // Filter States matching the user's reference layout
-  const [analysisMode, setAnalysisMode] = useState('enrollment'); // Default: 'enrollment' (Class Enrollment Summary)
+  const [analysisMode, setAnalysisMode] = useState(initialMode || 'enrollment'); // Default: 'enrollment' (Class Enrollment Summary)
+
+  useEffect(() => {
+    if (initialMode) {
+      setAnalysisMode(initialMode);
+    }
+  }, [initialMode]);
   const [selectedSessions, setSelectedSessions] = useState([]); // Default: All sessions
   const [selectedClasses, setSelectedClasses] = useState([]);
   const [selectedGenders, setSelectedGenders] = useState([]);

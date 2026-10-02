@@ -84,25 +84,13 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     id: 'analyticsReports',
     label: 'Analytics & Statistical Reports Suite',
     shortLabel: 'Analytics',
-    description: 'Class enrollment analysis, stream intake metrics, gender breakdown, and subject distribution across all academic sessions',
+    description: 'Class enrollment analysis, stream intake metrics, gender breakdown, subject distribution, and official JKBOSE subject-wise roll return statements',
     category: 'Records & Registers',
     maturity: 'optimized',
-    maturityNote: 'Interactive statistical dashboard, class-wise distribution, gender breakdown, and on-demand session student fetching.',
+    maturityNote: 'Interactive statistical dashboard, class-wise distribution, gender breakdown, and integrated JKBOSE subject roll return statement with automatic range compression.',
     launcher: true,
     isNew: true,
-    aliases: ['analyticsReports', 'analytics', 'statisticalReports'],
-  },
-  {
-    id: 'jkboseSubjectRolls',
-    label: 'JKBOSE Subject Roll Return Statement',
-    shortLabel: 'Subject Rolls',
-    description: 'Official subject-wise roll return statement with automatic range compression, dropped examinee manager, and Word/Excel/PDF exports',
-    category: 'Records & Registers',
-    maturity: 'optimized',
-    maturityNote: 'Official JKBOSE format with multi-class roll series compression, examinee drop management, and 1-click Word/Excel/PDF exports.',
-    launcher: true,
-    isNew: true,
-    aliases: ['jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls'],
+    aliases: ['analyticsReports', 'analytics', 'statisticalReports', 'jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls'],
   },
   {
     id: 'directEntry',
@@ -394,7 +382,7 @@ export const ROLE_PRESETS = Object.freeze([
     badgeClass: 'bg-emerald-600 text-white',
     desc: 'Student Records, Admission Register, Subject Rolls, Rosters, Curriculum, Practicals, Attendance, Roll Numbers & Board Sync.',
     perms: () => [
-      'reports', 'admRegisterSuite', 'jkboseSubjectRolls', 'customRoster', 'gkTest', 'directEntry',
+      'reports', 'admRegisterSuite', 'customRoster', 'gkTest', 'directEntry',
       'controls', 'curriculum', 'practicals', 'attendanceMgmt', 'rollNo', 'boardSync',
       'analyticsReports', 'quickCellEdit'
     ],
@@ -406,7 +394,7 @@ export const ROLE_PRESETS = Object.freeze([
     badgeClass: 'bg-amber-600 text-white',
     desc: 'Student Records, Rosters, ID Cards, Certificates, Letterhead, Subject Rolls and Quick Cell Edit.',
     perms: () => [
-      'reports', 'admRegisterSuite', 'jkboseSubjectRolls', 'customRoster', 'officialLetter', 'certStudio', 'directEntry',
+      'reports', 'admRegisterSuite', 'customRoster', 'officialLetter', 'certStudio', 'directEntry',
       'idCards', 'analyticsReports', 'quickCellEdit'
     ],
   },
