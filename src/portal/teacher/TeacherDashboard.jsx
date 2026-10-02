@@ -10,7 +10,7 @@ import { getCachedCollection, invalidateCollectionCache } from '../../services/d
 import { auth } from '../../services/firebase';
 import { printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
 import { showToast } from '../../components/common/GlobalToast';
-import { isPracticalEvaluationType } from '../../utils/evaluationTypes';
+import { isPracticalEvaluationType, isSchoolAssessmentType } from '../../utils/evaluationTypes';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
@@ -19,12 +19,13 @@ export default function TeacherDashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
 
-  // Teacher's personal practical submissions count
+  // Submission History Counts & Lists
   const [practicalCount, setPracticalCount] = useState(null);
-
-  // Submission History Modal State
+  const [assessmentCount, setAssessmentCount] = useState(null);
+  const [historyModalType, setHistoryModalType] = useState('practicals'); // 'practicals' | 'assessments'
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [submissionHistory, setSubmissionHistory] = useState([]);
+  const [practicalHistory, setPracticalHistory] = useState([]);
+  const [assessmentHistory, setAssessmentHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
 
@@ -37,93 +38,105 @@ export default function TeacherDashboard() {
       const rawDocs = await getCachedCollection('practicalsData', force, 15 * 60 * 1000).catch(() => []);
 
       if (Array.isArray(rawDocs) && rawDocs.length > 0) {
-        const list = rawDocs
-          .filter(d => {
-            if (!d) return false;
-            const rawId = String(d.id || d.docId || '');
-            if (rawId.startsWith('history_') || rawId.startsWith('bin_')) return false;
+        const parseSubmissionItem = (d) => {
+          if (!d) return null;
+          const rawId = String(d.id || d.docId || '');
+          if (rawId.startsWith('history_') || rawId.startsWith('bin_')) return null;
 
-            // Strict Rule 8: Practicals portal strictly holds practical data only (Internal Assessment & External Practical)
-            const evalTypeRaw = d.practicalType || d.evaluationType || d.examTitle || d.title || '';
-            if (!isPracticalEvaluationType(evalTypeRaw)) return false;
+          const recCount = Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0);
+          const subj = String(d.subject || d.subjectName || d.subjectCode || '').trim();
+          const hasValidSubject = subj.length > 0 && subj.toLowerCase() !== 'n/a' && subj.toLowerCase() !== 'null';
+          if (recCount === 0 || !hasValidSubject) return null;
 
-            const recCount = Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0);
-            const subj = String(d.subject || d.subjectName || d.subjectCode || '').trim();
-            const hasValidSubject = subj.length > 0 && subj.toLowerCase() !== 'n/a' && subj.toLowerCase() !== 'null';
+          const evalType = d.practicalType || d.evaluationType || d.examTitle || d.title || 'Assessment';
 
-            // Filter out shell/corrupted records that have 0 students or no valid subject
-            if (recCount === 0 || !hasValidSubject) return false;
-            return true;
-          })
-          .map(d => {
-            const rawId = String(d.id || d.docId || '');
-            const evalType = d.practicalType || d.evaluationType || d.examTitle || d.title || 'Assessment';
-            
-            // Safely resolve timestamp
-            let sortTime = 0;
-            let displayDate = 'N/A';
-            const rawTime = d.updatedAt || d.submittedAt;
-            if (rawTime) {
-              let dateObj = null;
-              if (typeof rawTime?.toDate === 'function') {
-                dateObj = rawTime.toDate();
-              } else if (rawTime?.seconds) {
-                dateObj = new Date(rawTime.seconds * 1000);
-              } else if (rawTime instanceof Date) {
-                dateObj = rawTime;
-              } else {
-                dateObj = new Date(rawTime);
-              }
-
-              if (dateObj && !isNaN(dateObj.getTime())) {
-                sortTime = dateObj.getTime();
-                const dPart = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-                const tPart = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-                displayDate = `${dPart}, ${tPart}`;
-              } else {
-                displayDate = String(rawTime);
-              }
+          let sortTime = 0;
+          let displayDate = 'N/A';
+          const rawTime = d.updatedAt || d.submittedAt;
+          if (rawTime) {
+            let dateObj = null;
+            if (typeof rawTime?.toDate === 'function') {
+              dateObj = rawTime.toDate();
+            } else if (rawTime?.seconds) {
+              dateObj = new Date(rawTime.seconds * 1000);
+            } else if (rawTime instanceof Date) {
+              dateObj = rawTime;
+            } else {
+              dateObj = new Date(rawTime);
             }
 
-            return {
-              ...d,
-              id: rawId,
-              className: d.className || d.class || d.selectedClass || 'N/A',
-              subject: d.subject || d.subjectName || d.subjectCode || 'N/A',
-              practicalType: evalType,
-              evaluationType: evalType,
-              yearSuffix: d.yearSuffix || d.sessionCanonical || d.session || '',
-              recordsCount: Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0),
-              displayDate,
-              sortTime
-            };
-          })
-          .sort((a, b) => b.sortTime - a.sortTime);
-
-        // Deduplicate duplicate items by unique compound identity
-        const seen = new Set();
-        const deduped = [];
-        for (const item of list) {
-          const key = `${item.id}_${item.className}_${item.subject}_${item.practicalType}_${item.yearSuffix}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            deduped.push(item);
+            if (dateObj && !isNaN(dateObj.getTime())) {
+              sortTime = dateObj.getTime();
+              const dPart = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+              const tPart = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+              displayDate = `${dPart}, ${tPart}`;
+            } else {
+              displayDate = String(rawTime);
+            }
           }
-        }
 
-        // Strictly filter to only this teacher's own evaluation submissions
-        const ownedList = deduped.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
+          return {
+            ...d,
+            id: rawId,
+            className: d.className || d.class || d.selectedClass || 'N/A',
+            subject: d.subject || d.subjectName || d.subjectCode || 'N/A',
+            practicalType: evalType,
+            evaluationType: evalType,
+            yearSuffix: d.yearSuffix || d.sessionCanonical || d.session || '',
+            recordsCount: recCount,
+            displayDate,
+            sortTime
+          };
+        };
 
-        setSubmissionHistory(ownedList);
-        setPracticalCount(ownedList.length);
+        const dedupeAndFilter = (items) => {
+          const sorted = items.sort((a, b) => b.sortTime - a.sortTime);
+          const seen = new Set();
+          const deduped = [];
+          for (const item of sorted) {
+            const key = `${item.id}_${item.className}_${item.subject}_${item.evaluationType}_${item.yearSuffix}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              deduped.push(item);
+            }
+          }
+          return deduped.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
+        };
+
+        const practicalItems = [];
+        const assessmentItems = [];
+
+        rawDocs.forEach(d => {
+          const item = parseSubmissionItem(d);
+          if (!item) return;
+          const evalTypeRaw = d.practicalType || d.evaluationType || d.examTitle || d.title || '';
+          if (isPracticalEvaluationType(evalTypeRaw)) {
+            practicalItems.push(item);
+          } else if (isSchoolAssessmentType(evalTypeRaw)) {
+            assessmentItems.push(item);
+          }
+        });
+
+        const ownedPracticals = dedupeAndFilter(practicalItems);
+        const ownedAssessments = dedupeAndFilter(assessmentItems);
+
+        setPracticalHistory(ownedPracticals);
+        setPracticalCount(ownedPracticals.length);
+
+        setAssessmentHistory(ownedAssessments);
+        setAssessmentCount(ownedAssessments.length);
       } else {
-        setSubmissionHistory([]);
+        setPracticalHistory([]);
         setPracticalCount(0);
+        setAssessmentHistory([]);
+        setAssessmentCount(0);
       }
     } catch (e) {
       console.error('Failed to load submissions history:', e);
-      setSubmissionHistory([]);
+      setPracticalHistory([]);
       setPracticalCount(0);
+      setAssessmentHistory([]);
+      setAssessmentCount(0);
     } finally {
       setLoadingHistory(false);
     }
@@ -134,21 +147,22 @@ export default function TeacherDashboard() {
     fetchSubmissionHistory(false);
   }, [fetchSubmissionHistory]);
 
+  const activeSubmissionsList = historyModalType === 'assessments' ? assessmentHistory : practicalHistory;
+
   const filteredSubmissions = useMemo(() => {
-    // Strictly filter to only this teacher's own submissions
-    const list = submissionHistory.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
+    const list = activeSubmissionsList.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
 
     if (!historySearch.trim()) return list;
     const q = historySearch.toLowerCase().trim();
     return list.filter(item => {
       const className = String(item.className || '').toLowerCase();
       const subject = String(item.subject || '').toLowerCase();
-      const practicalType = String(item.practicalType || '').toLowerCase();
+      const evalType = String(item.evaluationType || item.practicalType || '').toLowerCase();
       const displayDate = String(item.displayDate || '').toLowerCase();
       const year = String(item.yearSuffix || '').toLowerCase();
-      return className.includes(q) || subject.includes(q) || practicalType.includes(q) || displayDate.includes(q) || year.includes(q);
+      return className.includes(q) || subject.includes(q) || evalType.includes(q) || displayDate.includes(q) || year.includes(q);
     });
-  }, [submissionHistory, historySearch, user]);
+  }, [activeSubmissionsList, historySearch, user]);
 
   useEffect(() => {
     if (showHistoryModal) {
@@ -156,7 +170,8 @@ export default function TeacherDashboard() {
     }
   }, [showHistoryModal, fetchSubmissionHistory]);
 
-  const handleOpenHistoryModal = () => {
+  const handleOpenHistoryModal = (type = 'practicals') => {
+    setHistoryModalType(type);
     setShowHistoryModal(true);
     fetchSubmissionHistory(true);
   };
@@ -272,7 +287,7 @@ export default function TeacherDashboard() {
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={handleOpenHistoryModal}
+                onClick={() => handleOpenHistoryModal('practicals')}
                 className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1.5 transition-colors cursor-pointer group underline decoration-indigo-300 dark:decoration-indigo-700 underline-offset-2 bg-transparent border-none p-0 text-left"
                 title="Click to view all submission history & records"
               >
@@ -308,15 +323,15 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-              <Link
-                to="/portal/teacher/assessments?history=true"
-                state={{ openHistory: true }}
+              <button
+                type="button"
+                onClick={() => handleOpenHistoryModal('assessments')}
                 className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 flex items-center gap-1.5 transition-colors cursor-pointer group underline decoration-purple-300 dark:decoration-purple-700 underline-offset-2 bg-transparent border-none p-0 text-left"
                 title="Click to view all school-based assessment submissions (Pre-Board, Golden Test, etc.)"
               >
                 <History size={13} className="text-purple-600 dark:text-purple-400 group-hover:rotate-[-20deg] transition-transform" />
-                <span className="font-extrabold">Submissions Log</span>
-              </Link>
+                <span className="font-extrabold">Submissions Log{assessmentCount !== null ? ` (${assessmentCount})` : ''}</span>
+              </button>
               <Link
                 to="/portal/teacher/assessments"
                 className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-500 shadow-2xs transition-all inline-flex items-center justify-center gap-1 cursor-pointer active:scale-98"
@@ -336,15 +351,21 @@ export default function TeacherDashboard() {
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 gap-2 shrink-0">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/50">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
+                  historyModalType === 'assessments'
+                    ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-900/50'
+                    : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/50'
+                }`}>
                   <History size={15} />
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate m-0">
-                    My Practical Submissions Log
+                    {historyModalType === 'assessments' ? 'My School Assessment Submissions' : 'My Practical Submissions Log'}
                   </h3>
                   <p className="text-[10px] text-slate-400 font-medium truncate m-0">
-                    Your submitted practical awards (Internal Assessment &amp; External Practical only)
+                    {historyModalType === 'assessments'
+                      ? 'Your submitted school assessments (Pre-Board, Golden Tests, Term & Unit Exams)'
+                      : 'Your submitted practical awards (Internal Assessment & External Practical only)'}
                   </p>
                 </div>
               </div>
@@ -403,11 +424,15 @@ export default function TeacherDashboard() {
                           <span className="font-black text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 truncate">
                             {item.className} • {item.subject}
                           </span>
-                          <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
-                            {item.practicalType || 'Assessment'}
+                          <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                            historyModalType === 'assessments'
+                              ? 'bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60'
+                              : 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60'
+                          }`}>
+                            {item.practicalType || item.evaluationType || 'Assessment'}
                           </span>
                           {item.isCrossSubject && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60">
+                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60">
                               Cross
                             </span>
                           )}
@@ -442,7 +467,11 @@ export default function TeacherDashboard() {
                           <Clock size={10.5} className="shrink-0 text-slate-400" />
                           <span className="truncate">{item.displayDate}</span>
                           <span className="text-slate-300 dark:text-slate-700 shrink-0">•</span>
-                          <span className="font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                          <span className={`font-bold shrink-0 ${
+                            historyModalType === 'assessments'
+                              ? 'text-purple-600 dark:text-purple-400'
+                              : 'text-indigo-600 dark:text-indigo-400'
+                          }`}>
                             {item.recordsCount || (item.records?.length || 0)} Students
                           </span>
                           {item.yearSuffix && (
@@ -472,7 +501,7 @@ export default function TeacherDashboard() {
                             className="h-6 px-2 rounded-md text-[10px] font-bold bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
                             title="Print or Save/Download PDF of Official Award Roll"
                           >
-                            <Printer size={11} className="text-indigo-600 dark:text-indigo-400" />
+                            <Printer size={11} className={historyModalType === 'assessments' ? 'text-purple-600 dark:text-purple-400' : 'text-indigo-600 dark:text-indigo-400'} />
                             <span>PDF</span>
                           </button>
 
@@ -499,7 +528,11 @@ export default function TeacherDashboard() {
                                 }
                               });
                             }}
-                            className="h-6 px-2.5 rounded-md text-[10px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                            className={`h-6 px-2.5 rounded-md text-[10px] font-black text-white shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
+                              historyModalType === 'assessments'
+                                ? 'bg-purple-600 hover:bg-purple-500'
+                                : 'bg-indigo-600 hover:bg-indigo-500'
+                            }`}
                             title="Load this evaluation record"
                           >
                             <span>Load</span>

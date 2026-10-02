@@ -620,7 +620,7 @@ export {
   DEFAULT_SCHOOL_ASSESSMENT_TYPES,
   isPracticalEvaluationType,
   isSchoolAssessmentType
-} from './evaluationTypes';
+};
 
 
 export function getPracticalEvaluationTypes() {
