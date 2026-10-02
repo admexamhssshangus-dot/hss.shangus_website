@@ -372,42 +372,9 @@ export function exportConsolidatedAwardsToExcel({
     if (sub.code === 'EN') {
       count = students.length;
     } else {
+      const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
       students.forEach(st => {
-        const stStream = String(st.stream || st.Stream || '').toLowerCase();
-        const multiSubCols = [
-          st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
-          st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
-          st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
-        ].filter(Boolean).join(', ');
-
-        const stSubs = String(
-          st['Subs'] ||
-          st['subs'] ||
-          (isClass12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
-          multiSubCols ||
-          st['Subjects to be taken in Class 11th'] ||
-          st['Subjects Studied in Class 11th'] ||
-          st['Subjects'] ||
-          st['Subject Combination'] ||
-          st['streamSubjects'] ||
-          st.subjects ||
-          ''
-        ).toLowerCase();
-
-        const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
-        const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
-
-        let hasSub = false;
-        if (sub.code === 'PH' || sub.code === 'CH') {
-          if (isScience || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs)) hasSub = true;
-        } else if (sub.code === 'BO' || sub.code === 'ZO' || sub.code === 'BI') {
-          if (stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs)) hasSub = true;
-          else if (isScience && !isNonMed) hasSub = true;
-        } else if (sub.code === 'MA') {
-          if (stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed)) hasSub = true;
-        } else {
-          hasSub = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
-        }
+        let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
         if (!hasSub && submissions && submissions.length > 0) {
           const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || '').trim();
@@ -647,43 +614,9 @@ export async function exportConsolidatedAwardsToDocx({
     if (sub.code === 'EN') {
       count = students.length;
     } else {
+      const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
       students.forEach(st => {
-        const clsName = String(className).toLowerCase();
-        const stStream = String(st.stream || st.Stream || st['Stream'] || '').toLowerCase();
-        const multiSubCols = [
-          st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
-          st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
-          st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
-        ].filter(Boolean).join(', ');
-
-        const stSubs = String(
-          st['Subs'] ||
-          st['subs'] ||
-          (clsName.includes('12') ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
-          multiSubCols ||
-          st['Subjects to be taken in Class 11th'] ||
-          st['Subjects Studied in Class 11th'] ||
-          st['Subjects'] ||
-          st['Subject Combination'] ||
-          st['streamSubjects'] ||
-          st.subjects ||
-          ''
-        ).toLowerCase();
-
-        const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
-        const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
-
-        let hasSub = false;
-        if (sub.code === 'PH' || sub.code === 'CH') {
-          if (isScience || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs)) hasSub = true;
-        } else if (sub.code === 'BO' || sub.code === 'ZO' || sub.code === 'BI') {
-          if (stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs)) hasSub = true;
-          else if (isScience && !isNonMed) hasSub = true;
-        } else if (sub.code === 'MA') {
-          if (stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed)) hasSub = true;
-        } else {
-          hasSub = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
-        }
+        let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
         if (!hasSub && submissions && submissions.length > 0) {
           const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();

@@ -24,6 +24,7 @@ import {
   printConsolidatedAwardRoll,
   printAllIndividualAwardRolls,
   printAttendanceSheet,
+  printMarksRecordAwardRoll,
   printFailList,
   PRACTICAL_SUBJECT_DEFS
 } from '../../utils/practicalsPdfGenerator';
@@ -288,6 +289,7 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
     } else if (code === 'ED') {
       const cleanSubj = subStr
         .replace(/\b(NON-MED|NON\s*MED|NON-MEDICAL|MEDICAL|MED)\b/gi, '')
+        .replace(/\b(STUDIED|APPLIED)\b/gi, '')
         .replace(/\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.ED|PED|P\.E|PD|PE)\b/gi, '');
       if (/\b(ED|EDU|EDUCATION)\b/i.test(cleanSubj)) return true;
     } else if (code === 'HT') {
@@ -609,6 +611,23 @@ export default function AdminPracticals() {
   // Modal States
   const [selSub, setSelSub] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showExcelMenu, setShowExcelMenu] = useState(false);
+  const excelMenuRef = useRef(null);
+
+  // Close Excel menu when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (excelMenuRef.current && !excelMenuRef.current.contains(e.target)) {
+        setShowExcelMenu(false);
+      }
+    };
+    if (showExcelMenu) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [showExcelMenu]);
 
   // Settings tab form states
   const [grantEmail, setGrantEmail] = useState('');
@@ -1546,22 +1565,71 @@ export default function AdminPracticals() {
               </button>
             </div>
 
-            {/* Excel Quick Actions Group */}
+            {/* Excel Quick Actions Group (Unified Template & Import) */}
             <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700 shrink-0">
-              <button
-                onClick={() => generatePracticalsExcelTemplate()}
-                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer border border-emerald-200 dark:border-emerald-800 shadow-2xs shrink-0"
-              >
-                <Download size={12} />
-                <span>Template</span>
-              </button>
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer border border-indigo-200 dark:border-indigo-800 shadow-2xs shrink-0"
-              >
-                <Upload size={12} />
-                <span>Import Excel</span>
-              </button>
+              <div className="relative shrink-0" ref={excelMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowExcelMenu(prev => !prev)}
+                  className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer border border-indigo-200 dark:border-indigo-800 shadow-2xs shrink-0"
+                >
+                  <FileSpreadsheet size={12} className="text-emerald-600 dark:text-emerald-400" />
+                  <span>Excel</span>
+                  <ChevronDown size={11} className={`transition-transform duration-150 ${showExcelMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showExcelMenu && (
+                  <div className="absolute right-0 top-full mt-1.5 w-60 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExcelMenu(false);
+                        setShowImportModal(true);
+                      }}
+                      className="w-full px-2.5 py-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Upload size={13} className="text-indigo-600 shrink-0" />
+                      <div>
+                        <div className="text-[11.5px] font-black">Import Excel / CSV Marks</div>
+                        <div className="text-[9.5px] text-slate-400 font-semibold">Upload completed spreadsheet with awards</div>
+                      </div>
+                    </button>
+
+                    <div className="h-[1px] bg-slate-100 dark:bg-slate-800 my-1" />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExcelMenu(false);
+                        generatePracticalsExcelTemplate();
+                      }}
+                      className="w-full px-2.5 py-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Download size={13} className="text-emerald-600 shrink-0" />
+                      <div>
+                        <div className="text-[11.5px] font-black">Download Excel Template (.xlsx)</div>
+                        <div className="text-[9.5px] text-slate-400 font-semibold">Standard blanks with instructions & subject codes</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExcelMenu(false);
+                        generatePracticalsCsvTemplate();
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Download size={13} className="text-slate-500 shrink-0" />
+                      <div>
+                        <div className="text-[11.5px] font-black">Download CSV Template (.csv)</div>
+                        <div className="text-[9.5px] text-slate-400 font-semibold">Lightweight comma-separated format</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
                 onClick={() => setShowPracticalsRecycleBin(true)}
@@ -2243,6 +2311,41 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                       </div>
                     </button>
 
+                    {/* Print Marks Record Award Roll (Pract Copy, Viva, Total) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAwardsMenu(false);
+                        const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                        const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                        if (!listToPrint || listToPrint.length === 0) {
+                          showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                          return;
+                        }
+                        const singleSubCode = activeSubjects.length === 1 ? activeSubjects[0] : '';
+                        const singleSubName = singleSubCode ? (NAMES[singleSubCode] || singleSubCode) : '';
+                        printMarksRecordAwardRoll({
+                          className: cls,
+                          session: localPrintOpts.sessionText,
+                          students: listToPrint,
+                          submissions,
+                          isExternal: localPrintOpts.practicalType === 'external',
+                          evaluationType: localPrintOpts.practicalType,
+                          subjectCode: singleSubCode,
+                          subjectName: singleSubName,
+                          selectedSubjectCodes: activeSubjects.length > 1 ? activeSubjects : null,
+                          printDetails: localPrintOpts
+                        });
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Printer size={13} className="text-indigo-600 shrink-0" />
+                      <div>
+                        <div className="text-[11.5px] font-black">Print Marks Record Award Roll</div>
+                        <div className="text-[10px] text-slate-400 font-semibold">Pract Copy / Assignment, Viva Voce & Total columns</div>
+                      </div>
+                    </button>
+
                     {/* 3 & 4. Consolidated Excel + Word — not for Pre-Board */}
                     {!/pre.?board/i.test(localPrintOpts.practicalType) && (<>
                     <div className="h-[1px] bg-slate-100 dark:bg-slate-800 my-1" />
@@ -2363,6 +2466,37 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 title={activeSubjects.length === 1 ? `Print ${NAMES[activeSubjects[0]] || activeSubjects[0]} attendance` : 'Print attendance sheet for all active subjects'}
               >
                 <ClipboardCheck size={11} /> Attendance{activeSubjects.length === 1 ? ` (${activeSubjects[0]})` : ''}
+              </button>
+
+              {/* Marks Record Award Roll Button (Pract Copy / Assignment, Viva Voce, Total) */}
+              <button
+                type="button"
+                onClick={() => {
+                  const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                  const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                  if (!listToPrint || listToPrint.length === 0) {
+                    showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                    return;
+                  }
+                  const singleSubCode = activeSubjects.length === 1 ? activeSubjects[0] : '';
+                  const singleSubName = singleSubCode ? (NAMES[singleSubCode] || singleSubCode) : '';
+                  printMarksRecordAwardRoll({
+                    className: cls,
+                    session: localPrintOpts.sessionText,
+                    students: listToPrint,
+                    submissions,
+                    isExternal: localPrintOpts.practicalType === 'external',
+                    evaluationType: localPrintOpts.practicalType,
+                    subjectCode: singleSubCode,
+                    subjectName: singleSubName,
+                    selectedSubjectCodes: activeSubjects.length > 1 ? activeSubjects : null,
+                    printDetails: localPrintOpts
+                  });
+                }}
+                className="px-2 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
+                title={activeSubjects.length === 1 ? `Print ${NAMES[activeSubjects[0]] || activeSubjects[0]} Marks Record Award Roll` : 'Print Marks Record Award Roll (Practicals/Assignments)'}
+              >
+                <Printer size={11} /> Award Roll{activeSubjects.length === 1 ? ` (${activeSubjects[0]})` : ''}
               </button>
 
               {/* Fail / Absent List Button */}
@@ -2878,6 +3012,16 @@ function CsvImportModal({ onClose, onSuccess }) {
               <span>{parsing ? 'Reading Spreadsheet File...' : 'Browse & Select Excel / CSV File'}</span>
               <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} disabled={parsing} className="hidden" />
             </label>
+            <div className="pt-2 flex items-center justify-center gap-3 text-xs text-slate-500">
+              <span>Need the standard template?</span>
+              <button
+                type="button"
+                onClick={() => generatePracticalsExcelTemplate()}
+                className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <Download size={13} /> Download Excel Template (.xlsx)
+              </button>
+            </div>
           </div>
         )}
 

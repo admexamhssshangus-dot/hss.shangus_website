@@ -1,46 +1,76 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(teacher): reflect assigned subjects in school assessment portal and open history modal directly on dashboard`
+- **Commit Message**: `fix(practicals): fix subject counting, group excel tools, add marks record award roll print and prevent reg no page break`
 - **Date**: October 02, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally.
 
 ---
 
-## Architectural Purpose: Assigned Subjects Visibility & Dashboard History Modal Parity
+## Architectural Purpose & Enhancements
 
-### Problems Solved:
-1. **Assigned Subject Reflection in School-Based Assessment Portal**:
-   - When a teacher (e.g. `socialshiftz@gmail.com` with assigned subject `Botany`) navigated to `/portal/teacher/assessments`, the portal defaulted to `General English`.
-   - Cause: `useState` ran once on mount before `user` had finished hydrating from Firebase Auth, leaving `teacherClassAssignedSubjects` empty on initial render with no reactive synchronizer.
-   - The Subject selector dropdown listed all subjects as a flat list with no visual distinction for the teacher's assigned subjects.
-   - The Header Card lacked the educator's assigned subject badge.
+### 1. Subject Counting Integrity & Cross-Contamination Audits
+- **Problem**: In the Practicals Cover Letter subject gist summary and table matrices, Education (`ED`) was erroneously reporting 113 students for Class 12th despite only 91 Arts/Commerce students being enrolled.
+- **Root Cause**: Raw keyword substring matching without stream guards caused Science students with Physical Education (`PED`/`PE`), students with words like `medical`/`med`, and subjects containing substrings like `studied` to falsely match `ED`.
+- **Solution**:
+  - Replaced raw regex/keyword looping in `printConsolidatedAwardRoll`, `exportConsolidatedAwardsToExcel`, and `exportConsolidatedAwardsToDocx` with the canonical `isStudentEnrolledInPracticalSubject` validator.
+  - Stripped non-subject tokens (`NON-MED`, `MED`, `STUDIED`, `APPLIED`) before testing for `ED`.
+  - Disentangled Persian (`PE`) from Physical Education (`PD`): removed flawed alias `if (code === 'PE' && abbrList.includes('PD')) return true;` so Physical Education students are never falsely counted under Persian.
+  - Guarded Science students against Arts electives (`ED`, `HT`, `PS`, `SO`, `AR`, `PR`, `SC`).
 
-2. **Submissions Log Background Navigation on Teacher Dashboard**:
-   - On `TeacherDashboard.jsx`, Card 3 (School-Based Assessment Portal) used `<Link to="/portal/teacher/assessments?history=true">` instead of opening the dashboard's own history modal.
-   - Clicking "Submissions Log" navigated the browser to the assessment portal route, mounting the full assessment page in the DOM behind the modal. Closing the modal left the user on the assessment portal rather than the dashboard.
+### 2. Grouped Excel Tools (Template & Import into Single Dropdown)
+- **Problem**: Separate `[Template]` and `[Import Excel]` buttons took up excessive horizontal space in the top navigation ribbon of `AdminPracticals.jsx`.
+- **Solution**:
+  - Combined both actions into a sleek, unified `[Excel ▾]` dropdown menu with outside-click detection.
+  - Provides quick access to:
+    1. **Import Excel / CSV Marks**: Launches `CsvImportModal`.
+    2. **Download Excel Template (.xlsx)**: Downloads the official spreadsheet template with prefilled instructions and subject codes.
+    3. **Download CSV Template (.csv)**: Downloads lightweight comma-separated template.
+  - Added a direct "Need the standard template? Download Excel Template" link inside `CsvImportModal` for maximum user convenience.
+
+### 3. Subject Marks Record Award Roll Printing
+- **Problem**: Teachers and administrators needed to print evaluation award rolls with specific evaluation columns (`Pract Copy / Assignment`, `Viva Voce`, `Total`) without the Subject or Candidate Signature columns.
+- **Solution**:
+  - Added a dedicated `[Award Roll]` button directly beside the `[Attendance]` button in the `AwardsSummaryView` toolbar of `AdminPracticals.jsx`.
+  - Added a corresponding option inside the `[Awards / Export ▾]` dropdown.
+  - Implemented `printMarksRecordAwardRoll` in `practicalsPdfGenerator.js`:
+    - Exactly 7 institutional columns: `S.No.`, `Class R.No.`, `Exam Roll No.`, `Student Name` (with Board Reg No), `Pract Copy / Assignment`, `Viva Voce`, and `Total`.
+    - Document header & print title formatted per institutional standard: `${className} - Marks Record (Practicals/Assignments) - ${subjectName}`.
+    - Dynamically displays evaluation marks from teacher submissions or leaves neat blank entry cells for offline evaluation records.
+    - Handles single-subject printing and multi-subject batch printing with clean `@media print` page breaks.
+
+### 4. Page Break Fix: Registration Number & Row Fragmentation
+- **Problem**: In Chromium/Edge print preview, rows near the bottom of a page (e.g. row 59 `Hamid Manzoor Bhat`) would split across page boundaries: the name remained on the first page, while `Reg: 2301000000610005` spilled onto the next page under an orphan table header.
+- **Root Cause**: In Blink/Chromium, tables with `border-collapse: collapse;` ignore `page-break-inside: avoid` on `<tr>` and `<td>` (Chromium Bug 278327). Additionally, non-monolithic child boxes allow the fragmentation engine to break between name and registration number.
+- **Solution**:
+  - Configured `border-collapse: separate !important; border-spacing: 0 !important;` on `.award-table`, `.attendance-table`, `.matrix-table`, and `.gist-table` with clean 1px border mapping, enabling Chromium to strictly respect `tr` and `td` pagination boundaries.
+  - Wrapped student names and registration numbers in `<div class="student-name-block">` configured as a monolithic box (`display: block !important; width: 100% !important; overflow: hidden !important; break-inside: avoid !important; page-break-inside: avoid !important;`).
+  - Switched row height to `46px` on `<tr>` instead of hardcoded `height: 50px` on every `<td>`, ensuring entire rows move cleanly to the next page as a single indivisible unit.
 
 ---
 
 ## Files Changed & Synchronizations Completed
 
-### 1. `src/portal/teacher/TeacherDashboard.jsx`
-- Replaced `<Link to="/portal/teacher/assessments?history=true">` on Card 3 with `<button onClick={() => handleOpenHistoryModal('assessments')}>`.
-- Clicking "Submissions Log" on Card 3 now opens the history modal directly on the dashboard, keeping the teacher on the dashboard without loading the assessment portal route in the background.
-- Dynamic modal styling: The history modal dynamically adapts title, subtitle, icon, badges, and Load button styling between practicals (Indigo theme) and school assessments (Purple theme).
-- Displays live submission counts directly on both cards: `Submissions Log (X)`.
+### 1. `src/utils/practicalsPdfGenerator.js`
+- Enforced `border-collapse: separate !important; border-spacing: 0 !important;` in `PRINT_ENGINE_CSS` for all tables.
+- Made `.student-name-block` monolithic with `display: block; overflow: hidden; break-inside: avoid !important;`.
+- Updated `printAttendanceSheet` and `printMarksRecordAwardRoll` row layouts.
+- Added exported function `printMarksRecordAwardRoll` generating 7 columns with institutional header and marks binding.
+- Updated gist and matrix enrolled checks to use canonical `isStudentEnrolledInPracticalSubject`.
+- Refined subject abbreviations and stream isolation for `ED`, `PE`/`PD`, `HT`/`HTC`.
 
-### 2. `src/portal/teacher/TeacherAssessmentsPage.jsx`
-- **Reactive Subject Synchronization**: Added a `useEffect` that monitors `user`, `selectedClass`, `teacherClassAssignedSubjects`, `allTeacherAssignedSubjects`, and `displaySubjects`. When the profile hydrates or the teacher switches classes, `selectedSubject` automatically defaults to the educator's assigned subject for that class (e.g. `Botany` for Class 11th/12th).
-- **Manual Override Memory**: Uses `userHasManuallySelectedSubjectRef` so that if the teacher explicitly chooses another subject, their selection is honored. When switching classes, the ref resets so the new class defaults to their assigned subject.
-- **Top Header Card Badge**: Displays the teacher's registered subject badge (`Assigned: Botany`) alongside `Faculty Entry`.
-- **Subject Selector Dropdown Partitioning**: Groups subjects into `<optgroup label="⭐ Your Assigned Subjects">` (with star prefix and `— Assigned` suffix) and `<optgroup label="All Curriculum Subjects">`.
-- **Live Status Badges**: Displays `✓ Assigned Subject` (teal) or `Cross-Subject` (amber) in both the filter toolbar and the assessment info banner.
-- **Payload Enhancement**: Automatically records `isCrossSubject: !isCurrentSubjectAssigned` in both draft and final submission payloads so audit logs and administrators know if an evaluation was for an assigned or cross-curriculum subject.
-- **Submissions Drawer**: Shows the `Cross` badge for historical cross-subject evaluations and preserves selection refs on record loading.
+### 2. `src/utils/practicalsCsvManager.js`
+- Updated `gistCounts` in `exportConsolidatedAwardsToExcel` and `gistList` in `exportConsolidatedAwardsToDocx` to use `isStudentEnrolledInPracticalSubject(st, sub.code, className)`.
+- Cleaned up loop scopes and syntax.
 
-### 3. `src/utils/practicalsSettingsManager.js`
-- Cleaned up imports and exports of evaluation type utilities (`PRACTICAL_EVALUATION_TYPES`, `DEFAULT_SCHOOL_ASSESSMENT_TYPES`, `isPracticalEvaluationType`, `isSchoolAssessmentType`) ensuring proper scope binding and zero unused-variable warnings.
+### 3. `src/portal/admin/AdminPracticals.jsx`
+- Imported `printMarksRecordAwardRoll`.
+- Updated `isStudentEnrolledInSubject` to strip `STUDIED` and `APPLIED` tokens for `ED`.
+- Added `showExcelMenu` and `excelMenuRef` state with outside-click listener.
+- Replaced separate `[Template]` and `[Import Excel]` buttons with unified `[Excel ▾]` dropdown in the top header ribbon.
+- Added `[Award Roll]` button next to `[Attendance]` in `AwardsSummaryView` toolbar.
+- Added `Print Marks Record Award Roll` in `Awards / Export` dropdown.
+- Added direct template download link inside `CsvImportModal`.
 
 ---
 
@@ -65,7 +95,7 @@ If you wish to adjust the commit message or files before pushing:
 git reset --soft HEAD~1
 # Make desired changes
 git add .
-git commit -m "fix(teacher): reflect assigned subjects in school assessment portal and open history modal directly on dashboard"
+git commit -m "fix(practicals): fix subject counting, group excel tools, add marks record award roll print and prevent reg no page break"
 ```
 
 ### 3. Push to Remote Repository (Manual Action)
