@@ -288,6 +288,12 @@ const PRINT_ENGINE_CSS = `
     body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #fff; margin: 0; padding: 0; font-size: 10pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page-break { page-break-after: always; break-after: page; }
     .no-print { display: none !important; }
+    thead { display: table-header-group !important; }
+    tfoot { display: table-footer-group !important; }
+    tbody { display: table-row-group !important; }
+    tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+    td, th { page-break-inside: avoid !important; break-inside: avoid !important; }
+    .student-name-block { page-break-inside: avoid !important; break-inside: avoid !important; }
   }
   body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #fff; margin: 0; padding: 0; }
   .award-page { width: 100%; max-width: 210mm; margin: 0 auto; box-sizing: border-box; padding: 4px; background: #fff; }
@@ -299,7 +305,7 @@ const PRINT_ENGINE_CSS = `
   .award-header-block h2 { font-family: 'Cinzel', 'Plus Jakarta Sans', serif; font-size: 11pt; font-weight: 800; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.5px; color: #0f172a; }
   .award-info-line { display: flex; justify-content: space-between; font-size: 8.8pt; font-weight: 700; margin-bottom: 3px; color: #334155; }
   
-  table.award-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 9pt; text-align: center; }
+  table.award-table { width: 100%; margin-bottom: 8px; font-size: 9pt; text-align: center; }
   table.award-table th, table.award-table td { border: 1px solid #475569; padding: 4.5px 3px; height: 21px; box-sizing: border-box; }
   table.award-table th { background: #1e293b !important; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px; color: #ffffff !important; padding: 5px 3px; border: 1px solid #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .centre-num-row { background: #fef2f2 !important; color: #991b1b; font-weight: 800; font-size: 9pt; text-align: center; border-top: 1.5px solid #dc2626; border-bottom: 1.5px solid #dc2626; padding: 3px 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -406,11 +412,69 @@ const PRINT_ENGINE_CSS = `
   table.matrix-table td.no-sub { color: #94a3b8; font-weight: 600; }
   table.matrix-table td.hash-tot { font-weight: 900; background: #e2e8f0 !important; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   
-  /* Attendance Table with 50px standard signature row height */
-  table.attendance-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  table.attendance-table th, table.attendance-table td { border: 1px solid #475569; }
-  table.attendance-table th { background: #1e293b !important; font-weight: 800; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.3px; color: #ffffff !important; padding: 6px 4px; border: 1px solid #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  table.attendance-table td { height: 50px !important; min-height: 50px !important; vertical-align: middle; box-sizing: border-box; }
+  /* Attendance Table with standard signature row height */
+  table.attendance-table { width: 100%; margin-top: 8px; }
+  table.attendance-table tr { height: 46px; }
+  table.attendance-table td { vertical-align: middle; box-sizing: border-box; }
+
+  /* ─────────────────────────────────────────────────────────────
+     CRITICAL PRINT PAGE-BREAK PROTECTION ACROSS CHROMIUM / WEBKIT
+     In Blink/Chromium, 'border-collapse: collapse' causes the layout
+     engine to IGNORE 'break-inside: avoid' on table rows (Issue 278327).
+     Using 'border-collapse: separate' with 'border-spacing: 0' ensures
+     Chromium strictly honors row & cell break boundaries.
+     ───────────────────────────────────────────────────────────── */
+  table.award-table,
+  table.attendance-table,
+  table.matrix-table,
+  table.gist-table {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    border-top: 1px solid #475569 !important;
+    border-left: 1px solid #475569 !important;
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+  table.award-table th, table.award-table td,
+  table.attendance-table th, table.attendance-table td,
+  table.matrix-table th, table.matrix-table td,
+  table.gist-table th, table.gist-table td {
+    border-top: none !important;
+    border-left: none !important;
+    border-right: 1px solid #475569 !important;
+    border-bottom: 1px solid #475569 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-column-break-inside: avoid;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+  tbody {
+    display: table-row-group !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-column-break-inside: avoid;
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .student-name-block {
+    display: block !important;
+    width: 100% !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-column-break-inside: avoid !important;
+    overflow: hidden !important;
+  }
+  .student-name-block * {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 
   /* ─────────────────────────────────────────────────────────────
      ALTERNATE ROW ZEBRA SHADING ACROSS ALL PRINTED TABLES
@@ -890,60 +954,12 @@ export function printConsolidatedAwardRoll({
       // General English is compulsory for ALL examinees in the class!
       count = students.length;
     } else {
+      const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
       students.forEach(st => {
-        const clsName = String(className).toLowerCase();
-        const stStream = String(st.stream || st.Stream || st['Stream'] || '').toLowerCase();
-        
-        const multiSubCols = [
-          st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
-          st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
-          st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
-        ].filter(Boolean).join(', ');
-
-        const stSubs = String(
-          st['Subs'] ||
-          st['subs'] ||
-          (clsName.includes('12') ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
-          multiSubCols ||
-          st['Subjects to be taken in Class 11th'] ||
-          st['Subjects Studied in Class 11th'] ||
-          st['Subjects'] || 
-          st['Subject Combination'] || 
-          st['streamSubjects'] || 
-          st.subjects || 
-          ''
-        ).toLowerCase();
-
-        const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
-        const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
-
-        let hasSub = false;
-
-        // Physics & Chemistry are compulsory for ALL Science students!
-        if (sub.code === 'PH' || sub.code === 'CH') {
-          if (isScience || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs)) {
-            hasSub = true;
-          }
-        } else if (sub.code === 'BO' || sub.code === 'ZO' || sub.code === 'BI') {
-          if (stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs)) {
-            hasSub = true;
-          } else if (isScience && !isNonMed) {
-            hasSub = true; // All Medical Science students are enrolled in Botany & Zoology!
-          }
-        } else if (sub.code === 'MA') {
-          if (stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed)) {
-            hasSub = true;
-          }
-        } else {
-          hasSub = sub.keywords.some(kw => {
-            const regex = new RegExp(`\\b${kw}\\b`, 'i');
-            return regex.test(stSubs) || stSubs.includes(kw);
-          });
-        }
+        let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
         // Also check if this student has an actual submitted mark for this subject!
         if (!hasSub && submissions && submissions.length > 0) {
-          const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
           const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
           const subDoc = submissions.find(s => {
             const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
@@ -962,7 +978,6 @@ export function printConsolidatedAwardRoll({
 
       // Fallback count from submissions strictly FOR THIS CLASS if student subject string is empty
       if (count === 0 && submissions && submissions.length > 0) {
-        const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
         const subDoc = submissions.find(s => {
           const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
           if (!matchClass) return false;
@@ -1097,18 +1112,7 @@ export function printConsolidatedAwardRoll({
     let rowHashTotal = 0;
 
     const cellHtmls = activeSubs.map(sub => {
-      let isEnrolled = false;
-      if (sub.code === 'EN') isEnrolled = true;
-      else if (sub.code === 'PH' || sub.code === 'CH') {
-        isEnrolled = stStream.includes('science') || stSubsStr.includes('physics') || stSubsStr.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubsStr);
-      } else if (sub.code === 'BO' || sub.code === 'ZO') {
-        isEnrolled = stSubsStr.includes('botany') || stSubsStr.includes('zoology') || stSubsStr.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubsStr);
-      } else {
-        isEnrolled = sub.keywords.some(kw => {
-          if (kw.length <= 3) return new RegExp(`\\b${kw}\\b`, 'i').test(stSubsStr);
-          return stSubsStr.includes(kw);
-        });
-      }
+      const isEnrolled = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
       // Helper to check submission evaluation type match
       const isSubDocMatch = (s) => {
@@ -1324,7 +1328,7 @@ export function getAbbreviatedSubjects(st, className = '') {
 
   // 1. Pre-tokenize multi-word and compound subjects FIRST to prevent partial overlaps
   cleanRaw = cleanRaw
-    .replace(/\b(physical\s+education|phy\s+edu|phy\.\s+edu\.|p\.ed|ped|p\.e)\b/gi, ' __SUB_PD__ ')
+    .replace(/\b(physical\s+education|phy\s+edu|phy\.\s+edu\.|p\.ed|ped|p\.e\.|p\.e|pd)\b/gi, ' __SUB_PD__ ')
     .replace(/\b(environmental\s+science|envir\s+sci|evs|es)\b/gi, ' __SUB_ES__ ')
     .replace(/\b(political\s+science|pol\s+sc|pol\.\s+sc\.|pol\s+science|ps)\b/gi, ' __SUB_PS__ ')
     .replace(/\b(computer\s+science|comp\s+sci|cs)\b/gi, ' __SUB_CS__ ')
@@ -1337,7 +1341,8 @@ export function getAbbreviatedSubjects(st, className = '') {
     .replace(/\b(applied\s+mathematics|app\s+math|am)\b/gi, ' __SUB_AM__ ')
     .replace(/\b(public\s+administration|pub\s+ad|pa)\b/gi, ' __SUB_PA__ ')
     .replace(/\b(home\s+science|home\s+sci|hsc)\b/gi, ' __SUB_HSC__ ')
-    .replace(/\b(islamic\s+studies|isl\s+stud|is)\b/gi, ' __SUB_IS__ ');
+    .replace(/\b(islamic\s+studies|isl\s+stud|is)\b/gi, ' __SUB_IS__ ')
+    .replace(/\b(non-med|non\s*med|non-medical|medical|med|studied|applied)\b/gi, ' ');
 
   // Map known keywords / tokens to standard uppercase abbreviations
   const subMap = [
@@ -1454,8 +1459,7 @@ export function isStudentEnrolledInPracticalSubject(st, subCode, className = '')
   if ((code === 'BO' || code === 'ZO') && abbrList.includes('BI')) return true;
 
   // Physical Education alias: PD / PE
-  if (code === 'PD' && abbrList.includes('PE')) return true;
-  if (code === 'PE' && abbrList.includes('PD')) return true;
+  if (code === 'PD' && (abbrList.includes('PE') || abbrList.includes('PED'))) return true;
 
   // General English is taken by all Higher Secondary students
   if (code === 'EN' && !isSecondary) return true;
@@ -1506,7 +1510,7 @@ export function printAttendanceSheet({
         </div>
       </div>
 
-      <table class="award-table attendance-table" style="font-size: 9.5pt; width: 100%; border-collapse: collapse;">
+      <table class="award-table attendance-table" style="font-size: 9.5pt; width: 100%;">
         <thead>
           <tr style="height: 32px;">
             <th style="width: 5%;">S.No.</th>
@@ -1529,16 +1533,18 @@ export function printAttendanceSheet({
     const subs = getAbbreviatedSubjects(st, className);
 
     html += `
-      <tr style="height: 50px; min-height: 50px;">
-        <td style="height: 50px; text-align: center; font-size: 9pt; color: #475569;">${idx + 1}</td>
-        <td style="height: 50px; text-align: center; font-weight: 800; font-size: 10pt; color: #0f172a;">${classRoll}</td>
-        <td style="height: 50px; text-align: center; font-weight: 800; font-family: monospace; font-size: 10.5pt; color: #1e293b;">${examRoll}</td>
-        <td style="height: 50px; text-align: left; padding-left: 8px;">
-          <div style="font-weight: 700; font-size: 10pt; color: #0f172a;">${toTitleCase(name)}</div>
-          ${regNo && regNo !== '—' ? `<div style="font-family: monospace; font-size: 8pt; color: #64748b; font-weight: 600; margin-top: 1px;">Reg: ${regNo}</div>` : ''}
+      <tr style="page-break-inside: avoid !important; break-inside: avoid !important;">
+        <td style="text-align: center; font-size: 9pt; color: #475569;">${idx + 1}</td>
+        <td style="text-align: center; font-weight: 800; font-size: 10pt; color: #0f172a;">${classRoll}</td>
+        <td style="text-align: center; font-weight: 800; font-family: monospace; font-size: 10.5pt; color: #1e293b;">${examRoll}</td>
+        <td style="text-align: left; padding: 4px 8px;">
+          <div class="student-name-block">
+            <div style="font-weight: 700; font-size: 10pt; color: #0f172a; line-height: 1.2;">${toTitleCase(name)}</div>
+            ${regNo && regNo !== '—' ? `<div style="font-family: monospace; font-size: 8pt; color: #64748b; font-weight: 600; margin-top: 2px; white-space: nowrap;">Reg: ${regNo}</div>` : ''}
+          </div>
         </td>
-        <td style="height: 50px; text-align: left; padding-left: 8px; font-size: 8.5pt; font-weight: 700; color: #334155; line-height: 1.3;">${subs}</td>
-        <td style="height: 50px;">&nbsp;</td>
+        <td style="text-align: left; padding: 4px 8px; font-size: 8.5pt; font-weight: 700; color: #334155; line-height: 1.3;">${subs}</td>
+        <td>&nbsp;</td>
       </tr>
     `;
   });
@@ -1558,6 +1564,171 @@ export function printAttendanceSheet({
     ? `${titles.shortType} Attendance Sheet — ${resolvedSubjectTitle} — Class ${className}`
     : `${titles.shortType} Attendance Sheet — Class ${className}`;
   triggerPrintWindow(html, attendanceTitle);
+  return true;
+}
+
+/**
+ * 4.4 Print Subject Marks Record / Award Roll (with Pract Copy/Assignment, Viva Voce, Total columns)
+ * Matches requested institution format:
+ * - Proper label matching Screenshot 3: "${className} - Marks Record (Practicals/Assignments) - ${subjectName}"
+ * - Exactly 7 columns: S.No., Class R.No., Exam Roll No., Student Name (with Reg No), Pract Copy / Assignment, Viva Voce, Total
+ * - No Subject column, No Candidate Signature column
+ * - Supports single subject or multi-subject batch with page breaks
+ */
+export function printMarksRecordAwardRoll({
+  className = '11th',
+  session = 'Annual Regular 2025',
+  students = [],
+  submissions = [],
+  isExternal = false,
+  evaluationType = '',
+  practicalType = '',
+  subjectCode = '',
+  subjectName = '',
+  selectedSubjectCodes = null,
+  printDetails = null
+}) {
+  if (!students || students.length === 0) return false;
+  students = students.filter(st => !isStudentExamDropped(st));
+  if (students.length === 0) return false;
+
+  const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
+  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const examLabel = titles.examLabel || (isExternal ? 'External Practical' : 'Internal Practical');
+
+  // Determine target subjects to print
+  let targetSubs = [];
+  const singleSubCode = (subjectCode || '').trim().toUpperCase();
+  if (singleSubCode) {
+    const foundDef = PRACTICAL_SUBJECT_DEFS.find(s => s.code === singleSubCode);
+    targetSubs = [{
+      code: singleSubCode,
+      name: subjectName || foundDef?.name || singleSubCode
+    }];
+  } else if (selectedSubjectCodes && Array.isArray(selectedSubjectCodes) && selectedSubjectCodes.length > 0) {
+    targetSubs = PRACTICAL_SUBJECT_DEFS.filter(s => selectedSubjectCodes.includes(s.code));
+  } else {
+    targetSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {
+      return students.some(st => isStudentEnrolledInPracticalSubject(st, s.code, className));
+    });
+  }
+
+  if (targetSubs.length === 0) return false;
+
+  const isClass12 = String(className).toLowerCase().includes('12');
+  const clsTarget = isClass12 ? '12' : '11';
+
+  let combinedHtml = '';
+
+  targetSubs.forEach((sub, subIdx) => {
+    // Subject-specific enrolled students
+    const subStudents = students.filter(st => isStudentEnrolledInPracticalSubject(st, sub.code, className));
+    if (subStudents.length === 0) return;
+
+    // Find corresponding teacher submission if exists
+    const subDoc = submissions.find(s => {
+      const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+      if (!matchClass) return false;
+      const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+      if (evaluationType || practicalType) {
+        const target = String(evaluationType || practicalType).toLowerCase();
+        if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
+          const targetNorm = target.includes('ext') ? 'external' : 'internal';
+          if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
+        }
+      } else {
+        const targetType = isExternal ? 'external' : 'internal';
+        if (sType !== targetType && !sType.includes(targetType)) return false;
+      }
+      const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+      return codeStr === sub.code || codeStr.includes(sub.code);
+    });
+
+    const isLastSub = subIdx === targetSubs.length - 1;
+
+    combinedHtml += `
+      <div class="award-page ${!isLastSub ? 'page-break' : ''}">
+        <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
+          <h1 style="font-size: 14pt; font-weight: 800; margin: 0; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">Govt. Higher Secondary School Shangus</h1>
+          <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${className} - Marks Record (Practicals/Assignments) - ${sub.name}</h2>
+          <p style="font-size: 9pt; font-weight: 700; margin: 2px 0; color: #475569;">
+            Session & Year: <strong>${session}</strong> &nbsp;|&nbsp; 
+            Class: <strong>${hseText}</strong> &nbsp;|&nbsp; 
+            Evaluation: <strong>${examLabel}</strong>
+          </p>
+          <div style="display: flex; justify-content: space-between; font-size: 8.5pt; font-weight: 700; margin-top: 6px; color: #334155;">
+            <span>No.: ____________________</span>
+            <span>Max Marks: _______</span>
+            <span>Date of Exam: ____________________</span>
+          </div>
+        </div>
+
+        <table class="award-table" style="font-size: 9pt; width: 100%; margin-top: 6px;">
+          <thead>
+            <tr style="height: 32px; background: #1e293b; color: #ffffff;">
+              <th style="width: 5%; text-align: center;">S.No.</th>
+              <th style="width: 10%; text-align: center;">Class R.No.</th>
+              <th style="width: 15%; text-align: center;">Exam Roll No.</th>
+              <th style="width: 34%; text-align: left; padding-left: 8px;">Student Name</th>
+              <th style="width: 12%; text-align: center;">Pract Copy / Assignment</th>
+              <th style="width: 12%; text-align: center;">Viva Voce</th>
+              <th style="width: 12%; text-align: center;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    subStudents.forEach((st, idx) => {
+      const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
+      const examRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '—';
+      const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
+      const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
+      const regNo = String(rawReg).trim();
+
+      const markRec = findStudentMarkRecord(subDoc, st);
+      const isAbs = markRec && String(markRec.totalMarks ?? markRec.practicalMarks ?? '').toUpperCase() === 'AB';
+      const pMark = markRec ? (markRec.pracMarks ?? markRec.practicalMarks ?? '') : '';
+      const vMark = markRec ? (markRec.vivaMarks ?? '') : '';
+      const tMark = markRec ? (markRec.totalMarks ?? markRec.practicalMarks ?? '') : '';
+
+      combinedHtml += `
+        <tr style="height: 38px; page-break-inside: avoid !important; break-inside: avoid !important;">
+          <td style="text-align: center; color: #475569; font-size: 8.5pt;">${idx + 1}</td>
+          <td style="text-align: center; font-weight: 800; font-size: 9.5pt; color: #0f172a;">${classRoll}</td>
+          <td style="text-align: center; font-weight: 800; font-family: monospace; font-size: 10pt; color: #1e293b;">${examRoll}</td>
+          <td style="text-align: left; padding: 3px 8px;">
+            <div class="student-name-block">
+              <div style="font-weight: 700; font-size: 9.5pt; color: #0f172a; line-height: 1.2;">${toTitleCase(name)}</div>
+              ${regNo && regNo !== '—' ? `<div style="font-family: monospace; font-size: 7.5pt; color: #64748b; font-weight: 600; margin-top: 2px; white-space: nowrap;">Reg: ${regNo}</div>` : ''}
+            </div>
+          </td>
+          <td style="text-align: center; font-weight: 700; font-size: 9.5pt; color: #0f172a;">${isAbs ? 'AB' : (pMark !== '' ? pMark : '&nbsp;')}</td>
+          <td style="text-align: center; font-weight: 700; font-size: 9.5pt; color: #0f172a;">${isAbs ? 'AB' : (vMark !== '' ? vMark : '&nbsp;')}</td>
+          <td style="text-align: center; font-weight: 800; font-size: 10pt; background: #f8fafc; color: #0f172a;">${isAbs ? '<span class="absent-text">AB</span>' : (tMark !== '' ? `<strong>${tMark}</strong>` : '&nbsp;')}</td>
+        </tr>
+      `;
+    });
+
+    combinedHtml += `
+          </tbody>
+        </table>
+
+        <div class="sig-row" style="margin-top: 30px; font-size: 9.5pt; font-weight: 700; display: flex; justify-content: space-between;">
+          <div>Subject Teacher Signature: __________________</div>
+          <div>Internal Examiner: __________________</div>
+          <div>Principal Signature: __________________</div>
+        </div>
+      </div>
+    `;
+  });
+
+  if (!combinedHtml) return false;
+
+  const docTitle = targetSubs.length === 1
+    ? `${className} - Marks Record (Practicals/Assignments) - ${targetSubs[0].name}`
+    : `${className} - Marks Record (Practicals/Assignments) - All Subjects`;
+
+  triggerPrintWindow(combinedHtml, docTitle);
   return true;
 }
 
