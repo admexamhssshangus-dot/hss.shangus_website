@@ -973,8 +973,8 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                           className="flex-1 min-w-[130px] px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600 transition-colors"
                         >
                           <option value="">Select Subject...</option>
-                          {SUBJECT_CONFIG_DEFS.map(sub => (
-                            <option key={sub.code} value={sub.code}>
+                          {SUBJECT_CONFIG_DEFS.map((sub, idx) => (
+                            <option key={`${sub.code}_${idx}`} value={sub.code}>
                               {sub.name} [{sub.code}]
                             </option>
                           ))}

@@ -378,9 +378,10 @@ export default function Home() {
         return;
       }
 
-      // Record session visit once
+      // Record session visit once (skipped on local development)
       try {
-        if (!sessionStorage.getItem('hss_visit_recorded')) {
+        const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        if (!isLocalHost && !sessionStorage.getItem('hss_visit_recorded')) {
           sessionStorage.setItem('hss_visit_recorded', '1');
           fetch('/.netlify/functions/public-traffic', {
             method: 'POST',
@@ -412,9 +413,7 @@ export default function Home() {
               try { localStorage.setItem('site_traffic_stats', JSON.stringify(stats)); } catch (_) {}
             }
           }
-        } catch (e) {
-          console.warn('Static traffic fallback failed:', e);
-        }
+        } catch (_) {}
       };
 
       // Helper: Static notices fallback

@@ -201,8 +201,9 @@ export default function AdminDashboard() {
 
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Idle-time background prefetching of high-priority admin modules
+  // Idle-time background prefetching of high-priority admin modules (production only to prevent HMR dev-server thrashing)
   useEffect(() => {
+    if (process.env.NODE_ENV === 'development') return;
     const idlePrefetch = () => {
       const commonModules = ['controls', 'practicals', 'idCards', 'admRegisterSuite', 'attendanceMgmt'];
       commonModules.forEach((modId) => {
@@ -213,10 +214,10 @@ export default function AdminDashboard() {
     };
 
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      const idleId = window.requestIdleCallback(idlePrefetch, { timeout: 3000 });
+      const idleId = window.requestIdleCallback(idlePrefetch, { timeout: 4000 });
       return () => window.cancelIdleCallback(idleId);
     } else {
-      const timer = setTimeout(idlePrefetch, 1500);
+      const timer = setTimeout(idlePrefetch, 2500);
       return () => clearTimeout(timer);
     }
   }, [user]);
@@ -226,7 +227,7 @@ export default function AdminDashboard() {
     let tab = rawTab;
     if (tab === 'jkboseSubjectRolls' || tab === 'subjectRolls' || tab === 'jkboseRolls') {
       setAnalyticsInitialMode('jkbose_subject_rolls');
-      setMountedTabs(prev => new Set(prev).add('analyticsReports'));
+      setMountedTabs(prev => (prev.has('analyticsReports') ? prev : new Set(prev).add('analyticsReports')));
       tab = 'analyticsReports';
     }
     if (tab === 'storage' || tab === 'quota') {
@@ -240,12 +241,7 @@ export default function AdminDashboard() {
       tab = 'controls';
     }
     if (tab === 'boardSync') {
-      setMountedTabs(prev => {
-        if (prev.has('reports')) return prev;
-        const next = new Set(prev);
-        next.add('reports');
-        return next;
-      });
+      setMountedTabs(prev => (prev.has('reports') ? prev : new Set(prev).add('reports')));
       setActiveTabState('reports');
       setTriggerAction('boardSync');
       try {
@@ -257,45 +253,26 @@ export default function AdminDashboard() {
       } catch (_) {}
       return;
     }
-    if (tab === activeTab) return;
 
     // Trigger instant chunk prefetch
     prefetchAdminModule(tab);
 
-    const syncUrl = (targetTab) => {
-      try {
-        sessionStorage.setItem('hss_admin_active_tab', targetTab);
-        const url = new URL(window.location.href);
-        if (targetTab === 'reports') {
-          url.searchParams.delete('tab');
-          url.searchParams.delete('subtab');
-        } else {
-          url.searchParams.set('tab', targetTab);
-        }
-        window.history.replaceState(null, '', url.toString());
-      } catch (_) {}
-    };
+    try {
+      sessionStorage.setItem('hss_admin_active_tab', tab);
+      const url = new URL(window.location.href);
+      if (tab === 'reports') {
+        url.searchParams.delete('tab');
+        url.searchParams.delete('subtab');
+      } else {
+        url.searchParams.set('tab', tab);
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch (_) {}
 
-    syncUrl(tab);
-
-    // If tab is already mounted, switch is instantaneous (0ms) without any artificial delays!
-    if (mountedTabs.has(tab)) {
-      React.startTransition(() => {
-        setActiveTabState(tab);
-      });
-      return;
-    }
-
-    // Otherwise, register it in mountedTabs and transition smoothly
-    setMountedTabs(prev => {
-      const next = new Set(prev);
-      next.add(tab);
-      return next;
-    });
-    React.startTransition(() => {
-      setActiveTabState(tab);
-    });
-  }, [activeTab, mountedTabs]);
+    // Ensure tab is mounted and set active state synchronously (0ms instant switch)
+    setMountedTabs(prev => (prev.has(tab) ? prev : new Set(prev).add(tab)));
+    setActiveTabState(tab);
+  }, []);
 
   // Handle browser Back/Forward navigation
   useEffect(() => {
@@ -586,11 +563,16 @@ export default function AdminDashboard() {
     };
   }, [activeTab, commitApplications, loadAdminData]);
 
+  const masterRegisters = useMemo(() => {
+    return getCachedCollectionSync('masterRegisters') || [];
+  }, []);
+
   const identityStudents = useMemo(() => {
-    const master = getCachedCollectionSync('masterRegisters') || [];
-    if (!master.length) return applications || [];
-    return [...(applications || []), ...master];
-  }, [applications]);
+    if (!masterRegisters.length) return applications || [];
+    return [...(applications || []), ...masterRegisters];
+  }, [applications, masterRegisters]);
+
+  const handleCloseToReports = useCallback(() => setActiveTab('reports'), [setActiveTab]);
 
   const handleRecordDeleted = (student) => {
     if (!student) return;
@@ -928,8 +910,8 @@ export default function AdminDashboard() {
                     >
                       <AdmissionRegisterSuite
                         students={applications}
-                        allHistory={getCachedCollectionSync('masterRegisters') || []}
-                        onClose={() => setActiveTab('reports')}
+                        allHistory={masterRegisters}
+                        onClose={handleCloseToReports}
                         onOpenSubjectRolls={() => {
                           setAnalyticsInitialMode('jkbose_subject_rolls');
                           setMountedTabs(prev => new Set(prev).add('analyticsReports'));
@@ -965,10 +947,10 @@ export default function AdminDashboard() {
                         isPage={true}
                         isOpen={activeTab === 'analyticsReports' || activeTab === 'analytics' || activeTab === 'statisticalReports'}
                         initialMode={analyticsInitialMode}
-                        onClose={() => setActiveTab('reports')}
+                        onClose={handleCloseToReports}
                         students={applications}
                         allStudents={identityStudents || applications}
-                        historicalRecords={getCachedCollectionSync('masterRegisters') || []}
+                        historicalRecords={masterRegisters}
                         onNavigateTab={(tab) => {
                           setMountedTabs(prev => new Set(prev).add(tab));
                           setActiveTab(tab);
@@ -1002,7 +984,7 @@ export default function AdminDashboard() {
                       <BulkFieldOverwriteModal
                         isPage={true}
                         isOpen={activeTab === 'boardSync' || activeTab === 'jkboseSync' || activeTab === 'ingestionHub' || activeTab === 'bulkOverwrite' || activeTab === 'directEntry'}
-                        onClose={() => setActiveTab('reports')}
+                        onClose={handleCloseToReports}
                         onOpenHub={() => setActiveTab('directEntry')}
                         allStudents={identityStudents || applications}
                         currentSession={(sessionStorage.getItem('hss_last_selected_session') || '2025-26')}
@@ -1032,7 +1014,7 @@ export default function AdminDashboard() {
                     >
                       <StudentIdCardManager
                         students={applications}
-                        onClose={() => setActiveTab('reports')}
+                        onClose={handleCloseToReports}
                       />
                     </div>
                   )}
@@ -1047,7 +1029,7 @@ export default function AdminDashboard() {
                     >
                       <CustomRosterDocumentBuilderView
                         allStudents={identityStudents}
-                        onClose={() => setActiveTab('reports')}
+                        onClose={handleCloseToReports}
                         isActive={activeTab === 'customRoster' || activeTab === 'docStudio'}
                       />
                     </div>
@@ -1062,7 +1044,7 @@ export default function AdminDashboard() {
                       aria-hidden={activeTab !== 'officialLetter'}
                     >
                       <OfficialLetterWriterView
-                        onClose={() => setActiveTab('reports')}
+                        onClose={handleCloseToReports}
                         onSwitchToRoster={() => setActiveTab('customRoster')}
                         showSettingsDrawerProp={isStudioSetupOpen}
                         onToggleSettingsDrawer={(val) => setIsStudioSetupOpen(typeof val === 'boolean' ? val : !isStudioSetupOpen)}
@@ -1081,7 +1063,7 @@ export default function AdminDashboard() {
                       <StudentCertificateStudioView
                         allStudents={identityStudents}
                         identityStudents={identityStudents}
-                        onClose={() => setActiveTab('reports')}
+                        onClose={handleCloseToReports}
                         onSwitchToRoster={() => setActiveTab('customRoster')}
                         onSwitchToLetter={() => setActiveTab('officialLetter')}
                         showSettingsDrawerProp={isStudioSetupOpen}
@@ -1121,7 +1103,7 @@ export default function AdminDashboard() {
                       <ApplicationMergerStudio
                         applications={applications}
                         onRefresh={loadAdminData}
-                        onClose={() => setActiveTab('reports')}
+                        onClose={handleCloseToReports}
                       />
                     </div>
                   )}

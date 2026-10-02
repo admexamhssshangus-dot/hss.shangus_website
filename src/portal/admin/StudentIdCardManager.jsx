@@ -148,7 +148,7 @@ function resolveStudentPhoto(student, photoIndex = new Map()) {
   return formatPhotoDisplayUrl(resolveCanonicalStudentPhoto(student)) || '/logo.png';
 }
 
-export default function StudentIdCardManager({ students = [], onClose }) {
+function StudentIdCardManager({ students = [], onClose }) {
   // ─── Live Data Fetching & Sync across all classes ───
   const [liveStudents, setLiveStudents] = useState(() => {
     if (Array.isArray(students) && students.length > 0) return students;
@@ -3345,3 +3345,5 @@ function SingleCardModal({
     </div>
   );
 }
+
+export default React.memo(StudentIdCardManager);

@@ -543,7 +543,7 @@ export const invalidatePracticalsCache = () => {
 // ─────────────────────────────────────────────────────────────
 // MAIN ADMIN PRACTICALS PORTAL COMPONENT
 // ─────────────────────────────────────────────────────────────
-export default function AdminPracticals() {
+function AdminPracticals() {
   const getInitialPracticalsTab = () => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
@@ -5493,7 +5493,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
                 const passRatio = numMax > 0 ? Math.round((numMin / numMax) * 100) : 36;
 
                 return (
-                  <tr key={sub.code} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
+                  <tr key={`${sub.code}_${idx}`} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="py-1.5 px-2.5 text-center font-mono text-[11px] text-slate-400 font-bold">
                       {idx + 1}
                     </td>
@@ -6090,3 +6090,5 @@ function SettingsPermissionsView({
     </div>
   );
 }
+
+export default React.memo(AdminPracticals);
