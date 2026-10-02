@@ -283,6 +283,38 @@ export function findStudentMarkRecord(subDoc, student) {
   });
 }
 
+/**
+ * Checks whether active, approved practical mark submissions exist for a given subject code,
+ * class, and evaluation type.
+ */
+export function hasSubjectPracticalSubmission(subCode, submissions, className = '', evaluationType = '', isExternal = false) {
+  if (!submissions || !Array.isArray(submissions) || submissions.length === 0) return false;
+  const clsTarget = String(className || '').replace(/[^0-9]/g, '');
+  const targetType = String(evaluationType || (isExternal ? 'external' : 'internal')).toLowerCase();
+
+  return submissions.some(s => {
+    const sCls = String(s.className || s.Class || s.class || '').replace(/[^0-9]/g, '');
+    if (clsTarget && sCls && sCls !== clsTarget) return false;
+
+    const sType = String(s.practicalType || s.PracticalType || s.evaluationType || 'internal').toLowerCase();
+    if (targetType) {
+      if (sType !== targetType && !sType.includes(targetType) && !targetType.includes(sType)) {
+        const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
+        if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
+      }
+    }
+
+    const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+    const isCode = codeStr === subCode || codeStr.includes(subCode) || (subCode === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')));
+    if (!isCode) return false;
+
+    return Array.isArray(s.records) && s.records.some(r => {
+      const mark = String(r.totalMarks ?? r.practicalMarks ?? '').trim();
+      return mark !== '' && mark !== '—' && mark !== '-';
+    });
+  });
+}
+
 const PRINT_ENGINE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Cinzel:wght@700;800;900&display=swap');
 
@@ -951,51 +983,55 @@ export function printConsolidatedAwardRoll({
       : 'HSE-II (Class 12th)';
   
   // Filter subjects based on admin's subject checklist selection
-  const activeSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {
+  const candidateSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {
     if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
     return selectedSubjectCodes.includes(s.code);
   });
+
+  // Only include subjects that actually have active submitted marks in submissions (unless explicitly a single subject target)
+  const isSingleSub = selectedSubjectCodes && Array.isArray(selectedSubjectCodes) && selectedSubjectCodes.length === 1;
+  const subsWithMarks = candidateSubs.filter(sub => {
+    return hasSubjectPracticalSubmission(sub.code, submissions, className, evaluationType, isExternal);
+  });
+  const activeSubs = isSingleSub
+    ? candidateSubs
+    : (subsWithMarks.length > 0 ? subsWithMarks : candidateSubs);
 
   // Build subject gist count for Page 1 Forwarding Cover Letter
   const gistList = activeSubs.map((sub, idx) => {
     let count = 0;
 
-    if (sub.code === 'EN') {
-      // General English is compulsory for ALL examinees in the class!
-      count = students.length;
-    } else {
-      students.forEach(st => {
-        let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
+    students.forEach(st => {
+      let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
-        // Also check if this student has an actual submitted mark for this subject!
-        if (!hasSub && submissions && submissions.length > 0) {
-          const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
-          const subDoc = submissions.find(s => {
-            const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-            if (!matchClass) return false;
-            const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-            return codeStr === sub.code || codeStr.includes(sub.code);
-          });
-          if (subDoc && subDoc.records && rNo) {
-            const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || r.roll || '').trim() === rNo);
-            if (hasRec) hasSub = true;
-          }
-        }
-
-        if (hasSub) count++;
-      });
-
-      // Fallback count from submissions strictly FOR THIS CLASS if student subject string is empty
-      if (count === 0 && submissions && submissions.length > 0) {
+      // Also check if this student has an actual submitted mark for this subject!
+      if (!hasSub && submissions && submissions.length > 0) {
+        const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
         const subDoc = submissions.find(s => {
           const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
           if (!matchClass) return false;
           const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
           return codeStr === sub.code || codeStr.includes(sub.code);
         });
-        if (subDoc && subDoc.records) {
-          count = subDoc.records.length;
+        if (subDoc && subDoc.records && rNo) {
+          const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || r.roll || '').trim() === rNo);
+          if (hasRec) hasSub = true;
         }
+      }
+
+      if (hasSub) count++;
+    });
+
+    // Fallback count from submissions strictly FOR THIS CLASS if student subject string is empty
+    if (count === 0 && submissions && submissions.length > 0) {
+      const subDoc = submissions.find(s => {
+        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+        if (!matchClass) return false;
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+        return codeStr === sub.code || codeStr.includes(sub.code);
+      });
+      if (subDoc && subDoc.records) {
+        count = subDoc.records.length;
       }
     }
 

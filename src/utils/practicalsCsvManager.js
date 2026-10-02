@@ -22,7 +22,7 @@ import {
   PageOrientation,
   HeightRule
 } from 'docx';
-import { findStudentMarkRecord, resolveAwardRollTitles, isStudentEnrolledInPracticalSubject, getAbbreviatedSubjects } from './practicalsPdfGenerator';
+import { findStudentMarkRecord, resolveAwardRollTitles, isStudentEnrolledInPracticalSubject, getAbbreviatedSubjects, hasSubjectPracticalSubmission } from './practicalsPdfGenerator';
 import { isStudentExamDropped } from './studentApprovalStatus';
 import { getSubjectDisplayName } from './practicalsSettingsManager';
 
@@ -376,10 +376,18 @@ export function exportConsolidatedAwardsToExcel({
     { code: 'ITE', name: 'IT and ITES', keywords: ['it and ites', 'it&ites', 'ite', 'information technology'] }
   ];
 
-  const activeSubs = defaultSubDefs.filter(s => {
+  const candidateSubs = defaultSubDefs.filter(s => {
     if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
     return selectedSubjectCodes.includes(s.code);
   });
+
+  const isSingleSub = selectedSubjectCodes && Array.isArray(selectedSubjectCodes) && selectedSubjectCodes.length === 1;
+  const subsWithMarks = candidateSubs.filter(sub => {
+    return hasSubjectPracticalSubmission(sub.code, submissions, className, evaluationType, isExternal);
+  });
+  const activeSubs = isSingleSub
+    ? candidateSubs
+    : (subsWithMarks.length > 0 ? subsWithMarks : candidateSubs);
 
   // ──────── SHEET 1: FORWARDING COVER LETTER ────────
   const gistCounts = activeSubs.map((sub, idx) => {
@@ -625,10 +633,18 @@ export async function exportConsolidatedAwardsToDocx({
     { code: 'ITE', name: 'IT and ITES', keywords: ['it and ites', 'it&ites', 'ite', 'information technology'] }
   ];
 
-  const activeSubs = defaultSubDefs.filter(s => {
+  const candidateSubs = defaultSubDefs.filter(s => {
     if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
     return selectedSubjectCodes.includes(s.code);
   });
+
+  const isSingleSub = selectedSubjectCodes && Array.isArray(selectedSubjectCodes) && selectedSubjectCodes.length === 1;
+  const subsWithMarks = candidateSubs.filter(sub => {
+    return hasSubjectPracticalSubmission(sub.code, submissions, className, evaluationType, isExternal);
+  });
+  const activeSubs = isSingleSub
+    ? candidateSubs
+    : (subsWithMarks.length > 0 ? subsWithMarks : candidateSubs);
 
   // Calculate Gist for Page 1 Cover Letter
   const gistList = activeSubs.map((sub, idx) => {
