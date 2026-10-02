@@ -24,6 +24,7 @@ import {
 } from 'docx';
 import { findStudentMarkRecord, resolveAwardRollTitles, isStudentEnrolledInPracticalSubject, getAbbreviatedSubjects } from './practicalsPdfGenerator';
 import { isStudentExamDropped } from './studentApprovalStatus';
+import { getSubjectDisplayName } from './practicalsSettingsManager';
 
 export const CSV_COLUMNS = [
   'Class',
@@ -245,7 +246,7 @@ export function exportCurrentRosterToExcel({
   teacherEmail = ''
 }) {
   students = (students || []).filter(st => !isStudentExamDropped(st));
-  const subName = VALID_SUBJECT_CODES[subjectCode] || subjectCode;
+  const subName = getSubjectDisplayName(subjectCode, className) || VALID_SUBJECT_CODES[subjectCode] || subjectCode;
 
   const rows = students.map((st, idx) => {
     const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st.regNo || st.boardRegNo || '';
@@ -354,7 +355,7 @@ export function exportConsolidatedAwardsToExcel({
   const evalTypeText = titles.shortType;
 
   const defaultSubDefs = [
-    { code: 'EN', name: 'General English', keywords: ['english', 'gen eng', 'en'] },
+    { code: 'EN', name: isClass10 ? 'English' : 'General English', keywords: ['english', 'gen eng', 'en'] },
     { code: 'PH', name: 'Physics', keywords: ['physics', 'ph'] },
     { code: 'CH', name: 'Chemistry', keywords: ['chemistry', 'ch'] },
     { code: 'BO', name: 'Botany', keywords: ['botany', 'bo', 'biology'] },
@@ -603,7 +604,7 @@ export async function exportConsolidatedAwardsToDocx({
   const evalTypeText = titles.shortType;
 
   const defaultSubDefs = [
-    { code: 'EN', name: 'General English', keywords: ['english', 'gen eng', 'en'] },
+    { code: 'EN', name: isClass10 ? 'English' : 'General English', keywords: ['english', 'gen eng', 'en'] },
     { code: 'PH', name: 'Physics', keywords: ['physics', 'ph'] },
     { code: 'CH', name: 'Chemistry', keywords: ['chemistry', 'ch'] },
     { code: 'BO', name: 'Botany', keywords: ['botany', 'bo', 'biology'] },

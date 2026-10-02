@@ -47,7 +47,8 @@ import {
   DEFAULT_PRACTICAL_MARKS_CONFIG,
   getSubjectMarksConfig,
   getActiveSchoolEvaluations,
-  isPracticalEvaluationType
+  isPracticalEvaluationType,
+  getSubjectDisplayName
 } from '../../utils/practicalsSettingsManager';
 
 export const CODES = SUBJECT_CONFIG_DEFS.map(s => s.code);
@@ -1358,7 +1359,7 @@ function AdminPracticals() {
     setGeneralConfirmModal({
       isOpen: true,
       title: 'Revoke Teacher Permission?',
-      subtitle: `Are you sure you want to revoke evaluation access for ${p.email} (Class ${p.className} • ${NAMES[p.subject] || p.subject})?`,
+      subtitle: `Are you sure you want to revoke evaluation access for ${p.email} (Class ${p.className} • ${getSubjectDisplayName(p.subject, p.className) || p.subject})?`,
       badgeText: 'Revoke Access',
       confirmText: 'Revoke Permission',
       cancelText: 'Cancel',
@@ -2316,7 +2317,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                               />
                               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 w-4 text-right shrink-0">{idx + 1}.</span>
                               <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10.5px] w-7 shrink-0">{code}</span>
-                              <span className="text-[11px] truncate max-w-[120px]">{NAMES[code] || code}</span>
+                              <span className="text-[11px] truncate max-w-[120px]">{getSubjectDisplayName(code, cls)}</span>
                             </div>
                             {isChecked && <Check size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />}
                           </label>
@@ -2371,7 +2372,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                         <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 truncate max-w-[170px]">
                           {exportSubjectTarget === 'all'
                             ? `All Active Subjects (${activeSubjects.length})`
-                            : `${NAMES[exportSubjectTarget] || exportSubjectTarget} (${exportSubjectTarget})`}
+                            : `${getSubjectDisplayName(exportSubjectTarget, cls)} (${exportSubjectTarget})`}
                         </span>
                       </div>
 
@@ -2400,7 +2401,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                           <option value="" disabled>Particular Subject...</option>
                           {activeSubjects.map(code => (
                             <option key={code} value={code}>
-                              {code} - {NAMES[code] || code}
+                              {code} - {getSubjectDisplayName(code, cls)}
                             </option>
                           ))}
                         </select>
@@ -2434,7 +2435,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                           }
                           const isSingle = exportSubjectTarget !== 'all';
                           const targetCode = isSingle ? exportSubjectTarget : '';
-                          const targetName = isSingle ? (NAMES[targetCode] || targetCode) : '';
+                          const targetName = isSingle ? (getSubjectDisplayName(targetCode, cls) || targetCode) : '';
                           printMarksRecordAwardRoll({
                             className: cls,
                             session: localPrintOpts.sessionText,
@@ -2457,7 +2458,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                           <div className="text-[11.5px] font-black truncate">
                             {exportSubjectTarget === 'all'
                               ? `Print Marks Record Award Rolls (All ${activeSubjects.length} Subs)`
-                              : `Print Marks Record — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`}
+                              : `Print Marks Record — ${getSubjectDisplayName(exportSubjectTarget, cls)}`}
                           </div>
                           <div className="text-[9.5px] text-slate-400 font-semibold truncate">
                             Pract Copy / Assignment, Viva Voce & Total columns
@@ -2478,7 +2479,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                           }
                           const isSingle = exportSubjectTarget !== 'all';
                           const targetCode = isSingle ? exportSubjectTarget : '';
-                          const targetName = isSingle ? (NAMES[targetCode] || targetCode) : '';
+                          const targetName = isSingle ? (getSubjectDisplayName(targetCode, cls) || targetCode) : '';
                           printAttendanceSheet({
                             className: cls,
                             session: localPrintOpts.sessionText,
@@ -2499,7 +2500,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                           <div className="text-[11.5px] font-black truncate">
                             {exportSubjectTarget === 'all'
                               ? `Print Attendance Sheets (All ${activeSubjects.length} Subs)`
-                              : `Print Attendance Sheet — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`}
+                              : `Print Attendance Sheet — ${getSubjectDisplayName(exportSubjectTarget, cls)}`}
                           </div>
                           <div className="text-[9.5px] text-slate-400 font-semibold truncate">
                             Candidate Signature sheet with Exam Roll No
@@ -2540,7 +2541,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                           <div className="text-[11.5px] font-black truncate">
                             {exportSubjectTarget === 'all'
                               ? `Print 2-Column Award Rolls (All ${activeSubjects.length} Subs)`
-                              : `Print 2-Column Award Roll — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`}
+                              : `Print 2-Column Award Roll — ${getSubjectDisplayName(exportSubjectTarget, cls)}`}
                           </div>
                           <div className="text-[9.5px] text-slate-400 font-semibold truncate">
                             Official 50/page JKBOSE layout (Figures & Words)
@@ -2581,7 +2582,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                           <div className="text-[11.5px] font-black text-rose-700 dark:text-rose-400 truncate">
                             {exportSubjectTarget === 'all'
                               ? `Print Fail / Absent List (All ${activeSubjects.length} Subs)`
-                              : `Print Fail / Absent List — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`}
+                              : `Print Fail / Absent List — ${getSubjectDisplayName(exportSubjectTarget, cls)}`}
                           </div>
                           <div className="text-[9.5px] text-slate-400 font-semibold truncate">
                             Summary of students failed or absent in practicals
@@ -2741,7 +2742,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                         <div className="min-w-0 flex-1">
                           <div className="text-[11px] font-bold truncate">
                             {exportSubjectTarget !== 'all'
-                              ? `Export Blank Roster (.xlsx) — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`
+                              ? `Export Blank Roster (.xlsx) — ${getSubjectDisplayName(exportSubjectTarget, cls)}`
                               : 'Export Blank Teacher Roster (.xlsx)'}
                           </div>
                           <div className="text-[9.5px] text-slate-400 font-semibold truncate">
@@ -3849,7 +3850,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-tight truncate">
-                Class {formatClassDisplay(selSub.className || selSub.Class, selSub)} — {selSub.subjectName || selSub.Subject || NAMES[selSub.subjectCode] || selSub.subjectCode}
+                Class {formatClassDisplay(selSub.className || selSub.Class, selSub)} — {selSub.subjectName || selSub.Subject || getSubjectDisplayName(selSub.subjectCode, selSub.className || selSub.Class) || selSub.subjectCode}
               </h3>
               <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] border border-indigo-200/90 dark:border-indigo-800/80">
                 {canonicalSession}
@@ -3972,7 +3973,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
 
                 printIndividualAwardRoll({
                   subjectCode: selSub.subjectCode || selSub.subject,
-                  subjectName: selSub.subjectName || selSub.Subject || NAMES[selSub.subjectCode] || selSub.subjectCode,
+                  subjectName: selSub.subjectName || selSub.Subject || getSubjectDisplayName(selSub.subjectCode, selSub.className || selSub.Class) || selSub.subjectCode,
                   className: formatClassDisplay(selSub.className || selSub.Class, selSub),
                   session: canonicalSession,
                   records: subRecords,
@@ -4763,7 +4764,7 @@ function FacultySubmissionsView({
                 (t.submissionsList || []).forEach(s => {
                   const sCls = formatClassDisplay(s.className || s.Class || (String(s.id).startsWith('12') ? '12th' : '11th'), s);
                   const sCode = String(s.subjectCode || s.subject || s.Subject || 'SUB').toUpperCase();
-                  const sName = s.subjectName || s.Subject || NAMES[sCode] || sCode;
+                  const sName = s.subjectName || s.Subject || getSubjectDisplayName(sCode, sCls) || sCode;
                   const key = `${sCls}_${sCode}`;
                   if (!groupedMap[key]) {
                     groupedMap[key] = { cls: sCls, code: sCode, name: sName, internal: null, external: null, all: [] };
@@ -4991,7 +4992,7 @@ function FacultySubmissionsView({
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
             >
               <option value="all">All Subjects</option>
-              {CODES.map(c => <option key={c} value={c}>{NAMES[c]} ({c})</option>)}
+              {CODES.map(c => <option key={c} value={c}>{getSubjectDisplayName(c, filterClass)} ({c})</option>)}
             </select>
           </div>
 
@@ -5017,7 +5018,7 @@ function FacultySubmissionsView({
                       <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
                       <td className="py-2.5 px-3 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">{s.id}</td>
                       <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">
-                        {formatClassDisplay(s.className || s.Class, s)} • {s.subjectName || s.Subject || NAMES[s.subjectCode] || s.subjectCode || 'Subject'}
+                        {formatClassDisplay(s.className || s.Class, s)} • {s.subjectName || s.Subject || getSubjectDisplayName(s.subjectCode, s.className || s.Class) || s.subjectCode || 'Subject'}
                       </td>
                       <td className="py-2.5 px-3">
                         <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
@@ -5596,7 +5597,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
                     </td>
                     <td className="py-1.5 px-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-900 dark:text-white text-xs">{sub.name}</span>
+                        <span className="font-bold text-slate-900 dark:text-white text-xs">{getSubjectDisplayName(sub.code, activeClassTab)}</span>
                         <span className="px-1.5 py-0.2 rounded font-mono font-black text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80">
                           {sub.code}
                         </span>
@@ -5915,7 +5916,7 @@ function SettingsPermissionsView({
                   >
                     {CODES.map(c => (
                       <option key={c} value={c}>
-                        {NAMES[c] || c} ({c})
+                        {getSubjectDisplayName(c, grantClass)} ({c})
                       </option>
                     ))}
                   </select>
@@ -5966,7 +5967,7 @@ function SettingsPermissionsView({
                         Class {p.className}
                       </span>
                       <span>•</span>
-                      <span className="font-bold text-slate-700 dark:text-slate-300">{NAMES[p.subject] || p.subject} ({p.subject})</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{getSubjectDisplayName(p.subject, p.className)} ({p.subject})</span>
                     </div>
                   </div>
                   <button

@@ -8,7 +8,7 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { invalidateCache } from '../../services/dbCache';
-import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS } from '../../utils/practicalsSettingsManager';
+import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS, getSubjectDisplayName } from '../../utils/practicalsSettingsManager';
 import ConfirmModal from '../components/ConfirmModal';
 import { showToast } from '../../components/common/GlobalToast';
 
@@ -122,7 +122,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
           key: compositeKey,
           targetClass: cls,
           code: overrideSelectCode,
-          name: subObj?.name || overrideSelectCode,
+          name: getSubjectDisplayName(overrideSelectCode, cls) || subObj?.name || overrideSelectCode,
           maxMarks: max,
           minMarks: pass
         }
@@ -975,7 +975,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                           <option value="">Select Subject...</option>
                           {SUBJECT_CONFIG_DEFS.map((sub, idx) => (
                             <option key={`${sub.code}_${idx}`} value={sub.code}>
-                              {sub.name} [{sub.code}]
+                              {getSubjectDisplayName(sub.code, overrideTargetClass)} [{sub.code}]
                             </option>
                           ))}
                         </select>

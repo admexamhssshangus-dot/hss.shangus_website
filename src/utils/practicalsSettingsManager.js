@@ -457,6 +457,23 @@ export const DEFAULT_PRACTICAL_MARKS_CONFIG = {
 };
 
 /**
+ * Resolves user-facing display name for a subject code or name, taking class level into account.
+ * For secondary classes (10th, 9th), 'EN'/'GE' is titled 'English'.
+ * For higher secondary classes (11th, 12th), 'EN'/'GE' is titled 'General English'.
+ */
+export function getSubjectDisplayName(codeOrName, cls = '') {
+  if (!codeOrName) return '';
+  const str = String(codeOrName).trim();
+  const upper = str.toUpperCase();
+  const isSecondary = String(cls).toLowerCase().includes('10') || String(cls).toLowerCase().includes('9');
+  if (upper === 'EN' || upper === 'GE' || upper === 'GENERAL ENGLISH' || upper === 'ENGLISH') {
+    return isSecondary ? 'English' : 'General English';
+  }
+  const found = SUBJECT_CONFIG_DEFS.find(s => s.code === upper || s.name.toUpperCase() === upper);
+  return found?.name || str;
+}
+
+/**
  * Resolves configured Max Marks and Min / Pass Marks for any subject, class, and evaluation type.
  */
 export function getSubjectMarksConfig(settings, cls = '11th', evalType = 'internal', subCode = 'PH') {
