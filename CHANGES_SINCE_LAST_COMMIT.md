@@ -1,50 +1,38 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `refactor(catalog): consolidate JKBOSE subject roll return into analytics and admission suites`
+- **Commit Message**: `feat(assessments): add direct print button to school assessment submissions modal`
 - **Date**: October 02, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally.
 
 ---
 
-## Architectural Purpose: Elimination of Redundant Standalone Launcher Card
+## Architectural Purpose: 1-Click Direct Print in Submissions History
 
-### Why it was redundant:
-- **JKBOSE Subject Roll Return Statement** was previously rendered as an independent, top-level launcher card in the Admin Tools dropdown menu.
-- However, full JKBOSE Subject-wise Roll Number Return functionality is already natively and deeply integrated inside:
-  1. **Analytics & Statistical Reports Suite** (`AnalyticsSuiteModal.jsx`): Under report mode `JKBOSE Subject-wise Roll Number Statement` (`jkbose_subject_rolls`), with class-wise filtering (12th, 11th, 10th, or combined), automatic roll range compression (`2101 TO 2145...`), dropped examinee management drawer, and 1-click Word/Excel/PDF exports.
-  2. **Admission Register & Sentup Suite** (`AdmissionRegisterSuite.jsx`): Directly accessible via the suite mode selector dropdown and the dedicated "Subject Roll Return" action button.
-- Rendering it as an additional top-level card created unnecessary visual clutter and interface redundancy.
+### Problem:
+- In the **School-Based Assessment Portal** (`TeacherAssessmentsPage.jsx`), the "My School Assessment Submissions" modal (`Show History / Submissions Log`) displayed past submissions with status badges (`Approved`, `Pending`, `Revision`) and a `[Load]` button.
+- However, there was no direct `[Print]` button on individual submission items. A teacher who wanted to print or download an official PDF of a previous evaluation had to first click `[Load]`, wait for the grid to populate, and then find the print button on the master toolbar.
+
+### Solution:
+- Added a dedicated, 1-click `[Print]` button alongside `[Load]` on every submission item row in the "My School Assessment Submissions" modal.
+- Clicking `[Print]` invokes `printHistoricalSubmission(item)` directly from `practicalsPdfGenerator.js`, instantly opening the clean, official JKBOSE assessment award roll PDF/print preview without altering the current active grid.
+- Added helpful explanatory footer text: *"Click **Print** to print PDF directly, or **Load** to edit."*
 
 ---
 
 ## Files Changed & Synchronizations Completed
 
-### 1. `src/portal/admin/adminModuleCatalog.js`
-- Removed `jkboseSubjectRolls` as a standalone launcher module from `ADMIN_MODULE_CATALOG`.
-- Updated `analyticsReports` module description and maturity notes to explicitly highlight its integrated JKBOSE Subject Roll Return statement capabilities.
-- Added aliases `['jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls']` to `analyticsReports` to guarantee seamless backward compatibility for any existing permission checks or bookmarks.
-- Removed `'jkboseSubjectRolls'` from `ROLE_PRESETS.EXAM_INCHARGE` and `ROLE_PRESETS.ACADEMIC_ADMIN`.
-
-### 2. `src/portal/admin/StaffPermissionsManager.jsx`
-- Cleaned up role preset permissions to remove the redundant `'jkboseSubjectRolls'` code.
-
-### 3. `src/portal/admin/AnalyticsSuiteModal.jsx`
-- Added support for `initialMode` prop (defaulting to `'enrollment'`).
-- Added synchronization hook to allow external modules (like Admission Register Suite) to directly open the JKBOSE Subject Roll Return mode on demand.
-
-### 4. `src/portal/admin/AdminDashboard.jsx`
-- Removed unused lazy import `JkboseSubjectRollReturnView`.
-- Added `analyticsInitialMode` state management to coordinate launch modes.
-- Updated `onOpenSubjectRolls` callback in `AdmissionRegisterSuite` to directly mount and activate `analyticsReports` with `initialMode="jkbose_subject_rolls"`.
-- Removed the duplicate standalone tab container for `jkboseSubjectRolls`, routing all related alias activations to `AnalyticsSuiteModal`.
+### 1. `src/portal/teacher/TeacherAssessmentsPage.jsx`
+- Imported `printHistoricalSubmission` from `../../utils/practicalsPdfGenerator`.
+- Added an interactive `[Print]` button (with `Printer` icon) to each submission row in the history list with security check (`isSubmissionOwnedByTeacher`).
+- Updated modal footer layout with guidance text and clean action buttons.
 
 ---
 
 ## Verification & Build Details
 - **Production Build**:
   - `npm run build` -> `Exit Code 0`
-  - All 11 static pages, SEO regression check, and chunk bundles verified.
+  - All 11 static pages, SEO regression check, and bundle chunks verified.
 
 ---
 
@@ -62,7 +50,7 @@ If you wish to adjust the commit message or files before pushing:
 git reset --soft HEAD~1
 # Make desired changes
 git add .
-git commit -m "refactor(catalog): consolidate JKBOSE subject roll return into analytics and admission suites"
+git commit -m "feat(assessments): add direct print button to school assessment submissions modal"
 ```
 
 ### 3. Push to Remote Repository (Manual Action)

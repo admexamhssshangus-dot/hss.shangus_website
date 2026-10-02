@@ -15,7 +15,7 @@ import { logTeacherActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import ConfirmModal from '../components/ConfirmModal';
 import { sanitizeForFirestore } from '../../utils/firestoreSanitizer';
-import { printIndividualAwardRoll, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
+import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
 import {
   getSchoolEvaluationTypesForTeacher,
   getSubjectOverride,
@@ -1814,13 +1814,33 @@ export default function TeacherAssessmentsPage() {
                           <button
                             type="button"
                             onClick={() => {
+                              if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                                showToast('Access Restricted: You can only print your own assessment submissions.', 'error');
+                                return;
+                              }
+                              const ok = printHistoricalSubmission(item);
+                              if (!ok) {
+                                showToast('No student records found in this submission.', 'warning');
+                              }
+                            }}
+                            className="h-6 px-2 rounded-md text-[10.5px] font-bold bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                            title="Print or Save/Download PDF of this Assessment Award Roll"
+                          >
+                            <Printer size={11} className="text-teal-600 dark:text-teal-400" />
+                            <span>Print</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
                               setSelectedClass(item.className);
                               setSelectedSubject(item.subject);
                               setEvaluationType(item.evaluationType);
                               setSelectedSession(item.session);
                               setShowHistoryModal(false);
                             }}
-                            className="px-2 py-1 rounded bg-teal-50 hover:bg-teal-100 text-teal-800 text-[10.5px] font-bold cursor-pointer"
+                            className="h-6 px-2 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-800 text-[10.5px] font-bold border border-teal-200 dark:border-teal-800 transition-all cursor-pointer active:scale-95"
+                            title="Load this assessment into the live grid"
                           >
                             Load
                           </button>
@@ -1831,11 +1851,14 @@ export default function TeacherAssessmentsPage() {
               </div>
             )}
 
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-right shrink-0">
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0">
+              <span className="text-[10px] text-slate-400 truncate">
+                Click <strong className="text-slate-600 dark:text-slate-300">Print</strong> to print PDF directly, or <strong className="text-teal-600">Load</strong> to edit.
+              </span>
               <button
                 type="button"
                 onClick={() => setShowHistoryModal(false)}
-                className="px-3 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer"
+                className="px-3 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 shrink-0"
               >
                 Close
               </button>
