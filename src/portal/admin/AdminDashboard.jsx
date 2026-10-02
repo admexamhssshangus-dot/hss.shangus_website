@@ -20,7 +20,6 @@ const OfficialLetterWriterView = lazyWithChunkRecovery(() => import('./OfficialL
 const StudentCertificateStudioView = lazyWithChunkRecovery(() => import('./StudentCertificateStudioView'), 'admin-certificate');
 const StudentIdCardManager = lazyWithChunkRecovery(() => import('./StudentIdCardManager'), 'admin-id-cards');
 const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./AdmissionRegisterSuite'), 'admin-register-suite');
-const JkboseSubjectRollReturnView = lazyWithChunkRecovery(() => import('./JkboseSubjectRollReturnView'), 'admin-jkbose-rolls');
 const ApplicationMergerStudio = lazyWithChunkRecovery(() => import('./ApplicationMergerStudio'), 'admin-merger');
 const ControlsAndSubjects = lazyWithChunkRecovery(() => import('./ControlsAndSubjects'), 'admin-controls');
 const CurriculumAndSubjectsManager = lazyWithChunkRecovery(() => import('./CurriculumAndSubjectsManager'), 'admin-curriculum');
@@ -47,9 +46,9 @@ export const MODULE_LOADERS = {
   certificate: () => import('./StudentCertificateStudioView'),
   idCards: () => import('./StudentIdCardManager'),
   admRegisterSuite: () => import('./AdmissionRegisterSuite'),
-  jkboseSubjectRolls: () => import('./JkboseSubjectRollReturnView'),
-  subjectRolls: () => import('./JkboseSubjectRollReturnView'),
-  jkboseRolls: () => import('./JkboseSubjectRollReturnView'),
+  jkboseSubjectRolls: () => import('./AnalyticsSuiteModal'),
+  subjectRolls: () => import('./AnalyticsSuiteModal'),
+  jkboseRolls: () => import('./AnalyticsSuiteModal'),
   mergeStudio: () => import('./ApplicationMergerStudio'),
   controls: () => import('./ControlsAndSubjects'),
   admissionControls: () => import('./ControlsAndSubjects'),
@@ -188,6 +187,7 @@ export default function AdminDashboard() {
 
   // Tab State: 'reports' | 'controls' | 'rollNo' | 'bulk' | 'automations' | 'funds' | 'practicals' | 'attendanceMgmt' | 'gkTest' | 'idCards'
   const [activeTab, setActiveTabState] = useState(getInitialTab);
+  const [analyticsInitialMode, setAnalyticsInitialMode] = useState('enrollment');
 
   // Keep-Alive Architecture: All opened modules remain mounted in the DOM.
   // Switching between any visited module takes 0ms with zero DOM reconstruction,
@@ -224,6 +224,11 @@ export default function AdminDashboard() {
   const setActiveTab = useCallback((rawTab) => {
     if (!rawTab) return;
     let tab = rawTab;
+    if (tab === 'jkboseSubjectRolls' || tab === 'subjectRolls' || tab === 'jkboseRolls') {
+      setAnalyticsInitialMode('jkbose_subject_rolls');
+      setMountedTabs(prev => new Set(prev).add('analyticsReports'));
+      tab = 'analyticsReports';
+    }
     if (tab === 'storage' || tab === 'quota') {
       try {
         sessionStorage.setItem('hss_admin_controls_subtab', 'storage');
@@ -926,8 +931,9 @@ export default function AdminDashboard() {
                         allHistory={getCachedCollectionSync('masterRegisters') || []}
                         onClose={() => setActiveTab('reports')}
                         onOpenSubjectRolls={() => {
-                          setMountedTabs(prev => new Set(prev).add('jkboseSubjectRolls'));
-                          setActiveTab('jkboseSubjectRolls');
+                          setAnalyticsInitialMode('jkbose_subject_rolls');
+                          setMountedTabs(prev => new Set(prev).add('analyticsReports'));
+                          setActiveTab('analyticsReports');
                         }}
                         onDataUpdated={(updated) => {
                           if (Array.isArray(updated)) {
@@ -943,42 +949,12 @@ export default function AdminDashboard() {
                           }
                         }}
                         user={user}
-                      />
-                    </div>
-                  )}
-
-                  {/* TAB: JKBOSE Subject Roll Return Statement */}
-                  {(mountedTabs.has('jkboseSubjectRolls') || mountedTabs.has('subjectRolls') || mountedTabs.has('jkboseRolls')) && (
-                    <div
-                      key="jkbose-subject-rolls-container"
-                      className={(activeTab === 'jkboseSubjectRolls' || activeTab === 'subjectRolls' || activeTab === 'jkboseRolls') ? 'block w-full' : 'hidden'}
-                      style={(activeTab === 'jkboseSubjectRolls' || activeTab === 'subjectRolls' || activeTab === 'jkboseRolls') ? undefined : { display: 'none' }}
-                      aria-hidden={activeTab !== 'jkboseSubjectRolls' && activeTab !== 'subjectRolls' && activeTab !== 'jkboseRolls'}
-                    >
-                      <JkboseSubjectRollReturnView
-                        students={applications}
-                        allStudents={identityStudents || applications}
-                        user={user}
-                        onClose={() => setActiveTab('reports')}
-                        onDataUpdated={(updated) => {
-                          if (Array.isArray(updated)) {
-                            const map = new Map(updated.filter(u => u && u.id).map(u => [u.id, u]));
-                            setApplications(prev => (prev || []).map(a => map.has(a.id) ? { ...a, ...map.get(a.id) } : a));
-                          } else if (updated && updated.id) {
-                            setApplications(prev => (prev || []).map(a => a.id === updated.id ? { ...a, ...updated } : a));
-                          } else {
-                            const cached = getCachedCollectionSync('admissions');
-                            if (cached && cached.length > 0) {
-                              commitApplications(cached, false);
-                            }
-                          }
-                        }}
                       />
                     </div>
                   )}
 
                   {/* TAB: Analytics & Statistical Reports Suite (Full Page Mode) */}
-                  {(mountedTabs.has('analyticsReports') || mountedTabs.has('analytics') || mountedTabs.has('statisticalReports')) && (
+                  {(mountedTabs.has('analyticsReports') || mountedTabs.has('analytics') || mountedTabs.has('statisticalReports') || mountedTabs.has('jkboseSubjectRolls') || mountedTabs.has('subjectRolls') || mountedTabs.has('jkboseRolls')) && (
                     <div
                       key="analytics-reports-container"
                       className={(activeTab === 'analyticsReports' || activeTab === 'analytics' || activeTab === 'statisticalReports') ? 'block w-full' : 'hidden'}
@@ -988,6 +964,7 @@ export default function AdminDashboard() {
                       <AnalyticsSuiteModal
                         isPage={true}
                         isOpen={activeTab === 'analyticsReports' || activeTab === 'analytics' || activeTab === 'statisticalReports'}
+                        initialMode={analyticsInitialMode}
                         onClose={() => setActiveTab('reports')}
                         students={applications}
                         allStudents={identityStudents || applications}
