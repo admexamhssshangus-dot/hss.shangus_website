@@ -582,8 +582,10 @@ function AdminPracticals() {
   const [teachers, setTeachers] = useState([]);
   const [settings, setSettings] = useState({
     evaluationMarksConfig: DEFAULT_PRACTICAL_MARKS_CONFIG,
+    maxMarks10: DEFAULT_MX10,
     maxMarks11: DEFAULT_MX11,
     maxMarks12: DEFAULT_MX12,
+    nonPractical10: '',
     nonPractical11: '',
     nonPractical12: '',
     currentYearSuffix: '26',
@@ -591,6 +593,13 @@ function AdminPracticals() {
     currentPracticalType: 'internal',
     permissions: [],
     printDetails: {
+      '10th': {
+        sessionText: 'Annual Regular 2026',
+        instName: 'Govt. Higher Secondary School Shangus',
+        inchargeName: 'Mr. Majid Hassan Najar',
+        inchargeCpis: 'SHGEDU00220017',
+        inchargeMobile: '7006537425'
+      },
       '11th': {
         sessionText: 'Annual Regular 2026',
         instName: 'Govt. Higher Secondary School Shangus',
@@ -1914,9 +1923,10 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     }
 
     // 2. Internal practicals: automatically uncheck configured non-practical subjects (e.g. HTC, ITE)
+    const is10 = String(cls || '').includes('10');
     const is12 = String(cls || '').includes('12');
     const nonPracticalConfig = String(
-      (is12 ? settings.nonPractical12 : settings.nonPractical11) || settings.nonPractical || 'HTC,ITE'
+      (is10 ? settings.nonPractical10 : is12 ? settings.nonPractical12 : settings.nonPractical11) || settings.nonPractical || 'HTC,ITE'
     ).toUpperCase();
 
     const excludedCodes = new Set(
@@ -1924,7 +1934,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     );
 
     return activeCodesList.filter(code => !excludedCodes.has(code));
-  }, [cls, localPrintOpts.practicalType, bioMode, settings.nonPractical11, settings.nonPractical12, settings.nonPractical, activeCodesList]);
+  }, [cls, localPrintOpts.practicalType, bioMode, settings.nonPractical10, settings.nonPractical11, settings.nonPractical12, settings.nonPractical, activeCodesList]);
 
   const [selectedSubCodes, setSelectedSubCodes] = useState(() => getDefaultCheckedCodes());
 
@@ -5286,8 +5296,12 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
       cfg[activeClassTab][activeTypeTab][code] = currentSub;
 
       // Keep legacy maps in sync
+      const legacyMax10 = { ...(prev.maxMarks10 || DEFAULT_MX10) };
       const legacyMax11 = { ...(prev.maxMarks11 || DEFAULT_MX11) };
       const legacyMax12 = { ...(prev.maxMarks12 || DEFAULT_MX12) };
+      if (activeClassTab === '10th' && activeTypeTab === 'internal' && typeof currentSub.max === 'number') {
+        legacyMax10[code] = currentSub.max;
+      }
       if (activeClassTab === '11th' && activeTypeTab === 'internal' && typeof currentSub.max === 'number') {
         legacyMax11[code] = currentSub.max;
       }
@@ -5298,6 +5312,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
       return {
         ...prev,
         evaluationMarksConfig: cfg,
+        maxMarks10: legacyMax10,
         maxMarks11: legacyMax11,
         maxMarks12: legacyMax12
       };
@@ -5326,6 +5341,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
     const updatedSettings = {
       ...settings,
       evaluationMarksConfig: defaultCfg,
+      maxMarks10: { ...DEFAULT_MX10 },
       maxMarks11: { ...DEFAULT_MX11 },
       maxMarks12: { ...DEFAULT_MX12 }
     };
@@ -5366,7 +5382,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
         <div className="flex items-center gap-1.5 flex-wrap">
           {/* Class Switcher */}
           <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            {['11th', '12th'].map(c => (
+            {['10th', '11th', '12th'].map(c => (
               <button
                 key={c}
                 type="button"
@@ -5801,6 +5817,7 @@ function SettingsPermissionsView({
                     onChange={e => setGrantClass(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-xs text-slate-900 dark:text-white cursor-pointer shadow-2xs focus:outline-none"
                   >
+                    <option value="10th">Class 10th</option>
                     <option value="11th">Class 11th</option>
                     <option value="12th">Class 12th</option>
                   </select>
@@ -5965,6 +5982,19 @@ function SettingsPermissionsView({
 
               <div>
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                  Class 10th Non-Practical Subjects
+                </label>
+                <input
+                  type="text"
+                  value={settings.nonPractical10 || ''}
+                  onChange={e => setSettings({ ...settings, nonPractical10: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  placeholder="Codes (e.g. HTC, ITE)"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
                   Class 11th Non-Practical Subjects
                 </label>
                 <input
@@ -6018,8 +6048,8 @@ function SettingsPermissionsView({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
-              {['11th', '12th'].map(c => (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 text-xs">
+              {['10th', '11th', '12th'].map(c => (
                 <div key={c} className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5">
                   <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
                     <Award size={13} className="text-indigo-500" /> Class {c} Print Headers

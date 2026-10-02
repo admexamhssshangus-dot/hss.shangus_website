@@ -62,7 +62,13 @@ export const VALID_SUBJECT_CODES = {
   PD: 'Physical Education',
   HTC: 'Healthcare',
   ITE: 'IT and ITES',
-  EN: 'General English'
+  EN: 'General English',
+  SC: 'Science',
+  SS: 'Social Science',
+  AD: 'Art and Drawing',
+  HN: 'Hindi',
+  CS: 'Computer Science',
+  MU: 'Music'
 };
 
 /**
@@ -337,10 +343,15 @@ export function exportConsolidatedAwardsToExcel({
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
-  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
-  const evalTypeText = titles.shortType;
+  const isClass10 = String(className).toLowerCase().includes('10');
   const isClass12 = String(className).toLowerCase().includes('12');
-  const clsTarget = isClass12 ? '12' : '11';
+  const clsTarget = isClass10 ? '10' : isClass12 ? '12' : '11';
+  const hseText = isClass10
+    ? 'Secondary School Examination (Class 10th)'
+    : className === '11th'
+      ? 'HSE-I (Class 11th)'
+      : 'HSE-II (Class 12th)';
+  const evalTypeText = titles.shortType;
 
   const defaultSubDefs = [
     { code: 'EN', name: 'General English', keywords: ['english', 'gen eng', 'en'] },
@@ -349,6 +360,9 @@ export function exportConsolidatedAwardsToExcel({
     { code: 'BO', name: 'Botany', keywords: ['botany', 'bo', 'biology'] },
     { code: 'ZO', name: 'Zoology', keywords: ['zoology', 'zo', 'biology'] },
     { code: 'BI', name: 'Biology (Botany & Zoology)', keywords: ['biology', 'bi', 'botany', 'zoology'] },
+    { code: 'SC', name: 'Science', keywords: ['science', 'sc', 'sci'] },
+    { code: 'SS', name: 'Social Science', keywords: ['social science', 'social', 'ss', 'sst'] },
+    { code: 'AD', name: 'Art and Drawing', keywords: ['art and drawing', 'art & drawing', 'ad', 'drawing'] },
     { code: 'MA', name: 'Mathematics', keywords: ['mathematics', 'math', 'maths', 'ma'] },
     { code: 'UR', name: 'Urdu', keywords: ['urdu', 'ur'] },
     { code: 'ED', name: 'Education', keywords: ['education', 'ed'] },
@@ -372,7 +386,6 @@ export function exportConsolidatedAwardsToExcel({
     if (sub.code === 'EN') {
       count = students.length;
     } else {
-      const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
       students.forEach(st => {
         let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
@@ -579,10 +592,15 @@ export async function exportConsolidatedAwardsToDocx({
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
-  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
-  const evalTypeText = titles.shortType;
+  const isClass10 = String(className).toLowerCase().includes('10');
   const isClass12 = String(className).toLowerCase().includes('12');
-  const clsTarget = isClass12 ? '12' : '11';
+  const clsTarget = isClass10 ? '10' : isClass12 ? '12' : '11';
+  const hseText = isClass10
+    ? 'Secondary School Examination (Class 10th)'
+    : className === '11th'
+      ? 'HSE-I (Class 11th)'
+      : 'HSE-II (Class 12th)';
+  const evalTypeText = titles.shortType;
 
   const defaultSubDefs = [
     { code: 'EN', name: 'General English', keywords: ['english', 'gen eng', 'en'] },
@@ -591,6 +609,9 @@ export async function exportConsolidatedAwardsToDocx({
     { code: 'BO', name: 'Botany', keywords: ['botany', 'bo', 'biology'] },
     { code: 'ZO', name: 'Zoology', keywords: ['zoology', 'zo', 'biology'] },
     { code: 'BI', name: 'Biology (Botany & Zoology)', keywords: ['biology', 'bi', 'botany', 'zoology'] },
+    { code: 'SC', name: 'Science', keywords: ['science', 'sc', 'sci'] },
+    { code: 'SS', name: 'Social Science', keywords: ['social science', 'social', 'ss', 'sst'] },
+    { code: 'AD', name: 'Art and Drawing', keywords: ['art and drawing', 'art & drawing', 'ad', 'drawing'] },
     { code: 'MA', name: 'Mathematics', keywords: ['mathematics', 'math', 'maths', 'ma'] },
     { code: 'UR', name: 'Urdu', keywords: ['urdu', 'ur'] },
     { code: 'ED', name: 'Education', keywords: ['education', 'ed'] },
@@ -614,7 +635,6 @@ export async function exportConsolidatedAwardsToDocx({
     if (sub.code === 'EN') {
       count = students.length;
     } else {
-      const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
       students.forEach(st => {
         let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
@@ -652,7 +672,7 @@ export async function exportConsolidatedAwardsToDocx({
   const inchargeName = printDetails?.inchargeName || (className === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar');
   const inchargeCpis = printDetails?.inchargeCpis || (className === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017');
   const inchargeMobile = printDetails?.inchargeMobile || (className === '12th' ? '9596165142' : '7006537425');
-  const partText = className === '11th' ? 'Part-I (class 11th)' : 'Part-II (class 12th)';
+  const partText = isClass10 ? 'Secondary School (class 10th)' : className === '11th' ? 'Part-I (class 11th)' : 'Part-II (class 12th)';
   const testType = titles.examLabel;
 
   // Standard Border Definition for DOCX Tables
@@ -1199,7 +1219,7 @@ export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true)
             continue;
           }
 
-          const cls = clsRaw.toLowerCase().includes('12') ? '12th' : '11th';
+          const cls = clsRaw.toLowerCase().includes('10') ? '10th' : clsRaw.toLowerCase().includes('12') ? '12th' : '11th';
           const evalType = ptypeRaw.toLowerCase().includes('ext') ? 'external' : 'internal';
           const sess = sessRaw || '2024-25 (Oct-Nov)';
 
@@ -1332,7 +1352,7 @@ export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true)
 
     const rowNum = i + 1;
     let clsRaw = String(r[colClass] || '11th').trim();
-    let cls = clsRaw.toLowerCase().includes('12') ? '12th' : '11th';
+    let cls = clsRaw.toLowerCase().includes('10') ? '10th' : clsRaw.toLowerCase().includes('12') ? '12th' : '11th';
 
     let sess = String(r[colSession] || '2024-25 (Oct-Nov)').trim();
     let evalType = (colType !== -1 ? String(r[colType] || '') : 'internal').toLowerCase().includes('ext') ? 'external' : 'internal';
