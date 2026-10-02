@@ -958,6 +958,66 @@ export async function exportConsolidatedAwardsToDocx({
     ]
   });
 
+  const examLevelText = isClass10 ? 'Secondary School Examination' : 'Higher Secondary Examination';
+  const targetType = String(evaluationType || practicalType || (isExternal ? 'external' : 'internal')).toLowerCase();
+
+  // Examiner Signatures Table matching subject columns
+  const examinerHeadingText = activeSubs.length === 1 ? 'Signature of Examiner' : 'Signature of Examiner/s';
+  const docxExaminerRows = [];
+  const chunkSize = activeSubs.length <= 2 ? activeSubs.length : (activeSubs.length === 4 ? 2 : 3);
+  for (let i = 0; i < activeSubs.length; i += chunkSize) {
+    const chunk = activeSubs.slice(i, i + chunkSize);
+    const rowCells = chunk.map((sub, cIdx) => {
+      const globalIdx = i + cIdx + 1;
+      const subDisplayName = getSubjectDisplayName(sub.code || sub.name, className);
+      const subDoc = submissions && submissions.find(s => {
+        const sCls = String(s.className || s.Class || s.class || '').replace(/[^0-9]/g, '');
+        if (clsTarget && sCls && sCls !== clsTarget) return false;
+        if (targetType) {
+          const sType = String(s.practicalType || s.PracticalType || s.evaluationType || 'internal').toLowerCase();
+          if (sType !== targetType && !sType.includes(targetType) && !targetType.includes(sType)) {
+            const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
+            if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
+          }
+        }
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+        return codeStr === sub.code || codeStr.includes(sub.code) || (sub.code === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')));
+      });
+      const examinerName = subDoc ? (subDoc.teacherName || subDoc['Teacher Name'] || subDoc.submittedByName || subDoc.submittedBy || '') : '';
+
+      return new TableCell({
+        width: { size: Math.floor(100 / chunk.length), type: WidthType.PERCENTAGE },
+        borders: noBorder,
+        children: [
+          new Paragraph({
+            spacing: { after: 30 },
+            children: [
+              new TextRun({ text: `${globalIdx}. ${subDisplayName} (${sub.code}): `, bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: '....................................', size: 17, font: 'Calibri' })
+            ]
+          }),
+          ...(examinerName && examinerName !== '—' && examinerName !== 'Faculty Member' ? [
+            new Paragraph({
+              spacing: { after: 60 },
+              indent: { left: 240 },
+              children: [
+                new TextRun({ text: `Name: ${examinerName}`, size: 15, font: 'Calibri', color: '475569' })
+              ]
+            })
+          ] : [])
+        ]
+      });
+    });
+
+    docxExaminerRows.push(new TableRow({ children: rowCells }));
+  }
+
+  const examinerDocxTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: noBorder,
+    rows: docxExaminerRows
+  });
+
   const sigTable = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: noBorder,
@@ -1060,12 +1120,18 @@ export async function exportConsolidatedAwardsToDocx({
             spacing: { after: 240 },
             children: [
               new TextRun({
-                text: `"Certified that the relevant data of ${testType} in respect of the above candidates who are appearing in Higher Secondary Examination ${partText} from this Institution is correct in all respects to the best of my knowledge and no further amendment or modifications in the above data shall be indicated or requested by the undersigned affecting the declared result of any candidate whatsoever"`,
+                text: `"Certified that the relevant data of ${testType} in respect of the above candidates who are appearing in ${examLevelText} ${partText} from this Institution is correct in all respects to the best of my knowledge and no further amendment or modifications in the above data shall be indicated or requested by the undersigned affecting the declared result of any candidate whatsoever"`,
                 size: 18,
                 font: 'Calibri'
               })
             ]
           }),
+          new Paragraph({
+            spacing: { before: 120, after: 60 },
+            children: [new TextRun({ text: examinerHeadingText, bold: true, size: 19, font: 'Calibri' })]
+          }),
+          examinerDocxTable,
+          new Paragraph({ spacing: { after: 160 } }),
           sigTable
         ]
       }

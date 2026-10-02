@@ -1221,8 +1221,54 @@ export function printConsolidatedAwardRoll({
   const inchargeCpis = printDetails?.inchargeCpis || (className === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017');
   const inchargeMobile = printDetails?.inchargeMobile || (className === '12th' ? '9596165142' : '7006537425');
 
-  const partText = className === '11th' ? 'Part-I (class 11th)' : 'Part-II (class 12th)';
+  const partText = isClass10 ? 'Class 10th' : className === '11th' ? 'Part-I (class 11th)' : 'Part-II (class 12th)';
+  const examLevelText = isClass10 ? 'Secondary School Examination' : 'Higher Secondary Examination';
   const testType = titles.examLabel;
+  const targetType = String(evaluationType || practicalType || (isExternal ? 'external' : 'internal')).toLowerCase();
+
+  const numSubjects = activeSubs && activeSubs.length > 0 ? activeSubs.length : 1;
+  const examinerHeading = numSubjects === 1 ? 'Signature of Examiner' : 'Signature of Examiner/s';
+  const gridCols = numSubjects === 1 ? 1 : (numSubjects === 2 ? 2 : (numSubjects === 3 ? 3 : (numSubjects === 4 ? 2 : (numSubjects <= 6 ? 3 : 4))));
+  const containerStyle = numSubjects === 1 ? 'max-width: 420px;' : 'width: 100%;';
+
+  const examinerSignaturesHtml = (activeSubs && activeSubs.length > 0)
+    ? activeSubs.map((sub, idx) => {
+        const subDisplayName = getSubjectDisplayName(sub.code || sub.name, className);
+        const subDoc = submissions && submissions.find(s => {
+          const sCls = String(s.className || s.Class || s.class || '').replace(/[^0-9]/g, '');
+          if (clsTarget && sCls && sCls !== clsTarget) return false;
+          const sType = String(s.practicalType || s.PracticalType || s.evaluationType || 'internal').toLowerCase();
+          if (targetType) {
+            if (sType !== targetType && !sType.includes(targetType) && !targetType.includes(sType)) {
+              const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
+              if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
+            }
+          }
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+          return codeStr === sub.code || codeStr.includes(sub.code) || (sub.code === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')));
+        });
+        const examinerName = subDoc ? (subDoc.teacherName || subDoc['Teacher Name'] || subDoc.submittedByName || subDoc.submittedBy || '') : '';
+
+        return `
+          <div style="min-width: 0; padding-right: 12px; margin-bottom: 6px;">
+            <div style="font-size: 9.5pt; font-family: 'Times New Roman', Times, serif; color: #000; line-height: 1.3;">
+              <strong>${idx + 1}. ${subDisplayName} (${sub.code}):</strong> ....................................
+            </div>
+            ${examinerName && examinerName !== '—' && examinerName !== 'Faculty Member' ? `
+              <div style="font-size: 8.5pt; color: #334155; margin-top: 3px; padding-left: 18px;">
+                Name: <strong>${examinerName}</strong>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('')
+    : `
+      <div style="min-width: 0;">
+        <div style="font-size: 9.5pt; font-family: 'Times New Roman', Times, serif; color: #000;">
+          <strong>1. Examiner:</strong> ....................................
+        </div>
+      </div>
+    `;
 
   matrixHtml += `
         </tbody>
@@ -1231,7 +1277,7 @@ export function printConsolidatedAwardRoll({
       <div class="matrix-footer" style="margin-top: 24px; font-size: 10pt; font-family: 'Times New Roman', Times, serif; line-height: 1.4;">
         <div style="text-align: center; font-weight: bold; font-size: 11.5pt; margin-bottom: 6px;">Certificate</div>
         <p style="text-align: justify; margin: 0 0 16px 0; font-size: 10pt;">
-          "Certified that the relevant data of ${testType} in respect of the above candidates who are appearing in Higher Secondary Examination ${partText} from this Institution is correct in all respects to the best of my knowledge and no further amendment or modifications in the above data shall be indicated or requested by the undersigned affecting the declared result of any candidate whatsoever"
+          "Certified that the relevant data of ${testType} in respect of the above candidates who are appearing in ${examLevelText} ${partText} from this Institution is correct in all respects to the best of my knowledge and no further amendment or modifications in the above data shall be indicated or requested by the undersigned affecting the declared result of any candidate whatsoever"
         </p>
 
         <div style="margin-bottom: 20px; font-size: 10pt; font-weight: bold;">
@@ -1241,20 +1287,9 @@ export function printConsolidatedAwardRoll({
           <div style="font-weight: normal;">Mobile: <strong>${inchargeMobile}</strong></div>
         </div>
 
-        <div style="font-weight: bold; margin-bottom: 10px; font-size: 10pt;">Signature of Examiner/s</div>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); row-gap: 14px; column-gap: 12px; font-size: 9.5pt; margin-bottom: 35px;">
-          <div>1. ....................................</div>
-          <div>2. ....................................</div>
-          <div>3. ....................................</div>
-          <div>4. ....................................</div>
-          <div>5. ....................................</div>
-          <div>6. ....................................</div>
-          <div>7. ....................................</div>
-          <div>8. ....................................</div>
-          <div>9. ....................................</div>
-          <div>10. ...................................</div>
-          <div>11. ...................................</div>
-          <div>12. ...................................</div>
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 10pt;">${examinerHeading}</div>
+        <div style="display: grid; grid-template-columns: repeat(${gridCols}, 1fr); row-gap: 14px; column-gap: 12px; font-size: 9.5pt; margin-bottom: 35px; ${containerStyle}">
+          ${examinerSignaturesHtml}
         </div>
 
         <div style="text-align: right; font-weight: bold; font-size: 11.5pt; padding-right: 30px; margin-top: 20px;">
