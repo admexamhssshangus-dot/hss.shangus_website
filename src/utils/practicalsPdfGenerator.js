@@ -7,7 +7,7 @@
  * 3. Individual Work Sheet (Screenshot 5 format): Practical/Viva/Overall subject record.
  */
 
-import { getSubjectMarksConfig, isTeacherSubjectMatch } from './practicalsSettingsManager';
+import { getSubjectMarksConfig, isTeacherSubjectMatch, getSubjectDisplayName } from './practicalsSettingsManager';
 import { toTitleCase } from './textFormatting';
 import { isStudentExamDropped } from './studentApprovalStatus';
 
@@ -686,7 +686,7 @@ export function printIndividualAwardRoll({
               <span>Page No.: <strong>${pageNo}</strong></span>
             </div>
             <div class="award-info-line">
-              <span>Subject: <strong>${subjectName} (${subjectCode})</strong></span>
+              <span>Subject: <strong>${getSubjectDisplayName(subjectCode || subjectName, className)} (${subjectCode})</strong></span>
               <span>Max.: <strong>${maxMarks}</strong>; Min.: <strong>${minMarks}</strong></span>
             </div>
             <div class="award-info-line">
@@ -865,7 +865,7 @@ export function printIndividualWorkSheet({
     <div class="award-page">
       <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
         <h1 style="font-size: 14pt; font-weight: bold; margin: 0;">Govt. Higher Secondary School Shangus</h1>
-        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">Marks Record (${examLabel}) - HSE-${className === '11th' ? 'I (Class 11th)' : 'II (Class 12th)'} - ${subjectName}</h2>
+        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">Marks Record (${examLabel}) - ${String(className).toLowerCase().includes('10') ? 'Secondary School (Class 10th)' : className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)'} - ${getSubjectDisplayName(subjectCode || subjectName, className)}</h2>
         <p style="font-size: 9.5pt; font-weight: bold; margin: 2px 0;">Session & Year: <strong>${session}</strong></p>
         <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: bold; margin-top: 8px;">
           <span>No.: ____________________</span>
@@ -1002,7 +1002,7 @@ export function printConsolidatedAwardRoll({
     return {
       sno: idx + 1,
       code: sub.code,
-      name: sub.name,
+      name: getSubjectDisplayName(sub.code, className) || sub.name,
       count
     };
   }).filter(g => g.count > 0);
@@ -1502,7 +1502,7 @@ export function printAttendanceSheet({
         <div class="award-page ${!isLast ? 'page-break' : ''}">
           <div style="text-align: center; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
             <h1 style="font-size: 14pt; font-weight: 800; margin: 0; text-transform: uppercase; color: #0f172a;">Govt. Higher Secondary School Shangus</h1>
-            <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${examAttendanceTitle} ATTENDANCE SHEET — ${hseText} — ${sub.name} (${sub.code})</h2>
+            <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${examAttendanceTitle} ATTENDANCE SHEET — ${hseText} — ${getSubjectDisplayName(sub.code, className)} (${sub.code})</h2>
             <p style="font-size: 9.5pt; font-weight: 700; margin: 2px 0; color: #475569;">Session & Year: <strong>${session}</strong></p>
             <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: 700; margin-top: 6px; color: #334155;">
               <span>No.: ____________________</span>
@@ -1570,7 +1570,7 @@ export function printAttendanceSheet({
     if (printStudents.length === 0) return false;
   }
 
-  const resolvedSubjectTitle = subjectTitle || (singleSubCode && subjectName ? `${subjectName} (${singleSubCode})` : (singleSubCode || ''));
+  const resolvedSubjectTitle = subjectTitle || (singleSubCode ? `${getSubjectDisplayName(singleSubCode, className) || subjectName} (${singleSubCode})` : '');
 
   let html = `
     <div class="award-page">
@@ -1684,7 +1684,7 @@ export function printMarksRecordAwardRoll({
     const foundDef = PRACTICAL_SUBJECT_DEFS.find(s => s.code === singleSubCode);
     targetSubs = [{
       code: singleSubCode,
-      name: subjectName || foundDef?.name || singleSubCode
+      name: getSubjectDisplayName(singleSubCode, className) || subjectName || foundDef?.name || singleSubCode
     }];
   } else if (selectedSubjectCodes && Array.isArray(selectedSubjectCodes) && selectedSubjectCodes.length > 0) {
     targetSubs = PRACTICAL_SUBJECT_DEFS.filter(s => selectedSubjectCodes.includes(s.code));
@@ -1728,7 +1728,7 @@ export function printMarksRecordAwardRoll({
       <div class="award-page ${!isLastSub ? 'page-break' : ''}">
         <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
           <h1 style="font-size: 14pt; font-weight: 800; margin: 0; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">Govt. Higher Secondary School Shangus</h1>
-          <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${className} - Marks Record (Practicals/Assignments) - ${sub.name}</h2>
+          <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${className} - Marks Record (Practicals/Assignments) - ${getSubjectDisplayName(sub.code, className)}</h2>
           <p style="font-size: 9pt; font-weight: 700; margin: 2px 0; color: #475569;">
             Session & Year: <strong>${session}</strong> &nbsp;|&nbsp; 
             Class: <strong>${hseText}</strong> &nbsp;|&nbsp; 
@@ -1942,7 +1942,7 @@ export function printAllIndividualAwardRolls({
                 <span>Page No.: <strong>${pageNo}</strong></span>
               </div>
               <div class="award-info-line">
-                <span>Subject: <strong>${sub.name} (${sub.code})</strong></span>
+                <span>Subject: <strong>${getSubjectDisplayName(sub.code, className)} (${sub.code})</strong></span>
                 <span>Max.: <strong>${maxMarks}</strong>; Min.: <strong>${minMarks}</strong></span>
               </div>
               <div class="award-info-line">
@@ -2141,9 +2141,9 @@ export function printFailList({
       if (rec) {
         const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim().toUpperCase();
         if (rawMark === 'AB' || rawMark === 'A' || rawMark === 'ABSENT') {
-          failRecords.push({ rollNo: examRoll, name, subject: `${sub.name} (${sub.code})`, status: 'ABSENT' });
+          failRecords.push({ rollNo: examRoll, name, subject: `${getSubjectDisplayName(sub.code, className)} (${sub.code})`, status: 'ABSENT' });
         } else if (!isNaN(Number(rawMark)) && Number(rawMark) < minMarks) {
-          failRecords.push({ rollNo: examRoll, name, subject: `${sub.name} (${sub.code})`, status: `FAIL (${rawMark}/${markCfg.max}M, Min: ${minMarks}M)` });
+          failRecords.push({ rollNo: examRoll, name, subject: `${getSubjectDisplayName(sub.code, className)} (${sub.code})`, status: `FAIL (${rawMark}/${markCfg.max}M, Min: ${minMarks}M)` });
         }
       }
     });
