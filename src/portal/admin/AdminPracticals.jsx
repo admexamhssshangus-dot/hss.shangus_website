@@ -1495,87 +1495,90 @@ function AdminPracticals() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto no-scrollbar py-0.5">
-            {/* Class Switcher Segmented Control */}
-            <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-2xs shrink-0">
-              <button
-                type="button"
-                onClick={() => setTab('class10')}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
-                  tab === 'class10'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Award size={12} className="shrink-0" />
-                <span className="sm:hidden">10th</span>
-                <span className="hidden sm:inline">Class 10th</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('class11')}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
-                  tab === 'class11'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Award size={12} className="shrink-0" />
-                <span className="sm:hidden">11th</span>
-                <span className="hidden sm:inline">Class 11th</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('class12')}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
-                  tab === 'class12'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Award size={12} className="shrink-0" />
-                <span className="sm:hidden">12th</span>
-                <span className="hidden sm:inline">Class 12th</span>
-              </button>
+          <div className="flex flex-wrap md:flex-nowrap items-center justify-between md:justify-end gap-1.5 w-full md:w-auto relative">
+            {/* Scrollable Tabs Group on small viewports */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+              {/* Class Switcher Segmented Control */}
+              <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-2xs shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setTab('class10')}
+                  className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                    tab === 'class10'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Award size={12} className="shrink-0" />
+                  <span className="sm:hidden">10th</span>
+                  <span className="hidden sm:inline">Class 10th</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab('class11')}
+                  className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                    tab === 'class11'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Award size={12} className="shrink-0" />
+                  <span className="sm:hidden">11th</span>
+                  <span className="hidden sm:inline">Class 11th</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab('class12')}
+                  className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                    tab === 'class12'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Award size={12} className="shrink-0" />
+                  <span className="sm:hidden">12th</span>
+                  <span className="hidden sm:inline">Class 12th</span>
+                </button>
+              </div>
+
+              {/* Sub-Views Tabs */}
+              <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-2xs shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setTab('faculty_submissions')}
+                  className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                    tab === 'faculty_submissions' || tab === 'submissions' || tab === 'teachers'
+                      ? 'bg-indigo-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Users size={13} className="shrink-0" />
+                  <span className="sm:hidden">Faculty ({submissions.length})</span>
+                  <span className="hidden sm:inline">Faculty & Submissions ({submissions.length})</span>
+                  {pendingApprovals.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.2 text-[9px] font-black rounded-full bg-amber-500 text-white animate-pulse">
+                      {pendingApprovals.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab('settings')}
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                    tab === 'settings'
+                      ? 'bg-indigo-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Settings size={12} className="shrink-0" />
+                  <span className="sm:hidden">Settings</span>
+                  <span className="hidden sm:inline">Settings & Permissions</span>
+                </button>
+              </div>
             </div>
 
-            {/* Sub-Views Tabs */}
-            <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-2xs shrink-0">
-              <button
-                type="button"
-                onClick={() => setTab('faculty_submissions')}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
-                  tab === 'faculty_submissions' || tab === 'submissions' || tab === 'teachers'
-                    ? 'bg-indigo-600 text-white shadow-xs font-black'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Users size={13} className="shrink-0" />
-                <span className="sm:hidden">Faculty ({submissions.length})</span>
-                <span className="hidden sm:inline">Faculty & Submissions ({submissions.length})</span>
-                {pendingApprovals.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 text-[9px] font-black rounded-full bg-amber-500 text-white animate-pulse">
-                    {pendingApprovals.length}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('settings')}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
-                  tab === 'settings'
-                    ? 'bg-indigo-600 text-white shadow-xs font-black'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Settings size={12} className="shrink-0" />
-                <span className="sm:hidden">Settings</span>
-                <span className="hidden sm:inline">Settings & Permissions</span>
-              </button>
-            </div>
-
-            {/* Excel Quick Actions Group (Unified Template & Import) */}
-            <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700 shrink-0">
+            {/* Excel Quick Actions Group (Unified Template & Import) & Recycle Bin - outside scrollable container */}
+            <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700 shrink-0 relative z-40">
               <div className="relative shrink-0" ref={excelMenuRef}>
                 <button
                   type="button"
@@ -1588,7 +1591,7 @@ function AdminPracticals() {
                 </button>
 
                 {showExcelMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 w-60 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 space-y-1">
+                  <div className="absolute right-0 top-full mt-1.5 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-[9999] animate-in fade-in zoom-in-95 duration-100 space-y-1">
                     <button
                       type="button"
                       onClick={() => {
@@ -1669,6 +1672,7 @@ function AdminPracticals() {
               submissions={submissions}
               getPD={getPD}
               settings={settings}
+              onOpenImportModal={() => setShowImportModal(true)}
             />
           )}
 
@@ -1679,6 +1683,7 @@ function AdminPracticals() {
               submissions={submissions}
               getPD={getPD}
               settings={settings}
+              onOpenImportModal={() => setShowImportModal(true)}
             />
           )}
 
@@ -1689,6 +1694,7 @@ function AdminPracticals() {
               submissions={submissions}
               getPD={getPD}
               settings={settings}
+              onOpenImportModal={() => setShowImportModal(true)}
             />
           )}
 
@@ -1845,7 +1851,7 @@ function AdminPracticals() {
 // ─────────────────────────────────────────────────────────────
 // AWARDS SUMMARY COMPONENT (WITH INTERNAL/EXTERNAL & BO/ZO TOGGLES)
 // ─────────────────────────────────────────────────────────────
-function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
+function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpenImportModal }) {
   const [bioMode, setBioMode] = useState('separate'); // 'separate' (BO & ZO) | 'combined' (BI)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSession, setSelectedSession] = useState('2025-26');
@@ -2740,6 +2746,81 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                           </div>
                           <div className="text-[9.5px] text-slate-400 font-semibold truncate">
                             Prefilled student list for offline marks entry
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* SECTION 3: SPREADSHEET IMPORT & BLANK TEMPLATES */}
+                    <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                      <div className="px-1.5 pt-0.5 text-[9.5px] font-black uppercase tracking-wider text-slate-400">
+                        Spreadsheet Import & Blank Templates
+                      </div>
+
+                      {/* Import Excel / CSV Marks */}
+                      {onOpenImportModal && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAwardsMenu(false);
+                            onOpenImportModal();
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                            <Upload size={13} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11.5px] font-black text-indigo-700 dark:text-indigo-400 truncate">
+                              Import Excel / CSV Marks
+                            </div>
+                            <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                              Upload completed spreadsheet into database
+                            </div>
+                          </div>
+                        </button>
+                      )}
+
+                      {/* Download Official Blank Template */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAwardsMenu(false);
+                          generatePracticalsExcelTemplate();
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                          <Download size={13} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-black text-emerald-700 dark:text-emerald-400 truncate">
+                            Download Excel Template (.xlsx)
+                          </div>
+                          <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                            Standard blanks with instructions & subject codes
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Download Blank CSV Template */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAwardsMenu(false);
+                          generatePracticalsCsvTemplate();
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 text-left font-bold text-slate-600 dark:text-slate-400 flex items-center gap-2.5 cursor-pointer transition-colors"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 shrink-0">
+                          <Download size={13} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-bold truncate">
+                            Download CSV Template (.csv)
+                          </div>
+                          <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                            Lightweight comma-separated format
                           </div>
                         </div>
                       </button>
