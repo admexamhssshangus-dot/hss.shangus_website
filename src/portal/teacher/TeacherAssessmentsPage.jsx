@@ -72,6 +72,18 @@ export default function TeacherAssessmentsPage() {
     return '11th';
   });
 
+  const userHasSelectedClassRef = useRef(Boolean(location.state?.selectedClass));
+
+  // Default class to teacher's first assigned class once on initial profile load (if not navigating from state)
+  useEffect(() => {
+    if (userHasSelectedClassRef.current || location.state?.selectedClass) return;
+    if (teacherAssignedClasses.length > 0) {
+      const raw = String(teacherAssignedClasses[0] || '');
+      const clean = raw.includes('11') ? '11th' : (raw.includes('12') ? '12th' : (raw.includes('10') ? '10th' : (raw.includes('9') ? '9th' : '11th')));
+      setSelectedClass(clean);
+    }
+  }, [teacherAssignedClasses, location.state?.selectedClass]);
+
   const [selectedSession, setSelectedSession] = useState(location.state?.yearSuffix || CURRENT_SESSION);
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION, '2024-25', '2023-24']);
 
@@ -96,18 +108,138 @@ export default function TeacherAssessmentsPage() {
       : HIGHER_SECONDARY_15_SUBJECTS;
   }, [selectedClass]);
 
+  // All teacher assigned subjects across entire profile
+  const allTeacherAssignedSubjects = useMemo(() => {
+    if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
+      return user.assignedSubjects.map(s => typeof s === 'string' ? s : (s?.subject || '')).filter(Boolean);
+    }
+    const rawSubj = user?.subject || user?.teachingSubject || '';
+    if (!rawSubj) return [];
+    return String(rawSubj).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+  }, [user?.assignedSubjects, user?.subject, user?.teachingSubject]);
+
+  // Class-specific assigned subjects for currently selected class
   const teacherClassAssignedSubjects = useMemo(() => {
-    return getTeacherAssignedSubjectsForClass(user, selectedClass) || [];
-  }, [user, selectedClass]);
+    const assigned = getTeacherAssignedSubjectsForClass(user, selectedClass);
+    if (assigned && assigned.length > 0) return assigned;
+    // Fallback: match allTeacherAssignedSubjects against current curriculum
+    const isSecondary = selectedClass === '9th' || selectedClass === '10th';
+    const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
+    const matched = allTeacherAssignedSubjects.filter(sub =>
+      targetList.some(t => isTeacherSubjectMatch(sub, t.name) || isTeacherSubjectMatch(sub, t.code))
+    );
+    if (matched.length > 0) return matched;
+    return [];
+  }, [user, selectedClass, allTeacherAssignedSubjects]);
+
+  // Overall primary teacher registered subject string
+  const teacherRegisteredSubject = useMemo(() => {
+    if (teacherClassAssignedSubjects.length > 0) {
+      return teacherClassAssignedSubjects.join(', ');
+    }
+    if (allTeacherAssignedSubjects.length > 0) {
+      return allTeacherAssignedSubjects.join(', ');
+    }
+    const rawSubj = user?.subject || user?.teachingSubject || '';
+    if (!rawSubj) return '';
+    const norm = normalizeSubjectIdentity(rawSubj);
+    return norm ? norm.name : String(rawSubj).trim();
+  }, [teacherClassAssignedSubjects, allTeacherAssignedSubjects, user?.subject, user?.teachingSubject]);
 
   const [selectedSubject, setSelectedSubject] = useState(() => {
     if (location.state?.selectedSubject) return location.state.selectedSubject;
     if (teacherClassAssignedSubjects.length > 0) {
-      const match = displaySubjects.find(s => isTeacherSubjectMatch(teacherClassAssignedSubjects[0], s.name));
+      const match = displaySubjects.find(s => isTeacherSubjectMatch(teacherClassAssignedSubjects[0], s.name) || isTeacherSubjectMatch(teacherClassAssignedSubjects[0], s.code));
       if (match) return match.name;
     }
     return displaySubjects[0]?.name || 'General English';
   });
+
+  const userHasManuallySelectedSubjectRef = useRef(Boolean(location.state?.selectedSubject));
+
+  // Automatically default & synchronize selectedSubject to teacher's assigned subject whenever user hydrates or class changes
+  useEffect(() => {
+    // If navigation state supplied a subject and user hasn't explicitly selected one yet, keep navigation state
+    if (location.state?.selectedSubject && !userHasManuallySelectedSubjectRef.current) {
+      return;
+    }
+
+    let assignedMatch = null;
+    if (teacherClassAssignedSubjects.length > 0) {
+      for (const sub of teacherClassAssignedSubjects) {
+        const sNorm = normalizeSubjectIdentity(sub);
+        const exactMatch = displaySubjects.find(m => {
+          const mNorm = normalizeSubjectIdentity(m.code || m.name);
+          return mNorm && sNorm && mNorm.code === sNorm.code;
+        });
+        if (exactMatch) {
+          assignedMatch = exactMatch.name;
+          break;
+        }
+        const match = displaySubjects.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
+        if (match) {
+          assignedMatch = match.name;
+          break;
+        }
+      }
+    }
+    if (!assignedMatch && allTeacherAssignedSubjects.length > 0) {
+      for (const sub of allTeacherAssignedSubjects) {
+        const sNorm = normalizeSubjectIdentity(sub);
+        const exactMatch = displaySubjects.find(m => {
+          const mNorm = normalizeSubjectIdentity(m.code || m.name);
+          return mNorm && sNorm && mNorm.code === sNorm.code;
+        });
+        if (exactMatch) {
+          assignedMatch = exactMatch.name;
+          break;
+        }
+        const match = displaySubjects.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
+        if (match) {
+          assignedMatch = match.name;
+          break;
+        }
+      }
+    }
+
+    const isCurrentInDisplay = displaySubjects.some(s => s.name.toLowerCase() === String(selectedSubject || '').toLowerCase());
+
+    if (assignedMatch && (!userHasManuallySelectedSubjectRef.current || !isCurrentInDisplay)) {
+      setSelectedSubject(assignedMatch);
+    } else if (!isCurrentInDisplay) {
+      setSelectedSubject(displaySubjects[0]?.name || 'General English');
+    }
+  }, [user, selectedClass, teacherClassAssignedSubjects, allTeacherAssignedSubjects, displaySubjects]);
+
+  // Is current subject officially assigned to this teacher?
+  const isCurrentSubjectAssigned = useMemo(() => {
+    if (!selectedSubject) return false;
+    if (teacherClassAssignedSubjects.length > 0) {
+      return teacherClassAssignedSubjects.some(s => isTeacherSubjectMatch(s, selectedSubject));
+    }
+    if (allTeacherAssignedSubjects.length > 0) {
+      return allTeacherAssignedSubjects.some(s => isTeacherSubjectMatch(s, selectedSubject));
+    }
+    return false;
+  }, [selectedSubject, teacherClassAssignedSubjects, allTeacherAssignedSubjects]);
+
+  // Partitioned subject options (assigned vs other subjects)
+  const { assignedSubjectOptions, otherSubjectOptions } = useMemo(() => {
+    const assigned = [];
+    const others = [];
+    displaySubjects.forEach(sub => {
+      const isAssigned = (teacherClassAssignedSubjects.length > 0
+        ? teacherClassAssignedSubjects.some(s => isTeacherSubjectMatch(s, sub.name) || isTeacherSubjectMatch(s, sub.code))
+        : allTeacherAssignedSubjects.some(s => isTeacherSubjectMatch(s, sub.name) || isTeacherSubjectMatch(s, sub.code))
+      );
+      if (isAssigned) {
+        assigned.push(sub);
+      } else {
+        others.push(sub);
+      }
+    });
+    return { assignedSubjectOptions: assigned, otherSubjectOptions: others };
+  }, [displaySubjects, teacherClassAssignedSubjects, allTeacherAssignedSubjects]);
 
   // Settings
   const [evalSettings, setEvalSettings] = useState(null);
@@ -763,6 +895,7 @@ export default function TeacherAssessmentsPage() {
         session: selectedSession,
         maxMarks,
         minMarks,
+        isCrossSubject: !isCurrentSubjectAssigned,
         status: 'draft',
         isDraft: true,
         isPendingApproval: false,
@@ -859,6 +992,7 @@ export default function TeacherAssessmentsPage() {
         session: selectedSession,
         maxMarks,
         minMarks,
+        isCrossSubject: !isCurrentSubjectAssigned,
         status: 'pending_approval',
         isDraft: false,
         isPendingApproval: true,
@@ -1006,12 +1140,20 @@ export default function TeacherAssessmentsPage() {
                 <ArrowLeft size={16} />
               </Link>
               <div className="min-w-0">
-                <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate m-0 flex items-center gap-1.5">
-                  <span>School-Based Assessment Portal</span>
-                  <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate m-0">
+                    School-Based Assessment Portal
+                  </h1>
+                  <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 shrink-0">
                     Faculty Entry
                   </span>
-                </h1>
+                  {teacherRegisteredSubject && (
+                    <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/80 shrink-0 flex items-center gap-1" title={`Assigned Subject: ${teacherRegisteredSubject}`}>
+                      <Sparkles size={10} className="text-purple-600 dark:text-purple-400" />
+                      <span>Assigned: {teacherRegisteredSubject}</span>
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate m-0 mt-0.5">
                   Pre-Board Examinations, Golden Tests, Term End, and Unit Assessments
                 </p>
@@ -1147,7 +1289,11 @@ export default function TeacherAssessmentsPage() {
                   </label>
                   <select
                     value={selectedClass}
-                    onChange={e => setSelectedClass(e.target.value)}
+                    onChange={e => {
+                      userHasSelectedClassRef.current = true;
+                      userHasManuallySelectedSubjectRef.current = false;
+                      setSelectedClass(e.target.value);
+                    }}
                     className="w-full px-2 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
                   >
                     {AVAILABLE_CLASSES.map(cls => (
@@ -1174,19 +1320,52 @@ export default function TeacherAssessmentsPage() {
 
                 {/* Subject Selector */}
                 <div className="sm:col-span-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
-                    Subject
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 block m-0">
+                      Subject
+                    </label>
+                    {isCurrentSubjectAssigned ? (
+                      <span className="text-[9px] font-black text-teal-600 dark:text-teal-400 flex items-center gap-0.5" title="Assigned Subject">
+                        <Check size={10} /> Assigned Subject
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-0.5" title="Cross-Subject Evaluation">
+                        <AlertCircle size={10} /> Cross-Subject
+                      </span>
+                    )}
+                  </div>
                   <select
                     value={selectedSubject}
-                    onChange={e => setSelectedSubject(e.target.value)}
+                    onChange={e => {
+                      userHasManuallySelectedSubjectRef.current = true;
+                      setSelectedSubject(e.target.value);
+                    }}
                     className="w-full px-2 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200"
                   >
-                    {displaySubjects.map(sub => (
-                      <option key={sub.code} value={sub.name}>
-                        {sub.name} ({sub.code})
-                      </option>
-                    ))}
+                    {assignedSubjectOptions.length > 0 ? (
+                      <>
+                        <optgroup label="⭐ Your Assigned Subjects">
+                          {assignedSubjectOptions.map(sub => (
+                            <option key={sub.code} value={sub.name}>
+                              ⭐ {sub.name} ({sub.code}) — Assigned
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="All Curriculum Subjects">
+                          {otherSubjectOptions.map(sub => (
+                            <option key={sub.code} value={sub.name}>
+                              {sub.name} ({sub.code})
+                            </option>
+                          ))}
+                        </optgroup>
+                      </>
+                    ) : (
+                      displaySubjects.map(sub => (
+                        <option key={sub.code} value={sub.name}>
+                          {sub.name} ({sub.code})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -1275,6 +1454,17 @@ export default function TeacherAssessmentsPage() {
               <span className="text-xs font-black text-slate-800 dark:text-slate-200">
                 {evaluationType} • {currentSubjectObj.name}
               </span>
+              {isCurrentSubjectAssigned ? (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200/60 flex items-center gap-1">
+                  <Check size={10} />
+                  <span>Assigned Subject</span>
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200/60 flex items-center gap-1">
+                  <AlertCircle size={10} />
+                  <span>Cross-Subject</span>
+                </span>
+              )}
               <span className="px-2 py-0.5 rounded text-[10.5px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60">
                 Max Marks: {maxMarks}
               </span>
@@ -1788,6 +1978,11 @@ export default function TeacherAssessmentsPage() {
                             <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
                               {item.evaluationType}
                             </span>
+                            {item.isCrossSubject && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60">
+                                Cross
+                              </span>
+                            )}
                           </div>
                           <p className="text-[10.5px] text-slate-400 m-0">
                             {item.recordsCount} examinees • Session {item.session} • {item.displayDate}
@@ -1833,6 +2028,8 @@ export default function TeacherAssessmentsPage() {
                           <button
                             type="button"
                             onClick={() => {
+                              userHasSelectedClassRef.current = true;
+                              userHasManuallySelectedSubjectRef.current = true;
                               setSelectedClass(item.className);
                               setSelectedSubject(item.subject);
                               setEvaluationType(item.evaluationType);
