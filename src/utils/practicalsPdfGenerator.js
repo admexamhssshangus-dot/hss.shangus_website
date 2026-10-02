@@ -119,6 +119,9 @@ export const PRACTICAL_SUBJECT_DEFS = [
   { code: 'BO', name: 'Botany', keywords: ['botany', 'bo', 'biology'] },
   { code: 'ZO', name: 'Zoology', keywords: ['zoology', 'zo', 'biology'] },
   { code: 'BI', name: 'Biology (Botany & Zoology)', keywords: ['biology', 'bi', 'botany', 'zoology'] },
+  { code: 'SC', name: 'Science', keywords: ['science', 'sc', 'sci'] },
+  { code: 'SS', name: 'Social Science', keywords: ['social science', 'social', 'ss', 'sst'] },
+  { code: 'AD', name: 'Art and Drawing', keywords: ['art and drawing', 'art & drawing', 'ad', 'drawing'] },
   { code: 'BT', name: 'Biotechnology', keywords: ['biotechnology', 'biotech', 'bt'] },
   { code: 'MB', name: 'Microbiology', keywords: ['microbiology', 'micro', 'mb'] },
   { code: 'BC', name: 'Biochemistry', keywords: ['biochemistry', 'biochem', 'bc'] },
@@ -938,7 +941,14 @@ export function printConsolidatedAwardRoll({
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
-  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const isClass10 = String(className).toLowerCase().includes('10');
+  const isClass12 = String(className).toLowerCase().includes('12');
+  const clsTarget = isClass10 ? '10' : isClass12 ? '12' : '11';
+  const hseText = isClass10
+    ? 'Secondary School Examination (Class 10th)'
+    : className === '11th'
+      ? 'HSE-I (Class 11th)'
+      : 'HSE-II (Class 12th)';
   
   // Filter subjects based on admin's subject checklist selection
   const activeSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {
@@ -954,7 +964,6 @@ export function printConsolidatedAwardRoll({
       // General English is compulsory for ALL examinees in the class!
       count = students.length;
     } else {
-      const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
       students.forEach(st => {
         let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
@@ -1087,28 +1096,9 @@ export function printConsolidatedAwardRoll({
   `;
 
   // Build rows for each student
-  const isClass12 = String(className).toLowerCase().includes('12');
-  const clsTarget = isClass12 ? '12' : '11';
-
   students.forEach((st, idx) => {
     const rawExamRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
     const displayExamRoll = (rawExamRoll && rawExamRoll !== '—' && rawExamRoll !== 'N/A' && rawExamRoll !== 'NA') ? rawExamRoll : '—';
-    const stSubsStr = String(
-      st['Subs'] ||
-      st['subs'] ||
-      (isClass12 ? st['Subjects to be taken in Class 12th'] : st['Subjects to be taken in Class 11th']) ||
-      st['Subjects'] ||
-      st['Subject Combination'] ||
-      st.subjects ||
-      ''
-    ).toLowerCase();
-    const stStream = String(
-      st['Stream'] ||
-      st['stream'] ||
-      (isClass12 ? st['Stream for Class 12th'] : st['Stream for Class 11th']) ||
-      ''
-    ).toLowerCase();
-
     let rowHashTotal = 0;
 
     const cellHtmls = activeSubs.map(sub => {
@@ -1488,7 +1478,12 @@ export function printAttendanceSheet({
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType, isExternal);
-  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const isClass10 = String(className).toLowerCase().includes('10');
+  const hseText = isClass10
+    ? 'Secondary School Examination (Class 10th)'
+    : className === '11th'
+      ? 'HSE-I (Class 11th)'
+      : 'HSE-II (Class 12th)';
   const examAttendanceTitle = titles.heading.replace(/\s+AWARD\s+ROLL$/i, '');
 
   const singleSubCode = (subjectCode || '').trim().toUpperCase();
@@ -1672,7 +1667,14 @@ export function printMarksRecordAwardRoll({
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
-  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const isClass10 = String(className).toLowerCase().includes('10');
+  const isClass12 = String(className).toLowerCase().includes('12');
+  const clsTarget = isClass10 ? '10' : isClass12 ? '12' : '11';
+  const hseText = isClass10
+    ? 'Secondary School Examination (Class 10th)'
+    : className === '11th'
+      ? 'HSE-I (Class 11th)'
+      : 'HSE-II (Class 12th)';
   const examLabel = titles.examLabel || (isExternal ? 'External Practical' : 'Internal Practical');
 
   // Determine target subjects to print
@@ -1693,9 +1695,6 @@ export function printMarksRecordAwardRoll({
   }
 
   if (targetSubs.length === 0) return false;
-
-  const isClass12 = String(className).toLowerCase().includes('12');
-  const clsTarget = isClass12 ? '12' : '11';
 
   let combinedHtml = '';
 
@@ -1841,8 +1840,9 @@ export function printAllIndividualAwardRolls({
     return selectedSubjectCodes.includes(s.code);
   });
 
+  const isClass10 = String(className).toLowerCase().includes('10');
   const isClass12 = String(className).toLowerCase().includes('12');
-  const clsTarget = isClass12 ? '12' : '11';
+  const clsTarget = isClass10 ? '10' : isClass12 ? '12' : '11';
   const pageSize = 50;
 
   let combinedHtml = '';
@@ -2093,7 +2093,12 @@ export function printFailList({
   students = students.filter(st => !isStudentExamDropped(st));
   if (students.length === 0) return false;
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
-  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const isClass10 = String(className).toLowerCase().includes('10');
+  const hseText = isClass10
+    ? 'Secondary School Examination (Class 10th)'
+    : className === '11th'
+      ? 'HSE-I (Class 11th)'
+      : 'HSE-II (Class 12th)';
   const examType = titles.examLabel;
 
   const activeSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {

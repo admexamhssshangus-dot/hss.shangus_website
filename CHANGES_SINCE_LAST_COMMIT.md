@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(perf): deduplicate React subject keys, memoize admin suites, and eliminate tab switching latency`
+- **Commit Message**: `feat(practicals): fully enable Class 10th practicals across print engines, exports, and admin controls`
 - **Date**: October 02, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally.
 
@@ -9,52 +9,45 @@
 
 ## Architectural Purpose & Issues Resolved
 
-### 1. Fixed React Duplicate Key Collisions (`BI`, `SC`, `SS`)
-- **Problem**: In `src/utils/practicalsSettingsManager.js`, `SUBJECT_CONFIG_DEFS` contained duplicate subject entries:
-  - Code `BI` was defined twice (`Biology (Botany & Zoology)` and `Biology`).
-  - Code `SC` was defined twice (`Science` and `Science (Class 10th)`).
-  - Code `SS` was defined twice (`Social Science` and `Social Science (Class 10th)`).
-  - Mapping over this catalog with `key={sub.code}` in `SchoolAssessmentsHub.jsx` and `AdminPracticals.jsx` caused React warnings:
-    - `Encountered two children with the same key, 'BI'`
-    - `Encountered two children with the same key, 'SC'`
-    - `Encountered two children with the same key, 'SS'`
-- **Solution**:
-  - Removed duplicate `BI`, `SC`, and `SS` lines from `SUBJECT_CONFIG_DEFS` in `src/utils/practicalsSettingsManager.js`.
-  - Added defensive unique composite keys (`key={`${sub.code}_${idx}`}`) in `SchoolAssessmentsHub.jsx` and `AdminPracticals.jsx`.
-
-### 2. Resolved Slow Module Loading & Sluggish Tab Switching
+### 1. Comprehensive Class 10th Secondary Examination Print Engine Integration
 - **Problem**:
-  1. `setActiveTabState(tab)` in `AdminDashboard.jsx` was wrapped inside `React.startTransition()`. React 18 deprioritized tab clicks as low-priority transitions, deferring DOM CSS visibility changes and causing delayed switching.
-  2. `setActiveTab` had `[activeTab, mountedTabs]` in its dependency array, regenerating the function reference on every tab switch and breaking memoization across all child modules.
-  3. All heavy admin suites retained in DOM via the keep-alive architecture (`AdvancedReports`, `AdmissionRegisterSuite`, `CustomRosterDocumentBuilderView`, `StudentIdCardManager`, `ControlsAndSubjects`, `AdminPracticals`) were **not wrapped in `React.memo`**. Every tab switch forced full reconciliation across tens of thousands of lines of hidden JSX.
-  4. On every render of `AdminDashboard.jsx`, `getCachedCollectionSync('masterRegisters') || []` instantiated new arrays, breaking prop equality.
+  - `PRACTICAL_SUBJECT_DEFS` in `src/utils/practicalsPdfGenerator.js` was missing secondary core subjects: `SC` (Science), `SS` (Social Science), and `AD` (Art and Drawing).
+  - Print functions (`printConsolidatedAwardRoll`, `printAttendanceSheet`, `printMarksRecordAwardRoll`, `printAllIndividualAwardRolls`, `printFailList`) hardcoded `hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)'`, incorrectly branding Class 10th awards as `"HSE-II (Class 12th)"`.
+  - The teacher submission query target `clsTarget = isClass12 ? '12' : '11'` defaulted Class 10th queries to `'11'`, failing to retrieve submitted marks for Class 10th examinees.
 - **Solution**:
-  - Wrapped `AdvancedReports`, `AdmissionRegisterSuite`, `CustomRosterDocumentBuilderView`, `StudentIdCardManager`, `ControlsAndSubjects`, and `AdminPracticals` in `React.memo`.
-  - Made `setActiveTab` synchronous and stable with an empty dependency array `[]`.
-  - Memoized `masterRegisters` and introduced stable `handleCloseToReports` callback.
-  - Guarded `idlePrefetch` to run in production only, preventing Webpack Dev Server chunk thrashing and disposed module errors.
+  - Registered `SC`, `SS`, and `AD` into `PRACTICAL_SUBJECT_DEFS` with comprehensive keywords.
+  - Updated all print engines with `isClass10` check to stamp the official Board title: `"Secondary School Examination (Class 10th)"` (while preserving `"HSE-I"` and `"HSE-II"` for Higher Secondary).
+  - Configured `clsTarget = isClass10 ? '10' : isClass12 ? '12' : '11'`, ensuring teacher marks submissions are fetched accurately for Class 10th.
 
-### 3. Resolved Localhost 404 for Netlify Function (`public-traffic`)
-- **Problem**: `Home.jsx` called `fetch('/.netlify/functions/public-traffic')`. On local dev server (`localhost:3000`), no Netlify CLI was running, returning `404 (Not Found)`.
+### 2. Full Spreadsheet Import & Export Compatibility for Class 10th
+- **Problem**:
+  - In `src/utils/practicalsCsvManager.js`, `VALID_SUBJECT_CODES` and `defaultSubDefs` lacked `SC`, `SS`, and `AD`.
+  - Both matrix and flat row spreadsheet parsers executed `cls = clsRaw.toLowerCase().includes('12') ? '12th' : '11th'`, converting all imported Class 10th files to Class 11th.
+  - Word export (`exportConsolidatedAwardsToDocx`) stamped `partText` as `'Part-II (class 12th)'` for Class 10th.
 - **Solution**:
-  - Added local proxy handler for `/.netlify/functions/public-traffic` in `src/setupProxy.js` returning 200 with fallback telemetry metrics.
-  - Guarded session visit analytics in `Home.jsx` on `localhost` and `127.0.0.1` and silenced console fallback warnings.
+  - Registered `SC`, `SS`, `AD`, `HN`, `CS`, `MU` in `VALID_SUBJECT_CODES` and `defaultSubDefs`.
+  - Updated both spreadsheet parsers: `const cls = clsRaw.toLowerCase().includes('10') ? '10th' : clsRaw.toLowerCase().includes('12') ? '12th' : '11th'`.
+  - Set Word export `partText` to `'Secondary School (class 10th)'`.
+
+### 3. Complete Admin Settings & Teacher Permissions for Class 10th
+- **Problem**:
+  - In `src/portal/admin/AdminPracticals.jsx`, the permission granting form only had `<option value="11th">` and `<option value="12th">`, preventing administrators from authorizing teachers for Class 10th subjects.
+  - `SubjectMarksSettingsCard` only had `['11th', '12th']` in the class switcher, preventing configuration of Class 10th minimum/maximum marks.
+  - Print Document Defaults in settings only mapped `['11th', '12th']`, leaving no configuration interface for Class 10th incharge and session details.
+  - Initial settings state lacked `maxMarks10`, `nonPractical10`, and `printDetails['10th']`.
+- **Solution**:
+  - Added `<option value="10th">Class 10th</option>` to the teacher permission granting select dropdown.
+  - Added `'10th'` to `SubjectMarksSettingsCard` class switcher (`['10th', '11th', '12th']`), and synchronized `legacyMax10` during updates and official reset.
+  - Added Class 10th Non-Practical Subjects configuration input (`nonPractical10`) and integrated it into `AwardsSummaryView`.
+  - Added Class 10th Print Headers card (`['10th', '11th', '12th'].map(...)`) with customizable Institution Name, Session Text, Incharge Name, CPIS, and Mobile number.
 
 ---
 
 ## Files Changed
 
-1. `src/utils/practicalsSettingsManager.js`: Deduplicated `BI`, `SC`, and `SS` in `SUBJECT_CONFIG_DEFS`.
-2. `src/portal/admin/SchoolAssessmentsHub.jsx`: Added indexed defensive keys for subject options.
-3. `src/portal/admin/AdminPracticals.jsx`: Added indexed row keys and wrapped in `React.memo`.
-4. `src/portal/admin/AdvancedReports.jsx`: Wrapped 17,000-line component in `React.memo`.
-5. `src/portal/admin/AdmissionRegisterSuite.jsx`: Wrapped 12,000-line component in `React.memo`.
-6. `src/portal/admin/CustomRosterDocumentBuilderView.jsx`: Wrapped 7,000-line component in `React.memo`.
-7. `src/portal/admin/StudentIdCardManager.jsx`: Wrapped 3,300-line component in `React.memo`.
-8. `src/portal/admin/ControlsAndSubjects.jsx`: Wrapped component in `React.memo`.
-9. `src/portal/admin/AdminDashboard.jsx`: Synchronous `setActiveTab`, memoized `masterRegisters`, stable callbacks, and guarded dev prefetch.
-10. `src/setupProxy.js`: Added local dev mock for `/.netlify/functions/public-traffic`.
-11. `src/pages/Home.jsx`: Guarded local dev telemetry fetch.
+1. `src/utils/practicalsPdfGenerator.js`: Added `SC`, `SS`, `AD` to `PRACTICAL_SUBJECT_DEFS`, updated `hseText` and `clsTarget` for Class 10th across all 5 print engines, and cleaned unused variables.
+2. `src/utils/practicalsCsvManager.js`: Added `SC`, `SS`, `AD`, `HN`, `CS`, `MU` to `VALID_SUBJECT_CODES` and `defaultSubDefs`, updated matrix and flat row spreadsheet parsers for `'10th'`, and updated DOCX `partText` and `clsTarget`.
+3. `src/portal/admin/AdminPracticals.jsx`: Added Class 10th defaults to initial `settings`, added Class 10th to `SubjectMarksSettingsCard` switcher & sync, added Class 10th to `Target Class` permission select, added Class 10th non-practical subjects input, and added Class 10th Print Document Defaults card.
 
 ---
 
@@ -66,27 +59,20 @@
 
 ## Instructions for User
 
-### 1. Crucial Tip for Localhost: Restart `npm start`
-The dev server was running continuously for over 11 hours. In Webpack dev mode, running for many hours with dozens of hot reloads causes stale HMR module graphs and memory bloating.
-To get optimal performance on `localhost:3000`:
-1. In the terminal running `npm start`, press `Ctrl + C`.
-2. Run `npm start` again.
-3. Hard-refresh the browser (`Ctrl + F5` or `Ctrl + Shift + R`).
-
-### 2. Inspect the Local Commit
+### 1. Inspect the Local Commit
 ```bash
 git log -n 1 --stat
 ```
 
-### 3. Manually Amend / Re-commit (Optional)
+### 2. Manually Amend / Re-commit (Optional)
 ```bash
 git reset --soft HEAD~1
 # Make desired changes
 git add .
-git commit -m "fix(perf): deduplicate React subject keys, memoize admin suites, and eliminate tab switching latency"
+git commit -m "feat(practicals): fully enable Class 10th practicals across print engines, exports, and admin controls"
 ```
 
-### 4. Manually Push to Remote Repository
+### 3. Manually Push to Remote Repository
 ```bash
 git push origin main
 ```
