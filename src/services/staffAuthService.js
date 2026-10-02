@@ -12,47 +12,122 @@ import {
 import { staffCallable } from './staffCommand';
 import { auth, db, firebaseConfig } from './firebase';
 import { 
+  ROLES,
   SUPERADMIN_EMAIL, 
   BOOTSTRAP_ADMINS, 
   isSuperAdminEmail, 
+  isStandardAdminEmail,
   isBootstrapAdminEmail, 
-  isBootstrapSuperAdminEmail 
+  isBootstrapSuperAdminEmail,
+  getStrictCanonicalRole,
+  enforceStrictRoleAttributes
 } from '../utils/authRoles';
 import { normalizeTeacherClasses } from '../utils/practicalsSettingsManager';
 
 export { 
+  ROLES,
   SUPERADMIN_EMAIL, 
   BOOTSTRAP_ADMINS, 
   isSuperAdminEmail, 
+  isStandardAdminEmail,
   isBootstrapAdminEmail, 
-  isBootstrapSuperAdminEmail 
+  isBootstrapSuperAdminEmail,
+  getStrictCanonicalRole,
+  enforceStrictRoleAttributes
 };
 
-// Fallback staff directory to ensure foundational staff are always recognized
+// Fallback staff directory to ensure foundational staff are always recognized with EXACTLY ONE STRICT ROLE
 export const FALLBACK_STAFF_PROFILES = {
-  'adm.exam.hss.shangus@gmail.com': { name: 'Sheikh Gulfam (SuperAdmin)', role: 'SuperAdmin', isSuperAdmin: true, isAdmin: true, perms: ['*'] },
-  'e.educational.24@gmail.com': { name: 'Sheikh Gulfam', role: 'Admin', isAdmin: true, perms: ['reports'] },
-  'ghssshangus74@gmail.com': { name: 'GHSS Shangus (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
+  'adm.exam.hss.shangus@gmail.com': { 
+    name: 'Sheikh Gulfam (SuperAdmin)', 
+    role: 'SuperAdmin', 
+    isSuperAdmin: true, 
+    isAdmin: true, 
+    isTeacher: false, 
+    isStudent: false, 
+    isStaff: true, 
+    perms: ['*'] 
+  },
+  'e.educational.24@gmail.com': { 
+    name: 'Sheikh Gulfam', 
+    role: 'Admin', 
+    isAdmin: true, 
+    isSuperAdmin: false, 
+    isTeacher: false, 
+    isStudent: false, 
+    isStaff: true, 
+    perms: ['reports'] 
+  },
+  'ghssshangus74@gmail.com': { 
+    name: 'GHSS Shangus (Admin)', 
+    role: 'Admin', 
+    isAdmin: true, 
+    isSuperAdmin: false, 
+    isTeacher: false, 
+    isStudent: false, 
+    isStaff: true, 
+    perms: ['reports'] 
+  },
   'socialshiftz@gmail.com': { 
     name: 'Sheikh Gulfam', 
     role: 'Teacher', 
     isTeacher: true, 
     isAdmin: false, 
+    isSuperAdmin: false, 
+    isStudent: false, 
     isStaff: true, 
     subject: 'Botany',
     teachingSubject: 'Botany',
     assignedClasses: ['11th', '12th'],
     perms: ['attendanceMgmt', 'practicals'] 
   },
-  'shahnawaz13678@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
-  'shahnawaz@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
-  'bilalhcu@gmail.com': { name: 'Bilal Ahmad Khandy (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
-  'majidhassannajar@gmail.com': { name: 'Majid Hassan Najar (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
+  'shahnawaz13678@gmail.com': { 
+    name: 'Nawaz Ahmad Shah (Admin)', 
+    role: 'Admin', 
+    isAdmin: true, 
+    isSuperAdmin: false, 
+    isTeacher: false, 
+    isStudent: false, 
+    isStaff: true, 
+    perms: ['reports'] 
+  },
+  'shahnawaz@gmail.com': { 
+    name: 'Nawaz Ahmad Shah (Admin)', 
+    role: 'Admin', 
+    isAdmin: true, 
+    isSuperAdmin: false, 
+    isTeacher: false, 
+    isStudent: false, 
+    isStaff: true, 
+    perms: ['reports'] 
+  },
+  'bilalhcu@gmail.com': { 
+    name: 'Bilal Ahmad Khandy (Admin)', 
+    role: 'Admin', 
+    isAdmin: true, 
+    isSuperAdmin: false, 
+    isTeacher: false, 
+    isStudent: false, 
+    isStaff: true, 
+    perms: ['reports'] 
+  },
+  'majidhassannajar@gmail.com': { 
+    name: 'Majid Hassan Najar (Admin)', 
+    role: 'Admin', 
+    isAdmin: true, 
+    isSuperAdmin: false, 
+    isTeacher: false, 
+    isStudent: false, 
+    isStaff: true, 
+    perms: ['reports'] 
+  },
   'hajimir91@gmail.com': {
     name: 'Javid Ahmad',
     role: 'Teacher',
     isTeacher: true,
     isAdmin: false,
+    isSuperAdmin: false,
+    isStudent: false,
     isStaff: true,
     subject: 'Physical Education (PD)',
     teachingSubject: 'Physical Education (PD)',
@@ -245,60 +320,48 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
   if (!profile) return null;
   if (profile.active === false) throw new Error('This staff account is inactive.');
 
-  // Institutional security constraint: socialshiftz@gmail.com is strictly faculty/teacher, never admin
-  if (email === 'socialshiftz@gmail.com') {
-    profile = {
-      ...profile,
-      role: 'Teacher',
-      isTeacher: true,
-      isAdmin: false,
-      isSuperAdmin: false,
-      subject: profile.subject || 'Botany',
-      teachingSubject: profile.teachingSubject || 'Botany',
-      assignedClasses: profile.assignedClasses || ['11th', '12th'],
-      perms: ['attendanceMgmt', 'practicals']
-    };
+  // Strict Institutional Rule: EXACTLY ONE STRICT ROLE per email
+  // (SuperAdmin, Admin, Teacher, Student)
+  const strictRole = getStrictCanonicalRole(email, profile);
+  if (![ROLES.SUPER_ADMIN, ROLES.STANDARD_ADMIN, ROLES.TEACHER].includes(strictRole)) {
+    return null;
   }
 
-  const rawRole = String(profile.role || 'Admin').trim();
-  const normalizedRole = rawRole.toLowerCase();
-  if (!['teacher', 'faculty', 'admin', 'superadmin'].includes(normalizedRole)) return null;
+  const isSuper = strictRole === ROLES.SUPER_ADMIN;
+  const isTeacher = strictRole === ROLES.TEACHER;
 
-  const isBootstrap = isBootstrapAdminEmail(email);
-  const isSuper = isSuperAdminEmail(email);
-  const isAdmin = isSuper || isBootstrap || normalizedRole === 'admin' || normalizedRole === 'superadmin' || Boolean(profile.isAdmin);
-  const isTeacher = normalizedRole === 'teacher' || normalizedRole === 'faculty' || Boolean(profile.isTeacher) || Boolean(profile.teachingSubject || profile.subject);
-  // Administrative privileges take precedence: staff with admin roles default to Admin/SuperAdmin, preserving educator flags
-  const role = isSuper ? 'SuperAdmin' : (isAdmin ? 'Admin' : (normalizedRole === 'faculty' ? 'Faculty' : (isTeacher ? 'Teacher' : 'Student')));
+  const cleanClasses = isTeacher
+    ? normalizeTeacherClasses(
+        Array.isArray(profile.assignedClasses)
+          ? profile.assignedClasses
+          : (profile.assignedClass ? [profile.assignedClass] : [])
+      )
+    : [];
 
-  const resolved = {
+  const cleanSubjects = isTeacher
+    ? (Array.isArray(profile.assignedSubjects) && profile.assignedSubjects.length > 0
+        ? profile.assignedSubjects
+        : (profile.subject || profile.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean))
+    : [];
+
+  const resolved = enforceStrictRoleAttributes({
     ...profile,
     uid: user?.uid || profile.uid || null,
     email,
-    role: isSuper ? 'SuperAdmin' : role,
-    isAdmin,
-    isTeacher: isTeacher || Boolean(profile.teachingSubject || profile.subject),
+    role: strictRole,
     perms: isSuper
       ? ['*']
-      : (Array.isArray(profile.perms) ? profile.perms : ['reports']),
-    isSuperAdmin: isSuper,
-    isStaff: true,
+      : (Array.isArray(profile.perms) ? profile.perms : (isTeacher ? ['attendanceMgmt', 'practicals'] : ['reports'])),
     name: profile.name || user?.displayName || email.split('@')[0],
-    subject: profile.subject || profile.teachingSubject || '',
-    teachingSubject: profile.teachingSubject || profile.subject || '',
-    assignedSubjects: Array.isArray(profile.assignedSubjects) && profile.assignedSubjects.length > 0
-      ? profile.assignedSubjects
-      : (profile.subject || profile.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean),
-    assignedClasses: normalizeTeacherClasses(
-      Array.isArray(profile.assignedClasses)
-        ? profile.assignedClasses
-        : (profile.assignedClass ? [profile.assignedClass] : [])
-    ),
-    classSubjectMap: profile.classSubjectMap || null,
-    tierSubjects: profile.tierSubjects || null,
+    subject: isTeacher ? (cleanSubjects.join(', ') || profile.subject || profile.teachingSubject || '') : '',
+    teachingSubject: isTeacher ? (cleanSubjects.join(', ') || profile.teachingSubject || profile.subject || '') : '',
+    assignedSubjects: cleanSubjects,
+    assignedClasses: cleanClasses,
+    classSubjectMap: isTeacher ? (profile.classSubjectMap || null) : null,
+    tierSubjects: isTeacher ? (profile.tierSubjects || null) : null,
     google2StepVerified: Boolean(profile.google2StepVerified),
     last2StepVerificationDate: profile.last2StepVerificationDate || null,
-  };
+  });
 
   // Synchronize UID document in Firestore if not already synchronized in this session
   if (user?.uid) {
@@ -315,6 +378,8 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
           isStaff: true,
           isTeacher: resolved.isTeacher,
           isAdmin: resolved.isAdmin,
+          isSuperAdmin: resolved.isSuperAdmin,
+          isStudent: false,
           subject: resolved.subject,
           teachingSubject: resolved.teachingSubject,
           assignedSubjects: resolved.assignedSubjects,
@@ -583,21 +648,32 @@ export async function createStaffAccount({
 
   const cleanSubjects = Array.isArray(assignedSubjects) && assignedSubjects.length > 0
     ? assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
-    : (subject ? String(subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+    : (String(subject || '').trim() ? [String(subject).trim()] : []);
   const primarySubject = cleanSubjects.join(', ') || String(subject || '').trim();
+  const isSuper = isSuperAdminEmail(cleanEmail);
+  const strictRole = isSuper 
+    ? ROLES.SUPER_ADMIN 
+    : (String(role).toLowerCase() === 'teacher' ? ROLES.TEACHER : ROLES.STANDARD_ADMIN);
+  const isStdAdmin = strictRole === ROLES.STANDARD_ADMIN;
+  const isTeacher = strictRole === ROLES.TEACHER;
 
   const newAdminEntry = {
     name: cleanName,
     email: cleanEmail,
-    role,
+    role: strictRole,
+    isAdmin: isSuper || isStdAdmin,
+    isSuperAdmin: isSuper,
+    isTeacher: isTeacher,
+    isStudent: false,
+    isStaff: true,
     designation: String(designation || '').trim(),
-    perms: role === 'SuperAdmin' ? ['*'] : perms,
-    subject: primarySubject,
-    teachingSubject: primarySubject,
-    assignedSubjects: cleanSubjects,
-    assignedClasses: cleanClasses,
-    tierSubjects: tierSubjects || null,
-    classSubjectMap: classSubjectMap || null,
+    perms: isSuper ? ['*'] : (isTeacher ? (perms.length ? perms : ['attendanceMgmt', 'practicals']) : perms),
+    subject: isTeacher ? primarySubject : '',
+    teachingSubject: isTeacher ? primarySubject : '',
+    assignedSubjects: isTeacher ? cleanSubjects : [],
+    assignedClasses: isTeacher ? cleanClasses : [],
+    tierSubjects: isTeacher ? (tierSubjects || null) : null,
+    classSubjectMap: isTeacher ? (classSubjectMap || null) : null,
     mobile: mobile.trim(),
     active: true,
   };
@@ -623,12 +699,12 @@ export async function createStaffAccount({
             email: cleanEmail,
             oldEmail: cleanEmail,
             name: cleanName,
-            role,
+            role: strictRole,
             password,
             perms: newAdminEntry.perms,
-            subject: primarySubject,
-            assignedSubjects: cleanSubjects,
-            assignedClasses: cleanClasses,
+            subject: isTeacher ? primarySubject : '',
+            assignedSubjects: isTeacher ? cleanSubjects : [],
+            assignedClasses: isTeacher ? cleanClasses : [],
             mobile
           });
         } catch (bErr) {
@@ -717,7 +793,7 @@ export async function updateStaffAccount({
   designation = '',
   perms = [], 
   subject = '', 
-  assignedSubjects = [],
+  assignedSubjects = [], 
   assignedClasses = [], 
   tierSubjects = null,
   classSubjectMap = null,
@@ -731,25 +807,39 @@ export async function updateStaffAccount({
 
   if (!cleanNew || !cleanName) throw new Error('Name and valid email are required.');
 
-  const cleanClasses = normalizeTeacherClasses(assignedClasses);
+  const isSuper = isSuperAdminEmail(cleanNew);
+  const strictRole = isSuper 
+    ? ROLES.SUPER_ADMIN 
+    : (String(role).toLowerCase() === 'teacher' ? ROLES.TEACHER : ROLES.STANDARD_ADMIN);
+  const isStdAdmin = strictRole === ROLES.STANDARD_ADMIN;
+  const isTeacher = strictRole === ROLES.TEACHER;
 
-  const cleanSubjects = Array.isArray(assignedSubjects) && assignedSubjects.length > 0
-    ? assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
-    : (subject ? String(subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+  const cleanClasses = isTeacher ? normalizeTeacherClasses(assignedClasses) : [];
+
+  const cleanSubjects = isTeacher
+    ? (Array.isArray(assignedSubjects) && assignedSubjects.length > 0
+        ? assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
+        : (subject ? String(subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []))
+    : [];
   const primarySubject = cleanSubjects.join(', ') || String(subject || '').trim();
 
   const updatedEntry = {
     name: cleanName,
     email: cleanNew,
-    role,
+    role: strictRole,
+    isAdmin: isSuper || isStdAdmin,
+    isSuperAdmin: isSuper,
+    isTeacher: isTeacher,
+    isStudent: false,
+    isStaff: true,
     designation: String(designation || '').trim(),
-    perms: role === 'SuperAdmin' ? ['*'] : perms,
-    subject: primarySubject,
-    teachingSubject: primarySubject,
-    assignedSubjects: cleanSubjects,
-    assignedClasses: cleanClasses,
-    tierSubjects: tierSubjects || null,
-    classSubjectMap: classSubjectMap || null,
+    perms: isSuper ? ['*'] : (isTeacher ? (perms.length ? perms : ['attendanceMgmt', 'practicals']) : perms),
+    subject: isTeacher ? primarySubject : '',
+    teachingSubject: isTeacher ? primarySubject : '',
+    assignedSubjects: isTeacher ? cleanSubjects : [],
+    assignedClasses: isTeacher ? cleanClasses : [],
+    tierSubjects: isTeacher ? (tierSubjects || null) : null,
+    classSubjectMap: isTeacher ? (classSubjectMap || null) : null,
     mobile: mobile.trim(),
     active: true,
   };

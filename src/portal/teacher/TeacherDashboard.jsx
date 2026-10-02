@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import { 
   History, CalendarCheck, LogOut,
-  ArrowRight, Award, X, Clock, RefreshCw, Search, Printer, Shield, FileText
+  ArrowRight, Award, X, Clock, RefreshCw, Search, Printer, FileText
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
@@ -10,7 +10,6 @@ import { getCachedCollection, invalidateCollectionCache } from '../../services/d
 import { auth } from '../../services/firebase';
 import { printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
 import { showToast } from '../../components/common/GlobalToast';
-import { isBootstrapAdminEmail, isSuperAdminEmail } from '../../utils/authRoles';
 import { isPracticalEvaluationType } from '../../utils/evaluationTypes';
 
 export default function TeacherDashboard() {
@@ -163,14 +162,6 @@ export default function TeacherDashboard() {
   };
 
   const userName = user?.displayName || user?.name || 'Teacher';
-  const userRole = String(user?.role || '').toLowerCase();
-  const isAdminUser = Boolean(
-    user?.isAdmin ||
-    userRole.includes('admin') ||
-    userRole === 'superadmin' ||
-    isBootstrapAdminEmail(user?.email) ||
-    isSuperAdminEmail(user?.email)
-  );
 
   return (
     <div className="portal-page w-full min-h-[85vh] py-2 sm:py-3 px-2 sm:px-4 space-y-2.5" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
@@ -194,17 +185,10 @@ export default function TeacherDashboard() {
                   {userName}
                 </h1>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  {isAdminUser ? (
-                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25 inline-flex items-center gap-1 shadow-2xs">
-                      <Shield size={9} className="text-indigo-600 dark:text-indigo-400" />
-                      Admin & Educator
-                    </span>
-                  ) : (
-                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      Educator
-                    </span>
-                  )}
+                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Faculty / Educator
+                  </span>
                   {(user?.subject || user?.teachingSubject) && (
                     <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                       {user?.subject || user?.teachingSubject}
@@ -220,18 +204,6 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              {isAdminUser && (
-                <Link
-                  to="/portal/admin"
-                  className="portal-compact-btn rounded-lg font-black text-[11px] flex items-center gap-1.5 cursor-pointer transition-all duration-200 shadow-2xs border bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/80 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700 px-2.5 py-1"
-                  title="Switch to Administration Dashboard"
-                >
-                  <Shield size={11} className="text-teal-600 dark:text-teal-400" />
-                  <span className="hidden xs:inline">Admin Portal</span>
-                  <span className="xs:hidden">Admin</span>
-                  <ArrowRight size={11} className="text-teal-500" />
-                </Link>
-              )}
               <button
                 type="button"
                 onClick={handleLogoutRequest}
@@ -244,32 +216,6 @@ export default function TeacherDashboard() {
             </div>
           </div>
         </div>
-
-        {/* Administrator Guidance Banner (When an Admin is viewing Teacher Workspace) */}
-        {isAdminUser && (
-          <div className="rounded-xl p-2.5 sm:p-3 border bg-teal-50/70 dark:bg-teal-950/30 border-teal-200/80 dark:border-teal-800/60 flex items-center justify-between gap-2 shadow-2xs">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                <Shield size={14} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-black text-teal-900 dark:text-teal-100 truncate">
-                  Administrator & Faculty Workspace
-                </p>
-                <p className="text-[10px] text-teal-700 dark:text-teal-300 truncate">
-                  You are in the practical evaluation & attendance module. Switch to the Admin Portal anytime for statistical reports & suites.
-                </p>
-              </div>
-            </div>
-            <Link
-              to="/portal/admin"
-              className="px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-black text-[11px] shrink-0 transition-all shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
-            >
-              <span>Open Admin Portal</span>
-              <ArrowRight size={11} />
-            </Link>
-          </div>
-        )}
 
         {/* Quick Action Navigation Grid (3 Mobile-First Interactive Cards) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
