@@ -1,37 +1,32 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `refactor(practicals): group all toolbar controls search and filters onto single unified row`
+- **Commit Message**: `refactor(practicals): remove duplicate fail absent toolbar button in favor of unified awards export menu`
 - **Date**: October 02, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally.
 
 ---
 
-## Architectural Purpose & Single-Row Grouping Enhancements
+## Architectural Purpose & Enhancements
 
-### 1. Consolidated Single-Row Toolbar
-- **Problem**: Previously, `Awards / Export`, `Fail / Absent`, and `Settings` sat on Row 1, while `Search`, `Subjects`, and `Filters` sat on Row 2. This caused vertical fragmentation, two separate tiers of buttons, and wasted space.
+### 1. Removed Duplicate Standalone Fail/Absent Toolbar Button
+- **Problem**: The practicals toolbar contained a standalone `[Fail / Absent]` button, which duplicated the `Print Fail / Absent List` option already present inside the `[Awards / Export ▾]` dropdown menu.
 - **Solution**:
-  - Re-architected the toolbar into **one single, unified, cohesive row**:
-    - **Left**: `Class {cls}` heading with compact student and subject count badges (`203/203 • 15 Subs`).
-    - **Center**: Flexible-width `Search` input (`flex-1 min-w-[130px] max-w-sm`) adapting to viewport width.
-    - **Right**: All 5 action and filter buttons grouped together on the **SAME ROW**:
-      1. `[ 📖 Subjects (15) ▾ ]`
-      2. `[ 🎚 Filters ▾ ]`
-      3. `[ ⚠️ Fail / Absent ]`
-      4. `[ 🖨️ Awards / Export ▾ ]`
-      5. `[ ⚙ ]` (Settings button)
-  - Eliminates the secondary toolbar row completely on desktop and tablets.
-  - On mobile displays, the 5 action buttons stay clustered on the same row, while the Search input smoothly expands to full width below them (`order-last w-full sm:order-none sm:w-auto`).
+  - Removed the standalone `[Fail / Absent]` button from the toolbar in `src/portal/admin/AdminPracticals.jsx`.
+  - The toolbar now has a clean 4-button cluster grouped on the exact same row:
+    1. `[ 📖 Subjects (15) ▾ ]` *(Practical subjects selector dropdown)*
+    2. `[ 🎚 Filters ▾ ]` *(Evaluation type & view filter toggle)*
+    3. `[ 🖨️ Awards / Export ▾ ]` *(Unified document launcher: Marks Record, Attendance Sheets, 2-Column rolls, Fail / Absent list, Consolidated Cover Letter & Matrix, Excel & Word exports)*
+    4. `[ ⚙ ]` *(Settings & Layout options)*
+  - `Print Fail / Absent List` remains fully accessible and subject-target controlled inside `[Awards / Export ▾]` under `Evaluation & Attendance Prints`.
 
 ---
 
 ## Files Changed & Synchronizations Completed
 
 ### 1. `src/portal/admin/AdminPracticals.jsx`
-- Merged the 2-row toolbar into a unified single-row flex container.
-- Grouped `Subjects`, `Filters`, `Fail / Absent`, `Awards / Export`, and `Settings` side-by-side in the right action group.
-- Placed `Search` as a flexible center element with mobile-responsive ordering.
+- Removed standalone `[Fail / Absent]` button from `AwardsSummaryView` toolbar.
+- Verified all 4 remaining action items remain on the unified single row.
 
 ---
 
@@ -56,7 +51,7 @@ If you wish to adjust the commit message or files before pushing:
 git reset --soft HEAD~1
 # Make desired changes
 git add .
-git commit -m "refactor(practicals): group all toolbar controls search and filters onto single unified row"
+git commit -m "refactor(practicals): remove duplicate fail absent toolbar button in favor of unified awards export menu"
 ```
 
 ### 3. Manually Push to Remote Repository

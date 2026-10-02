@@ -2327,38 +2327,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 <ChevronDown size={10} className={`transition-transform duration-200 ${showFilterTray ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* 3. Fail / Absent List Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                  const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
-                  if (!listToPrint || listToPrint.length === 0) {
-                    showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                    return;
-                  }
-                  const isSingle = exportSubjectTarget !== 'all';
-                  const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
-                  printFailList({
-                    className: cls,
-                    session: localPrintOpts.sessionText,
-                    students: listToPrint,
-                    submissions,
-                    selectedSubjectCodes: targetCodes,
-                    isExternal: localPrintOpts.practicalType === 'external',
-                    evaluationType: localPrintOpts.practicalType,
-                    printDetails: { ...localPrintOpts, settings }
-                  });
-                }}
-                className="px-2 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
-                title="Print Fail / Absent defaulters list"
-              >
-                <AlertTriangle size={11} />
-                <span className="hidden xs:inline">Fail</span>
-                <span className="hidden sm:inline"> / Absent</span>
-              </button>
-
-              {/* 4. Unified Print / Export Awards Dropdown Menu */}
+              {/* 3. Unified Print / Export Awards Dropdown Menu */}
               <div className="relative shrink-0" ref={awardsMenuRef}>
                 <button
                   type="button"
