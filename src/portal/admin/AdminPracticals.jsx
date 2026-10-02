@@ -2210,15 +2210,17 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
         {/* UNIFIED 2-ROW MOBILE-FIRST TOOLBAR */}
         <div className="space-y-2 pb-1.5 border-b border-slate-100 dark:border-slate-800/80 relative z-30">
           {/* Row 1: Left Summary Badges & Right Primary Awards/Export Menu */}
-          <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
             <div className="flex items-center gap-1.5 shrink-0">
               <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight">
                 Class {cls}
               </h2>
-              <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                <strong className="text-indigo-600 dark:text-indigo-400">{selectedStudentsList.length}</strong>/{cSts.length} Sts
+              <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] sm:text-[10.5px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                <strong className="text-indigo-600 dark:text-indigo-400">{selectedStudentsList.length}</strong>/{cSts.length} <span className="hidden xs:inline">Sts</span>
                 {pendingCount > 0 && selectedStatusFilter === 'approved' && (
-                  <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">({pendingCount} unassigned)</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">
+                    ({pendingCount}<span className="hidden sm:inline"> unassigned</span>)
+                  </span>
                 )}
                 {' • '}
                 <strong className="text-emerald-600">{activeSubjects.length}</strong> Subs
@@ -2226,7 +2228,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
             </div>
 
             {/* Action Buttons: Awards/Export dropdown, Fail List, Settings */}
-            <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               {/* Unified Print / Export Awards Dropdown Menu */}
               <div className="relative shrink-0" ref={awardsMenuRef}>
                 <button
@@ -2235,7 +2237,8 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                     setShowSubjectsDropdown(false);
                     setShowAwardsMenu(prev => !prev);
                   }}
-                  className="px-2.5 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs transition-all"
+                  className="px-2 sm:px-2.5 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs transition-all"
+                  title="Print and Export Options"
                 >
                   <Printer size={12} />
                   <span>Awards / Export</span>
@@ -2243,7 +2246,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 </button>
 
                 {showAwardsMenu && (
-                  <div className="absolute right-0 mt-1.5 w-80 sm:w-84 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150 text-xs">
+                  <div className="absolute right-0 mt-1.5 w-[min(calc(100vw-20px),22rem)] max-h-[85vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150 text-xs">
                     
                     {/* Header & Target Subject Control */}
                     <div className="bg-slate-50 dark:bg-slate-800/80 p-2 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
@@ -2431,7 +2434,48 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                         </div>
                       </button>
 
-                      {/* 4. Consolidated Awards Matrix & Forwarding Letter — not for Pre-Board */}
+                      {/* 4. Print Fail / Absent Defaulters List */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAwardsMenu(false);
+                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          if (!listToPrint || listToPrint.length === 0) {
+                            showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                            return;
+                          }
+                          const isSingle = exportSubjectTarget !== 'all';
+                          const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                          printFailList({
+                            className: cls,
+                            session: localPrintOpts.sessionText,
+                            students: listToPrint,
+                            submissions,
+                            selectedSubjectCodes: targetCodes,
+                            isExternal: localPrintOpts.practicalType === 'external',
+                            evaluationType: localPrintOpts.practicalType,
+                            printDetails: { ...localPrintOpts, settings }
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                          <AlertTriangle size={13} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-black text-rose-700 dark:text-rose-400 truncate">
+                            {exportSubjectTarget === 'all'
+                              ? `Print Fail / Absent List (All ${activeSubjects.length} Subs)`
+                              : `Print Fail / Absent List — ${NAMES[exportSubjectTarget] || exportSubjectTarget}`}
+                          </div>
+                          <div className="text-[9.5px] text-slate-400 font-semibold truncate">
+                            Summary of students failed or absent in practicals
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 5. Consolidated Awards Matrix & Forwarding Letter — not for Pre-Board */}
                       {!/pre.?board/i.test(localPrintOpts.practicalType) && (
                         <button
                           type="button"
@@ -2510,11 +2554,11 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                             <FileSpreadsheet size={13} />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="text-[11.5px] font-black text-emerald-700 dark:text-emerald-300 truncate">
+                            <div className="text-[11.5px] font-black text-emerald-700 dark:text-emerald-400 truncate">
                               Export Consolidated Excel (.xlsx)
                             </div>
                             <div className="text-[9.5px] text-slate-400 font-semibold truncate">
-                              Cover Letter + Subject Matrix Sheet
+                              Sheet 1 (Cover Letter) + Sheet 2 (Awards Matrix)
                             </div>
                           </div>
                         </button>
@@ -2618,16 +2662,19 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                     printDetails: { ...localPrintOpts, settings }
                   });
                 }}
-                className="px-2 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
+                className="px-2 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
+                title="Print Fail / Absent defaulters list"
               >
-                <AlertTriangle size={11} /> Fail / Absent
+                <AlertTriangle size={11} />
+                <span className="hidden xs:inline">Fail</span>
+                <span className="hidden sm:inline"> / Absent</span>
               </button>
 
               {/* Settings Button */}
               <button
                 type="button"
                 onClick={() => setShowOptsModal(true)}
-                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold cursor-pointer flex items-center border border-slate-200 dark:border-slate-700 shadow-2xs"
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold cursor-pointer flex items-center border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0"
                 title="Print layout & in-charge options"
               >
                 <Settings size={12} />
@@ -2642,10 +2689,10 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search student name, roll, reg, father..."
+                placeholder="Search students, roll, reg, father..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-7 pr-6 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-900 shadow-2xs transition-all placeholder:text-[11px] placeholder:font-semibold"
+                className="w-full pl-7 pr-6 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-900 shadow-2xs transition-all placeholder:text-[10.5px] sm:placeholder:text-[11px] placeholder:font-semibold"
               />
               {searchTerm && (
                 <button
@@ -2668,14 +2715,16 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   setShowSubjectsDropdown(prev => !prev);
                 }}
                 className="px-2 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[11px] font-black cursor-pointer flex items-center gap-1 border border-indigo-200 dark:border-indigo-800 shadow-2xs transition-all shrink-0"
+                title={`Practical Subjects (${selectedSubCodes.length} active)`}
               >
                 <BookOpen size={11} />
-                <span>Subjects ({selectedSubCodes.length})</span>
+                <span className="hidden sm:inline">Subjects</span>
+                <span>({selectedSubCodes.length})</span>
                 <ChevronDown size={10} className={`transition-transform duration-200 ${showSubjectsDropdown ? 'rotate-180' : ''}`} />
               </button>
 
               {showSubjectsDropdown && (
-                <div className="absolute right-0 mt-1.5 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-1.5 w-[min(calc(100vw-20px),16rem)] max-h-[70vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
                   <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-500">
                     <span className="flex items-center gap-1"><BookOpen size={11} /> Practical Subjects</span>
                     <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
@@ -2726,9 +2775,10 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-100 dark:shadow-none'
                   : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
               }`}
+              title="Evaluation type & view filters"
             >
               <Filter size={11} />
-              <span>Filters</span>
+              <span className="hidden sm:inline">Filters</span>
               <ChevronDown size={10} className={`transition-transform duration-200 ${showFilterTray ? 'rotate-180' : ''}`} />
             </button>
           </div>
