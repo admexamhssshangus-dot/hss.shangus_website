@@ -1394,7 +1394,7 @@ export function isEligibleForSessionAdmNoAudit(student, sessionFilter = '') {
   return false;
 }
 
-export default function AdmissionRegisterSuite({
+function AdmissionRegisterSuite({
   students: propStudents,
   allHistory: propAllHistory,
   onClose: propOnClose,
@@ -12273,3 +12273,5 @@ export default function AdmissionRegisterSuite({
     </div>
   );
 }
+
+export default React.memo(AdmissionRegisterSuite);

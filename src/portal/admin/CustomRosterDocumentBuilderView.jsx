@@ -3347,7 +3347,7 @@ function RosterColumnsDropdown({
   );
 }
 
-export default function CustomRosterDocumentBuilderView({
+function CustomRosterDocumentBuilderView({
   allStudents = [],
   onClose,
   activeSubTab,
@@ -7182,3 +7182,5 @@ export default function CustomRosterDocumentBuilderView({
     </div>
   );
 }
+
+export default React.memo(CustomRosterDocumentBuilderView);

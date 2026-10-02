@@ -6324,7 +6324,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
   );
 }
 
-export default function AdvancedReports({
+function AdvancedReports({
   setActiveTab,
   setCounts,
   user,
@@ -16974,3 +16974,5 @@ export default function AdvancedReports({
     </div>
   );
 }
+
+export default React.memo(AdvancedReports);

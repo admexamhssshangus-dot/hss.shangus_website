@@ -16,7 +16,7 @@ import { fetchFirebaseStorageMetrics, getAutomatedStorageMetrics } from '../../s
 import { emptyRecycleBin, sweepOrphanedStudentPhotos } from '../../services/recycleBinService';
 import { showToast } from '../../components/common/GlobalToast';
 
-export default function ControlsAndSubjects({ applications = [] } = {}) {
+function ControlsAndSubjects({ applications = [] } = {}) {
   const getInitialControlsSubTab = () => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
@@ -1110,3 +1110,5 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
     </div>
   );
 }
+
+export default React.memo(ControlsAndSubjects);

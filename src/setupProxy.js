@@ -85,6 +85,18 @@ module.exports = function(app) {
     return true;
   }
 
+  app.all('/.netlify/functions/public-traffic', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(200).json({
+      success: true,
+      visitors: 2450,
+      interactions: 1120,
+      searches: 4890,
+      clicks: 1120,
+      updatedAt: new Date().toISOString(),
+    });
+  });
+
   app.post('/.netlify/functions/staff-command', async (req, res) => {
     if (!assertLocalhost(req, res)) return;
     try {

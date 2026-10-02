@@ -18,7 +18,6 @@ export const SUBJECT_CONFIG_DEFS = [
   { code: 'PH',   name: 'Physics',                         stream: 'Science',                  isLab: true },
   { code: 'CH',   name: 'Chemistry',                       stream: 'Science',                  isLab: true },
   { code: 'BI',   name: 'Biology (Botany & Zoology)',      stream: 'Science',                  isLab: true },
-  { code: 'BI',   name: 'Biology',                         stream: 'Science',                  isLab: true },
   { code: 'BO',   name: 'Botany',                          stream: 'Science',                  isLab: true },
   { code: 'ZO',   name: 'Zoology',                         stream: 'Science',                  isLab: true },
   { code: 'BT',   name: 'Biotechnology',                  stream: 'Science',                  isLab: true },
@@ -93,8 +92,6 @@ export const SUBJECT_CONFIG_DEFS = [
   // ─── 7. CLASS 9TH & 10TH GENERAL / CORE SUBJECTS ──────────────────────
   { code: 'SC',   name: 'Science',                         stream: 'Class 9th & 10th',         isLab: true },
   { code: 'SS',   name: 'Social Science',                  stream: 'Class 9th & 10th',         isLab: false },
-  { code: 'SC',   name: 'Science (Class 10th)',            stream: 'Class 10th',               isLab: true },
-  { code: 'SS',   name: 'Social Science (Class 10th)',     stream: 'Class 10th',               isLab: false },
   { code: 'AD',   name: 'Art and Drawing (Class 10th)',    stream: 'Class 10th',               isLab: true }
 ];
 
