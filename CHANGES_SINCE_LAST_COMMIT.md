@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): resolve English nomenclature for Class 10th across UI, exports, and print engines`
+- **Commit Message**: `fix(practicals): immediately purge deleted awards across Firestore and exclude deleted subjects from print matrix`
 - **Date**: October 02, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally.
 
@@ -9,53 +9,63 @@
 
 ## Architectural Purpose & Issues Resolved
 
-### 1. Class-Aware Subject Nomenclature (English vs General English)
+### 1. Instant Deletion Reactivity & Comprehensive Firestore Document Purge
 - **Problem**:
-  - In JKBOSE board curriculum standards:
-    - **Class 10th (Secondary)** uses **"English"** as the official core compulsory subject.
-    - **Class 11th & 12th (Higher Secondary)** use **"General English"**.
-  - Previously, `EN` mapped statically to `"General English"` throughout the portal. In Class 10th Award rolls, Target Subject selectors, Attendance sheets, Marks record prints, Excel exports, and School Assessments, it incorrectly displayed as `EN - General English`.
+  - When an administrator deleted an award submission (e.g., Mathematics 10th award submitted by Mushtaq Sir), the award would be moved to the recycle bin, but its trace or empty slot would continue to show in the Consolidated Award Roll printout as columns of dashes (`-`), and the forwarding cover letter would still certify student awards for that subject.
+  - Furthermore, `moveSubmissionToRecycleBin` previously only targeted `submissionDoc.id`. If a submission had a pending variant (`pending_...`) or canonical variant (`..._clean`), or matching slot record in Firestore `practicalsData`, the lingering record could cause state desynchronization.
+  - In `AdminPracticals.jsx`, `handleDeleteSubmission` only filtered local state with a simple ID match (`s.id !== subId`) without invalidating caches or triggering an authoritative reload from Firestore.
 - **Resolution**:
-  - Implemented `getSubjectDisplayName(codeOrName, cls)` in `src/utils/practicalsSettingsManager.js` that dynamically resolves `English` for Class 10th / 9th (secondary) and `General English` for Class 11th / 12th (higher secondary).
-  - Integrated `getSubjectDisplayName` across:
-    1. **Target Subject Controls & Awards Menu**: The dropdown now displays `EN - English` for Class 10th, and action buttons dynamically label as `Print Marks Record — English`, `Print Attendance Sheet — English`, `Print 2-Column Award Roll — English`, and `Export Blank Roster (.xlsx) — English`.
-    2. **PDF Print Engines**:
-       - Attendance sheets: `${hseText} — English (EN)`
-       - Marks Record (Practicals / Assignments): `Class 10th - Marks Record (Practicals/Assignments) - English`
-       - Official 2-Column Award Rolls: `Subject: English (EN)`
-       - Consolidated cover letter and Hash Total Matrix: `English`
-       - Fail / Absent defaulters list: `English (EN)`
-       - Individual worksheets and single award rolls: `English (EN)`
-    3. **Spreadsheet & Document Exports**:
-       - Excel consolidated workbook (`exportConsolidatedAwardsToExcel`): `English` for Class 10th.
-       - Word document export (`exportConsolidatedAwardsToWord`): `English` for Class 10th.
-       - Blank teacher roster export (`exportCurrentRosterToExcel`): `English` for Class 10th.
-    4. **Admin Dashboard Controls & School Assessments**:
-       - `SubjectMarksSettingsCard`: displays `English` when Class 10th tab is selected.
-       - `SchoolAssessmentsHub`: displays `English [EN]` when configuring overrides for Class 10th.
-       - Permissions manager & submissions log: accurately displays `Class 10th • English (EN)`.
+  - **Comprehensive Multi-Variant Deletion (`practicalsBinService.js`)**:
+    - `moveSubmissionToRecycleBin` now extracts all identifier variants (`cleanId`, `pendingId`, `targetDocId`, `canonicalDocId`) and deletes each variant from Firestore `practicalsData`.
+    - Automatically queries `practicalsData` for any matching active documents sharing the same `session`, `className`, `evaluationType`, and `subjectCode`/`subject`, deleting them as well to prevent orphan records.
+  - **Authoritative Cache Invalidation & Reload (`AdminPracticals.jsx`)**:
+    - `handleDeleteSubmission` immediately closes the modal (`setSelSub(null)`).
+    - Comprehensively cleanses local React state (`submissions` and `pendingApprovals`) by removing matching IDs, aliases, and matching class/subject/session tuples.
+    - Invalidates all localStorage and sessionStorage caches (`practicals_submissions_cache`, `practicals_submissions_cache_meta`, `practicals_meta_v1`).
+    - Executes `await loadData(true)` to pull the fresh ground-truth state directly from Cloud Firestore.
+
+### 2. Consolidated Print & Export Ghost Subject Filtering
+- **Problem**:
+  - The Consolidated Award Roll print engine (`printConsolidatedAwardRoll`), Excel export (`exportConsolidatedAwardsToExcel`), and Word export (`exportConsolidatedAwardsToDocx`) previously populated the subject matrix columns using all enrolled board curriculum subjects (`PRACTICAL_SUBJECT_DEFS` or `defaultSubDefs`).
+  - When an award was deleted or not yet submitted, the table rendered empty columns filled with dashes (`-`), and the Page 1 Forwarding Cover Letter gist table falsely declared certified student award counts for subjects with no active marks.
+- **Resolution**:
+  - **Submission Verification Utility (`hasSubjectPracticalSubmission`)**:
+    - Created and exported `hasSubjectPracticalSubmission(subCode, submissions, className, evaluationType, isExternal)` in `practicalsPdfGenerator.js`.
+    - Checks whether a subject actually has active approved submissions with non-empty, non-dash marks for the target class and evaluation type.
+  - **Smart Active Subjects Filtering**:
+    - In `printConsolidatedAwardRoll`, `exportConsolidatedAwardsToExcel`, and `exportConsolidatedAwardsToDocx`, when multiple subjects are displayed, `activeSubs` is filtered to only include subjects with live submitted marks (`subsWithMarks`). If only a single subject is explicitly selected by the administrator, that specific subject remains targeted.
+    - The Page 1 Forwarding Cover Letter gist table now includes only live submitted subjects with genuine examinee counts, ensuring accurate institutional certification.
+
+### 3. UI Indicators & "Live Only" Quick Selection
+- In `AdminPracticals.jsx` (`AwardsSummaryView`):
+  - Added `subjectsWithSubmissions` memo to identify subjects with active marks in the current class and evaluation type.
+  - Added a **"Live Only"** quick-select button in the Subjects checklist dropdown alongside "Select All" and "Clear All".
+  - Added green **"Live"** and muted **"Empty"** indicator badges for each subject in the dropdown checklist.
+  - Added status dots (`●` for live awards, `(No Award)` for unsubmitted/deleted subjects) in the Target Subject dropdown.
+  - Consolidated print and export launcher actions (`printConsolidatedAwardRoll`, `exportConsolidatedAwardsToExcel`, `exportConsolidatedAwardsToWord`, `printAllIndividualAwardRolls`) now automatically pass live submitted subjects when "All Subjects (Consolidated)" is chosen.
 
 ---
 
 ## Files Changed
 
-1. `src/utils/practicalsSettingsManager.js`:
-   - Added and exported `getSubjectDisplayName(codeOrName, cls)` with class-aware secondary/higher-secondary distinction.
+1. `src/services/practicalsBinService.js`:
+   - Enhanced `moveSubmissionToRecycleBin` to purge all ID variants (`targetDocId`, `canonicalDocId`, `pendingId`) and matching class/subject/session documents from Firestore `practicalsData`.
 2. `src/portal/admin/AdminPracticals.jsx`:
-   - Updated `AwardsSummaryView` subject target dropdown, filter badges, and print labels to use `getSubjectDisplayName`.
-   - Updated `SelectedSubmissionModal`, `FacultySubmissionsView`, `SubjectMarksSettingsCard`, and `SettingsPermissionsView`.
-3. `src/portal/admin/SchoolAssessmentsHub.jsx`:
-   - Updated subject override options and override builder to resolve `English` for Class 10th.
-4. `src/utils/practicalsPdfGenerator.js`:
-   - Updated all print engines (`printAttendanceSheet`, `printMarksRecordAwardRoll`, `printAllIndividualAwardRolls`, `printConsolidatedAwardRoll`, `printFailList`, `printIndividualAwardRoll`, `printIndividualWorkSheet`) to output `English` for Class 10th.
-5. `src/utils/practicalsCsvManager.js`:
-   - Updated Excel, Word, and blank roster exports to use `English` for Class 10th.
+   - Enhanced `handleDeleteSubmission` with modal auto-close, comprehensive state filtering, cache invalidation, and `loadData(true)` reload.
+   - Added `subjectsWithSubmissions` memo, "Live Only" quick-select, badge indicators, and filtered print/export invocation.
+3. `src/utils/practicalsPdfGenerator.js`:
+   - Implemented and exported `hasSubjectPracticalSubmission`.
+   - Filtered `activeSubs` in `printConsolidatedAwardRoll` to omit deleted or unsubmitted subjects from matrix columns and cover letter counts.
+4. `src/utils/practicalsCsvManager.js`:
+   - Integrated `hasSubjectPracticalSubmission` into `exportConsolidatedAwardsToExcel` and `exportConsolidatedAwardsToDocx` to eliminate ghost columns and ensure correct gist counts.
 
 ---
 
 ## Verification & Build Details
 - **Production Build**:
   - `npm run build` -> `Exit Code 0` (Zero breaking errors).
+- **SEO & Static Checks**:
+  - 11 static pages generated, canonical redirects, routing, and sitemap verified.
 
 ---
 
@@ -74,7 +84,7 @@ If you wish to make additional adjustments before pushing:
 git reset --soft HEAD~1
 # Make desired adjustments
 git add .
-git commit -m "fix(practicals): resolve English nomenclature for Class 10th across UI, exports, and print engines"
+git commit -m "fix(practicals): immediately purge deleted awards across Firestore and exclude deleted subjects from print matrix"
 ```
 
 ### Pushing Changes

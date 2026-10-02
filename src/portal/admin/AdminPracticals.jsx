@@ -1135,14 +1135,50 @@ function AdminPracticals() {
         try {
           const currentUser = auth.currentUser;
           const docToDelete = subDoc || { id: subId };
+
+          // Close inspected submission modal if open
+          setSelSub(null);
+
           await moveSubmissionToRecycleBin(docToDelete, {
             name: currentUser?.displayName || 'Administrator',
             email: currentUser?.email || ''
           });
+
           invalidateCollectionCache('practicalsData');
           invalidatePracticalsCache();
-          setSubmissions(prev => prev.filter(s => s.id !== subId));
-          setPendingApprovals(prev => prev.filter(p => p.id !== subId));
+
+          // Immediately remove matching records from local states
+          const cleanSubId = String(subId || '').replace(/^pending_/, '');
+          const targetCls = String(docToDelete.className || docToDelete.Class || docToDelete.class || '').replace(/[^0-9]/g, '');
+          const targetSub = String(docToDelete.subjectCode || docToDelete.subject || docToDelete.subjectName || '').toUpperCase();
+          const targetType = String(docToDelete.practicalType || docToDelete.evaluationType || 'internal').toLowerCase();
+
+          const isMatchForDeletion = (s) => {
+            if (!s) return false;
+            const sId = String(s.id || '');
+            const sClean = sId.replace(/^pending_/, '');
+            if (sId === subId || sId === docToDelete.id || sClean === cleanSubId) return true;
+            if (s.targetDocId && (s.targetDocId === subId || s.targetDocId === cleanSubId)) return true;
+            if (s.canonicalDocId && (s.canonicalDocId === subId || s.canonicalDocId === cleanSubId)) return true;
+            if (targetCls && targetSub) {
+              const sCls = String(s.className || s.Class || s.class || '').replace(/[^0-9]/g, '');
+              const sSub = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+              const sType = String(s.practicalType || s.evaluationType || 'internal').toLowerCase();
+              if (sCls === targetCls && (sSub === targetSub || sSub.includes(targetSub) || targetSub.includes(sSub))) {
+                if (sType === targetType || sType.includes(targetType) || targetType.includes(sType)) {
+                  return true;
+                }
+              }
+            }
+            return false;
+          };
+
+          setSubmissions(prev => prev.filter(s => !isMatchForDeletion(s)));
+          setPendingApprovals(prev => prev.filter(p => !isMatchForDeletion(p)));
+
+          // Immediately force-reload live ground truth from Firestore
+          await loadData(true);
+
           logAdminActivity({
             actionType: 'delete',
             actionTitle: 'Moved Practical Submission to Recycle Bin',
@@ -1949,6 +1985,34 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
     setSelectedSubCodes(getDefaultCheckedCodes());
   }, [getDefaultCheckedCodes]);
 
+  // Set of subject codes that actually have live submitted awards with student marks
+  const subjectsWithSubmissions = useMemo(() => {
+    const clsTarget = String(cls || '').replace(/[^0-9]/g, '');
+    const targetType = String(localPrintOpts.practicalType || 'internal').toLowerCase();
+    const set = new Set();
+    (submissions || []).forEach(s => {
+      const sCls = String(s.className || s.Class || s.class || '').replace(/[^0-9]/g, '');
+      if (clsTarget && sCls && sCls !== clsTarget) return;
+      const sType = String(s.practicalType || s.PracticalType || s.evaluationType || 'internal').toLowerCase();
+      if (sType !== targetType && !sType.includes(targetType) && !targetType.includes(sType)) {
+        const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
+        if (sType !== targetNorm && !sType.includes(targetNorm)) return;
+      }
+      const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+      activeCodesList.forEach(code => {
+        if (codeStr === code || codeStr.includes(code) || (code === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')))) {
+          if (Array.isArray(s.records) && s.records.some(r => {
+            const m = String(r.totalMarks ?? r.practicalMarks ?? '').trim();
+            return m !== '' && m !== '—' && m !== '-';
+          })) {
+            set.add(code);
+          }
+        }
+      });
+    });
+    return set;
+  }, [cls, localPrintOpts.practicalType, submissions, activeCodesList]);
+
   // Total students enrolled in this class and session regardless of approval status (dropped students excluded)
   const totalClassStudents = useMemo(() => {
     return students.filter(st => {
@@ -2289,7 +2353,19 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                   <div className="absolute right-0 mt-1.5 w-[min(calc(100vw-20px),16rem)] max-h-[70vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-500">
                       <span className="flex items-center gap-1"><BookOpen size={11} /> Practical Subjects</span>
-                      <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
+                      <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const liveCodes = activeCodesList.filter(c => subjectsWithSubmissions.has(c));
+                            setSelectedSubCodes(liveCodes.length > 0 ? liveCodes : activeCodesList);
+                          }}
+                          className="hover:underline cursor-pointer text-emerald-600 dark:text-emerald-400"
+                          title="Select only subjects with active submitted awards"
+                        >
+                          Live Only ({subjectsWithSubmissions.size})
+                        </button>
+                        <span>•</span>
                         <button type="button" onClick={() => setSelectedSubCodes(activeCodesList)} className="hover:underline cursor-pointer">All</button>
                         <span>•</span>
                         <button type="button" onClick={() => setSelectedSubCodes([])} className="hover:underline cursor-pointer">Clear</button>
@@ -2299,6 +2375,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                     <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5 divide-y divide-slate-50 dark:divide-slate-800/40">
                       {activeCodesList.map((code, idx) => {
                         const isChecked = selectedSubCodes.includes(code);
+                        const hasLive = subjectsWithSubmissions.has(code);
                         return (
                           <label
                             key={code}
@@ -2317,9 +2394,20 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                               />
                               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 w-4 text-right shrink-0">{idx + 1}.</span>
                               <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10.5px] w-7 shrink-0">{code}</span>
-                              <span className="text-[11px] truncate max-w-[120px]">{getSubjectDisplayName(code, cls)}</span>
+                              <span className="text-[11px] truncate max-w-[105px]">{getSubjectDisplayName(code, cls)}</span>
                             </div>
-                            {isChecked && <Check size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {hasLive ? (
+                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                                  Live
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-semibold bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                                  Empty
+                                </span>
+                              )}
+                              {isChecked && <Check size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />}
+                            </div>
                           </label>
                         );
                       })}
@@ -2399,11 +2487,14 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                           }`}
                         >
                           <option value="" disabled>Particular Subject...</option>
-                          {activeSubjects.map(code => (
-                            <option key={code} value={code}>
-                              {code} - {getSubjectDisplayName(code, cls)}
-                            </option>
-                          ))}
+                          {activeSubjects.map(code => {
+                            const hasLive = subjectsWithSubmissions.has(code);
+                            return (
+                              <option key={code} value={code}>
+                                {code} - {getSubjectDisplayName(code, cls)} {hasLive ? '●' : '(No Award)'}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                     </div>
@@ -2603,7 +2694,9 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                               return;
                             }
                             const isSingle = exportSubjectTarget !== 'all';
-                            const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                            const targetCodes = isSingle
+                              ? [exportSubjectTarget]
+                              : (subjectsWithSubmissions.size > 0 ? activeSubjects.filter(c => subjectsWithSubmissions.has(c)) : activeSubjects);
                             printConsolidatedAwardRoll({
                               className: cls,
                               session: localPrintOpts.sessionText,
@@ -2651,7 +2744,9 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                               return;
                             }
                             const isSingle = exportSubjectTarget !== 'all';
-                            const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                            const targetCodes = isSingle
+                              ? [exportSubjectTarget]
+                              : (subjectsWithSubmissions.size > 0 ? activeSubjects.filter(c => subjectsWithSubmissions.has(c)) : activeSubjects);
                             exportConsolidatedAwardsToExcel({
                               className: cls,
                               session: localPrintOpts.sessionText,
@@ -2690,7 +2785,9 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                               return;
                             }
                             const isSingle = exportSubjectTarget !== 'all';
-                            const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                            const targetCodes = isSingle
+                              ? [exportSubjectTarget]
+                              : (subjectsWithSubmissions.size > 0 ? activeSubjects.filter(c => subjectsWithSubmissions.has(c)) : activeSubjects);
                             exportConsolidatedAwardsToWord({
                               className: cls,
                               session: localPrintOpts.sessionText,

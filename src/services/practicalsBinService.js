@@ -267,8 +267,54 @@ export async function moveSubmissionToRecycleBin(submissionDoc, deletedByMeta = 
   // 1. Write to recycle bin
   await setDoc(doc(db, SUBMISSION_BIN_COLLECTION, binDocId), binPayload);
 
-  // 2. Delete from active practicalsData so the slot is free
-  await deleteDoc(doc(db, 'practicalsData', submissionDoc.id));
+  // 2. Delete from active practicalsData so the slot is completely freed
+  const rawId = String(submissionDoc.id || '').trim();
+  const cleanId = rawId.replace(/^pending_/, '');
+  const pendingId = `pending_${cleanId}`;
+  const targetId = String(submissionDoc.targetDocId || submissionDoc.canonicalDocId || submissionDoc.docId || '').trim();
+  const cleanTargetId = targetId.replace(/^pending_/, '');
+
+  const idsToDelete = new Set([
+    rawId,
+    cleanId,
+    pendingId,
+    targetId,
+    cleanTargetId,
+    cleanTargetId ? `pending_${cleanTargetId}` : ''
+  ].filter(Boolean));
+
+  for (const tid of idsToDelete) {
+    await deleteDoc(doc(db, 'practicalsData', tid)).catch(() => {});
+  }
+
+  // Also query practicalsData for any matching document for this exact class, subject, and evaluation type
+  const targetCls = String(submissionDoc.className || submissionDoc.Class || submissionDoc.class || '').replace(/[^0-9]/g, '');
+  const targetSub = String(submissionDoc.subjectCode || submissionDoc.subject || submissionDoc.subjectName || '').toUpperCase();
+  const targetType = String(submissionDoc.practicalType || submissionDoc.evaluationType || 'internal').toLowerCase();
+  const targetSess = String(submissionDoc.yearSuffix || submissionDoc.session || '').trim();
+
+  if (targetCls && targetSub) {
+    try {
+      const snap = await getDocs(collection(db, 'practicalsData'));
+      for (const d of snap.docs) {
+        const dData = d.data();
+        const dCls = String(dData.className || dData.Class || dData.class || '').replace(/[^0-9]/g, '');
+        const dSub = String(dData.subjectCode || dData.subject || dData.subjectName || '').toUpperCase();
+        const dType = String(dData.practicalType || dData.evaluationType || 'internal').toLowerCase();
+        const dSess = String(dData.yearSuffix || dData.session || '').trim();
+
+        if (dCls === targetCls && (dSub === targetSub || dSub.includes(targetSub) || targetSub.includes(dSub))) {
+          if (dType === targetType || dType.includes(targetType) || targetType.includes(dType)) {
+            if (!targetSess || !dSess || dSess === targetSess || dSess.includes(targetSess) || targetSess.includes(dSess)) {
+              await deleteDoc(doc(db, 'practicalsData', d.id)).catch(() => {});
+            }
+          }
+        }
+      }
+    } catch (cleanErr) {
+      console.warn('[practicalsBin] Error cleaning matching practical documents:', cleanErr);
+    }
+  }
 
   // 3. Invalidate cache
   invalidateCollectionCache('practicalsData');
