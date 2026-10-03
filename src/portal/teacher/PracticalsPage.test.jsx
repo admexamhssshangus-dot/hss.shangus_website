@@ -448,6 +448,50 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
       expect(isStudentEnrolledInPracticalSubject(studentWith11Placeholder, 'MA', '12th')).toBe(true);
       expect(isStudentEnrolledInPracticalSubject(studentWith11Placeholder, 'PD', '12th')).toBe(true);
       expect(isStudentEnrolledInPracticalSubject(studentWith11Placeholder, 'ED', '12th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(studentWith11Placeholder, 'PH', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(studentWith11Placeholder, 'CH', '12th')).toBe(true);
+    });
+
+    test('Class 12th Medical student with elective-only subjects is automatically enrolled in compulsory Physics and Chemistry', () => {
+      const medicalElectivesOnly = {
+        name: 'Zahoor Ahmad',
+        class: '12th',
+        stream: 'Science',
+        'Subjects to be taken in Class 12th': 'Botany, Zoology, Environmental Science'
+      };
+
+      // Guaranteed inclusion in foundation science subjects
+      expect(isStudentEnrolledInPracticalSubject(medicalElectivesOnly, 'PH', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(medicalElectivesOnly, 'CH', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(medicalElectivesOnly, 'BO', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(medicalElectivesOnly, 'ZO', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(medicalElectivesOnly, 'EN', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(medicalElectivesOnly, 'ES', '12th')).toBe(true);
+
+      // Strict exclusion from Arts and Non-Med electives
+      expect(isStudentEnrolledInPracticalSubject(medicalElectivesOnly, 'ED', '12th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(medicalElectivesOnly, 'HT', '12th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(medicalElectivesOnly, 'MA', '12th')).toBe(false);
+    });
+
+    test('Class 12th Arts student is never enrolled in Science subjects', () => {
+      const artsStudent = {
+        name: 'Shabir Ahmad',
+        class: '12th',
+        stream: 'Humanities',
+        'Subjects to be taken in Class 12th': 'General English, Urdu, Education, Political Science, Economics'
+      };
+
+      expect(isStudentEnrolledInPracticalSubject(artsStudent, 'EN', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(artsStudent, 'ED', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(artsStudent, 'PS', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(artsStudent, 'UR', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(artsStudent, 'EC', '12th')).toBe(true);
+
+      expect(isStudentEnrolledInPracticalSubject(artsStudent, 'PH', '12th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(artsStudent, 'CH', '12th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(artsStudent, 'BO', '12th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(artsStudent, 'ZO', '12th')).toBe(false);
     });
   });
 });

@@ -163,12 +163,21 @@ export function getStudentSubjectsStr(st, cls) {
       st['Subjects to be taken in Class 11th'],
       st['Subjects in Class 11th']
     ];
+    let bestCand = '';
     for (const c of cands12) {
       if (c && !isSameAs11(c) && String(c).trim() && String(c).trim() !== '—') {
-        classSpecificSubs = String(c).trim();
-        break;
+        const strVal = String(c).trim();
+        const itemCount = strVal.split(/[,;/]/).filter(x => x.trim().length > 0).length;
+        if (itemCount >= 3) {
+          bestCand = strVal;
+          break;
+        }
+        if (!bestCand || itemCount > bestCand.split(/[,;/]/).filter(x => x.trim().length > 0).length) {
+          bestCand = strVal;
+        }
       }
     }
+    classSpecificSubs = bestCand;
   } else if (is10) {
     classSpecificSubs = st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th'] || st['Subjects Studied in Class 9th'] || '';
   } else if (is9) {
@@ -266,16 +275,35 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
     return false;
   }
 
+  // Higher Secondary (11th & 12th) Authoritative Enrollment:
+  // 1. General English is COMPULSORY for 100% of Higher Secondary students across all streams
+  if (code === 'EN') return true;
+
   const subStr = getStudentSubjectsStr(st, cls).toUpperCase().trim();
   const streamStr = getStudentStreamStr(st, cls).toLowerCase();
-  const isScience = streamStr.includes('science') || streamStr.includes('med') || streamStr.includes('sci');
+
+  const hasMedicalSubs = /\b(BO|BOT|BOTANY|ZO|ZOO|ZOOLOGY|BI|BIO|BIOLOGY)\b/i.test(subStr);
+  const isScience = streamStr.includes('science') || streamStr.includes('med') || streamStr.includes('sci') || hasMedicalSubs;
 
   // Strict Stream Guard: Science students NEVER take Arts-only subjects or Secondary 'SC'
   if (isScience && ['ED', 'HT', 'PS', 'SO', 'AR', 'PR', 'SC'].includes(code)) {
     return false;
   }
 
-  // 1. Direct Subject Match in Student's Enrolled Subjects String
+  // 2. Compulsory Science Foundation: All Science students take Physics and Chemistry
+  if ((code === 'PH' || code === 'CH') && isScience) {
+    return true;
+  }
+
+  // 3. Medical Stream Biology Foundation: Botany and Zoology
+  if ((code === 'BO' || code === 'ZO' || code === 'BI') && hasMedicalSubs) {
+    return true;
+  }
+  if ((code === 'BO' || code === 'ZO' || code === 'BI') && streamStr.includes('med') && !streamStr.includes('non')) {
+    return true;
+  }
+
+  // 4. Direct Subject Match in Student's Enrolled Subjects String
   if (subStr && subStr.length > 1) {
     if (code === 'BI') {
       if (/\b(BI|BIO|BIOLOGY)\b/i.test(subStr) || (/\b(BO|BOT|BOTANY)\b/i.test(subStr) && /\b(ZO|ZOO|ZOOLOGY)\b/i.test(subStr))) return true;
@@ -325,22 +353,9 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
     }
   }
 
-  // 2. Stream-based Core Enrollment Rules (ONLY if candidate has NO explicit subject list)
-  const hasExplicitSubs = Boolean(
-    subStr &&
-    subStr.length > 3 &&
-    subStr !== '—' &&
-    !/^(N\/A|#N\/A|NULL|UNDEFINED|GENERAL|SAME\s*AS.*)$/i.test(subStr)
-  );
-
-  if (hasExplicitSubs) {
-    // Student already has an explicit subject selection. Do NOT fabricate or force additional subjects.
-    return false;
-  }
-
-  // Fallback defaults for completely unconfigured subject records
-  const isMedical = streamStr.includes('med') || subStr.includes('BOTANY') || subStr.includes('ZOOLOGY') || subStr.includes('BIOLOGY');
-  const isNonMedical = streamStr.includes('non-med') || streamStr.includes('nonmed') || subStr.includes('MATH');
+  // 5. Stream-based Core Enrollment Rules (for unconfigured or incomplete subject records)
+  const isMedical = streamStr.includes('med') || hasMedicalSubs;
+  const isNonMedical = streamStr.includes('non-med') || streamStr.includes('nonmed') || /\b(MA|MATH|MATHS|MATHEMATICS)\b/i.test(subStr);
   const isArts = streamStr.includes('arts') || streamStr.includes('humanities');
   const isCommerce = streamStr.includes('commerce');
 
@@ -1005,6 +1020,22 @@ function AdminPracticals() {
 
       const allStudentList = Array.from(studentsMap.values());
 
+      // Helper to safely extract registration number from any known alias
+      const extractReg = (s) => cleanRegistrationNumber(
+        s['Board Registration Number'] ||
+        s['Board Reg. No.'] ||
+        s['Board Reg No'] ||
+        s['Board Registration No. (Class 11th)'] ||
+        s['Board Registration No. (Class 9th)'] ||
+        s['Board Registration No.'] ||
+        s.boardRegNo ||
+        s.regNo ||
+        s['Registration No'] ||
+        s['Reg No'] ||
+        s['Reg. No.'] ||
+        ''
+      );
+
       // Index Class 11th (and 9th) records by Registration Number & Name+Father Name
       const class11ByReg = new Map();
       const class11ByName = new Map();
@@ -1012,7 +1043,7 @@ function AdminPracticals() {
       allStudentList.forEach(st => {
         const cls = String(st.Class || st.class || '');
         if (cls.includes('11') || cls.includes('XI') || cls.includes('9') || cls.includes('IX')) {
-          const reg = cleanRegistrationNumber(st['Board Registration Number'] || st.regNo || '');
+          const reg = extractReg(st);
           const name = cleanStr(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name);
           const father = cleanStr(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName);
           const stream = getStudentStreamStr(st, '11th');
@@ -1025,11 +1056,18 @@ function AdminPracticals() {
         }
       });
 
+      const isPlaceholderSubs = (sub) => {
+        if (!sub) return true;
+        const s = String(sub).trim();
+        if (!s || s === '—' || s === 'N/A') return true;
+        return /^(same\s*as|general\s*english|science|medical|non-medical|arts|humanities|commerce|—|-|null|undefined)$/i.test(s);
+      };
+
       // Enrich Class 12th (and 10th) records using previous class data if stream/subjects are missing
       const enrichedStudents = allStudentList.map(st => {
         const cls = String(st.Class || st.class || '');
         if (cls.includes('12') || cls.includes('XII') || cls.includes('10') || cls.includes('X')) {
-          const reg = cleanRegistrationNumber(st['Board Registration Number'] || st.regNo || '');
+          const reg = extractReg(st);
           const name = cleanStr(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name);
           const father = cleanStr(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName);
 
@@ -1038,21 +1076,38 @@ function AdminPracticals() {
 
           const prevMatch = (reg && class11ByReg.get(reg)) || (name && father && class11ByName.get(`${name}_${father}`));
 
-          if (prevMatch) {
-            const inheritedStream = prevMatch.stream || curStream;
-            const inheritedSubjects = prevMatch.subjects || curSubjects;
+          let finalStream = curStream;
+          let finalSubjects = curSubjects;
 
+          if (prevMatch) {
+            if (!finalStream || finalStream === 'Humanities' || finalStream === 'General') {
+              if (prevMatch.stream) finalStream = prevMatch.stream;
+            }
+            if (isPlaceholderSubs(finalSubjects) || (prevMatch.subjects && prevMatch.subjects.split(',').length > (finalSubjects ? finalSubjects.split(',').length : 0))) {
+              finalSubjects = prevMatch.subjects;
+            }
+          }
+
+          // If subjects or stream indicate Medical/Science, enforce Science stream
+          if (finalSubjects) {
+            const normSubs = finalSubjects.toUpperCase();
+            if (normSubs.includes('BOTANY') || normSubs.includes('ZOOLOGY') || normSubs.includes('BIOLOGY') || normSubs.includes('PHYSICS') || normSubs.includes('CHEMISTRY')) {
+              finalStream = 'Science';
+            }
+          }
+
+          if (finalStream || finalSubjects) {
             return {
               ...st,
-              Stream: st.Stream || inheritedStream,
-              stream: st.stream || inheritedStream,
-              'Stream for Class 12th': st['Stream for Class 12th'] || inheritedStream,
-              'Stream Studied in Class 11th': st['Stream Studied in Class 11th'] || inheritedStream,
-              'Stream for Class 11th': st['Stream for Class 11th'] || inheritedStream,
-              Subjects: st.Subjects || inheritedSubjects,
-              Subs: st.Subs || inheritedSubjects,
-              'Subjects Studied in Class 11th': st['Subjects Studied in Class 11th'] || inheritedSubjects,
-              'Subjects to be taken in Class 12th': st['Subjects to be taken in Class 12th'] || inheritedSubjects,
+              Stream: finalStream || st.Stream,
+              stream: finalStream || st.stream,
+              'Stream for Class 12th': finalStream || st['Stream for Class 12th'],
+              'Stream Studied in Class 11th': finalStream || st['Stream Studied in Class 11th'],
+              'Stream for Class 11th': finalStream || st['Stream for Class 11th'],
+              Subjects: finalSubjects || st.Subjects,
+              Subs: finalSubjects || st.Subs,
+              'Subjects Studied in Class 11th': finalSubjects || st['Subjects Studied in Class 11th'],
+              'Subjects to be taken in Class 12th': finalSubjects || st['Subjects to be taken in Class 12th'],
             };
           }
         }

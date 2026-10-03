@@ -328,14 +328,17 @@ export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName)
   }
 
   // 2. Physics & Chemistry
+  const hasMedicalSubs = hasToken('BI') || hasToken('BO') || hasToken('ZO') || hasToken('BIO') || /\b(BIOLOGY|BOTANY|ZOOLOGY)\b/i.test(rawSubjStr);
+  const isScienceStudent = isScienceStrict || hasMedicalSubs;
+
   if (codeUpper === 'PH' || nameUpper === 'PHYSICS') {
     if (hasToken('PH') || /\bPHYSICS\b/i.test(rawSubjStr)) return true;
-    if (!rawSubjStr && isScienceStrict) return true;
+    if (isScienceStudent) return true;
     return false;
   }
   if (codeUpper === 'CH' || nameUpper === 'CHEMISTRY') {
     if (hasToken('CH') || /\bCHEMISTRY\b/i.test(rawSubjStr)) return true;
-    if (!rawSubjStr && isScienceStrict) return true;
+    if (isScienceStudent) return true;
     return false;
   }
 

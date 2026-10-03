@@ -1412,13 +1412,59 @@ export function printConsolidatedAwardRoll({
  * Handles "Same as in Class 11th" placeholder text by falling back to the
  * actual 11th-class subject fields or deriving from stream when nothing is found.
  */
+export function resolveStudentStream(st, className = '') {
+  if (!st) return '';
+  const clsName = String(className || st.Class || st.class || '').toLowerCase();
+  if (clsName.includes('9') || clsName.includes('10')) return 'General';
+
+  const rawStream = String(
+    st['Stream for Class 12th'] ||
+    st['Stream (Class 12th)'] ||
+    st['Stream in Class 12th'] ||
+    st['Stream for Class 11th'] ||
+    st['Stream (Class 11th)'] ||
+    st['Stream in Class 11th'] ||
+    st['Stream Studied in Class 11th'] ||
+    st['Stream opted in Class 11th'] ||
+    st['Stream'] ||
+    st['stream'] ||
+    st['Selected Stream'] ||
+    st['Stream (Applied)'] ||
+    st['Stream for Admission'] ||
+    ''
+  ).trim();
+
+  if (rawStream && !/^(N\/A|#N\/A|—|-|null|undefined|general)$/i.test(rawStream)) {
+    const lower = rawStream.toLowerCase();
+    if (lower.includes('non-med') || lower.includes('nonmed')) return 'Non-Medical';
+    if (lower.includes('med')) return 'Medical';
+    if (lower.includes('sci')) return 'Science';
+    if (lower.includes('art') || lower.includes('hum')) return 'Humanities';
+    if (lower.includes('com')) return 'Commerce';
+    return rawStream;
+  }
+
+  // Infer from subjects
+  const subStr = String(
+    st.subjects || st['Subjects'] || st.Subs || st['Subs'] || st.subject_combination || st.Subject || st.subs || ''
+  ).toLowerCase();
+
+  if (/\b(physics|chemistry|biology|botany|zoology|ph|ch|bi|bo|zo)\b/i.test(subStr)) {
+    if (/\b(biology|botany|zoology|bio|bot|zoo|bi|bo|zo)\b/i.test(subStr)) return 'Medical';
+    return 'Science';
+  }
+  if (/\b(commerce|accountancy|business studies|accounts|ay|bs)\b/i.test(subStr)) return 'Commerce';
+  if (/\b(political|history|education|sociology|urdu|arabic|persian|psychology|ps|ht|ed|so|ur|ar|pr)\b/i.test(subStr)) return 'Humanities';
+
+  return '';
+}
+
 function resolveStudentSubjectsRaw(st, className = '') {
   if (!st) return '';
   const clsName = String(className || st.Class || st.class || '').toLowerCase();
   const is12 = clsName.includes('12');
   const is10 = clsName.includes('10');
   const is9 = clsName.includes('9');
-  const stStream = String(st.stream || st.Stream || '').toLowerCase();
 
   const SAME_AS_11_RE = /same\s+as\s+(in\s+)?class\s*(11|eleventh)/i;
 
@@ -1452,24 +1498,37 @@ function resolveStudentSubjectsRaw(st, className = '') {
     st.subjects,
   ];
 
+  let bestCandidate = '';
   for (const c of candidates) {
     if (!c) continue;
     const s = String(c).trim();
-    if (!s) continue;
-    // Skip "Same as in Class 11th" placeholder — keep looking
+    if (!s || s === '—' || s === 'N/A') continue;
     if (SAME_AS_11_RE.test(s)) continue;
-    return s;
+
+    // If candidate has 3+ distinct subjects, use it immediately
+    const count = s.split(/[,;/]/).filter(x => x.trim().length > 0).length;
+    if (count >= 3) {
+      return s;
+    }
+    if (!bestCandidate || count > bestCandidate.split(/[,;/]/).filter(x => x.trim().length > 0).length) {
+      bestCandidate = s;
+    }
+  }
+
+  if (bestCandidate && !/^(general\s*english|science|medical|non-medical|arts|humanities|commerce)$/i.test(bestCandidate.trim())) {
+    return bestCandidate;
   }
 
   // Secondary Fallback
   if (is10 || is9) return 'English, Mathematics, Science, Social Science, Urdu';
 
   // Stream-based fallback
+  const stStream = resolveStudentStream(st, className).toLowerCase();
   if (stStream.includes('non-med') || stStream.includes('nonmed')) return 'General English, Physics, Chemistry, Mathematics';
   if (stStream.includes('med') || stStream.includes('science') || stStream.includes('sci')) return 'General English, Physics, Chemistry, Biology';
   if (stStream.includes('arts') || stStream.includes('humanities')) return 'General English, Urdu, Education, Political Science, Economics';
   if (stStream.includes('commerce')) return 'General English, Accountancy, Business Studies, Economics, Mathematics';
-  return '';
+  return bestCandidate || '';
 }
 
 export function getAbbreviatedSubjects(st, className = '') {
@@ -1552,16 +1611,32 @@ export function getAbbreviatedSubjects(st, className = '') {
     }
   });
 
-  // Strict Stream Guard for Higher Secondary (11th & 12th)
+  // Strict Stream Guard & Science Foundation for Higher Secondary (11th & 12th)
   if (!isSecondary) {
-    const stStream = String(st.stream || st.Stream || '').toLowerCase();
-    const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || foundCodes.includes('PH') || foundCodes.includes('CH');
+    const stStream = resolveStudentStream(st, className).toLowerCase();
+    const hasMedical = foundCodes.includes('BI') || foundCodes.includes('BO') || foundCodes.includes('ZO') || (stStream.includes('med') && !stStream.includes('non'));
+    const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || hasMedical || foundCodes.includes('PH') || foundCodes.includes('CH');
+
     if (isScience) {
       const artsOnly = new Set(['ED', 'HT', 'PS', 'SO', 'AR', 'PR', 'SC']);
       for (let i = foundCodes.length - 1; i >= 0; i--) {
         if (artsOnly.has(foundCodes[i])) {
           foundCodes.splice(i, 1);
         }
+      }
+
+      // Mandatory foundation subjects for all Higher Secondary Science students
+      if (!foundCodes.includes('EN')) foundCodes.unshift('EN');
+      if (!foundCodes.includes('PH')) {
+        const enIdx = foundCodes.indexOf('EN');
+        foundCodes.splice(enIdx + 1, 0, 'PH');
+      }
+      if (!foundCodes.includes('CH')) {
+        const phIdx = foundCodes.indexOf('PH');
+        foundCodes.splice(phIdx + 1, 0, 'CH');
+      }
+      if (hasMedical && !foundCodes.includes('BI') && !foundCodes.includes('BO') && !foundCodes.includes('ZO')) {
+        foundCodes.push('BI');
       }
     }
   }
@@ -1606,28 +1681,46 @@ export function isStudentEnrolledInPracticalSubject(st, subCode, className = '')
   const code = subCode.toUpperCase().trim();
   const clsName = String(className || st.Class || st.class || '').toLowerCase();
   const isSecondary = clsName.includes('9') || clsName.includes('10');
-  const stStream = String(st.stream || st.Stream || '').toLowerCase();
-  const isScience = !isSecondary && (stStream.includes('science') || stStream.includes('med') || stStream.includes('sci'));
+
+  // Secondary School (Class 9th & 10th) Authoritative Enrollment:
+  if (isSecondary) {
+    if (['EN', 'MA', 'SC', 'SS', 'UR'].includes(code)) return true;
+    const rawSub = resolveStudentSubjectsRaw(st, className).toUpperCase();
+    if (code === 'HTC') return /\b(HTC|HC|HEALTH|HEALTHCARE)\b/i.test(rawSub) || (st.vocationalSubject && /health/i.test(st.vocationalSubject));
+    if (code === 'ITE') return /\b(ITE|IT|ITES|INFORMATION\s*TECHNOLOGY)\b/i.test(rawSub) || (st.vocationalSubject && /it|ites/i.test(st.vocationalSubject));
+    return false;
+  }
+
+  const stStream = resolveStudentStream(st, className).toLowerCase();
+  const abbrStr = getAbbreviatedSubjects(st, className);
+  const abbrList = abbrStr.split(',').map(s => s.trim().toUpperCase());
+
+  const hasMedicalSubs = abbrList.includes('BO') || abbrList.includes('ZO') || abbrList.includes('BI') || (stStream.includes('med') && !stStream.includes('non'));
+  const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || hasMedicalSubs || abbrList.includes('PH') || abbrList.includes('CH');
 
   // Science Stream Guard: Science students are NEVER enrolled in Arts-only electives or Secondary 'SC'
   if (isScience && ['ED', 'HT', 'PS', 'SO', 'AR', 'PR', 'SC'].includes(code)) {
     return false;
   }
 
-  const abbrStr = getAbbreviatedSubjects(st, className);
-  const abbrList = abbrStr.split(',').map(s => s.trim().toUpperCase());
+  // General English is taken by all Higher Secondary students
+  if (code === 'EN') return true;
 
-  if (abbrList.includes(code)) return true;
+  // Compulsory Science Foundation Subjects: All Science students take Physics and Chemistry
+  if ((code === 'PH' || code === 'CH') && isScience) return true;
 
   // Biology equivalence: BI encompasses BO and ZO
-  if (code === 'BI' && (abbrList.includes('BO') || abbrList.includes('ZO'))) return true;
-  if ((code === 'BO' || code === 'ZO') && abbrList.includes('BI')) return true;
+  if (code === 'BI' && (abbrList.includes('BO') || abbrList.includes('ZO') || hasMedicalSubs)) return true;
+  if ((code === 'BO' || code === 'ZO') && (abbrList.includes('BI') || hasMedicalSubs)) return true;
+
+  // Direct subject code match
+  if (abbrList.includes(code)) return true;
 
   // Physical Education alias: PD / PE
   if (code === 'PD' && (abbrList.includes('PE') || abbrList.includes('PED'))) return true;
 
-  // General English is taken by all Higher Secondary students
-  if (code === 'EN' && !isSecondary) return true;
+  // Mathematics: Non-Medical students
+  if (code === 'MA' && (stStream.includes('non-med') || stStream.includes('nonmed'))) return true;
 
   return false;
 }
@@ -2491,11 +2584,12 @@ export function printFailList({
           <thead>
             <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 8pt; color: #475569;">
               <th style="padding: 4px 6px; width: 6%;">Code</th>
-              <th style="padding: 4px 6px; width: 26%;">Subject Name</th>
-              <th style="padding: 4px 6px; width: 12%; text-align: center;">Enrolled / Evaluated</th>
-              <th style="padding: 4px 6px; width: 22%;">Teacher / Evaluator</th>
-              <th style="padding: 4px 6px; width: 14%;">Submission Date</th>
-              <th style="padding: 4px 6px; width: 20%;">Current Status</th>
+              <th style="padding: 4px 6px; width: 24%;">Subject Name</th>
+              <th style="padding: 4px 6px; width: 9%; text-align: center;">Enrolled</th>
+              <th style="padding: 4px 6px; width: 13%; text-align: center;">Evaluated</th>
+              <th style="padding: 4px 6px; width: 18%;">Teacher / Evaluator</th>
+              <th style="padding: 4px 6px; width: 12%;">Submission Date</th>
+              <th style="padding: 4px 6px; width: 18%;">Current Status</th>
             </tr>
           </thead>
           <tbody>
@@ -2525,8 +2619,14 @@ export function printFailList({
       <tr style="background: ${isOdd ? '#fbfcfe' : '#ffffff'}; border-bottom: 1px solid #f1f5f9;">
         <td style="padding: 3px 6px; font-weight: bold; font-family: monospace;">${sObj.code}</td>
         <td style="padding: 3px 6px; font-weight: 600;">${sObj.name}</td>
+        <td style="padding: 3px 6px; text-align: center; font-weight: bold; color: #1e293b;">
+          ${sObj.enrolledCount}
+        </td>
         <td style="padding: 3px 6px; text-align: center; font-weight: bold;">
-          ${sObj.evaluatedCount > 0 ? `${sObj.evaluatedCount} / ${sObj.enrolledCount}` : `${sObj.enrolledCount} enrolled`}
+          ${sObj.evaluatedCount > 0
+            ? `<span style="color: #1e3a8a;">${sObj.evaluatedCount}</span> <span style="font-size: 7.5pt; font-weight: normal; color: #64748b;">(${Math.round((sObj.evaluatedCount / (sObj.enrolledCount || 1)) * 100)}%)</span>`
+            : `<span style="color: #94a3b8; font-size: 7.5pt; font-weight: normal; font-style: italic;">0 (Awaiting)</span>`
+          }
         </td>
         <td style="padding: 3px 6px; color: #334155;">${sObj.teacherName}</td>
         <td style="padding: 3px 6px; color: #64748b;">${sObj.submittedDate}</td>
