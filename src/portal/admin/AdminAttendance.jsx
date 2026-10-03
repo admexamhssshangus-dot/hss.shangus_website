@@ -5,7 +5,7 @@ import {
   Eye, X, BarChart3, Database, Layers, Check, Clock, User
 } from 'lucide-react';
 import { db } from '../../services/firebase';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
 import ModernLoader from '../../components/ModernLoader';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 
@@ -362,6 +362,41 @@ export default function AdminAttendance() {
   useEffect(() => {
     loadData(activeSubTab);
   }, [activeSubTab, loadData]);
+
+  // Real-time targeted listener for attendanceSummary and attendanceConfig
+  useEffect(() => {
+    const unsubSummary = onSnapshot(doc(db, 'systemSettings', 'attendanceSummary'), (snap) => {
+      if (snap.exists() && snap.data()?.isCompactSummary) {
+        const data = snap.data();
+        setSummaryData(data);
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+        } catch (_) {}
+      }
+    }, (err) => {
+      console.warn('Real-time attendanceSummary listener note:', err);
+    });
+
+    const unsubConfig = onSnapshot(doc(db, 'systemSettings', 'attendanceConfig'), (snap) => {
+      if (snap.exists()) {
+        const cfg = snap.data();
+        setAttendanceConfig(prev => ({
+          ...prev,
+          ...cfg,
+          periodNames: { ...prev.periodNames, ...(cfg.periodNames || {}) },
+          allowedDaysBack: cfg.allowedDaysBack ?? prev.allowedDaysBack,
+          mode: cfg.mode || prev.mode
+        }));
+      }
+    }, (err) => {
+      console.warn('Real-time attendanceConfig listener note:', err);
+    });
+
+    return () => {
+      try { unsubSummary(); } catch (_) {}
+      try { unsubConfig(); } catch (_) {}
+    };
+  }, []);
 
   const handleSaveSettings = async (e) => {
     e.preventDefault();

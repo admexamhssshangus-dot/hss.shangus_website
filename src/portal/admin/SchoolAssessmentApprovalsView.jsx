@@ -5,7 +5,7 @@ import {
   Shield, CheckSquare, Sparkles, User, AlertCircle
 } from 'lucide-react';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
@@ -46,6 +46,65 @@ export default function SchoolAssessmentApprovalsView({ allStudents = [], onPend
     reason: ''
   });
 
+  const processRawDocs = useCallback((rawDocs) => {
+    // Filter strictly to School-Based Assessments (NOT practical evaluations)
+    const assessmentDocs = (rawDocs || [])
+      .filter(d => {
+        if (!d) return false;
+        const rawId = String(d.id || d.docId || '');
+        if (rawId.startsWith('history_') || rawId.startsWith('bin_')) return false;
+
+        const recCount = Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0);
+        if (recCount === 0) return false;
+
+        const evalType = d.practicalType || d.evaluationType || d.examTitle || d.title || '';
+        return isSchoolAssessmentType(evalType);
+      })
+      .map(d => {
+        const rawId = String(d.id || d.docId || '');
+        const isPending = rawId.startsWith('pending_') || d.status === 'pending_approval';
+        const isRejected = d.status === 'rejected';
+        const isApproved = d.status === 'approved' && !rawId.startsWith('pending_');
+
+        const records = Array.isArray(d.records) ? d.records : (Array.isArray(d.students) ? d.students : []);
+        const evalType = d.practicalType || d.evaluationType || d.examTitle || d.title || 'Pre-Board Test';
+        const targetDocId = d.targetDocId || d.canonicalDocId || rawId.replace(/^pending_/, '');
+
+        // Resolve sort timestamp
+        let sortTime = 0;
+        const rawTime = d.updatedAt || d.submittedAt;
+        if (rawTime) {
+          if (typeof rawTime?.toDate === 'function') sortTime = rawTime.toDate().getTime();
+          else if (rawTime?.seconds) sortTime = rawTime.seconds * 1000;
+          else sortTime = new Date(rawTime).getTime() || 0;
+        }
+
+        return {
+          ...d,
+          id: rawId,
+          targetDocId,
+          records,
+          recordsCount: records.length,
+          className: d.className || d.class || '11th',
+          subject: d.subject || d.subjectName || d.subjectCode || 'General English',
+          evaluationType: evalType,
+          session: d.yearSuffix || d.sessionCanonical || d.session || '2025-26',
+          isPending,
+          isRejected,
+          isApproved,
+          sortTime
+        };
+      })
+      .sort((a, b) => b.sortTime - a.sortTime);
+
+    setSubmissions(assessmentDocs);
+
+    const pendingCount = assessmentDocs.filter(d => d.isPending && !d.isRejected).length;
+    if (typeof onPendingCountChange === 'function') {
+      onPendingCountChange(pendingCount);
+    }
+  }, [onPendingCountChange]);
+
   const fetchSubmissions = useCallback(async (force = false) => {
     setLoading(true);
     try {
@@ -62,74 +121,31 @@ export default function SchoolAssessmentApprovalsView({ allStudents = [], onPend
         console.warn('Direct getDocs failed, attempting cache:', err);
         rawDocs = await getCachedCollection('practicalsData', force, 5 * 60 * 1000).catch(() => []);
       }
-
-      // Filter strictly to School-Based Assessments (NOT practical evaluations)
-      const assessmentDocs = (rawDocs || [])
-        .filter(d => {
-          if (!d) return false;
-          const rawId = String(d.id || d.docId || '');
-          if (rawId.startsWith('history_') || rawId.startsWith('bin_')) return false;
-
-          const recCount = Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0);
-          if (recCount === 0) return false;
-
-          const evalType = d.practicalType || d.evaluationType || d.examTitle || d.title || '';
-          return isSchoolAssessmentType(evalType);
-        })
-        .map(d => {
-          const rawId = String(d.id || d.docId || '');
-          const isPending = rawId.startsWith('pending_') || d.status === 'pending_approval';
-          const isRejected = d.status === 'rejected';
-          const isApproved = d.status === 'approved' && !rawId.startsWith('pending_');
-
-          const records = Array.isArray(d.records) ? d.records : (Array.isArray(d.students) ? d.students : []);
-          const evalType = d.practicalType || d.evaluationType || d.examTitle || d.title || 'Pre-Board Test';
-          const targetDocId = d.targetDocId || d.canonicalDocId || rawId.replace(/^pending_/, '');
-
-          // Resolve sort timestamp
-          let sortTime = 0;
-          const rawTime = d.updatedAt || d.submittedAt;
-          if (rawTime) {
-            if (typeof rawTime?.toDate === 'function') sortTime = rawTime.toDate().getTime();
-            else if (rawTime?.seconds) sortTime = rawTime.seconds * 1000;
-            else sortTime = new Date(rawTime).getTime() || 0;
-          }
-
-          return {
-            ...d,
-            id: rawId,
-            targetDocId,
-            records,
-            recordsCount: records.length,
-            className: d.className || d.class || '11th',
-            subject: d.subject || d.subjectName || d.subjectCode || 'General English',
-            evaluationType: evalType,
-            session: d.yearSuffix || d.sessionCanonical || d.session || '2025-26',
-            isPending,
-            isRejected,
-            isApproved,
-            sortTime
-          };
-        })
-        .sort((a, b) => b.sortTime - a.sortTime);
-
-      setSubmissions(assessmentDocs);
-
-      const pendingCount = assessmentDocs.filter(d => d.isPending && !d.isRejected).length;
-      if (typeof onPendingCountChange === 'function') {
-        onPendingCountChange(pendingCount);
-      }
+      processRawDocs(rawDocs);
     } catch (err) {
       console.error('Failed to load assessment submissions:', err);
       showToast('Error loading school assessment submissions', 'error');
     } finally {
       setLoading(false);
     }
-  }, [onPendingCountChange]);
+  }, [processRawDocs]);
 
+  // Real-time Firestore sync: ensures teacher submissions, approvals, and revisions reflect immediately
   useEffect(() => {
-    fetchSubmissions(false);
-  }, [fetchSubmissions]);
+    setLoading(true);
+    const unsub = onSnapshot(collection(db, 'practicalsData'), (snap) => {
+      const rawDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      processRawDocs(rawDocs);
+      setLoading(false);
+    }, (err) => {
+      console.warn('Real-time assessment approvals sync note, falling back to manual fetch:', err);
+      fetchSubmissions(false);
+    });
+
+    return () => {
+      try { unsub(); } catch (_) {}
+    };
+  }, [processRawDocs, fetchSubmissions]);
 
   // Derived filter options
   const sessions = useMemo(() => {

@@ -4,7 +4,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, Save, CheckCircle2, AlertCircle, AlertTriangle, RefreshCw, Plus, Trash2, Calendar, ShieldCheck, Printer, X, FileText, Zap, SlidersHorizontal, ChevronLeft, ChevronRight, Info, User, Wand2, History } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, doc, setDoc, getDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, getDoc, deleteDoc, query, where, onSnapshot } from 'firebase/firestore';
 import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
@@ -650,6 +650,22 @@ export default function AttendancePage() {
         setIsAttendanceOpen(Boolean(cfg.attendanceSubmissionOpen));
       }
     }).catch(() => {});
+
+    // Targeted real-time listener on site settings to immediately reflect admin toggling attendance open/closed
+    const unsub = onSnapshot(doc(db, 'site', 'settings'), (snap) => {
+      if (snap.exists()) {
+        const cfg = snap.data();
+        if (cfg && cfg.attendanceSubmissionOpen !== undefined) {
+          setIsAttendanceOpen(Boolean(cfg.attendanceSubmissionOpen));
+        }
+      }
+    }, (err) => {
+      console.warn('Real-time site settings attendance listener note:', err?.message || err);
+    });
+
+    return () => {
+      try { unsub(); } catch (_) {}
+    };
   }, []);
 
   const SAVED_FILTERS_KEY = 'hss_attendance_saved_filters';
@@ -1468,6 +1484,48 @@ export default function AttendancePage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedClass, selectedSession, selectedDate, selectedSubject]);
+
+  // Real-time Targeted Firestore Sync for Attendance (Strictly 1 Document Listener)
+  // Ensures attendance confirmations and edits reflect immediately without re-logging or refreshing
+  useEffect(() => {
+    if (activeTab !== 'mark' || !selectedClass || !selectedDate) return;
+    const clsNorm = String(selectedClass).replace(/class/i, '').trim();
+    const primaryDocId = `${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
+
+    const unsub = onSnapshot(doc(db, 'attendance', primaryDocId), (snap) => {
+      if (snap.exists()) {
+        const savedData = snap.data();
+        if (Array.isArray(savedData?.records) && savedData.records.length > 0) {
+          const statusMap = {};
+          savedData.records.forEach(r => {
+            if (r.rollNo !== undefined && r.rollNo !== null) statusMap[String(r.rollNo).trim()] = r.status;
+            if (r.classRollNo !== undefined && r.classRollNo !== null) statusMap[String(r.classRollNo).trim()] = r.status;
+            if (r.formNo !== undefined && r.formNo !== null) statusMap[String(r.formNo).trim()] = r.status;
+            if (r.name) statusMap[String(r.name).toLowerCase().trim()] = r.status;
+            if (r.studentName) statusMap[String(r.studentName).toLowerCase().trim()] = r.status;
+          });
+
+          setIsEditingSaved(true);
+          setStudents(prev => {
+            if (!prev || prev.length === 0) return prev;
+            return prev.map(s => {
+              const rKey = String(s.classRollNo || s.rollNo || s.roll_no || s['Class Roll No'] || '').trim();
+              const fKey = String(s.formNo || s['Form No.'] || s.id || '').trim();
+              const nKey = String(s.studentName || s.name || '').toLowerCase().trim();
+              const matchedStatus = statusMap[rKey] || statusMap[fKey] || statusMap[nKey] || 'A';
+              return { ...s, status: matchedStatus };
+            });
+          });
+        }
+      }
+    }, (err) => {
+      console.warn('Real-time attendance listener note:', err?.message || err);
+    });
+
+    return () => {
+      try { unsub(); } catch (_) {}
+    };
+  }, [activeTab, selectedClass, selectedDate, selectedSubject]);
 
   // Fetch Holidays List (Firestore Cache + Local Storage)
   const fetchHolidays = useCallback(async () => {

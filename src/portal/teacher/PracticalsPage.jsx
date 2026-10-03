@@ -2524,6 +2524,150 @@ export default function PracticalsPage() {
     fetchPracticalData();
   }, [fetchPracticalData]);
 
+  // Real-time Targeted Firestore Sync for Current Evaluation Award (Pending & Canonical)
+  // Strictly listens ONLY to the 2 active document IDs (docId & pendingDocId) to stay well under Spark 50k read limits
+  useEffect(() => {
+    if (!selectedClass || !selectedSubject || !practicalType) return;
+    const docId = formatPracticalDocId(selectedClass, selectedSubject, practicalType, yearSuffix);
+    const pendingDocId = `pending_${docId}`;
+
+    let unsubPending = () => {};
+    let unsubCanonical = () => {};
+
+    // 1. Targeted listener on pending staging document
+    unsubPending = onSnapshot(doc(db, 'practicalsData', pendingDocId), (pendingSnap) => {
+      if (pendingSnap.exists()) {
+        const pData = { id: pendingSnap.id, ...pendingSnap.data() };
+        const isOwned = isSubmissionOwnedByTeacher(pData, user, auth.currentUser);
+        if (isOwned) {
+          setExistingAwardInfo(prev => ({
+            ...prev,
+            pending: pData,
+            lockedOtherTeacherAward: null
+          }));
+          if (pData.maxMarks && Number(pData.maxMarks) > 0) {
+            setTeacherCustomMax(Number(pData.maxMarks));
+          }
+        } else {
+          setExistingAwardInfo(prev => ({
+            ...prev,
+            pending: null,
+            lockedOtherTeacherAward: {
+              id: pendingDocId,
+              submittedByName: pData.submittedByName || pData.teacherName || 'Another Faculty Member',
+              submittedByEmail: pData.submittedByEmail || '',
+              submittedAt: pData.submittedAt || pData.updatedAt,
+              recordsCount: Array.isArray(pData.records) ? pData.records.length : 0,
+              status: pData.status || 'pending'
+            }
+          }));
+        }
+      } else {
+        // Document deleted (e.g. upon admin approval or deletion)
+        setExistingAwardInfo(prev => {
+          if (prev.pending?.id === pendingDocId) {
+            return { ...prev, pending: null };
+          }
+          return prev;
+        });
+      }
+    }, (err) => {
+      console.warn('Real-time pending practical award sync note:', err?.message || err);
+    });
+
+    // 2. Targeted listener on canonical integrated document
+    unsubCanonical = onSnapshot(doc(db, 'practicalsData', docId), (canonicalSnap) => {
+      if (canonicalSnap.exists()) {
+        const cData = { id: canonicalSnap.id, ...canonicalSnap.data() };
+        const isOwned = isSubmissionOwnedByTeacher(cData, user, auth.currentUser);
+        if (isOwned) {
+          const cleanData = { ...cData };
+          delete cleanData.rejectionReason;
+          delete cleanData.rejectedAt;
+          delete cleanData.rejectedBy;
+
+          setExistingAwardInfo(prev => ({
+            ...prev,
+            canonical: cleanData,
+            // When canonical document is approved, clear pending status immediately
+            pending: (cData.status === 'approved' || cData.isPendingApproval === false) ? null : prev.pending,
+            lockedOtherTeacherAward: null
+          }));
+
+          if (cData.maxMarks && Number(cData.maxMarks) > 0) {
+            setTeacherCustomMax(Number(cData.maxMarks));
+          }
+
+          // If approved or updated by admin, sync records into current table
+          if (Array.isArray(cData.records) && cData.records.length > 0 && (cData.status === 'approved' || cData.updatedByAdmin)) {
+            setStudentMarks(prev => {
+              if (!prev || prev.length === 0) return prev;
+              const marksMap = new Map();
+              cData.records.forEach(r => {
+                const rRoll = String(r.rollNo || r.classRollNo || '').trim();
+                const rForm = String(r.formNo || '').trim();
+                const rName = String(r.name || r.studentName || '').toLowerCase().trim();
+                const rReg = String(r.regNo || r.boardRegNo || '').trim().toUpperCase();
+                const val = {
+                  p: r.practicalMarks !== undefined && r.practicalMarks !== null ? String(r.practicalMarks) : '',
+                  v: r.vivaMarks || ''
+                };
+                if (rRoll) marksMap.set(`roll_${rRoll}`, val);
+                if (rForm) marksMap.set(`form_${rForm}`, val);
+                if (rReg && rReg.length >= 8) marksMap.set(`reg_${rReg}`, val);
+                if (rName) marksMap.set(`name_${rName}`, val);
+              });
+
+              return prev.map(st => {
+                const rRoll = String(st.rollNo || st.classRollNo || '').trim();
+                const rForm = String(st.formNo || '').trim();
+                const rName = String(st.name || st.studentName || '').toLowerCase().trim();
+                const rReg = String(st.regNo || '').trim().toUpperCase();
+
+                const m = marksMap.get(`roll_${rRoll}`) || marksMap.get(`form_${rForm}`) || (rReg.length >= 8 ? marksMap.get(`reg_${rReg}`) : null) || marksMap.get(`name_${rName}`);
+                if (m) {
+                  return {
+                    ...st,
+                    practicalMarks: m.p,
+                    vivaMarks: m.v
+                  };
+                }
+                return st;
+              });
+            });
+          }
+        } else {
+          setExistingAwardInfo(prev => ({
+            ...prev,
+            canonical: null,
+            lockedOtherTeacherAward: {
+              id: docId,
+              submittedByName: cData.submittedByName || cData.teacherName || 'Another Faculty Member',
+              submittedByEmail: cData.submittedByEmail || '',
+              submittedAt: cData.submittedAt || cData.updatedAt,
+              recordsCount: Array.isArray(cData.records) ? cData.records.length : 0,
+              status: 'approved'
+            }
+          }));
+        }
+      } else {
+        setExistingAwardInfo(prev => {
+          if (prev.canonical?.id === docId) {
+            return { ...prev, canonical: null };
+          }
+          return prev;
+        });
+      }
+    }, (err) => {
+      console.warn('Real-time canonical practical award sync note:', err?.message || err);
+    });
+
+    return () => {
+      try { unsubPending(); } catch (_) {}
+      try { unsubCanonical(); } catch (_) {}
+    };
+  }, [selectedClass, selectedSubject, practicalType, yearSuffix, user]);
+
   // Dedicated loader for historical / approved submissions: synchronizes state, updates max marks, maps marks directly into the UI, and performs background cache revalidation
   const handleLoadSubmissionRecord = useCallback((item) => {
     if (!item) return;

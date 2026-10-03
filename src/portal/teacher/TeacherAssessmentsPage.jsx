@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, doc as fsDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc as fsDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { saveAcademicRecord } from '../../services/academicRecordService';
 import { logTeacherActivity } from '../../services/adminActivityLogger';
@@ -608,6 +608,88 @@ export default function TeacherAssessmentsPage() {
   useEffect(() => {
     fetchRosterData();
   }, [fetchRosterData]);
+
+  // Real-time Targeted Firestore Sync for School-Based Assessment Award (Pending & Canonical)
+  // Strictly listens ONLY to active canonicalDocId & pendingDocId to stay well under Spark 50k read limits
+  useEffect(() => {
+    if (!selectedClass || !currentSubjectObj.name || !evaluationType) return;
+
+    let unsubPending = () => {};
+    let unsubCanonical = () => {};
+
+    unsubPending = onSnapshot(fsDoc(db, 'practicalsData', pendingDocId), (pendingSnap) => {
+      if (pendingSnap.exists()) {
+        const pData = { id: pendingSnap.id, ...pendingSnap.data() };
+        setExistingRecord(pData);
+        if (pData.status === 'rejected') setSubmissionStatus('rejected');
+        else if (pData.status === 'draft' || pData.isDraft) setSubmissionStatus('draft');
+        else setSubmissionStatus('pending');
+      } else {
+        setExistingRecord(prev => {
+          if (prev?.id === pendingDocId) {
+            return null;
+          }
+          return prev;
+        });
+        setSubmissionStatus(prev => (prev === 'pending' || prev === 'draft' || prev === 'rejected') ? 'unsubmitted' : prev);
+      }
+    }, (err) => {
+      console.warn('Real-time assessment pending sync note:', err?.message || err);
+    });
+
+    unsubCanonical = onSnapshot(fsDoc(db, 'practicalsData', canonicalDocId), (canonicalSnap) => {
+      if (canonicalSnap.exists()) {
+        const cData = { id: canonicalSnap.id, ...canonicalSnap.data() };
+        if (cData.status === 'approved' || cData.isPendingApproval === false) {
+          setExistingRecord(cData);
+          setSubmissionStatus('approved');
+
+          // If approved or updated by admin, sync records into current table
+          if (Array.isArray(cData.records) && cData.records.length > 0) {
+            setStudents(prev => {
+              if (!prev || prev.length === 0) return prev;
+              const marksMap = new Map();
+              cData.records.forEach(r => {
+                const rRoll = String(r.rollNo || r.classRollNo || '').trim();
+                const rForm = String(r.formNo || '').trim();
+                const rName = String(r.name || r.studentName || '').toLowerCase().trim();
+                const rReg = String(r.regNo || r.boardRegNo || '').trim().toUpperCase();
+                const val = r.marks !== undefined && r.marks !== null ? String(r.marks) : (r.practicalMarks !== undefined ? String(r.practicalMarks) : '');
+                if (rRoll) marksMap.set(`roll_${rRoll}`, val);
+                if (rForm) marksMap.set(`form_${rForm}`, val);
+                if (rReg && rReg.length >= 8) marksMap.set(`reg_${rReg}`, val);
+                if (rName) marksMap.set(`name_${rName}`, val);
+              });
+
+              return prev.map(st => {
+                const rRoll = String(st.rollNo || st.classRollNo || '').trim();
+                const rForm = String(st.formNo || '').trim();
+                const rName = String(st.studentName || st.name || '').toLowerCase().trim();
+                const rReg = String(st.regNo || '').trim().toUpperCase();
+
+                const m = marksMap.get(`roll_${rRoll}`) || marksMap.get(`form_${rForm}`) || (rReg.length >= 8 ? marksMap.get(`reg_${rReg}`) : null) || marksMap.get(`name_${rName}`);
+                if (m !== undefined) {
+                  return {
+                    ...st,
+                    marks: m,
+                    isAbsent: m === 'AB'
+                  };
+                }
+                return st;
+              });
+            });
+          }
+        }
+      }
+    }, (err) => {
+      console.warn('Real-time assessment canonical sync note:', err?.message || err);
+    });
+
+    return () => {
+      try { unsubPending(); } catch (_) {}
+      try { unsubCanonical(); } catch (_) {}
+    };
+  }, [canonicalDocId, pendingDocId, selectedClass, currentSubjectObj.name, evaluationType]);
 
   // Handle Marks Input Changes
   const handleMarksChange = (studentOrIdx, val) => {
