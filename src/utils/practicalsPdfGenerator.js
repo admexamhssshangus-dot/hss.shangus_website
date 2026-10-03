@@ -1375,13 +1375,13 @@ export function printConsolidatedAwardRoll({
       if (sub.code === 'BI') {
         const boDoc = submissions.find(s => {
           if (!isSubDocMatch(s)) return false;
-          const codeStr = String(s.subjectCode || s.subject || '').toUpperCase();
-          return codeStr === 'BO' || codeStr.includes('BO');
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+          return isMatchingSubjectCode(codeStr, 'BO');
         });
         const zoDoc = submissions.find(s => {
           if (!isSubDocMatch(s)) return false;
-          const codeStr = String(s.subjectCode || s.subject || '').toUpperCase();
-          return codeStr === 'ZO' || codeStr.includes('ZO');
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+          return isMatchingSubjectCode(codeStr, 'ZO');
         });
         const boRec = findStudentMarkRecord(boDoc, st);
         const zoRec = findStudentMarkRecord(zoDoc, st);

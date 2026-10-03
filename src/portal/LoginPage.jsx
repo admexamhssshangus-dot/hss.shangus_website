@@ -658,9 +658,11 @@ export default function LoginPage() {
   }, [onLoginSuccess]);
 
   const beginAdminLogin = async (firebaseUser, profile) => {
-    if (!profile?.isAdmin) return false;
     const cleanEmail = String(firebaseUser.email || '').trim().toLowerCase();
-    const isSuper = profile.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
+    const strictRole = getStrictCanonicalRole(cleanEmail, profile);
+    const isSuper = strictRole === ROLES.SUPER_ADMIN || profile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
+    const isAdmin = isSuper || strictRole === ROLES.STANDARD_ADMIN || profile?.isAdmin || profile?.role === 'Admin';
+    if (!isAdmin) return false;
     // Align selected role to admin/superadmin mode
     setSelectedRole(isSuper ? 'superadmin' : 'admin');
     try {
@@ -928,9 +930,8 @@ export default function LoginPage() {
         const siteSettings = await loadSiteSettings().catch(() => null);
         const require2Step = siteSettings?.enableAdmin2StepVerification ?? false;
 
-        // If 2-Step Verification is enabled, standard admins receive verification email.
-        // Super Admin (root access) and standard admins when 2SV is disabled log in directly with password!
-        if (require2Step && !isSuper) {
+        // If 2-Step Verification is enabled, all admins logging in with password require 2SV verification link
+        if (require2Step) {
           if (await beginAdminLogin(userCred.user, staffProfile)) return;
         }
 
@@ -965,6 +966,11 @@ export default function LoginPage() {
 
       // --- AUTO-RECOGNIZE ADMIN / SUPERADMIN ACCOUNT (On Student Tab) ---
       if (isAdmin && selectedRole === 'student') {
+        const siteSettings = await loadSiteSettings().catch(() => null);
+        const require2Step = siteSettings?.enableAdmin2StepVerification ?? false;
+        if (require2Step) {
+          if (await beginAdminLogin(userCred.user, staffProfile)) return;
+        }
         const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
         verifiedSession.redirectPath = '/portal/admin';
         setAlert({ 

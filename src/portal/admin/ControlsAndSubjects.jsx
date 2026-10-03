@@ -61,8 +61,8 @@ function ControlsAndSubjects({ applications = [] } = {}) {
   const [practicalsSubmissionOpen, setPracticalsSubmissionOpen] = useState(true);
   const [attendanceSubmissionOpen, setAttendanceSubmissionOpen] = useState(true);
 
-  // Administrative Security & 2-Step Verification Controls
-  const [enableAdmin2StepVerification, setEnableAdmin2StepVerification] = useState(true);
+  // Administrative Security & 2-Step Verification Controls (Default: Disabled)
+  const [enableAdmin2StepVerification, setEnableAdmin2StepVerification] = useState(false);
 
   // Annual Session Rollover Cutoff States (Default: 15th October)
   const [rolloverMonth, setRolloverMonth] = useState(10); // 1-12 (October)
@@ -211,6 +211,7 @@ function ControlsAndSubjects({ applications = [] } = {}) {
           if (siteSettings.practicalsSubmissionOpen !== undefined) setPracticalsSubmissionOpen(Boolean(siteSettings.practicalsSubmissionOpen));
           if (siteSettings.attendanceSubmissionOpen !== undefined) setAttendanceSubmissionOpen(Boolean(siteSettings.attendanceSubmissionOpen));
           if (siteSettings.enableAdmin2StepVerification !== undefined) setEnableAdmin2StepVerification(Boolean(siteSettings.enableAdmin2StepVerification));
+          else setEnableAdmin2StepVerification(false);
 
           // Annual session cutoff date
           if (siteSettings.annualRolloverCutoff) {
@@ -678,8 +679,8 @@ function ControlsAndSubjects({ applications = [] } = {}) {
                     <span className="font-black block">Require 2-Step Email Link for Password Login</span>
                     <span className="text-[9.5px] sm:text-[10px] opacity-80 block font-normal">
                       {enableAdmin2StepVerification
-                        ? 'Active: Standard admins require a 15-minute verification link sent to their email.'
-                        : 'Disabled: Standard admins sign in directly with Email & Password without link verification.'}
+                        ? 'Active: All admins require a 15-minute verification link sent to their email.'
+                        : 'Disabled (Default): Admins sign in directly with Email & Password without link verification.'}
                     </span>
                   </div>
                   <input

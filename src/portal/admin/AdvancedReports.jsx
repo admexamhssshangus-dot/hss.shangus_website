@@ -7495,12 +7495,34 @@ function AdvancedReports({
 
   const handleToggleFullDbSearch = useCallback((enable) => {
     const nextState = typeof enable === 'boolean' ? enable : !fullDbSearchActive;
-    setFullDbSearchActive(nextState);
     if (nextState) {
-      setFullHistoryRequested(true);
-      setHistoryLoadRequested(true);
+      setConfirmModalConfig({
+        title: '⚡ Enable Full Database Search?',
+        message: 'Search across all 20+ years of historical student archives (2006–2026). This scans tens of thousands of archived records and operates in high-resource mode.',
+        consequence: '⚠️ High Resource Mode: This will increase cloud database read operations, memory usage, and query latency. For day-to-day operations, the default Fast Mode (Recent 3 Cycles) is recommended.',
+        confirmText: '⚡ Enable Full DB Search',
+        cancelText: 'Stay in Fast Mode',
+        type: 'warning',
+        onConfirm: () => {
+          setFullDbSearchActive(true);
+          setFullHistoryRequested(true);
+          setHistoryLoadRequested(true);
+          setConfirmModalConfig(null);
+          setToast({
+            type: 'info',
+            message: '⚡ Full Database Search activated. Searching 20+ years of archives.'
+          });
+          setTimeout(() => setToast(null), 4000);
+        }
+      });
     } else {
+      setFullDbSearchActive(false);
       setFullHistoryRequested(false);
+      setToast({
+        type: 'info',
+        message: 'Switched back to standard Fast Search mode (Recent sessions cohort).'
+      });
+      setTimeout(() => setToast(null), 3000);
     }
   }, [fullDbSearchActive]);
 
@@ -17298,6 +17320,7 @@ function AdvancedReports({
         <ConfirmModal
           isOpen={Boolean(confirmModalConfig.isOpen !== false)}
           onClose={() => setConfirmModalConfig(null)}
+          onCancel={() => setConfirmModalConfig(null)}
           onConfirm={() => {
             if (typeof confirmModalConfig.onConfirm === 'function') {
               confirmModalConfig.onConfirm();
@@ -17305,7 +17328,9 @@ function AdvancedReports({
           }}
           title={confirmModalConfig.title}
           message={confirmModalConfig.message}
+          consequence={confirmModalConfig.consequence}
           confirmText={confirmModalConfig.confirmText || 'Confirm'}
+          cancelText={confirmModalConfig.cancelText || 'Cancel'}
           type={confirmModalConfig.type || 'danger'}
           loading={bulkTableActionBusy}
         />
