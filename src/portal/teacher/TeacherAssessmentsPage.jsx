@@ -11,6 +11,7 @@ import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc as fsDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { saveAcademicRecord } from '../../services/academicRecordService';
+import { saveVersionToBin, archiveSupersededPendingSubmission } from '../../services/practicalsBinService';
 import { logTeacherActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import ConfirmModal from '../components/ConfirmModal';
@@ -1084,6 +1085,33 @@ export default function TeacherAssessmentsPage() {
         updatedAt: new Date().toISOString(),
         records
       });
+
+      // 1. If teacher submits another overwrite request while a prior pending submission was already awaiting admin approval,
+      // automatically move the prior unapproved submission into the Recycle Bin for reference & auditing to guarantee data consistency.
+      let previousPending = existingRecord?.id?.startsWith('pending_') ? existingRecord : null;
+      if (!previousPending) {
+        try {
+          const livePendingSnap = await getDoc(fsDoc(db, 'practicalsData', pendingDocId));
+          if (livePendingSnap.exists()) {
+            previousPending = { id: livePendingSnap.id, ...livePendingSnap.data() };
+          }
+        } catch (_) {}
+      }
+
+      if (previousPending && Array.isArray(previousPending.records) && previousPending.records.length > 0) {
+        await archiveSupersededPendingSubmission(previousPending, {
+          name: userName,
+          email: userEmail
+        }, canonicalDocId).catch((e) => console.warn('Archiving superseded pending assessment error:', e));
+      }
+
+      // 2. Also preserve canonical approved record in Version Bin if resubmitting/overwriting
+      if (existingRecord?.status === 'approved' && Array.isArray(existingRecord.records) && existingRecord.records.length > 0) {
+        await saveVersionToBin(canonicalDocId, existingRecord, 'teacher_resubmission', {
+          name: userName,
+          email: userEmail
+        }).catch(() => {});
+      }
 
       await saveAcademicRecord('practicalsData', pendingDocId, payload);
       invalidateCollectionCache('practicalsData');

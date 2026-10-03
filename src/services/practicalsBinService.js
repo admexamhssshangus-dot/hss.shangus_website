@@ -323,6 +323,91 @@ export async function moveSubmissionToRecycleBin(submissionDoc, deletedByMeta = 
 }
 
 /**
+ * Archives a pending submission document into the practicalsRecycleBin when a teacher
+ * submits a new overwrite/resubmission request before the admin has approved the prior one.
+ * Preserves the full previous pending award record in the recycle bin for reference and audit trail,
+ * and additionally saves it to the version history bin.
+ *
+ * @param {object} pendingDoc - The prior pending submission document awaiting admin review
+ * @param {object} userMeta - Information about author { name, email }
+ * @param {string} canonicalDocId - Primary canonical ID for version bin linkage
+ * @returns {Promise<string|null>} - The new recycle bin document ID
+ */
+export async function archiveSupersededPendingSubmission(pendingDoc, userMeta = {}, canonicalDocId = null) {
+  if (!pendingDoc) return null;
+  const records = Array.isArray(pendingDoc.records) ? pendingDoc.records : (Array.isArray(pendingDoc.students) ? pendingDoc.students : []);
+  if (records.length === 0 && !pendingDoc.id) return null;
+
+  try {
+    const currentUser = auth.currentUser;
+    const authorName = userMeta.name || currentUser?.displayName || pendingDoc.submittedByName || pendingDoc.submittedBy || 'Faculty Member';
+    const authorEmail = userMeta.email || currentUser?.email || pendingDoc.submittedByEmail || pendingDoc.teacherEmail || '';
+    const now = new Date();
+    const expiresAt = new Date(now);
+    expiresAt.setDate(expiresAt.getDate() + SUBMISSION_BIN_RETENTION_DAYS);
+
+    const rawId = String(pendingDoc.id || pendingDoc.docId || 'pending_award');
+    const binDocId = `pbin_superseded_${rawId.replace(/^pending_/, '')}_${Date.now()}`;
+    const targetCanonicalId = canonicalDocId || pendingDoc.canonicalDocId || pendingDoc.targetDocId || rawId.replace(/^pending_/, '');
+
+    const binPayload = sanitizeForFirestore({
+      binDocId,
+      originalDocId: rawId,
+      originalCollection: 'practicalsData',
+      canonicalDocId: targetCanonicalId,
+      subject: pendingDoc.subject || pendingDoc.subjectName || '',
+      subjectCode: pendingDoc.subjectCode || '',
+      className: pendingDoc.className || pendingDoc.class || '',
+      practicalType: pendingDoc.practicalType || pendingDoc.evaluationType || '',
+      yearSuffix: pendingDoc.yearSuffix || pendingDoc.session || pendingDoc.sessionCanonical || '',
+      submittedBy: pendingDoc.submittedBy || pendingDoc.submittedByName || authorName,
+      submittedByEmail: pendingDoc.submittedByEmail || pendingDoc.teacherEmail || authorEmail,
+      recordsCount: records.length,
+      originalStatus: 'superseded_pending',
+      isPendingApproval: false,
+      isSuperseded: true,
+      submissionData: pendingDoc,
+      archivedReason: 'Superseded by newer teacher overwrite request before admin approval',
+      deletedAt: now.toISOString(),
+      deletedBy: authorName,
+      deletedByEmail: authorEmail,
+      expiresAt: expiresAt.toISOString(),
+      retentionDays: SUBMISSION_BIN_RETENTION_DAYS,
+      restorable: true,
+    });
+
+    // 1. Write to practicalsRecycleBin
+    await setDoc(doc(db, SUBMISSION_BIN_COLLECTION, binDocId), binPayload);
+
+    // 2. Also register in version history bin for 3-version rollback history
+    if (targetCanonicalId && records.length > 0) {
+      await saveVersionToBin(targetCanonicalId, pendingDoc, 'superseded_pending_overwrite', {
+        name: authorName,
+        email: authorEmail
+      }).catch(() => {});
+    }
+
+    // 3. Log activity
+    logAdminActivity({
+      actionType: 'archive_superseded',
+      actionTitle: 'Archived Superseded Overwrite to Recycle Bin',
+      details: `Teacher ${authorName} submitted an overwrite request for ${pendingDoc.subject || 'Award'} (${pendingDoc.className || ''}); previous unreviewed submission with ${records.length} records moved to Recycle Bin for reference.`,
+      metadata: {
+        binDocId,
+        originalDocId: rawId,
+        canonicalDocId: targetCanonicalId,
+        recordsCount: records.length
+      }
+    });
+
+    return binDocId;
+  } catch (err) {
+    console.warn('[practicalsBin] Failed to archive superseded pending submission:', err);
+    return null;
+  }
+}
+
+/**
  * Returns all items currently in the practicalsRecycleBin, ordered newest first.
  * @returns {Promise<Array>}
  */

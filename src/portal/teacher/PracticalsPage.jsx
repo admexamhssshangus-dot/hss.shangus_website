@@ -1,5 +1,5 @@
 import { saveAcademicRecord } from '../../services/academicRecordService';
-import { saveVersionToBin } from '../../services/practicalsBinService';
+import { saveVersionToBin, archiveSupersededPendingSubmission } from '../../services/practicalsBinService';
 import { logTeacherActivity } from '../../services/adminActivityLogger';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
@@ -12,7 +12,7 @@ import {
 import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, addDoc, doc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
@@ -3511,14 +3511,28 @@ export default function PracticalsPage() {
         updatedAt: new Date().toISOString(),
       };
 
-      // Archive prior integrated or pending record to Version Bin before saving final submission
-      if (existingAwardInfo?.canonical && Array.isArray(existingAwardInfo.canonical.records) && existingAwardInfo.canonical.records.length > 0) {
-        await saveVersionToBin(docId, existingAwardInfo.canonical, 'teacher_resubmission', {
+      // 1. If teacher submits another overwrite request while a prior pending submission was already awaiting admin approval,
+      // automatically move the prior unapproved submission into the Recycle Bin for reference & auditing to guarantee data consistency.
+      let previousPending = existingAwardInfo?.pending;
+      if (!previousPending) {
+        try {
+          const livePendingSnap = await getDoc(doc(db, 'practicalsData', pendingDocId));
+          if (livePendingSnap.exists()) {
+            previousPending = { id: livePendingSnap.id, ...livePendingSnap.data() };
+          }
+        } catch (_) {}
+      }
+
+      if (previousPending && Array.isArray(previousPending.records) && previousPending.records.length > 0) {
+        await archiveSupersededPendingSubmission(previousPending, {
           name: user?.name || auth.currentUser?.displayName,
           email: auth.currentUser?.email
-        }).catch(() => {});
-      } else if (existingAwardInfo?.pending && Array.isArray(existingAwardInfo.pending.records) && existingAwardInfo.pending.records.length > 0) {
-        await saveVersionToBin(docId, existingAwardInfo.pending, 'teacher_pending_revision', {
+        }, docId).catch((e) => console.warn('Archiving superseded pending practical error:', e));
+      }
+
+      // 2. Also archive canonical approved record in Version Bin if resubmitting/overwriting
+      if (existingAwardInfo?.canonical && Array.isArray(existingAwardInfo.canonical.records) && existingAwardInfo.canonical.records.length > 0) {
+        await saveVersionToBin(docId, existingAwardInfo.canonical, 'teacher_resubmission', {
           name: user?.name || auth.currentUser?.displayName,
           email: auth.currentUser?.email
         }).catch(() => {});

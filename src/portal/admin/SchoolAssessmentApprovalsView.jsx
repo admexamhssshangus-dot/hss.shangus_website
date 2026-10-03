@@ -14,6 +14,7 @@ import { sanitizeForFirestore } from '../../utils/firestoreSanitizer';
 import { saveVersionToBin, moveSubmissionToRecycleBin } from '../../services/practicalsBinService';
 import { isSchoolAssessmentType } from '../../utils/evaluationTypes';
 import { printIndividualAwardRoll } from '../../utils/practicalsPdfGenerator';
+import PracticalsRecycleBinModal from './PracticalsRecycleBinModal';
 
 export default function SchoolAssessmentApprovalsView({ allStudents = [], onPendingCountChange }) {
   const [submissions, setSubmissions] = useState([]);
@@ -26,6 +27,7 @@ export default function SchoolAssessmentApprovalsView({ allStudents = [], onPend
   const [selectedSub, setSelectedSub] = useState(null); // Inspection modal
   const [inspectModalOpen, setInspectModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
 
   // Confirm Modal state
   const [confirmModal, setConfirmModal] = useState({
@@ -502,16 +504,28 @@ export default function SchoolAssessmentApprovalsView({ allStudents = [], onPend
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => fetchSubmissions(true)}
-          disabled={loading || actionLoading}
-          className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer transition-colors"
-          title="Reload submissions"
-        >
-          <RefreshCw size={12} className={loading ? 'animate-spin text-teal-600' : ''} />
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowRecycleBin(true)}
+            className="px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+            title="View Practicals & Assessment Recycle Bin"
+          >
+            <Trash2 size={12} className="text-purple-600 dark:text-purple-400" />
+            <span>Recycle Bin</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fetchSubmissions(true)}
+            disabled={loading || actionLoading}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="Reload submissions"
+          >
+            <RefreshCw size={12} className={loading ? 'animate-spin text-teal-600' : ''} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Submissions List */}
@@ -881,6 +895,13 @@ export default function SchoolAssessmentApprovalsView({ allStudents = [], onPend
         icon={confirmModal.icon}
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Practicals & Assessment Recycle Bin Modal */}
+      <PracticalsRecycleBinModal
+        isOpen={showRecycleBin}
+        onClose={() => setShowRecycleBin(false)}
+        onRestoreSuccess={() => fetchSubmissions(true)}
       />
     </div>
   );

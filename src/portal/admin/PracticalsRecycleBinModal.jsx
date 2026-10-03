@@ -23,6 +23,13 @@ function StatusBadge({ item }) {
       </span>
     );
   }
+  if (item.isSuperseded || item.originalStatus === 'superseded_pending' || item.archivedReason?.includes('Superseded')) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-800 dark:text-purple-300 text-[9px] font-black border border-purple-500/30 uppercase tracking-wider" title="Superseded by newer overwrite request before admin approval">
+        <RotateCcw size={9} /> Superseded Overwrite
+      </span>
+    );
+  }
   if (item.originalStatus === 'approved') {
     return (
       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-800 dark:text-blue-300 text-[9px] font-black border border-blue-500/30 uppercase tracking-wider">
@@ -401,6 +408,12 @@ export default function PracticalsRecycleBinModal({ isOpen, onClose, onRestoreSu
                                 {item.wasRestored && (
                                   <span className="text-emerald-600 dark:text-emerald-400">
                                     Restored on {item.restoredAt ? new Date(item.restoredAt).toLocaleString('en-IN') : '—'} by {item.restoredBy || 'Admin'}
+                                  </span>
+                                )}
+                                {item.archivedReason && (
+                                  <span className="text-purple-700 dark:text-purple-300 font-bold">
+                                    <span className="text-slate-400 font-semibold uppercase tracking-wider text-[9px]">Archived Context: </span>
+                                    {item.archivedReason}
                                   </span>
                                 )}
                               </div>
