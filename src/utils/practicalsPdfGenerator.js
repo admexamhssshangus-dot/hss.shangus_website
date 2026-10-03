@@ -9,7 +9,9 @@
 
 import { getSubjectMarksConfig, isTeacherSubjectMatch, getSubjectDisplayName, normalizePracticalSession } from './practicalsSettingsManager';
 import { toTitleCase } from './textFormatting';
-import { isStudentExamDropped } from './studentApprovalStatus';
+import { isStudentExamDropped, checkStudentApprovalState, isStudentApprovedForPracticals } from './studentApprovalStatus';
+
+export { checkStudentApprovalState, isStudentApprovedForPracticals };
 
 export function numberToWordsInr(num) {
   if (!num || num === 'AB' || num === 'A' || String(num).toUpperCase() === 'ABSENT') return '-';
@@ -1179,7 +1181,7 @@ export function printConsolidatedAwardRoll({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
-  students = students.filter(st => !isStudentExamDropped(st));
+  students = students.filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
@@ -1840,7 +1842,7 @@ export function printAttendanceSheet({
   selectedSubjectCodes = null
 }) {
   if (!students || students.length === 0) return false;
-  students = students.filter(st => !isStudentExamDropped(st));
+  students = students.filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType, isExternal);
@@ -2029,7 +2031,7 @@ export function printMarksRecordAwardRoll({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
-  students = students.filter(st => !isStudentExamDropped(st));
+  students = students.filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
@@ -2194,7 +2196,7 @@ export function printAllIndividualAwardRolls({
   centreNo = ''
 }) {
   if (!students || students.length === 0) return false;
-  students = students.filter(st => !isStudentExamDropped(st));
+  students = students.filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || examTitle || printDetails?.practicalType, isExternal);
@@ -2467,7 +2469,7 @@ export function printFailList({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
-  students = students.filter(st => !isStudentExamDropped(st));
+  students = students.filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue, startTransition } from 'react';
 import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
 import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, Users, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown, Globe, Phone, ExternalLink, Archive } from 'lucide-react';
@@ -1400,7 +1400,12 @@ function UnifiedFiltersGroupDropdown({
                   label="Sessions"
                   options={allKnownSessions && allKnownSessions.length > 0 ? allKnownSessions : availableSessions}
                   selected={selectedSessions}
-                  onChange={(val) => { setSelectedSessions(val); setCurrentPage(1); }}
+                  onChange={(val) => {
+                    startTransition(() => {
+                      setSelectedSessions(val);
+                      setCurrentPage(1);
+                    });
+                  }}
                   align="left"
                   maxAdditionalLimit={3}
                   isDefaultOption={isDefaultSession}
@@ -1415,7 +1420,12 @@ function UnifiedFiltersGroupDropdown({
                 label="Classes"
                 options={availableClasses}
                 selected={selectedClasses}
-                onChange={(val) => { setSelectedClasses(val); setCurrentPage(1); }}
+                onChange={(val) => {
+                  startTransition(() => {
+                    setSelectedClasses(val);
+                    setCurrentPage(1);
+                  });
+                }}
                 align="left"
               />
 
@@ -7432,11 +7442,56 @@ function AdvancedReports({
   // Filter States (All filters default to [] so all records are visible by default)
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchInputVal, setSearchInputVal] = useState('');
+  const searchDebounceTimerRef = useRef(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isHydratingMasterRegisters, setIsHydratingMasterRegisters] = useState(false);
   const [historyLoadRequested, setHistoryLoadRequested] = useState(false);
   const [fullHistoryRequested, setFullHistoryRequested] = useState(false);
   const [fullDbSearchActive, setFullDbSearchActive] = useState(false);
+
+  const handleSearchChange = useCallback((val) => {
+    setSearchInputVal(val);
+    setIsSearching(true);
+    if (searchDebounceTimerRef.current) clearTimeout(searchDebounceTimerRef.current);
+    searchDebounceTimerRef.current = setTimeout(() => {
+      startTransition(() => {
+        setSearchTerm(val);
+        setDebouncedSearch(val);
+        setCurrentPage(1);
+        setIsSearching(false);
+      });
+    }, 180);
+  }, []);
+
+  const handleSearchClear = useCallback(() => {
+    if (searchDebounceTimerRef.current) clearTimeout(searchDebounceTimerRef.current);
+    setSearchInputVal('');
+    setIsSearching(false);
+    startTransition(() => {
+      setSearchTerm('');
+      setDebouncedSearch('');
+      setCurrentPage(1);
+    });
+  }, []);
+
+  const handleSearchSet = useCallback((val) => {
+    if (searchDebounceTimerRef.current) clearTimeout(searchDebounceTimerRef.current);
+    setSearchInputVal(val);
+    setShowSearchHelp(false);
+    startTransition(() => {
+      setSearchTerm(val);
+      setDebouncedSearch(val);
+      setCurrentPage(1);
+      setIsSearching(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (searchTerm !== searchInputVal && !isSearching) {
+      setSearchInputVal(searchTerm);
+    }
+  }, [searchTerm]);
 
   const handleToggleFullDbSearch = useCallback((enable) => {
     const nextState = typeof enable === 'boolean' ? enable : !fullDbSearchActive;
@@ -7456,19 +7511,6 @@ function AdvancedReports({
     });
     setTimeout(() => setToast(null), 4500);
   }, []);
-
-  useEffect(() => {
-    if (searchTerm === debouncedSearch) {
-      setIsSearching(false);
-      return;
-    }
-    setIsSearching(true);
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-      setIsSearching(false);
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [searchTerm, debouncedSearch]);
 
   const deferredSearchTerm = useDeferredValue(debouncedSearch);
   const [showSearchHelp, setShowSearchHelp] = useState(false);
@@ -8137,7 +8179,9 @@ function AdvancedReports({
         const fullChunks = await getMasterRegistersScoped({ forceAll: true });
         if (Array.isArray(fullChunks) && fullChunks.length > 0) {
           const formatted = flattenAndFormatMasterRegisters(fullChunks);
-          setMasterHistoricalRecords(formatted);
+          startTransition(() => {
+            setMasterHistoricalRecords(formatted);
+          });
           const histMap = new Map();
           formatted.forEach((item, idx) => {
             const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
@@ -8867,7 +8911,9 @@ function AdvancedReports({
       if (Array.isArray(fullChunks) && fullChunks.length > 0) {
         rawMasterChunks = fullChunks;
         formattedMasterRecords = flattenAndFormatMasterRegisters(fullChunks);
-        setMasterHistoricalRecords(formattedMasterRecords);
+        startTransition(() => {
+          setMasterHistoricalRecords(formattedMasterRecords);
+        });
       }
     } catch (err) {
       console.warn('Master registers fetch warning:', err);
@@ -9473,7 +9519,10 @@ function AdvancedReports({
       setIsHydratingMasterRegisters(true);
       const fullChunks = await getMasterRegistersScoped({ forceAll: true });
       if (Array.isArray(fullChunks) && fullChunks.length > 0) {
-        setMasterHistoricalRecords(flattenAndFormatMasterRegisters(fullChunks));
+        const formatted = flattenAndFormatMasterRegisters(fullChunks);
+        startTransition(() => {
+          setMasterHistoricalRecords(formatted);
+        });
         showToast('All 20+ years of historical school records loaded successfully!', 'success');
       }
     } catch (e) {
@@ -9598,7 +9647,9 @@ function AdvancedReports({
         const fullChunks = await getMasterRegistersScoped({ forceAll: true });
         if (Array.isArray(fullChunks) && fullChunks.length > 0) {
           const formatted = flattenAndFormatMasterRegisters(fullChunks);
-          setMasterHistoricalRecords(formatted);
+          startTransition(() => {
+            setMasterHistoricalRecords(formatted);
+          });
           const histMap = new Map();
           formatted.forEach((item, idx) => {
             const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
@@ -10158,7 +10209,12 @@ function AdvancedReports({
     if (!cachedMaster || cachedMaster.length === 0) {
       getMasterRegistersScoped().then(ml => {
         if (Array.isArray(ml) && ml.length > 0) {
-          setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+          setTimeout(() => {
+            const formatted = flattenAndFormatMasterRegisters(ml);
+            startTransition(() => {
+              setMasterHistoricalRecords(formatted);
+            });
+          }, 0);
         }
       }).catch(() => {});
     }
@@ -10167,7 +10223,12 @@ function AdvancedReports({
       historicalLoadAttemptedRef.current = true;
       getCachedCollection('masterRegisters', true).then(ml => {
         if (Array.isArray(ml) && ml.length > 0) {
-          setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+          setTimeout(() => {
+            const formatted = flattenAndFormatMasterRegisters(ml);
+            startTransition(() => {
+              setMasterHistoricalRecords(formatted);
+            });
+          }, 0);
         }
       }).catch(() => {});
     };
@@ -11640,12 +11701,19 @@ function AdvancedReports({
         setIsHydratingMasterRegisters(true);
         getMasterRegistersScoped({ forceAll: shouldLoadFull }).then(ml => {
           if (Array.isArray(ml) && ml.length > 0) {
-            setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+            setTimeout(() => {
+              const formatted = flattenAndFormatMasterRegisters(ml);
+              startTransition(() => {
+                setMasterHistoricalRecords(formatted);
+              });
+            }, 0);
           }
         }).catch((err) => {
           console.warn('Master registers scoped fetch note:', err);
         }).finally(() => {
-          setIsHydratingMasterRegisters(false);
+          startTransition(() => {
+            setIsHydratingMasterRegisters(false);
+          });
         });
       }
     }
@@ -13487,7 +13555,7 @@ function AdvancedReports({
           <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
             {/* Search Input Bar with Shortcut Tooltip Popover */}
             <div className="relative flex-1 min-w-[100px] sm:min-w-[240px] md:min-w-[320px] lg:min-w-[380px] lg:max-w-[480px]" ref={searchHelpRef}>
-              {isSearching || searchTerm !== deferredSearchTerm || isHydratingMasterRegisters ? (
+              {isSearching || searchInputVal !== deferredSearchTerm || isHydratingMasterRegisters ? (
                 <RefreshCw size={12} className="absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 text-amber-500 animate-spin pointer-events-none" />
               ) : (
                 <Search size={12} className="absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -13495,12 +13563,8 @@ function AdvancedReports({
               <input
                 type="text"
                 placeholder="Search Name, Father, Mother, Mob, adm4347, reg..."
-                value={searchTerm}
-                onChange={(e) => { 
-                  setSearchTerm(e.target.value); 
-                  setCurrentPage(1); 
-                  setShowSearchHelp(false);
-                }}
+                value={searchInputVal}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={() => {
                   if (showSearchHelp) setShowSearchHelp(false);
                 }}
@@ -13508,8 +13572,8 @@ function AdvancedReports({
                 style={{ minHeight: 'unset', height: '28px' }}
               />
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                {searchTerm ? (
-                  <button onClick={() => setSearchTerm('')} className="text-slate-500 hover:text-slate-700 p-0.5 cursor-pointer">
+                {searchInputVal ? (
+                  <button onClick={handleSearchClear} className="text-slate-500 hover:text-slate-700 p-0.5 cursor-pointer">
                     <X size={12} />
                   </button>
                 ) : null}
@@ -13541,35 +13605,35 @@ function AdvancedReports({
                   </div>
                   <div className="grid grid-cols-1 gap-1 text-[10px] sm:text-[11px]">
                     <div
-                      onClick={() => { setSearchTerm('adm'); setShowSearchHelp(false); }}
+                      onClick={() => handleSearchSet('adm')}
                       className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
                     >
                       <span className="font-bold text-slate-700 dark:text-slate-300">Admission No:</span>
                       <code className="font-mono font-bold text-amber-600 dark:text-amber-400">adm4347</code>
                     </div>
                     <div
-                      onClick={() => { setSearchTerm('reg'); setShowSearchHelp(false); }}
+                      onClick={() => handleSearchSet('reg')}
                       className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
                     >
                       <span className="font-bold text-slate-700 dark:text-slate-300">Board Reg No:</span>
                       <code className="font-mono font-bold text-blue-600 dark:text-blue-400">reg23...</code>
                     </div>
                     <div
-                      onClick={() => { setSearchTerm('form'); setShowSearchHelp(false); }}
+                      onClick={() => handleSearchSet('form')}
                       className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
                     >
                       <span className="font-bold text-slate-700 dark:text-slate-300">Form Number:</span>
                       <code className="font-mono font-bold text-emerald-600 dark:text-emerald-400">form123</code>
                     </div>
                     <div
-                      onClick={() => { setSearchTerm('roll'); setShowSearchHelp(false); }}
+                      onClick={() => handleSearchSet('roll')}
                       className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
                     >
                       <span className="font-bold text-slate-700 dark:text-slate-300">Class Roll No:</span>
                       <code className="font-mono font-bold text-purple-600 dark:text-purple-400">roll12</code>
                     </div>
                     <div
-                      onClick={() => { setSearchTerm('mob'); setShowSearchHelp(false); }}
+                      onClick={() => handleSearchSet('mob')}
                       className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
                     >
                       <span className="font-bold text-slate-700 dark:text-slate-300">Mobile / Contact:</span>

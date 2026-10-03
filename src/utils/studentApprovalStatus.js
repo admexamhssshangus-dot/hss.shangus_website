@@ -141,4 +141,52 @@ export function isStudentExamDropped(student) {
   );
 }
 
+/**
+ * Checks approval state of a student record for practicals and academic returns.
+ * Invariant: Examinee must not be dropped/rejected and must either possess an assigned
+ * class roll number, be marked as approved/admitted, or originate from master registers.
+ */
+export function checkStudentApprovalState(student) {
+  if (!student || typeof student !== 'object') {
+    return { isApproved: false, isRejected: false, isPending: false, isDropped: false, hasRoll: false };
+  }
+  const isDropped = isStudentExamDropped(student);
+  const rollVal = getAssignedClassRollNumber(student);
+  const hasRoll = Boolean(rollVal);
+
+  const raw = student.raw || student._rawStudent || student;
+  const rawStatus = String(
+    student.status ||
+    raw.status ||
+    student.Status ||
+    raw.Status ||
+    student.admissionStatus ||
+    raw.admissionStatus ||
+    student['Admission Status'] ||
+    raw['Admission Status'] ||
+    ''
+  ).trim().toLowerCase();
+
+  const isRejected = isDropped || rawStatus.includes('reject') || rawStatus.includes('cancel') || student.isRejected === true || raw.isRejected === true;
+  const isExplicitApproved =
+    rawStatus.includes('approv') ||
+    rawStatus.includes('admit') ||
+    rawStatus.includes('enrol') ||
+    rawStatus.includes('complet') ||
+    rawStatus.includes('active') ||
+    student.isApproved === true ||
+    raw.isApproved === true ||
+    student._source === 'masterRegisters' ||
+    raw._source === 'masterRegisters';
+
+  const isApproved = !isRejected && !isDropped && (hasRoll || isExplicitApproved);
+  const isPending = !isApproved && !isRejected && !isDropped;
+
+  return { isApproved, isRejected, isPending, isDropped, hasRoll };
+}
+
+export function isStudentApprovedForPracticals(student) {
+  return checkStudentApprovalState(student).isApproved;
+}
+
 export { CLASS_ROLL_NUMBER_KEYS };

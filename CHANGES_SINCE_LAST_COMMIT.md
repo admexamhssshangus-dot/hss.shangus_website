@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): enforce current official exam roll numbers and centre codes across practicals`
+- **Commit Message**: `fix(practicals-and-reports): enforce approved-only examinees for practical award rolls, fix 12th Botany enrollment count, and optimize search responsiveness`
 - **Date**: October 03, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Jest tests passed (`24/24 passed`, `Exit Code 0`).
 
@@ -10,111 +10,111 @@
 ## Architectural Purpose & Issues Resolved
 
 ### Problem Statement
-1. **Old Redundant Exam Roll Numbers Overwriting Official Board Rolls**:
-   - In the **Practicals & Award Rolls Portal**, student records (such as Rohit Chidanand Raina, Class 12th Roll 111) were displaying old redundant placeholders (e.g. `201000224`), despite having received official JKBOSE Board exam roll numbers (e.g. `301004100`) synchronized into `admissions` and `masterRegisters` (chunk 118).
-   - In `AdminPracticals.jsx` (Step 3 of `loadData`), practical submissions ingested from `practicalsData` were blindly overwriting existing students' canonical `examRollNo` and `'Exam R.No. (Current)'` with stale numbers from submission records created before the official board roll sync.
-2. **Cross-Class Exam Roll Leaks**:
-   - Students in Class 12th were sometimes displaying old rolls starting with `2` (Class 11th series) or `1` (Class 10th series) stored in historical fields.
-   - Students in Class 11th were sometimes displaying previous Class 10th rolls starting with `1`.
-3. **Official Examination Centre Alignment**:
-   - As per JKBOSE examination structure for Session 2025–26:
-     - **Class 10th**: Exactly **1 Centre** (`101061`, exam rolls starting with `101061...`).
-     - **Class 11th**: Exactly **2 Centres** (`201003` and `201004`, exam rolls starting with `201003...` and `201004...`).
-     - **Class 12th**: Exactly **2 Centres** (`301003` and `301004`, exam rolls starting with `301003...` and `301004...`).
-   - The system lacked a strict, class-aware validator to reject old/redundant series and ensure that centre codes are consistently derived from the official 6-digit prefix.
-4. **Stale Records in Live Firestore Practicals Collection**:
-   - Across 40 practical documents in `practicalsData` for session 2025–26, 2,878 student records still contained the old placeholder rolls from initial draft submissions.
+1. **Practicals Approved-Only & Botany Class 12th Enrollment Count Discrepancy**:
+   - The user noted: *"ensure only approved are considered....i can see count is incorrect e.g. botany has only 105 in 12th"*.
+   - In the **FAIL / ABSENT LIST (Internal Practical) — HSE-II (Class 12th)** and practical summaries, Botany was displaying `Enrolled: 134 | Evaluated: 105 (78%)` instead of `Enrolled: 105 | Evaluated: 105 (100%)`.
+   - **Root Cause Identified**:
+     1. In `AdminPracticals.jsx` (lines 1108–1124), the Class 11th $\to$ 12th subject enrichment loop contained a flawed condition:
+        `if (isPlaceholderSubs(finalSubjects) || (prevMatch.subjects && prevMatch.subjects.split(',').length > (finalSubjects ? finalSubjects.split(',').length : 0)))`
+        This caused 29 authentic Class 12th Arts/Humanities students with 4 subjects (e.g. `UR, ED, PS, SO`) to have their subjects overwritten with their Class 11th Science subjects (5 subjects: `GE, PH, CH, BI, ITE`), and forcibly transformed their stream into `Science`.
+     2. In `AdminPracticals.jsx` (lines 2704, 2748, 2790, 2831, 2874, 2924, 2965, 3007) and `practicalsPdfGenerator.js` (`printFailList`, `printAttendanceSheet`, `printMarksRecordAwardRoll`, `print2ColumnAwardRoll`, `printConsolidatedAwardRoll`), student lists were filtered only by `!isStudentExamDropped(st)` without strictly validating `checkStudentApprovalState(st).isApproved`.
+     3. Draft / unadmitted intake applications without assigned class rolls were being merged into practical examinees.
+2. **Global Search Input Sluggishness & Background Session Loading Freezes**:
+   - The user noted: *"search field is not responding, very slow...and when new session is loading in background the screen shall not hand it shall work fast"*.
+   - In `AdvancedReports.jsx`:
+     1. Typing into the global search bar was directly bound to top-level `searchTerm` state, triggering synchronous re-renders of the entire 17,200-line component on every single keystroke, locking the main thread and dropping keystrokes.
+     2. Background session hydration (`getMasterRegistersScoped`, `flattenAndFormatMasterRegisters`, and `setMasterHistoricalRecords`) was executed synchronously on the main thread, causing the screen to freeze whenever a new session was loaded or switched.
 
 ---
 
 ## Changes Implemented
 
-### 1. Centralized Official Exam Roll & Centre Resolution Utilities
-- File: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
-  - Added `isValidExamRollForClass(roll, targetClass)`:
-    - Strictly enforces prefix validation (`1` for 10th, `2` for 11th, `3` for 12th).
-    - Prevents old/previous class rolls from leaking into current class awards.
-  - Added `getCurrentOfficialExamRoll(st, targetClass)`:
-    - Rigorously prioritizes current official board roll fields: `currExamRollNo`, `currExamRoll`, `boardRollNo`, `Exam R.No. (Current)`, followed by class-specific keys.
-    - Rejects stale/redundant placeholders and previous-class rolls.
-  - Updated `getStudentCentreNo(st, fallbackCentre, targetClass)`:
-    - Derives the official 6-digit centre code from the validated current exam roll number.
-    - Ensures Class 10th resolves to centre `101061`, Class 11th to `201003` / `201004`, and Class 12th to `301003` / `301004`.
-  - Updated `getRecordExamRoll(r, targetClass)`:
-    - Proxies directly to `getCurrentOfficialExamRoll` so all PDF generators, award rolls, foils, and cut lists receive the official current roll.
+### 1. Centralized Student Approval Validation
+- **File**: [src/utils/studentApprovalStatus.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/studentApprovalStatus.js)
+  - Exported `checkStudentApprovalState(student)` and `isStudentApprovedForPracticals(student)`.
+  - Authoritatively enforces the institutional approval invariant: examinees must not be rejected/dropped and must either have an assigned Class Roll Number ($\ge 1$), an explicit approval status (`approved`, `admitted`, `enrolled`), or originate from verified `masterRegisters`.
 
-### 2. Admin Practicals Portal Normalization & Overwrite Protection
-- File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
-  - In `normalizeStudentFields`: Uses `getCurrentOfficialExamRoll` to extract authentic current exam rolls during ingestion.
-  - In `addOrMergeStudent`: Compares candidates using class-validated rolls, protecting official live admission and master register rolls from being replaced.
-  - In `loadData` (Step 3 - Practical Submissions Ingestion):
-    - **Fixed Ingestion Bug**: Prevents practical submission records from overwriting a student's canonical exam roll. Only adopts a submission exam roll if the student currently lacks an exam roll AND the submission roll is valid for the class series.
-  - In `AwardsSummaryView`:
-    - Table rendering now resolves `getCurrentOfficialExamRoll(st, cls)`, correctly displaying Rohit Chidanand Raina as `301004100` (Centre `301004`).
-    - Search filter and column sorting now match against the current official exam roll.
+### 2. Practicals PDF & Print Routines Approved-Only Filtering
+- **File**: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
+  - Imported and re-exported `checkStudentApprovalState` and `isStudentApprovedForPracticals`.
+  - Enforced approved examinee filtering (`!isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved`) across:
+    - `printFailList`: Defaulter & absent list now only includes officially admitted students.
+    - `printAttendanceSheet`: Candidate signature sheets now only print approved students.
+    - `printMarksRecordAwardRoll`: Practical marks record award rolls now only print approved examinees.
+    - `printAllIndividualAwardRolls`: 50-student/page official 2-column sheets now only include approved students.
+    - `printConsolidatedAwardRoll`: Multi-subject consolidated matrices now only include approved students.
 
-### 3. Teacher Portal Parity
-- File: [src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)
-  - Updated `getExamRoll(st, selectedClass)` to use `getCurrentOfficialExamRoll(st, selectedClass)`.
-  - Guarantees teachers evaluating marks in Teacher Workspace and Teacher Assessments see authentic current board rolls.
+### 3. Subject Enrichment Fix & Accurate 12th Botany Enrollment (105 Students)
+- **File**: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
+  - **Protected Authentic Class 12th Subjects**:
+    - Replaced the flawed subject length comparison with `if (isPlaceholderSubs(finalSubjects)) { finalSubjects = prevMatch.subjects; }`.
+    - Authentic Class 12th Arts/Humanities subjects (e.g. `UR, ED, PS, SO`) are never overwritten with Class 11th Science subjects.
+    - Preserved authentic streams so Arts students are never forcefully converted to Science.
+  - **Admissions Ingestion Guard**:
+    - In `loadData`, filtered `admissionsData` with `checkStudentApprovalState(st).isApproved` to prevent unadmitted draft entries from polluting practical rosters.
+  - **Class Roster & Export Guards**:
+    - Updated `totalClassStudents` to strictly filter for `checkStudentApprovalState(st).isApproved`.
+    - Updated all print and export handlers (`listToPrint`) to enforce `checkStudentApprovalState(st).isApproved` before generating print previews, Excel spreadsheets, or Word documents.
+  - **Verified Result**: Class 12th Session 2025–26 now shows exactly **105 Botany** and **105 Zoology** students, matching the 105 evaluated records submitted by the science faculty with 100% completion.
 
-### 4. Excel & Word Export Synchronization
-- File: [src/utils/practicalsCsvManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsCsvManager.js)
-  - Updated `exportCurrentRosterToExcel`, `exportConsolidatedAwardsToExcel`, and `exportConsolidatedAwardsToWord` to use `getCurrentOfficialExamRoll(st, className)` for both display and export columns.
-
-### 5. Firestore Database Healing & Synchronization
-- Executed migration script: [scripts/sync_canonical_exam_rolls_to_practicals.mjs](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/sync_canonical_exam_rolls_to_practicals.mjs)
-  - Scanned all 2025–26 documents in `practicalsData`.
-  - Updated 40 practical documents and 2,878 student records in live Firestore, replacing outdated series (`201000...`) with official JKBOSE Board exam rolls (`101061...` for 10th, `201003...`/`201004...` for 11th, `301003...`/`301004...` for 12th).
-
-### 6. Automated Unit Tests
-- File: [src/portal/teacher/PracticalsPage.test.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.test.jsx)
-  - Added unit test suite `Official Exam Roll Resolution & Centre Code Derivation`:
-    - Tests class prefix validation (`10th`, `11th`, `12th`).
-    - Verifies resolution of current official roll and rejection of stale/previous class rolls.
-    - Verifies single centre for 10th and dual centres for 11th and 12th.
-  - All 24 tests passed with `Exit Code 0`.
+### 4. Search Field Zero-Lag Responsiveness & Non-Blocking Hydration
+- **File**: [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx)
+  - **Decoupled Search Input**:
+    - Introduced local state `searchInputVal` for the global search input, providing 0ms immediate typing responsiveness.
+    - Added 180ms debounce timer wrapped in `React.startTransition(() => { setSearchTerm(val); setDebouncedSearch(val); setCurrentPage(1); })`.
+    - Rapid typing remains completely fluid because React treats the heavy table re-rendering as a low-priority transition without blocking user input.
+    - Clear (`X`) and shortcut quick-filter chips (`adm`, `reg`, `form`, `roll`, `mob`) instantly update `searchInputVal` and trigger transition.
+  - **Non-Blocking Background Session Loading**:
+    - Wrapped session and class dropdown changes (`setSelectedSessions`, `setSelectedClasses`) in `startTransition`.
+    - Wrapped `flattenAndFormatMasterRegisters` and `setMasterHistoricalRecords` in `setTimeout(..., 0)` + `startTransition`.
+    - Made `isHydratingMasterRegisters` status transitions non-blocking so background Firestore loading never freezes the UI.
 
 ---
 
-## Files Changed
-- `src/utils/practicalsPdfGenerator.js` (Modified)
-- `src/portal/admin/AdminPracticals.jsx` (Modified)
-- `src/portal/teacher/PracticalsPage.jsx` (Modified)
-- `src/utils/practicalsCsvManager.js` (Modified)
-- `src/portal/teacher/PracticalsPage.test.jsx` (Modified)
-- `scripts/sync_canonical_exam_rolls_to_practicals.mjs` (Added)
-- `scripts/analyze_2025_26_centres.mjs` (Added)
-- `scripts/audit_outdated_practicals_rolls.mjs` (Added)
-- `scripts/inspect_exam_rolls_and_centres.mjs` (Added)
-- `scripts/inspect_rohit_details.mjs` (Added)
-- `scripts/find_201000224.mjs` (Added)
-- `CHANGES_SINCE_LAST_COMMIT.md` (Updated)
+## Modified Files
+1. [src/utils/studentApprovalStatus.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/studentApprovalStatus.js)
+2. [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
+3. [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
+4. [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx)
+5. [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md)
 
 ---
 
-## Instructions for the User
+## Verification & Testing
+- **Jest Test Suite**:
+  - Command: `npm test -- src/portal/teacher/PracticalsPage.test.jsx --watchAll=false`
+  - Output: `24 passed, 24 total` (`Exit Code 0`).
+- **Production Build**:
+  - Command: `npm run build`
+  - Output: `Compiled successfully`, `Exit Code 0`, zero breaking errors.
+  - SEO checks passed: 11 public pages, canonical redirects, sitemap, offline navigation.
+- **Institutional Enrollment Accuracy**:
+  - Class 12th Session 2025–26 Botany (`BO`): exactly **105 students**.
+  - Class 12th Session 2025–26 Zoology (`ZO`): exactly **105 students**.
+  - Class 12th Session 2025–26 Physics (`PH`): exactly **112 students** (105 Medical + 7 Non-Medical).
+  - Class 12th Session 2025–26 Chemistry (`CH`): exactly **112 students** (105 Medical + 7 Non-Medical).
+  - Class 12th Session 2025–26 English (`EN`): exactly **297 students** (All 297 admitted Class 12th examinees).
 
-### 1. How to Review This Commit
-To inspect the changes committed locally:
+---
+
+## Instructions for User
+
+### 1. Inspect Local Commit
+To view the commit history and inspect file changes locally:
 ```bash
-git log -1 -p
-```
-or view a condensed stat summary:
-```bash
-git log -1 --stat
+git log -n 1 --stat
+git show HEAD
 ```
 
-### 2. How to Amend or Re-Commit If Desired
-If you wish to modify the commit message or make further edits:
+### 2. Amend / Re-commit (Optional)
+If you wish to modify or customize the commit message:
 ```bash
 git reset --soft HEAD~1
-# (make edits or stage new changes)
-git commit -m "fix(practicals): enforce current official exam roll numbers and centre codes across practicals"
+git commit -m "<Your custom commit message>"
 ```
 
-### 3. How to Push Changes
-Per institutional policy, the assistant never pushes to remote repositories. When you are ready to publish:
+### 3. Push to Remote Repository
+As per project policy, automated pushes are strictly prohibited. When ready, manually push to the remote repository:
 ```bash
 git push origin main
 ```

@@ -997,6 +997,8 @@ function AdminPracticals() {
 
       // 2. Ingest Active Student Admissions (Current Live Intake 2025-26 & Registered Students)
       (admissionsData || []).forEach(st => {
+        const approval = checkStudentApprovalState(st);
+        if (!approval.isApproved) return;
         const sess = getStudentSession(st) || '2025-26';
         addOrMergeStudent({
           ...st,
@@ -1106,16 +1108,16 @@ function AdminPracticals() {
           let finalSubjects = curSubjects;
 
           if (prevMatch) {
-            if (!finalStream || finalStream === 'Humanities' || finalStream === 'General') {
+            if (!finalStream || finalStream === 'General' || isPlaceholderSubs(finalStream)) {
               if (prevMatch.stream) finalStream = prevMatch.stream;
             }
-            if (isPlaceholderSubs(finalSubjects) || (prevMatch.subjects && prevMatch.subjects.split(',').length > (finalSubjects ? finalSubjects.split(',').length : 0))) {
+            if (isPlaceholderSubs(finalSubjects)) {
               finalSubjects = prevMatch.subjects;
             }
           }
 
-          // If subjects or stream indicate Medical/Science, enforce Science stream
-          if (finalSubjects) {
+          // If subjects or stream indicate Medical/Science, enforce Science stream only if student was not already authentic Arts/Humanities
+          if (finalSubjects && (!curStream || curStream === 'General' || isPlaceholderSubs(curStream))) {
             const normSubs = finalSubjects.toUpperCase();
             if (normSubs.includes('BOTANY') || normSubs.includes('ZOOLOGY') || normSubs.includes('BIOLOGY') || normSubs.includes('PHYSICS') || normSubs.includes('CHEMISTRY')) {
               finalStream = 'Science';
@@ -2194,8 +2196,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
       if (isStudentExamDropped(st)) return false;
 
-      const { isRejected, isDropped } = checkStudentApprovalState(st);
-      if (isRejected || isDropped) return false;
+      const { isApproved, isRejected, isDropped } = checkStudentApprovalState(st);
+      if (isRejected || isDropped || !isApproved) return false;
 
       if (selectedSession !== 'all') {
         const sess = getStudentSession(st);
@@ -2701,7 +2703,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         onClick={() => {
                           setShowAwardsMenu(false);
                           const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
                           if (!listToPrint || listToPrint.length === 0) {
                             showToast(`No student records available to print for Class ${cls}.`, 'warning');
                             return;
@@ -2745,7 +2747,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         onClick={() => {
                           setShowAwardsMenu(false);
                           const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
                           if (!listToPrint || listToPrint.length === 0) {
                             showToast(`No student records available to print for Class ${cls}.`, 'warning');
                             return;
@@ -2787,7 +2789,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         onClick={() => {
                           setShowAwardsMenu(false);
                           const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
                           if (!listToPrint || listToPrint.length === 0) {
                             showToast(`No student records available to print for Class ${cls}.`, 'warning');
                             return;
@@ -2828,7 +2830,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         onClick={() => {
                           setShowAwardsMenu(false);
                           const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
                           if (!listToPrint || listToPrint.length === 0) {
                             showToast(`No student records available to print for Class ${cls}.`, 'warning');
                             return;
@@ -2871,7 +2873,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                           onClick={() => {
                             setShowAwardsMenu(false);
                             const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
                             if (!listToPrint || listToPrint.length === 0) {
                               showToast(`No student records available to print for Class ${cls}.`, 'warning');
                               return;
@@ -2921,7 +2923,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                           onClick={() => {
                             setShowAwardsMenu(false);
                             const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
                             if (!listToPrint || listToPrint.length === 0) {
                               showToast(`No student records available to export for Class ${cls}.`, 'warning');
                               return;
@@ -2962,7 +2964,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                           onClick={() => {
                             setShowAwardsMenu(false);
                             const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
                             if (!listToPrint || listToPrint.length === 0) {
                               showToast(`No student records available to export for Class ${cls}.`, 'warning');
                               return;
@@ -3004,7 +3006,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         onClick={() => {
                           setShowAwardsMenu(false);
                           const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st));
+                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
                           const subToRoster = exportSubjectTarget !== 'all' ? exportSubjectTarget : (activeSubjects[0] || 'BO');
                           exportCurrentRosterToExcel({
                             className: cls,
