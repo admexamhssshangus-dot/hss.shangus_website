@@ -1672,18 +1672,18 @@ function AdminPracticals() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-3 md:p-6 font-sans">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Sleek Header & Grouped Action Ribbon */}
-        <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs flex-shrink-0">
-              <Sliders size={15} strokeWidth={2.5} />
+        <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs flex-shrink-0">
+              <Sliders size={16} strokeWidth={2.5} />
             </div>
             <div>
               <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-tight">Practicals & Awards Admin</h1>
-              <p className="text-[10px] font-semibold text-slate-500">Evaluations, Excel imports/exports, prints & permissions.</p>
+              <p className="text-[10px] sm:text-[10.5px] font-semibold text-slate-500">Evaluations, Excel imports/exports, prints & permissions.</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap md:flex-nowrap items-center justify-between md:justify-end gap-1.5 w-full md:w-auto relative">
+          <div className="flex flex-wrap items-center justify-between sm:justify-start xl:justify-end gap-2 w-full xl:w-auto relative">
             {/* Scrollable Tabs Group on small viewports */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
               {/* Class Switcher Segmented Control */}
@@ -1741,8 +1741,8 @@ function AdminPracticals() {
                   }`}
                 >
                   <Users size={13} className="shrink-0" />
-                  <span className="sm:hidden">Faculty ({submissions.length + (pendingApprovals?.length || 0)})</span>
-                  <span className="hidden sm:inline">Faculty & Submissions ({submissions.length + (pendingApprovals?.length || 0)})</span>
+                  <span className="md:hidden">Faculty ({submissions.length + (pendingApprovals?.length || 0)})</span>
+                  <span className="hidden md:inline">Faculty & Submissions ({submissions.length + (pendingApprovals?.length || 0)})</span>
                   {pendingApprovals.length > 0 && (
                     <span className="ml-1 px-1.5 py-0.2 text-[9px] font-black rounded-full bg-amber-500 text-white animate-pulse" title={`${pendingApprovals.length} pending approval`}>
                       {pendingApprovals.length}
@@ -1759,14 +1759,14 @@ function AdminPracticals() {
                   }`}
                 >
                   <Settings size={12} className="shrink-0" />
-                  <span className="sm:hidden">Settings</span>
-                  <span className="hidden sm:inline">Settings & Permissions</span>
+                  <span className="md:hidden">Settings</span>
+                  <span className="hidden md:inline">Settings & Permissions</span>
                 </button>
               </div>
             </div>
 
-            {/* Excel Quick Actions Group (Unified Template & Import) & Recycle Bin - outside scrollable container */}
-            <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700 shrink-0 relative z-40">
+            {/* Excel Quick Actions Group (Unified Template & Import) & Recycle Bin */}
+            <div className="flex items-center gap-1.5 pl-0 sm:pl-2 border-t sm:border-t-0 sm:border-l border-slate-200 dark:border-slate-700 pt-1 sm:pt-0 shrink-0 relative z-40">
               <div className="relative shrink-0" ref={excelMenuRef}>
                 <button
                   type="button"
@@ -3211,7 +3211,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
       {/* Data Grid Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs overflow-x-auto">
-        <table className="w-full text-left text-[11px] border-collapse">
+        <table className="w-full min-w-[950px] text-left text-[11px] border-collapse">
           <thead className="bg-sky-50 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-700 dark:text-slate-300 border-b border-sky-100 dark:border-slate-800">
             <tr>
               <th className="py-2 px-2 text-center">#</th>
@@ -5078,17 +5078,17 @@ function FacultySubmissionsView({
       {/* STAT SUMMARY BANNER */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-xs font-black text-indigo-700 dark:text-indigo-300 shadow-2xs border border-indigo-200/60 dark:border-indigo-800/60 flex items-center gap-1.5">
+          <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-xs font-black text-indigo-700 dark:text-indigo-300 shadow-2xs border border-indigo-200/60 dark:border-indigo-800/60 flex items-center gap-1.5 whitespace-nowrap">
             <Users size={13} /> {facultyMembers.length} Evaluators
           </span>
-          <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-xs font-black text-slate-700 dark:text-slate-300 shadow-2xs border border-slate-200 dark:border-slate-800 flex items-center gap-1.5">
-            <FileSpreadsheet size={13} className="text-emerald-500" /> {allDocs.length} Total Practical Documents
+          <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-xs font-black text-slate-700 dark:text-slate-300 shadow-2xs border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 whitespace-nowrap">
+            <FileSpreadsheet size={13} className="text-emerald-500" /> {allDocs.length} <span className="hidden sm:inline">Total </span>Docs
           </span>
-          <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-xs font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
+          <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-xs font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 whitespace-nowrap">
             <CheckCircle2 size={13} /> {submissions.length} Approved & Live
           </span>
           {pendingApprovals.length > 0 && (
-            <span className="px-2.5 py-1 rounded-xl bg-amber-500 text-white text-xs font-black shadow-xs flex items-center gap-1.5 animate-pulse">
+            <span className="px-2.5 py-1 rounded-xl bg-amber-500 text-white text-xs font-black shadow-xs flex items-center gap-1.5 animate-pulse whitespace-nowrap">
               <AlertTriangle size={13} /> {pendingApprovals.length} Pending Approval
             </span>
           )}
@@ -5098,7 +5098,7 @@ function FacultySubmissionsView({
           <button
             type="button"
             onClick={toggleExpandAll}
-            className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800 text-xs font-bold cursor-pointer flex items-center gap-1 transition-all shadow-2xs shrink-0"
+            className="w-full sm:w-auto px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800 text-xs font-bold cursor-pointer flex items-center justify-center sm:justify-start gap-1 transition-all shadow-2xs shrink-0 whitespace-nowrap"
           >
             {expandedFacultyIds.size === facultyMembers.length ? (
               <>
@@ -5116,39 +5116,43 @@ function FacultySubmissionsView({
       {/* TOOLBAR CONTROLS: VIEW MODE, FILTERS & SEARCH */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
         {/* View Mode Segmented Pill */}
-        <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+        <div className="w-full sm:w-auto grid grid-cols-2 sm:flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
           <button
             type="button"
             onClick={() => setViewMode('combined')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
               viewMode === 'combined'
                 ? 'bg-indigo-600 text-white shadow-2xs font-black'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Users size={13} />
-            <span>Combined Faculty Roster ({facultyMembers.length})</span>
+            <Users size={13} className="shrink-0" />
+            <span className="hidden sm:inline">Combined Faculty Roster</span>
+            <span className="sm:hidden">Faculty Roster</span>
+            <span>({facultyMembers.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setViewMode('documents')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
               viewMode === 'documents'
                 ? 'bg-indigo-600 text-white shadow-2xs font-black'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <FileText size={13} />
-            <span>Master Document Audit ({allDocs.length})</span>
+            <FileText size={13} className="shrink-0" />
+            <span className="hidden sm:inline">Master Document Audit</span>
+            <span className="sm:hidden">Document Audit</span>
+            <span>({allDocs.length})</span>
           </button>
         </div>
 
         {/* Filters Tray: Class, Subject, Status & Search */}
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
           <select
             value={filterClass}
             onChange={e => setFilterClass(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+            className="w-full sm:w-auto px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
           >
             <option value="all">All Classes</option>
             <option value="10th">Class 10th</option>
@@ -5159,7 +5163,7 @@ function FacultySubmissionsView({
           <select
             value={filterSubject}
             onChange={e => setFilterSubject(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs max-w-[150px]"
+            className="w-full sm:w-auto px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs max-w-none sm:max-w-[160px] truncate"
           >
             <option value="all">All Subjects</option>
             {CODES.map(c => <option key={c} value={c}>{getSubjectDisplayName(c, filterClass)} ({c})</option>)}
@@ -5168,14 +5172,14 @@ function FacultySubmissionsView({
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+            className="w-full sm:w-auto px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
           >
             <option value="all">All Statuses</option>
             <option value="pending">Pending Approval Only</option>
             <option value="approved">Approved Only</option>
           </select>
 
-          <div className="relative w-full sm:w-56">
+          <div className="relative col-span-2 sm:w-56 w-full">
             <input
               type="text"
               placeholder="Search faculty, subject, email..."
@@ -5199,17 +5203,17 @@ function FacultySubmissionsView({
 
       {/* VIEW 1: COMBINED FACULTY ROSTER (WITH EXPANDABLE DOCUMENT AUDIT DRAWER PER TEACHER) */}
       {viewMode === 'combined' && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs bg-white dark:bg-slate-900">
+          <table className="w-full min-w-[960px] text-left text-xs border-collapse">
             <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-500">
               <tr>
-                <th className="py-2.5 px-3 text-center w-10">#</th>
-                <th className="py-2.5 px-3">Faculty / Evaluator</th>
-                <th className="py-2.5 px-3">Mobile / WhatsApp</th>
-                <th className="py-2.5 px-3">Role</th>
-                <th className="py-2.5 px-3">Practical Submissions (Internal & External)</th>
-                <th className="py-2.5 px-3 text-center">Audit Drawer</th>
-                <th className="py-2.5 px-3 text-right">Actions</th>
+                <th className="py-2.5 px-3 text-center w-10 whitespace-nowrap">#</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Faculty / Evaluator</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Mobile / WhatsApp</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Role</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Practical Submissions (Internal & External)</th>
+                <th className="py-2.5 px-3 text-center whitespace-nowrap">Audit Drawer</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
@@ -5313,8 +5317,8 @@ function FacultySubmissionsView({
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase whitespace-nowrap inline-block">
                           {t.role || 'Teacher'}
                         </span>
                       </td>
@@ -5328,11 +5332,12 @@ function FacultySubmissionsView({
                               const extCount = g.external ? (Array.isArray(g.external.records) ? g.external.records.length : Object.keys(g.external).filter(k => k.match(/^\d+\//)).length) : 0;
                               const isIntPending = g.internal?.isPending;
                               const isExtPending = g.external?.isPending;
+                              const cleanName = String(g.name || '').replace(new RegExp(`\\s*\\(${g.code}\\)`, 'gi'), '').trim();
 
                               return (
                                 <div key={gIdx} className="flex items-center gap-2 flex-wrap bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
-                                  <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
-                                    {g.cls} • {g.name} ({g.code}):
+                                  <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                    {g.cls} • {cleanName || g.name} ({g.code}):
                                   </span>
 
                                   {/* Internal Submission Badge */}
@@ -5497,16 +5502,16 @@ function FacultySubmissionsView({
                                 No practical submissions recorded for this faculty member yet.
                               </div>
                             ) : (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs border-collapse">
+                              <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+                                <table className="w-full min-w-[700px] text-left text-xs border-collapse">
                                   <thead>
                                     <tr className="border-b border-slate-100 dark:border-slate-800 text-[9.5px] uppercase font-black text-slate-400">
-                                      <th className="py-2 px-2.5">Document ID</th>
-                                      <th className="py-2 px-2.5">Class & Subject</th>
-                                      <th className="py-2 px-2.5">Session & Type</th>
-                                      <th className="py-2 px-2.5 text-center">Records</th>
-                                      <th className="py-2 px-2.5 text-center">Status</th>
-                                      <th className="py-2 px-2.5 text-right">Actions</th>
+                                      <th className="py-2 px-2.5 whitespace-nowrap">Document ID</th>
+                                      <th className="py-2 px-2.5 whitespace-nowrap">Class & Subject</th>
+                                      <th className="py-2 px-2.5 whitespace-nowrap">Session & Type</th>
+                                      <th className="py-2 px-2.5 text-center whitespace-nowrap">Records</th>
+                                      <th className="py-2 px-2.5 text-center whitespace-nowrap">Status</th>
+                                      <th className="py-2 px-2.5 text-right whitespace-nowrap">Actions</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
@@ -5515,23 +5520,23 @@ function FacultySubmissionsView({
                                       const sessStr = normalizePracticalSession(doc.sessionText || doc.session || doc.Session || doc.yearSuffix || '2025-26');
                                       return (
                                         <tr key={`doc_${doc.id}_${dIdx}`} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${doc.isPending ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''}`}>
-                                          <td className="py-2 px-2.5 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">{doc.id}</td>
-                                          <td className="py-2 px-2.5 font-bold text-slate-900 dark:text-slate-100">
+                                          <td className="py-2 px-2.5 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400 max-w-[160px] truncate" title={doc.id}>{doc.id}</td>
+                                          <td className="py-2 px-2.5 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                                             {formatClassDisplay(doc.className || doc.Class, doc)} • {doc.subjectName || doc.Subject || getSubjectDisplayName(doc.subjectCode, doc.className || doc.Class) || doc.subjectCode}
                                           </td>
-                                          <td className="py-2 px-2.5">
-                                            <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                          <td className="py-2 px-2.5 whitespace-nowrap">
+                                            <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap inline-block">
                                               {sessStr} • {toTitleCase(doc.practicalType || 'Internal')}
                                             </span>
                                           </td>
-                                          <td className="py-2 px-2.5 text-center font-mono font-bold text-emerald-600">{recCount}</td>
-                                          <td className="py-2 px-2.5 text-center">
+                                          <td className="py-2 px-2.5 text-center font-mono font-bold text-emerald-600 whitespace-nowrap">{recCount}</td>
+                                          <td className="py-2 px-2.5 text-center whitespace-nowrap">
                                             {doc.isPending ? (
-                                              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9.5px] font-black uppercase tracking-wider animate-pulse">
+                                              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9.5px] font-black uppercase tracking-wider animate-pulse whitespace-nowrap inline-block">
                                                 Pending Approval
                                               </span>
                                             ) : (
-                                              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px] font-bold uppercase tracking-wider">
+                                              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px] font-bold uppercase tracking-wider whitespace-nowrap inline-block">
                                                 Approved
                                               </span>
                                             )}
@@ -5608,18 +5613,18 @@ function FacultySubmissionsView({
       {/* VIEW 2: MASTER DOCUMENT AUDIT LOG (ALL SUBMISSIONS INCLUDING PENDING) */}
       {viewMode === 'documents' && (
         <div className="space-y-3">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs bg-white dark:bg-slate-900">
+            <table className="w-full min-w-[960px] text-left text-xs border-collapse">
               <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-500">
                 <tr>
-                  <th className="py-2.5 px-3 text-center w-10">#</th>
-                  <th className="py-2.5 px-3">Document ID / Title</th>
-                  <th className="py-2.5 px-3">Class & Subject</th>
-                  <th className="py-2.5 px-3">Session & Type</th>
-                  <th className="py-2.5 px-3">Submitted By</th>
-                  <th className="py-2.5 px-3 text-center">Records</th>
-                  <th className="py-2.5 px-3 text-center">Status</th>
-                  <th className="py-2.5 px-3 text-right">Actions</th>
+                  <th className="py-2.5 px-3 text-center w-10 whitespace-nowrap">#</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Document ID / Title</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Class & Subject</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Session & Type</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Submitted By</th>
+                  <th className="py-2.5 px-3 text-center whitespace-nowrap">Records</th>
+                  <th className="py-2.5 px-3 text-center whitespace-nowrap">Status</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
@@ -5633,28 +5638,28 @@ function FacultySubmissionsView({
                         s.isPending ? 'bg-amber-50/30 dark:bg-amber-950/20' : ''
                       }`}
                     >
-                      <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
-                      <td className="py-2.5 px-3 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">{s.id}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">
+                      <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px] whitespace-nowrap">{idx + 1}</td>
+                      <td className="py-2.5 px-3 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400 max-w-[220px] truncate" title={s.id}>{s.id}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                         {formatClassDisplay(s.className || s.Class, s)} • {s.subjectName || s.Subject || getSubjectDisplayName(s.subjectCode, s.className || s.Class) || s.subjectCode || 'Subject'}
                       </td>
-                      <td className="py-2.5 px-3">
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap inline-block">
                           {sessStr} • {toTitleCase(s.practicalType || 'Internal')}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3">
+                      <td className="py-2.5 px-3 whitespace-nowrap">
                         <div className="font-bold text-slate-800 dark:text-slate-200">{s.teacherName || s.submittedByName || s.submittedBy || s['Teacher Name'] || 'Teacher'}</div>
                         <div className="text-[10px] text-slate-400 font-mono">{s.teacherEmail || s.submittedByEmail || s.Email || '-'}</div>
                       </td>
-                      <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-600">{recCount}</td>
-                      <td className="py-2.5 px-3 text-center">
+                      <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-600 whitespace-nowrap">{recCount}</td>
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         {s.isPending ? (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9.5px] font-black uppercase tracking-wider animate-pulse">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9.5px] font-black uppercase tracking-wider animate-pulse whitespace-nowrap inline-block">
                             Pending Approval
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px] font-bold uppercase tracking-wider">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px] font-bold uppercase tracking-wider whitespace-nowrap inline-block">
                             Approved
                           </span>
                         )}
@@ -6220,15 +6225,15 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
 
       {/* Subject Marks Minimal High-Density Table */}
       <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs bg-white dark:bg-slate-900">
-        <div className="max-h-[560px] overflow-y-auto">
-          <table className="w-full text-left border-collapse text-xs">
+        <div className="max-h-[560px] overflow-y-auto overflow-x-auto">
+          <table className="w-full min-w-[620px] text-left border-collapse text-xs">
             <thead className="bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase text-[9.5px] font-black sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 tracking-wider">
               <tr>
-                <th className="py-2 px-2.5 w-10 text-center text-slate-400">#</th>
-                <th className="py-2 px-3">Subject & Stream</th>
-                <th className="py-2 px-3 text-center w-36">Max Marks</th>
-                <th className="py-2 px-3 text-center w-36">Pass Marks</th>
-                <th className="py-2 px-3 text-center w-36 hidden sm:table-cell">Pass Ratio</th>
+                <th className="py-2 px-2.5 w-10 text-center text-slate-400 whitespace-nowrap">#</th>
+                <th className="py-2 px-3 whitespace-nowrap">Subject & Stream</th>
+                <th className="py-2 px-3 text-center w-36 whitespace-nowrap">Max Marks</th>
+                <th className="py-2 px-3 text-center w-36 whitespace-nowrap">Pass Marks</th>
+                <th className="py-2 px-3 text-center w-36 hidden sm:table-cell whitespace-nowrap">Pass Ratio</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
@@ -6644,12 +6649,12 @@ function SettingsPermissionsView({
 
       {/* VIEW 3: GLOBAL CONFIGURATION & OFFICIAL PRINT DEFAULTS */}
       {activeSettingsTab === 'system' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-          {/* Card 1: Global System Configuration (lg:col-span-5) */}
-          <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="space-y-4">
+          {/* Card 1: Global System Configuration */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs">
+                <div className="w-8 h-8 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs shrink-0">
                   <Settings size={16} strokeWidth={2.5} />
                 </div>
                 <div>
@@ -6662,9 +6667,10 @@ function SettingsPermissionsView({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={handleSaveSys}
                 disabled={saving}
-                className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
+                className={`w-full sm:w-auto px-3.5 py-1.5 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${
                   sysSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                 }`}
               >
@@ -6672,7 +6678,7 @@ function SettingsPermissionsView({
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
               <div>
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
                   Active Academic Session
@@ -6681,7 +6687,7 @@ function SettingsPermissionsView({
                   type="text"
                   value={settings.currentAcademicSession || '2025-26'}
                   onChange={e => setSettings({ ...settings, currentAcademicSession: e.target.value })}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   placeholder="2025-26"
                 />
               </div>
@@ -6693,7 +6699,7 @@ function SettingsPermissionsView({
                 <select
                   value={settings.defaultEvaluationType || 'internal'}
                   onChange={e => setSettings({ ...settings, defaultEvaluationType: e.target.value })}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs cursor-pointer"
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                 >
                   <option value="internal">Internal Assessment</option>
                   <option value="external">External / Outside Assessment</option>
@@ -6708,7 +6714,7 @@ function SettingsPermissionsView({
                   type="text"
                   value={settings.absentMarker || 'AB'}
                   onChange={e => setSettings({ ...settings, absentMarker: e.target.value })}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   placeholder="AB"
                 />
               </div>
@@ -6721,7 +6727,7 @@ function SettingsPermissionsView({
                   type="text"
                   value={settings.nonPractical10 || ''}
                   onChange={e => setSettings({ ...settings, nonPractical10: e.target.value })}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   placeholder="Codes (e.g. HTC, ITE)"
                 />
               </div>
@@ -6734,7 +6740,7 @@ function SettingsPermissionsView({
                   type="text"
                   value={settings.nonPractical11 || ''}
                   onChange={e => setSettings({ ...settings, nonPractical11: e.target.value })}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   placeholder="Codes (e.g. HTC, ITE)"
                 />
               </div>
@@ -6747,18 +6753,18 @@ function SettingsPermissionsView({
                   type="text"
                   value={settings.nonPractical12 || ''}
                   onChange={e => setSettings({ ...settings, nonPractical12: e.target.value })}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   placeholder="Codes (e.g. HTC, ITE)"
                 />
               </div>
             </div>
           </div>
 
-          {/* Card 2: Official Document Print Headers (lg:col-span-7) */}
-          <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          {/* Card 2: Official Document Print Headers */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-xs">
+                <div className="w-8 h-8 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-xs shrink-0">
                   <Printer size={16} strokeWidth={2.5} />
                 </div>
                 <div>
@@ -6771,9 +6777,10 @@ function SettingsPermissionsView({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={handleSavePrint}
                 disabled={saving}
-                className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
+                className={`w-full sm:w-auto px-3.5 py-1.5 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${
                   printSaved ? 'bg-indigo-600 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 }`}
               >
@@ -6781,65 +6788,70 @@ function SettingsPermissionsView({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 text-xs">
               {['10th', '11th', '12th'].map(c => (
-                <div key={c} className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5">
-                  <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
-                    <Award size={13} className="text-indigo-500" /> Class {c} Print Headers
-                  </h4>
-                  <div className="space-y-2">
+                <div key={c} className="p-4 bg-slate-50/70 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+                    <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                      <Award size={14} className="text-indigo-500" /> Class {c} Print Headers
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-black text-[10px]">
+                      Official Scheme
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
                     <div>
-                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Institution Name</label>
+                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-1">Institution Name</label>
                       <input
                         type="text"
                         placeholder="Institution Name"
                         value={settings.printDetails?.[c]?.instName || 'Govt. Higher Secondary School Shangus'}
                         onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], instName: e.target.value } } }))}
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs shadow-2xs focus:ring-2 focus:ring-indigo-500 outline-none"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div>
-                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Session Text</label>
+                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-1">Session Text</label>
                         <input
                           type="text"
                           placeholder="Session (e.g. 2025-26)"
                           value={settings.printDetails?.[c]?.sessionText || '2025-26'}
                           onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], sessionText: e.target.value } } }))}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                          className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs shadow-2xs focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                       </div>
                       <div>
-                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge Name</label>
+                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-1">Incharge Name</label>
                         <input
                           type="text"
                           placeholder="Incharge Name"
                           value={settings.printDetails?.[c]?.inchargeName || (c === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar')}
                           onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeName: e.target.value } } }))}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                          className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs shadow-2xs focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div>
-                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge CPIS</label>
+                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-1">Incharge CPIS</label>
                         <input
                           type="text"
                           placeholder="CPIS Code"
                           value={settings.printDetails?.[c]?.inchargeCpis || (c === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017')}
                           onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeCpis: e.target.value } } }))}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                          className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs shadow-2xs focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                       </div>
                       <div>
-                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge Mobile</label>
+                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-1">Incharge Mobile</label>
                         <input
                           type="tel"
                           maxLength={10}
                           placeholder="10-digit mobile"
                           value={settings.printDetails?.[c]?.inchargeMobile || (c === '12th' ? '9596165142' : '7006537425')}
                           onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeMobile: e.target.value.replace(/\D/g, '') } } }))}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                          className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs shadow-2xs focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                       </div>
                     </div>

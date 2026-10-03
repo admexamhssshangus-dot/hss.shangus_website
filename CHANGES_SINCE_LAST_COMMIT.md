@@ -1,73 +1,73 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): merge practicals history from e.educational admin to socialshiftz teacher email and exclude admin from faculty roster`
+- **Commit Message**: `fix(practicals): make practicals admin portal fully responsive and resolve layout squishing`
 - **Date**: October 03, 2026
-- **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Jest tests passed (`Exit Code 0`).
+- **Status**: Production Build Passed (`Exit Code 0`), verified locally with SEO and static prerendering checks passed.
 
 ---
 
 ## Architectural Purpose & Issues Resolved
 
 ### Problem Statement
-1. **Duplicate Faculty Entries in Admin Practicals Roster**:
-   - In the Practicals Faculty & Evaluator Submissions view, Sheikh Gulfam appeared twice:
-     - Row 2: Sheikh Gulfam (`e.educational.24@gmail.com`) with role badge `EXAMINER`, displaying Botany 11th (Internal 86, External 170) and 12th (Internal 105).
-     - Row 3: Sheikh Gulfam (`socialshiftz@gmail.com`) with role badge `TEACHER`, displaying the exact same Botany practical documents.
-2. **Account Role Ambiguity**:
-   - `e.educational.24@gmail.com` is the primary institutional Master Admin email account, whereas `socialshiftz@gmail.com` is Sheikh Gulfam's official Teacher/Faculty email.
-   - Historical Botany practical evaluations and audit versions were created or logged using `e.educational.24@gmail.com`.
-   - In `AdminPracticals.jsx`, `setTeachers` included users with `role === 'admin'`. Because `e.educational.24@gmail.com` had `name: 'Sheikh Gulfam'` and `socialshiftz@gmail.com` also had `name: 'Sheikh Gulfam'`, fuzzy name matching linked the same Botany documents to both accounts.
-3. **Teacher Portal Ownership & Access**:
-   - When Sheikh Gulfam signs in with his official teacher email `socialshiftz@gmail.com`, any historical practical submissions originally created under `e.educational.24@gmail.com` must be seamlessly owned, accessible, and editable in the Teacher Workspace without UID or email mismatches.
+1. **Broken Word Wrapping on Smaller Laptops and Tablets**:
+   - In the **Master Document Audit** table:
+     - The `RECORDS` column header was squished and wrapped mid-word as `RECORD \n S`.
+     - The `STATUS` column badge was breaking mid-word as `APPROVE \n D`.
+   - In the **Combined Faculty Roster** table:
+     - The role badge was breaking mid-word as `EXAMINE \n R`.
+     - Subject codes were rendering with repetitive tags (e.g., `11th • Botany (BO) (BO)`).
+2. **Cramped Settings & Print Document Defaults**:
+   - In **Settings & Permissions -> System & Print Defaults**:
+     - The two primary configuration cards were constrained into `lg:col-span-5` and `lg:col-span-7`.
+     - Inside `Print Document Defaults`, the 3 class header groups (Class 10th, Class 11th, Class 12th) were compressed into `xl:grid-cols-3` and each into `grid grid-cols-2`.
+     - Each input was squeezed to approximately ~85px width, truncating crucial administrative text such as `Govt. Higher Secondary Scho...`, `Mr. Nawaz A...`, `SHGEDUO0...`, `700603450...`, and `Annual Regu...`.
+3. **Table Cramping Without Horizontal Scroll on Mobile & Touch Devices**:
+   - Data tables (Combined Faculty Roster, Master Document Audit, Class Awards Data Grid, and Subject Marks Matrix) lacked responsive container minimum widths and proper overflow boundaries, squeezing columns together rather than allowing fluid horizontal scrolling.
 
 ---
 
 ## Changes Implemented
 
-### 1. Firestore Database Consolidation
-- **Executed Migration Script**: [scripts/merge_gulfam_practicals_history.mjs](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/merge_gulfam_practicals_history.mjs)
-  - **`practicalsData` Collection**:
-    - `11th_BO_external_2024-25_(Oct-Nov)`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
-    - `11th_BO_internal_2024-25_(Oct-Nov)`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
-    - `11th_Botany_Pre-Board Test_2025-26`: confirmed canonical ownership by `socialshiftz@gmail.com`.
-    - `12th_BO_internal_2024-25_(Oct-Nov)`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
-    - `12th_Botany_Internal Assessment_2025-26`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
-    - `12th_Botany_Pre-Board Test_2025-26`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
-    - `history_11th_Botany_Pre-Board Test_2025-26_1789487999790`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`.
-  - **`practicalsBin` Collection**:
-    - Updated 10 historical audit log and trash bin entries to `socialshiftz@gmail.com`.
-  - **`adminPracticalsSettings/config` Collection**:
-    - Added `'e.educational.24@gmail.com'` to `excludedTeacherEmails`.
-
-### 2. Admin Practicals Portal Normalization & Deduplication
+### 1. Header Toolbar & Navigation Ribbon
 - File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
-  - Added `'e.educational.24@gmail.com'` to `DEFAULT_EXCLUDED_TEACHERS`.
-  - In `parsePracticalsSnap`: Automatically normalizes any practicals submission with `e.educational` to `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`.
-  - In `setTeachers`: Filters out pure administrative roles (`admin`) and strictly excludes `e.educational` from the faculty roster.
-  - In `isDocMatchingTeacher` and `facultyMembers`:
-    - Normalizes `dEmail` from `e.educational` to `socialshiftz@gmail.com`.
-    - Strictly prevents the institutional admin email from claiming teacher submissions.
-    - Prevents orphan or fallback evaluator rows from rendering for `e.educational`.
+  - Switched layout from `flex-col md:flex-row` to `flex-col xl:flex-row items-start xl:items-center justify-between gap-3`.
+  - Reorganized action buttons into `flex flex-wrap items-center justify-between sm:justify-start xl:justify-end gap-2 w-full xl:w-auto`.
+  - Added responsive text visibility: `<span className="md:hidden">Faculty</span><span className="hidden md:inline">Faculty & Submissions</span>` and `<span className="md:hidden">Settings</span><span className="hidden md:inline">Settings & Permissions</span>`.
+  - Separated utility tools (Excel dropdown and Recycle Bin) with responsive borders and padding.
 
-### 3. Unified Submissions Ownership in Teacher Portal
-- File: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
-  - In `isSubmissionOwnedByTeacher`:
-    - Normalizes both `itemEmail` and `currentEmail` aliasing `e.educational` to `socialshiftz@gmail.com`.
-    - Allows email alias matching across accounts even if Firebase Auth UIDs differ, ensuring Sheikh Gulfam logged in as `socialshiftz@gmail.com` can view, generate award rolls, and edit all historical submissions.
+### 2. Faculty & Submissions View
+- File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
+  - **Stat Badges**: Added `whitespace-nowrap`, adaptive text labels (`<span className="hidden sm:inline">Total </span>Docs`), and clean responsive wrapping.
+  - **View Mode Switcher**: Enhanced to a responsive grid on small viewports (`w-full sm:w-auto grid grid-cols-2 sm:flex`) with clean labels (`Faculty Roster`, `Master Audit`).
+  - **Filter Toolbar**: Converted to `grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto` for seamless touch accessibility.
+  - **Combined Faculty Roster Table**:
+    - Added container with `overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs` and `min-w-[960px]`.
+    - Added `whitespace-nowrap` to all column headers and role badges (`whitespace-nowrap inline-block`), permanently eliminating mid-word breaks like `EXAMINE \n R`.
+    - Sanitized duplicate subject abbreviations in the submissions column with regex deduplication.
+  - **Faculty Drawer Submissions Table**:
+    - Wrapped in `overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800` with `min-w-[700px]` and `whitespace-nowrap` badge formatting.
+  - **Master Document Audit Table**:
+    - Wrapped in `overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs` with `min-w-[960px]`.
+    - Added `whitespace-nowrap` to `RECORDS` and `STATUS` headers and badges, eliminating `RECORD \n S` and `APPROVE \n D`.
+    - Added clean truncation with tooltip fallback (`max-w-[220px] truncate title={s.id}`) to prevent ultra-long document identifiers from pushing columns out of proportion.
 
-### 4. Audit & Verification Scripts
-- Files:
-  - [scripts/inspect_gulfam_practicals.mjs](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/inspect_gulfam_practicals.mjs): Deep audit script inspecting `practicalsData`, `practicalsBin`, `users`, and settings.
-  - [scripts/merge_gulfam_practicals_history.mjs](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/merge_gulfam_practicals_history.mjs): Migration script automating consolidation in Firestore.
+### 3. Subject Marks Matrix & Class Awards Data Grid
+- File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
+  - Added `min-w-[620px]` and `overflow-x-auto` to the high-density Marks Matrix table.
+  - Added `min-w-[950px]` to the student awards summary data table so student credentials, roll numbers, and all subject marks render cleanly with native horizontal scrolling on tablets and phones.
+
+### 4. System Configuration & Print Document Defaults
+- File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
+  - Completely replaced the cramped `lg:col-span-5` and `lg:col-span-7` column split with two full-width, spacious cards:
+    - **Card 1: Global System Configuration**: inputs organized in a responsive `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs`.
+    - **Card 2: Print Document Defaults & Official Headers**: organized into `grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 text-xs`.
+    - Inside each class card (10th, 11th, 12th): Institution Name is full-width, Session & Incharge Name in `grid grid-cols-1 sm:grid-cols-2 gap-2.5`, Incharge CPIS & Mobile in `grid grid-cols-1 sm:grid-cols-2 gap-2.5`. Every text input now has 175px–350px width with zero truncation.
 
 ---
 
 ## Files Changed
 - `src/portal/admin/AdminPracticals.jsx` (Modified)
-- `src/utils/practicalsPdfGenerator.js` (Modified)
-- `scripts/inspect_gulfam_practicals.mjs` (Added)
-- `scripts/merge_gulfam_practicals_history.mjs` (Added)
 - `CHANGES_SINCE_LAST_COMMIT.md` (Updated)
 
 ---
@@ -89,7 +89,7 @@ If you wish to modify the commit message or make further edits:
 ```bash
 git reset --soft HEAD~1
 # (make edits or stage new changes)
-git commit -m "fix(practicals): merge practicals history from e.educational admin to socialshiftz teacher email and exclude admin from faculty roster"
+git commit -m "fix(practicals): make practicals admin portal fully responsive and resolve layout squishing"
 ```
 
 ### 3. How to Push Changes
