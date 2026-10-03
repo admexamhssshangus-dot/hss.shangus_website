@@ -24,7 +24,7 @@ import {
 } from 'docx';
 import { findStudentMarkRecord, resolveAwardRollTitles, isStudentEnrolledInPracticalSubject, getAbbreviatedSubjects, hasSubjectPracticalSubmission, getCurrentOfficialExamRoll } from './practicalsPdfGenerator';
 import { isStudentExamDropped } from './studentApprovalStatus';
-import { getSubjectDisplayName, normalizePracticalSession } from './practicalsSettingsManager';
+import { getSubjectDisplayName, normalizePracticalSession, isMatchingSubjectCode } from './practicalsSettingsManager';
 
 export const CSV_COLUMNS = [
   'Class',
@@ -421,8 +421,8 @@ export function exportConsolidatedAwardsToExcel({
           const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || '').trim();
           const subDoc = submissions.find(s => {
             if (!isSubDocMatch(s)) return false;
-            const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-            return codeStr === sub.code || codeStr.includes(sub.code);
+            const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+            return isMatchingSubjectCode(codeStr, sub.code);
           });
           if (subDoc && subDoc.records && rNo) {
             const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || '').trim() === rNo);
@@ -436,8 +436,8 @@ export function exportConsolidatedAwardsToExcel({
       if (count === 0 && submissions && submissions.length > 0) {
         const subDoc = submissions.find(s => {
           if (!isSubDocMatch(s)) return false;
-          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-          return codeStr === sub.code || codeStr.includes(sub.code);
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+          return isMatchingSubjectCode(codeStr, sub.code);
         });
         if (subDoc && subDoc.records) count = subDoc.records.length;
       }
@@ -521,8 +521,8 @@ export function exportConsolidatedAwardsToExcel({
 
       const subDoc = submissions.find(s => {
         if (!isSubDocMatch(s)) return false;
-        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-        return codeStr === sub.code || codeStr.includes(sub.code);
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+        return isMatchingSubjectCode(codeStr, sub.code);
       });
 
       let foundMark = null;
@@ -692,8 +692,8 @@ export async function exportConsolidatedAwardsToDocx({
           const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
           const subDoc = submissions.find(s => {
             if (!isSubDocMatch(s)) return false;
-            const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-            return codeStr === sub.code || codeStr.includes(sub.code);
+            const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+            return isMatchingSubjectCode(codeStr, sub.code);
           });
           if (subDoc && subDoc.records && rNo) {
             const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || r.roll || '').trim() === rNo);
@@ -707,8 +707,8 @@ export async function exportConsolidatedAwardsToDocx({
       if (count === 0 && submissions && submissions.length > 0) {
         const subDoc = submissions.find(s => {
           if (!isSubDocMatch(s)) return false;
-          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-          return codeStr === sub.code || codeStr.includes(sub.code);
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+          return isMatchingSubjectCode(codeStr, sub.code);
         });
         if (subDoc && subDoc.records) count = subDoc.records.length;
       }
@@ -893,8 +893,8 @@ export async function exportConsolidatedAwardsToDocx({
       } else {
         const subDoc = submissions.find(s => {
           if (!isSubDocMatch(s)) return false;
-          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-          return codeStr === sub.code || codeStr.includes(sub.code);
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+          return isMatchingSubjectCode(codeStr, sub.code);
         });
 
         const rec = findStudentMarkRecord(subDoc, st);
@@ -995,8 +995,8 @@ export async function exportConsolidatedAwardsToDocx({
             if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
           }
         }
-        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-        return codeStr === sub.code || codeStr.includes(sub.code) || (sub.code === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')));
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+        return isMatchingSubjectCode(codeStr, sub.code);
       });
       const examinerName = subDoc ? (subDoc.teacherName || subDoc['Teacher Name'] || subDoc.submittedByName || subDoc.submittedBy || '') : '';
 

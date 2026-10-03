@@ -1,88 +1,90 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): align official cohort enrollment (10th: 60, 11th: 198 with 2 dropped, 12th: 203) & fix approval syntax`
+- **Commit Message**: `fix(practicals-and-results): isolate Healthcare from History, fix candidate lookup & explain evaluation boundary`
 - **Date**: October 03, 2026
-- **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Jest tests passed (`31/31 passed`, `Exit Code 0`).
+- **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Jest test suites passed (`59/59 passed`, `Exit Code 0`).
 
 ---
 
-## Institutional Enrollment & Cohort Alignment
+## 1. Healthcare (`HTC`) vs History (`HT`) Infiltration Diagnosis & Resolution
 
-### Official Session 2025–26 Student Invariants
-1. **Class 10th**:
-   - Total Enrolled with assigned Class Roll Numbers: **60 students** (Rolls `1` to `60`).
-   - Dropped / Discharged: **0**.
-   - Active Approved Examinees: **60**.
-2. **Class 11th**:
-   - Total Enrolled with assigned Class Roll Numbers: **198 students** (Rolls `1` to `209`).
-   - Dropped Category: Exactly **2 students**:
-     - `Seher Un Nisa` (Class Roll No. `72`)
-     - `Wanhar Ahmad Malik` (Class Roll No. `186`)
-   - Active Approved Examinees: **196**.
-3. **Class 12th**:
-   - Total Enrolled with assigned Class Roll Numbers: **203 students** (Rolls `1` to `203`).
-   - Dropped Category: **0**.
-   - Active Approved Examinees: **203**.
-   - Subject Breakdown:
-     - **Botany (BO)**: **105 students** (Medical stream).
-     - **Zoology (ZO)**: **105 students** (Medical stream).
-     - **Physics (PH)**: **112 students** (105 Medical + 7 Non-Medical).
-     - **Chemistry (CH)**: **112 students** (105 Medical + 7 Non-Medical).
-     - **General English (EN)**: **203 students** (All enrolled Class 12th examinees).
+### Root Cause
+- The JKBOSE subject code for **History** is `HT`.
+- The JKBOSE vocational subject code for **Healthcare** is `HTC`.
+- Multiple core files (`AdminPracticals.jsx`, `practicalsPdfGenerator.js`, `practicalsCsvManager.js`) relied on naive substring checks:
+  ```javascript
+  codeStr === subCode || codeStr.includes(subCode)
+  ```
+- Because in JavaScript `'HTC'.includes('HT') === true`:
+  - Whenever an admin filtered by **History (`HT`)**, all **Healthcare (`HTC`)** teacher submissions and audit records matched.
+  - In the tabular marks ledger, `getSubjectMarkForStudent(st, 'HT')` matched `11th_Healthcare_Internal Assessment`, pulling Healthcare marks into the History column for students taking both subjects.
+  - In `subjectsWithSubmissions`, History was highlighted as having submitted marks even when only Healthcare had been submitted.
+  - In PDF/CSV/Word export generators, History documents and matrices were contaminated with Healthcare entries.
 
----
-
-## Issues Addressed & Changes Implemented
-
-### 1. Syntax Fix & Dropped Logic in `studentApprovalStatus.js`
-- **File**: [src/utils/studentApprovalStatus.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/studentApprovalStatus.js)
-  - Fixed syntax error in `isStudentExamDropped` where a stray `return (` preceded a code block `{ return true; }`, causing Babel/Jest parser errors. Corrected to `if (...) { return true; }`.
-  - Added explicit institutional dropped checks for Class 11th Rolls `72` and `186` (`Seher Un Nisa` & `Wanhar Ahmad Malik`).
-  - Enforced that for Session 2025–26, an examinee must possess an authentic assigned Class Roll Number (`hasRoll`) to be approved for practical returns; draft applications without rolls remain pending/unassigned.
-
-### 2. Dropped Category Badge & Offline Catalog Fallback in `AdminPracticals.jsx`
-- **File**: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
-  - Added `droppedCount` computation and UI badge in `AwardsSummaryView` displaying `(2 dropped)` when dropped students are detected for the class, preventing examinee confusion while preserving institutional records.
-  - Added offline catalog seed fallback: if live Firestore collections return empty (e.g. during free-tier quota exhaustion), the portal smoothly loads verified records from `verifiedStudentsCatalog.json`, ensuring zero downtime or blank screens.
-  - Synchronized `checkStudentApprovalState` in `AdminPracticals.jsx` with `studentApprovalStatus.js`.
-
-### 3. Comprehensive Unit Tests & Cohort Invariants
-- **File**: [src/utils/studentApprovalStatus.test.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/studentApprovalStatus.test.js)
-  - Created a dedicated unit test suite covering:
-    - Flagged dropped student status detection (`isExamDropped`, `dropped`, `status: 'dropped'`).
-    - Exact identification of Class 11th dropped examinees (Rolls 72 & 186).
-    - Session 2025–26 approval rules (assigned roll required, unassigned drafts pending).
-    - Invariant checks against `verifiedStudentsCatalog.json`:
-      - 10th: 60 enrolled, all 60 approved.
-      - 11th: 198 enrolled, 2 dropped, 196 approved.
-      - 12th: 203 enrolled, 203 approved, rolls 1 to 203 without duplicates.
+### Implemented Fix
+- Added and exported authoritative function `isMatchingSubjectCode(docSubjOrCode, targetCode)` in [src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js):
+  - **Strict History (`HT`) Guard**: Strictly rejects any string containing `HTC`, `HC`, or `HEALTH`/`HEALTHCARE`. Matches only genuine `HT`, `HIST`, or `HISTORY`.
+  - **Strict Healthcare (`HTC`) Guard**: Accurately matches `HTC`, `HC`, `HEALTHCARE`, and `HEALTH CARE`.
+  - **Strict Education (`ED`) Guard**: Strictly isolates from `PD`, `PED`, and `PHYSICAL EDUCATION`.
+  - **General Biology (`BI`) Composite**: Cleanly resolves `BO` (Botany) and `ZO` (Zoology).
+  - Handles non-alphanumeric boundary matches (`(^|[^A-Za-z0-9])`) to properly parse Firestore doc IDs containing underscores (e.g. `11th_Healthcare_Internal Assessment`).
+- Applied `isMatchingSubjectCode` across:
+  - [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx) (submissions memo, mark resolution, teacher filters, and document audit log).
+  - [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js) (individual award rolls, cover letters, hash matrices, audit summaries).
+  - [src/utils/practicalsCsvManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsCsvManager.js) (Excel, CSV, and Word export generators).
+- Created comprehensive unit test suite in [src/utils/practicalsSubjectMatching.test.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSubjectMatching.test.js) (7/7 tests passing).
 
 ---
 
-## Modified & Added Files
-1. [src/utils/studentApprovalStatus.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/studentApprovalStatus.js) (syntax fix & dropped rules)
-2. [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx) (dropped badge & offline fallback)
-3. [src/utils/studentApprovalStatus.test.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/studentApprovalStatus.test.js) (new unit & cohort test suite)
-4. [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md) (documentation update)
+## 2. Results Portal End-to-End Investigation
+
+### A. Why "No candidate record found for '2101003000300030' in Class 12th (2025–26)" Occurred
+- **Root Cause**: Student **Mhosin Wakeel** (Class 12th, Roll 154, Admission Form 250446) had an empty string for `"boardRegNo": ""` in [src/data/verifiedStudentsCatalog.json](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/data/verifiedStudentsCatalog.json). When live Firestore encountered quota exhaustion (`429 RESOURCE_EXHAUSTED`), the lookup fell back to the local catalog which had a blank registration number.
+- **Fix**: Populated `"boardRegNo": "2101003000300030"` for Mhosin Wakeel in `verifiedStudentsCatalog.json`, enabling immediate offline and fallback resolution.
+
+### B. Why Student Scorecards Show "Awaiting Award"
+- **Institutional Evaluation Boundary (Rule 8)**:
+  - The results lookup in the user screenshot was configured for: `Pre-Board Test • Session 2025-26 • Class 11th`.
+  - Teacher Shakira Khurshid's submission in Firestore was for `Internal Assessment` (Practicals Portal).
+  - Per **Rule 8 (Practicals & Academic Evaluation Data Boundary Rule)**:
+    - Internal Assessment and External Practical marks are strictly confidential institutional JKBOSE data and are **never published on the public results portal or accessible to students**.
+    - Pre-Board Examinations and School-Based Assessments are managed and published exclusively through the **School Based Assessment Portal**.
+  - Because Class 11th teachers have not yet submitted `Pre-Board Test` marks in the School-Based Assessment Suite, the portal correctly and securely displays **"Awaiting Award"** for unsubmitted subjects rather than leaking confidential practical marks.
+- **Query Resiliency**:
+  - Enhanced [src/pages/PublicResultLookup.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/PublicResultLookup.jsx) so live queries gracefully fall back to full collection retrieval when class-filtered composite queries fail, and properly update the in-memory cache `livePracticalsDocs`.
+
+---
+
+## List of Files Changed & Added
+1. [src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js) (added `isMatchingSubjectCode`, Healthcare aliases in `normalizeSubjectIdentity`, and hardened `isTeacherSubjectMatch`)
+2. [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx) (isolated Healthcare from History in submission memos, mark lookup, teacher filters, and doc audit log)
+3. [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js) (applied `isMatchingSubjectCode` across all PDF print pipelines)
+4. [src/utils/practicalsCsvManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsCsvManager.js) (applied `isMatchingSubjectCode` across Excel/CSV/Word exports)
+5. [src/data/verifiedStudentsCatalog.json](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/data/verifiedStudentsCatalog.json) (assigned `boardRegNo: "2101003000300030"` to Mhosin Wakeel)
+6. [src/pages/PublicResultLookup.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/PublicResultLookup.jsx) (enhanced query fallback resiliency and cache population)
+7. [src/utils/practicalsSubjectMatching.test.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSubjectMatching.test.js) (new unit test suite for subject code isolation)
+8. [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md) (documentation update)
 
 ---
 
 ## Verification & Testing
-- **Jest Test Suites**:
-  - `src/utils/studentApprovalStatus.test.js`: `7 passed, 7 total` (`Exit Code 0`).
+- **Jest Unit Tests**:
+  - `src/utils/practicalsSubjectMatching.test.js`: `7 passed, 7 total` (`Exit Code 0`).
   - `src/portal/teacher/PracticalsPage.test.jsx`: `24 passed, 24 total` (`Exit Code 0`).
-  - Combined: `31 passed, 31 total` (`Exit Code 0`).
+  - `src/pages/PublicResultLookup.test.jsx`: `21 passed, 21 total` (`Exit Code 0`).
+  - `src/utils/studentApprovalStatus.test.js`: `7 passed, 7 total` (`Exit Code 0`).
+  - **Total**: `59 passed, 59 total` (`Exit Code 0`).
 - **Production Build**:
   - Command: `npm run build`
   - Output: `Compiled successfully`, `Exit Code 0`, zero breaking errors.
-  - SEO checks passed: 11 public pages, canonical redirects, sitemap, offline navigation.
+  - SEO validation: 11 public pages, canonical redirects, sitemap, offline navigation passed.
 
 ---
 
 ## Instructions for User
 
-### Reviewing the Commit
+### Reviewing the Local Commit
 To review the local commit once made:
 ```bash
 git log -1 --stat
@@ -94,11 +96,11 @@ If you wish to modify or redo the commit manually:
 ```bash
 git reset --soft HEAD~1
 git add .
-git commit -m "fix(practicals): align official cohort enrollment (10th: 60, 11th: 198 with 2 dropped, 12th: 203) & fix approval syntax"
+git commit -m "fix(practicals-and-results): isolate Healthcare from History, fix candidate lookup & explain evaluation boundary"
 ```
 
-### Pushing Changes to Remote
-> **Reminder**: As per repository guidelines, Antigravity never runs `git push`. Please push your changes manually when ready:
+### Pushing Changes to Remote (Manual Step Required)
+As per security policy, the assistant never executes `git push`. When ready, push manually to remote:
 ```bash
 git push origin main
 ```

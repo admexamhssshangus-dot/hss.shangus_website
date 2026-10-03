@@ -1881,16 +1881,29 @@ export default function PublicResultLookup() {
             if (Array.isArray(cached) && cached.length > 0) {
               practicalDocs = cached;
             } else {
-              const q = query(
-                collection(db, 'practicalsData'),
-                where('className', '==', selectedClass)
-              );
-              const snap = await getDocs(q);
-              practicalDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+              let snap = null;
+              try {
+                const q = query(
+                  collection(db, 'practicalsData'),
+                  where('className', '==', selectedClass)
+                );
+                snap = await getDocs(q);
+              } catch (_) {
+                snap = await getDocs(collection(db, 'practicalsData')).catch(() => null);
+              }
+              if (!snap || snap.empty) {
+                snap = await getDocs(collection(db, 'practicalsData')).catch(() => null);
+              }
+              if (snap && !snap.empty) {
+                practicalDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+              }
             }
           } catch (pErr) {
             const cached = await getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []);
             practicalDocs = cached || [];
+          }
+          if (Array.isArray(practicalDocs) && practicalDocs.length > 0) {
+            setLivePracticalsDocs(practicalDocs);
           }
         }
 

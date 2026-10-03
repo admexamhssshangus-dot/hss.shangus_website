@@ -791,19 +791,94 @@ export function normalizeSubjectIdentity(subjInput) {
   if (lower.includes('computer') || lower.includes('cs') || lower.includes('comp')) return SUBJECT_CONFIG_DEFS.find(s => s.code === 'CS');
   if (lower.includes('environ') || lower.includes('evs') || lower === 'es') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ES');
   if (lower.includes('polit') || lower.includes('pol') || lower === 'ps') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'PS');
-  if (lower.includes('hist') || lower === 'ht') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'HT');
+  if (lower.includes('health') || lower === 'htc' || lower === 'hc') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'HTC');
+  if ((lower.includes('hist') || lower === 'ht') && !lower.includes('health') && lower !== 'htc' && lower !== 'hc') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'HT');
   if (lower.includes('econ') || lower === 'ec') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'EC');
   if (lower.includes('soci') || lower === 'so') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'SO');
   if (lower === 'social science' || lower === 'social studies' || lower === 'sst' || lower === 'ss' || lower.includes('social science') || lower.includes('social studies')) return SUBJECT_CONFIG_DEFS.find(s => s.code === 'SS');
   if (lower === 'science' || lower === 'sc' || lower === 'sci' || lower === 'general science' || (!lower.includes('social') && !lower.includes('environ') && !lower.includes('computer') && !lower.includes('pol') && lower.includes('science'))) return SUBJECT_CONFIG_DEFS.find(s => s.code === 'SC');
   if (lower.includes('acc') || lower === 'ay') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'AY');
   if (lower.includes('busi') || lower === 'bs') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'BS');
+  if (lower.includes('retail') || lower === 'rt') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'RT');
+  if (lower.includes('auto') || lower === 'at') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'AT');
+  if (lower.includes('it and') || lower.includes('ites') || lower.includes('information tech') || lower === 'ite') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ITE');
 
   // Substring match against name
   const fuzzy = SUBJECT_CONFIG_DEFS.find(s => s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase()));
   if (fuzzy) return fuzzy;
 
   return null;
+}
+
+/**
+ * Authoritative Subject Matching Function for Practicals and Submissions.
+ * Strictly isolates colliding codes like:
+ * - History (HT) vs Healthcare (HTC / HC)
+ * - Education (ED) vs Physical Education (PD / PED)
+ * - General Biology (BI) vs Botany (BO) / Zoology (ZO)
+ */
+export function isMatchingSubjectCode(docSubjOrCode, targetCode) {
+  if (!docSubjOrCode || !targetCode) return false;
+  const str = String(docSubjOrCode).toUpperCase().trim();
+  const target = String(targetCode).toUpperCase().trim();
+
+  // If target is "all", it never matches a specific code directly
+  if (target === 'ALL') return false;
+
+  // Exact string match
+  if (str === target) return true;
+
+  // 1. STRICT HISTORY ('HT') GUARD:
+  // Must NEVER match Healthcare ('HTC', 'HC', or names containing 'HEALTH')
+  if (target === 'HT') {
+    if (str === 'HTC' || str === 'HC' || /(^|[^A-Za-z0-9])(HTC|HC|HEALTHCARE|HEALTH\s*CARE|HEALTH)([^A-Za-z0-9]|$)/i.test(str) || str.includes('HEALTH')) {
+      return false;
+    }
+    return str === 'HT' || /(^|[^A-Za-z0-9])(HT|HIST|HISTORY)([^A-Za-z0-9]|$)/i.test(str) || str.includes('HISTORY');
+  }
+
+  // 2. STRICT HEALTHCARE ('HTC') GUARD:
+  if (target === 'HTC') {
+    return str === 'HTC' || str === 'HC' || /(^|[^A-Za-z0-9])(HTC|HC|HEALTHCARE|HEALTH\s*CARE|HEALTH)([^A-Za-z0-9]|$)/i.test(str) || str.includes('HEALTH');
+  }
+
+  // 3. STRICT EDUCATION ('ED') GUARD:
+  // Must NEVER match Physical Education ('PD', 'PED', or names containing 'PHYSICAL')
+  if (target === 'ED') {
+    if (/(^|[^A-Za-z0-9])(PD|PED|P\.ED|PHYSICAL)([^A-Za-z0-9]|$)/i.test(str) || str.includes('PHYSICAL')) return false;
+    return str === 'ED' || /(^|[^A-Za-z0-9])(ED|EDU|EDUCATION)([^A-Za-z0-9]|$)/i.test(str) || str.includes('EDUCATION');
+  }
+
+  // 4. PHYSICAL EDUCATION ('PD')
+  if (target === 'PD') {
+    return str === 'PD' || /(^|[^A-Za-z0-9])(PD|PED|P\.ED|PHYSICAL\s*EDUCATION|PHY\s*ED)([^A-Za-z0-9]|$)/i.test(str) || str.includes('PHYSICAL');
+  }
+
+  // 5. BIOLOGY COMPOSITE ('BI')
+  if (target === 'BI') {
+    return str === 'BI' || str === 'BO' || str === 'ZO' ||
+      /(^|[^A-Za-z0-9])(BI|BIO|BIOLOGY|BO|BOT|BOTANY|ZO|ZOO|ZOOLOGY)([^A-Za-z0-9]|$)/i.test(str) ||
+      str.includes('BIOLOGY') || str.includes('BOTANY') || str.includes('ZOOLOGY');
+  }
+
+  // 6. BOTANY ('BO')
+  if (target === 'BO') {
+    return str === 'BO' || /(^|[^A-Za-z0-9])(BO|BOT|BOTANY)([^A-Za-z0-9]|$)/i.test(str) || str.includes('BOTANY');
+  }
+
+  // 7. ZOOLOGY ('ZO')
+  if (target === 'ZO') {
+    return str === 'ZO' || /(^|[^A-Za-z0-9])(ZO|ZOO|ZOOLOGY)([^A-Za-z0-9]|$)/i.test(str) || str.includes('ZOOLOGY');
+  }
+
+  // 8. Non-alphanumeric boundary match on target code
+  if (new RegExp(`(^|[^A-Za-z0-9])${target}([^A-Za-z0-9]|$)`, 'i').test(str)) return true;
+
+  // 9. Match against official name in definitions
+  const def = SUBJECT_CONFIG_DEFS.find(s => s.code === target);
+  if (def && str.includes(def.name.toUpperCase())) return true;
+
+  return false;
 }
 
 /**
@@ -850,10 +925,14 @@ export function isTeacherSubjectMatch(teacherSubject, selectedSubject) {
       (tStr.includes('environ') !== sStr.includes('environ')) ||
       (tStr.includes('polit') !== sStr.includes('polit')) ||
       (tStr.includes('computer') !== sStr.includes('computer')) ||
-      (tStr.includes('social') !== sStr.includes('social'))
+      (tStr.includes('social') !== sStr.includes('social')) ||
+      (tStr.includes('health') !== sStr.includes('health')) ||
+      (tStr.includes('histor') !== sStr.includes('histor'))
     ) {
       return false;
     }
+    // Strict isolation of 'ht' and 'htc' in fallback
+    if ((tStr === 'ht' && sStr.includes('htc')) || (sStr === 'ht' && tStr.includes('htc'))) return false;
     return tStr === sStr || tStr.includes(sStr) || sStr.includes(tStr);
   });
 }

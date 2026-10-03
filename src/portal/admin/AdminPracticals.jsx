@@ -50,7 +50,8 @@ import {
   getSubjectMarksConfig,
   getActiveSchoolEvaluations,
   isPracticalEvaluationType,
-  getSubjectDisplayName
+  getSubjectDisplayName,
+  isMatchingSubjectCode
 } from '../../utils/practicalsSettingsManager';
 
 export const CODES = SUBJECT_CONFIG_DEFS.map(s => s.code);
@@ -2197,9 +2198,9 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
       const sNorm = sType.includes('ext') ? 'external' : 'internal';
       if (sNorm !== targetNorm) return;
 
-      const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+      const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
       activeCodesList.forEach(code => {
-        if (codeStr === code || codeStr.includes(code) || (code === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')))) {
+        if (isMatchingSubjectCode(codeStr, code)) {
           if (Array.isArray(s.records) && s.records.some(r => {
             const m = String(r.totalMarks ?? r.practicalMarks ?? '').trim();
             return m !== '' && m !== '—' && m !== '-';
@@ -2311,8 +2312,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
       const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
       if (querySess && querySess !== 'all' && subSess && !isSessionMatch(subSess, querySess)) return false;
 
-      const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-      return codeStr === subCode || codeStr.includes(subCode) || (NAMES[subCode] && codeStr.includes(NAMES[subCode].toUpperCase()));
+      const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+      return isMatchingSubjectCode(codeStr, subCode);
     });
 
     if (!subDoc || !subDoc.records) return null;
@@ -4923,8 +4924,8 @@ function FacultySubmissionsView({
     if (filterSubject !== 'all') {
       list = list.filter(t => {
         return (t.submissionsList || []).some(s => {
-          const subj = String(s.subjectCode || s.subject || s.Subject || s.subjectName || '').toUpperCase();
-          return subj === filterSubject.toUpperCase() || subj.includes(filterSubject.toUpperCase());
+          const subj = String(s.subjectCode || s.subject || s.Subject || s.subjectName || s.id || '').toUpperCase();
+          return isMatchingSubjectCode(subj, filterSubject);
         });
       });
     }
@@ -4954,9 +4955,9 @@ function FacultySubmissionsView({
   const filteredDocs = useMemo(() => {
     return allDocs.filter(s => {
       const cls = String(s.className || s.Class || s.id || '').toLowerCase();
-      const subj = String(s.subjectName || s.Subject || s.subjectCode || s.subject || '').toUpperCase();
+      const subj = String(s.subjectName || s.Subject || s.subjectCode || s.subject || s.id || '').toUpperCase();
       if (filterClass !== 'all' && !cls.includes(filterClass.toLowerCase())) return false;
-      if (filterSubject !== 'all' && !subj.includes(filterSubject.toUpperCase())) return false;
+      if (filterSubject !== 'all' && !isMatchingSubjectCode(subj, filterSubject)) return false;
       if (filterStatus === 'pending' && !s.isPending) return false;
       if (filterStatus === 'approved' && s.isPending) return false;
       if (searchQuery.trim()) {

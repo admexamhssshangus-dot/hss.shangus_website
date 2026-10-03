@@ -7,7 +7,7 @@
  * 3. Individual Work Sheet (Screenshot 5 format): Practical/Viva/Overall subject record.
  */
 
-import { getSubjectMarksConfig, isTeacherSubjectMatch, getSubjectDisplayName, normalizePracticalSession } from './practicalsSettingsManager';
+import { getSubjectMarksConfig, isTeacherSubjectMatch, getSubjectDisplayName, normalizePracticalSession, isMatchingSubjectCode } from './practicalsSettingsManager';
 import { toTitleCase } from './textFormatting';
 import { isStudentExamDropped, checkStudentApprovalState, isStudentApprovedForPracticals } from './studentApprovalStatus';
 
@@ -519,8 +519,8 @@ export function hasSubjectPracticalSubmission(subCode, submissions, className = 
     const sNorm = sType.includes('ext') ? 'external' : 'internal';
     if (sNorm !== targetNorm) return false;
 
-    const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-    const isCode = codeStr === subCode || codeStr.includes(subCode) || (subCode === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')));
+    const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+    const isCode = isMatchingSubjectCode(codeStr, subCode);
     if (!isCode) return false;
 
     return Array.isArray(s.records) && s.records.some(r => {
@@ -1241,8 +1241,8 @@ export function printConsolidatedAwardRoll({
         const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
         const subDoc = submissions.find(s => {
           if (!isSubDocMatch(s)) return false;
-          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-          return codeStr === sub.code || codeStr.includes(sub.code);
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+          return isMatchingSubjectCode(codeStr, sub.code);
         });
         if (subDoc && subDoc.records && rNo) {
           const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || r.roll || '').trim() === rNo);
@@ -1257,8 +1257,8 @@ export function printConsolidatedAwardRoll({
     if (count === 0 && submissions && submissions.length > 0) {
       const subDoc = submissions.find(s => {
         if (!isSubDocMatch(s)) return false;
-        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-        return codeStr === sub.code || codeStr.includes(sub.code);
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+        return isMatchingSubjectCode(codeStr, sub.code);
       });
       if (subDoc && subDoc.records) {
         count = subDoc.records.length;
@@ -1396,8 +1396,8 @@ export function printConsolidatedAwardRoll({
 
       const subDoc = submissions.find(s => {
         if (!isSubDocMatch(s)) return false;
-        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-        return codeStr === sub.code || codeStr.includes(sub.code);
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+        return isMatchingSubjectCode(codeStr, sub.code);
       });
 
       const rec = findStudentMarkRecord(subDoc, st);
@@ -1448,8 +1448,8 @@ export function printConsolidatedAwardRoll({
         const subDisplayName = getSubjectDisplayName(sub.code || sub.name, className);
         const subDoc = submissions && submissions.find(s => {
           if (!isSubDocMatch(s)) return false;
-          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-          return codeStr === sub.code || codeStr.includes(sub.code) || (sub.code === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')));
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+          return isMatchingSubjectCode(codeStr, sub.code);
         });
         const examinerName = subDoc ? (subDoc.teacherName || subDoc['Teacher Name'] || subDoc.submittedByName || subDoc.submittedBy || '') : '';
 
@@ -2086,8 +2086,8 @@ export function printMarksRecordAwardRoll({
         const targetType = isExternal ? 'external' : 'internal';
         if (sType !== targetType && !sType.includes(targetType)) return false;
       }
-      const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-      return codeStr === sub.code || codeStr.includes(sub.code);
+      const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+      return isMatchingSubjectCode(codeStr, sub.code);
     });
 
     const isLastSub = subIdx === targetSubs.length - 1;
@@ -2230,8 +2230,8 @@ export function printAllIndividualAwardRolls({
         const targetType = isExternal ? 'external' : 'internal';
         if (sType !== targetType && !sType.includes(targetType)) return false;
       }
-      const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-      return codeStr === sub.code || codeStr.includes(sub.code);
+      const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+      return isMatchingSubjectCode(codeStr, sub.code);
     });
 
     const markCfg = getSubjectMarksConfig(printDetails?.settings || printDetails, className, isExternal ? 'external' : 'internal', sub.code);
@@ -2522,15 +2522,15 @@ export function printFailList({
     if (enrolledStudents.length === 0) return; // Only track subjects offered by this student cohort
 
     let doc = approvedSubs.find(s => {
-      const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-      return codeStr === sub.code || codeStr.includes(sub.code);
+      const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+      return isMatchingSubjectCode(codeStr, sub.code);
     });
     let isPendingDoc = false;
 
     if (!doc) {
       doc = pendingSubs.find(s => {
-        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-        return codeStr === sub.code || codeStr.includes(sub.code);
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+        return isMatchingSubjectCode(codeStr, sub.code);
       });
       if (doc) isPendingDoc = true;
     }
@@ -2592,15 +2592,15 @@ export function printFailList({
 
       // 2. Find matching submission doc for this session and subject
       let subDoc = approvedSubs.find(s => {
-        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-        return codeStr === sub.code || codeStr.includes(sub.code);
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+        return isMatchingSubjectCode(codeStr, sub.code);
       });
       let isPending = false;
 
       if (!subDoc) {
         subDoc = pendingSubs.find(s => {
-          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-          return codeStr === sub.code || codeStr.includes(sub.code);
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+          return isMatchingSubjectCode(codeStr, sub.code);
         });
         if (subDoc) isPending = true;
       }
