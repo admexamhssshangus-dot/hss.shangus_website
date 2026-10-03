@@ -109,7 +109,13 @@ export const FALLBACK_STAFF_PROFILES = {
     isTeacher: false, 
     isStudent: false, 
     isStaff: true, 
-    perms: ['reports'] 
+    perms: [
+      'reports', 'admRegisterSuite', 'analyticsReports', 'directEntry', 'customRoster',
+      'officialLetter', 'certStudio', 'idCards', 'gkTest', 'controls', 'curriculum',
+      'practicals', 'attendanceMgmt', 'rollNo', 'mergeStudio', 'automations', 'funds',
+      'accounts', 'cms', 'boardSync', 'activityAudit', 'googleContacts', 'staff',
+      'quickCellEdit', 'bulkToolsAction'
+    ]
   },
   'majidhassannajar@gmail.com': { 
     name: 'Majid Hassan Najar (Admin)', 
