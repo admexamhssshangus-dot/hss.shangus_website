@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(seo): strengthen 301 domain redirects, enhance knowledge graph schema, and optimize GSC migration to .in`
+- **Commit Message**: `feat(admin): implement dynamic 3-session search scoping with on-demand historical limit and full db search mode`
 - **Date**: October 03, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Security, Admission, and SEO regression checks passed (`Exit Code 0`).
 
@@ -10,62 +10,54 @@
 ## Architectural Purpose & Issues Resolved
 
 ### Problem Statement
-The user reported that `hssshangus.netlify.app` still appears in search engines while waiting for rich search results to transfer and appear for the official domain `hssshangus.in`. A screenshot of Google Search Console (GSC) showed:
-- Property selected: `https://hssshangus.netlify.app/` (legacy site).
-- Warning banner: `⚠️ This site is currently moving to hssshangus.in [Learn more]`.
-- Performance graph: Clicks dropped sharply from 120/day down towards zero.
-
-### Technical Analysis & Google Search Console Behavior
-1. **Change of Address in Progress**:
-   - The yellow banner confirms that Google's official **Change of Address** tool is active for `hssshangus.netlify.app` -> `hssshangus.in`.
-   - The drop in clicks on the `netlify.app` property is the **expected and normal behavior** during domain migration: Google systematically de-indexes the old domain as it processes the 301 redirects and transfers rankings to the new domain.
-2. **Viewing the Wrong Property in GSC**:
-   - In Search Console, the user was viewing the legacy `https://hssshangus.netlify.app/` property.
-   - All newly indexed pages, impressions, and rich results for `hssshangus.in` are recorded under the **`https://hssshangus.in/`** property (or Domain property `hssshangus.in`).
-3. **Critical Warning on the GSC "Removals" Tool**:
-   - Site owners sometimes mistakenly use the "Removals" tab in GSC to force-delete the old `.netlify.app` URLs.
-   - **Google strictly warns against this**: Removals blocks Google from fetching the URL altogether, which breaks the 301 redirect chain and prevents Google from transferring page authority and search equity to `hssshangus.in`.
-   - Google automatically drops the old domain from search results as it crawls the 301 redirects.
+In Firebase Cloud Firestore (especially under Spark free tier quota of 50,000 document reads/day), querying across all historical master register chunks (120+ documents spanning 2006 to 2026) burns ~120 reads per search query or cold visit. 
+The admin needed an optimized data architecture where:
+1. **Dynamic Latest 3 Sessions**: On admin login, only the latest 3 regular examination sessions and their corresponding BIAN / Bi-Annual sessions are loaded and used for search by default. This dynamically resolves `2025-26`, `2024-25 (Oct-Nov)`, and `2024-25 (Mar-Apr)` (handling the dual examination sessions in 2024–25), plus `2026 APR/BIAN` and `2025 APR/BIAN`, while dynamically updating for future sessions (e.g. `2026-27`) without hardcoding.
+2. **On-Demand Sessions Limit**: The admin can choose a **maximum of 3 additional historical sessions** at any one time in the Sessions filter dropdown. These additional sessions load in the background on demand.
+3. **Full Database Search Mode**: A dedicated toggle enables search across the entire 20-year student database (2006–2026), accompanied by a **prominent but compact warning banner** stating that it consumes ~30x more cloud resources, with a direct 1-click turn-off button to restore fast mode.
 
 ---
 
 ## Changes Implemented
 
-### 1. Complete Multi-Protocol & Non-Canonical 301 Redirect Rules
-- Files: [public/_redirects](file:///d:/Shk_Gulfam\Projects\hss_shangus\public\_redirects) and [netlify.toml](file:///d:/Shk_Gulfam\Projects\hss_shangus\netlify.toml)
-  - Explicitly configured 301 permanent redirects for all legacy and non-canonical variants directly to `https://hssshangus.in/:splat`:
-    - `http://hssshangus.netlify.app/*` -> `https://hssshangus.in/:splat 301!`
-    - `https://hssshangus.netlify.app/*` -> `https://hssshangus.in/:splat 301!`
-    - `http://www.hssshangus.in/*` -> `https://hssshangus.in/:splat 301!`
-    - `https://www.hssshangus.in/*` -> `https://hssshangus.in/:splat 301!`
-    - `http://hssshangus.in/*` -> `https://hssshangus.in/:splat 301!`
+### 1. Dynamic Recent Academic Sessions & Associated BIAN Cohort Resolver
+- File: [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx)
+  - Implemented `getDynamicRecentSessionCohort(availableSessions)`:
+    - Automatically classifies regular vs. BIAN sessions (`/bian|bi-annual|private/i.test(session)`).
+    - Chronologically scores and sorts regular sessions descending, correctly assigning timing weights to dual cycles (`2024-25 Oct-Nov` weight 2024.8 vs `2024-25 Mar-Apr` weight 2024.3).
+    - Takes the top 3 regular sessions (`['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)']`).
+    - Dynamically pairs all BIAN sessions matching any years touched by the top 3 sessions (`['2026 APR/BIAN', '2025 APR/BIAN']`).
+    - Exports `latestRegularSessions`, `matchingBianSessions`, `defaultRecentCohort`, `defaultRecentLowerSet`, and `isDefaultSession(sess)`.
 
-### 2. Knowledge Graph & Rich Results Schema Enhancement
-- File: [src/seo/siteSeo.js](file:///d:/Shk_Gulfam\Projects\hss_shangus\src\seo\siteSeo.js)
-  - Added official institutional `sameAs` entity links (Google Maps listing and official school Facebook page).
-  - Expanded `alternateName` to include:
-    `['HSS Shangus', 'GHSS Shangus', 'Govt HSS Shangus', 'Govt. Boys Higher Secondary School Shangus', 'Government Higher Secondary School Shangus']`.
-  - Ensures search engines connect all brand mentions and social profiles directly to the `.in` domain.
+### 2. MultiSelectCheckboxDropdown Historical Sessions Limit Guard
+- File: [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx)
+  - Enhanced `MultiSelectCheckboxDropdown`:
+    - Added `maxAdditionalLimit`, `isDefaultOption`, and `onLimitExceeded` support.
+    - Default state (`selected = []`) visually and logically scopes to the dynamic recent cohort.
+    - Renders `Recent` (emerald) vs `Archive` (slate) badges beside every session in the dropdown list.
+    - Added header hint: `⚡ Recent 3 cycles (+BIAN) active by default. Select up to 3 archive sessions.`
+    - Enforces max-3 limit on historical sessions: clicking a 4th historical session is cleanly blocked and displays an alert toast without freezing the dropdown.
+
+### 3. Full Database Search Mode with Prominent Compact Warning Banner
+- File: [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx)
+  - Added `fullDbSearchActive` state and `handleToggleFullDbSearch(enable)` handler.
+  - Added dedicated compact toggle button in the control bar: `⚡ Full DB Search` (inactive) / `⚡ Full DB Active` (active).
+  - Added a prominent, sleek, ultra-compact (~32px) warning banner directly above the master records table:
+    - Amber/rose alert box with glowing icon, clear resource warning (~30x Firestore read usage), and a single-click `[Turn Off (Fast Mode)]` button.
+
+### 4. Scoped Search & Background Hydration Architecture
+- File: [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx)
+  - Updated `targetDataset`:
+    - When searching with `fullDbSearchActive === false`: queries strictly against active admissions + dynamic recent cohort + up to 3 chosen older sessions.
+    - When `fullDbSearchActive === true`: queries across all 20+ years of loaded student records.
+  - Updated background hydration `useEffect`:
+    - Only hydrates full archives if `fullDbSearchActive`, `fullHistoryRequested`, or a non-default session is explicitly selected.
 
 ---
 
 ## Verification & Build Results
-- **Production Build**: Verified with `npm run build` (`Exit Code 0`).
-- **SEO Checks**: Passed all 11 static pages, canonical redirects, sitemap validation, and structured data checks with zero errors.
-
----
-
-## Actionable Steps for the User in Google Search Console
-
-1. **Switch Property**:
-   - In GSC, click the property dropdown at top-left and select `https://hssshangus.in/` (or add it if not already present).
-2. **Submit Sitemap**:
-   - Under the `hssshangus.in` property, navigate to **Sitemaps**, enter `sitemap.xml`, and submit.
-3. **Request Fast-Track Indexing via URL Inspection**:
-   - Inspect `https://hssshangus.in/` -> Click **Test Live URL** -> Click **Request Indexing**.
-   - Repeat for key landing pages: `/admissions`, `/academics`, `/results`, `/notices`.
-4. **DO NOT Submit Removals for `netlify.app`**:
-   - Allow Google to naturally finalize the 301 redirect migration.
+- **Production Build**: Verified locally with `npm run build` (`Exit Code 0`).
+- **SEO & Admin Regression Checks**: Passed across all 11 static pages, canonical redirects, sitemap validation, and offline navigation with zero errors.
 
 ---
 
@@ -84,7 +76,7 @@ If you wish to modify the commit message or make adjustments:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "fix(seo): strengthen 301 domain redirects, enhance knowledge graph schema, and optimize GSC migration to .in"
+git commit -m "feat(admin): implement dynamic 3-session search scoping with on-demand historical limit and full db search mode"
 ```
 
 ### 3. Push to Remote Repository
@@ -92,4 +84,3 @@ When you are ready to publish these changes to production:
 ```bash
 git push origin main
 ```
-

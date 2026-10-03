@@ -887,8 +887,130 @@ export async function deleteStudentDocument(student) {
   return true;
 }
 
+// ─── Dynamic Recent Academic Sessions & Associated BIAN Cohort Resolver ───
+/**
+ * Dynamically resolves the latest 3 regular examination sessions and all associated BIAN sessions.
+ * Currently resolves to:
+ * - Top 3 Regular: ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)'] (handles dual 2024-25 sessions)
+ * - Associated BIAN: ['2026 APR/BIAN', '2025 APR/BIAN', ...]
+ * Dynamically adapts as future academic sessions (e.g. 2026-27) are introduced without code changes.
+ */
+export function getDynamicRecentSessionCohort(sessions = []) {
+  if (!Array.isArray(sessions) || sessions.length === 0) {
+    const fallbackList = ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2026 APR/BIAN', '2025 APR/BIAN'];
+    const fallbackLowerSet = new Set(fallbackList.map(s => s.toLowerCase()));
+    ['2024-25', '2025', '2026', '2025 bian', '2026 bian'].forEach(s => fallbackLowerSet.add(s));
+    return {
+      latestRegularSessions: ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)'],
+      matchingBianSessions: ['2026 APR/BIAN', '2025 APR/BIAN'],
+      defaultRecentCohort: fallbackList,
+      defaultRecentLowerSet: fallbackLowerSet,
+      isDefaultSession: (s) => fallbackLowerSet.has(String(s || '').trim().toLowerCase())
+    };
+  }
+
+  const isBianSession = (sess) => /bian|bi-annual|private/i.test(String(sess || ''));
+
+  // Parse chronological weight for regular sessions to order newest first
+  const parseRegularSessionScore = (sessStr) => {
+    const str = String(sessStr || '').trim();
+    const yearMatches = str.match(/\d{4}/g);
+    const startYear = yearMatches ? parseInt(yearMatches[0], 10) : 2000;
+    
+    let monthWeight = 0.5; // default regular session
+    if (/oct|nov/i.test(str)) {
+      monthWeight = 0.8; // Oct-Nov session occurs later in calendar cycle
+    } else if (/mar|apr/i.test(str)) {
+      monthWeight = 0.3; // Mar-Apr session occurs earlier in calendar cycle
+    }
+    return startYear + monthWeight;
+  };
+
+  const regularList = [];
+  const bianList = [];
+
+  sessions.forEach(sess => {
+    const s = String(sess || '').trim();
+    if (!s || s === '—' || s === 'ALL' || s === '__NONE__') return;
+    if (isBianSession(s)) {
+      bianList.push(s);
+    } else {
+      regularList.push(s);
+    }
+  });
+
+  // Sort regular sessions descending by chronological weight
+  regularList.sort((a, b) => parseRegularSessionScore(b) - parseRegularSessionScore(a));
+
+  // Deduplicate regular sessions
+  const uniqueRegular = Array.from(new Set(regularList));
+
+  // Take top 3 regular sessions
+  let latestRegularSessions = uniqueRegular.slice(0, 3);
+  if (latestRegularSessions.length === 0) {
+    latestRegularSessions = ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)'];
+  }
+
+  // Extract all 4-digit years involved in the top 3 regular sessions
+  const involvedYears = new Set();
+  latestRegularSessions.forEach(sess => {
+    const yrs = String(sess).match(/\d{4}/g) || [];
+    yrs.forEach(y => involvedYears.add(parseInt(y, 10)));
+    const twoDigitEnd = String(sess).match(/\d{4}-(\d{2})/);
+    if (twoDigitEnd && twoDigitEnd[1]) {
+      involvedYears.add(2000 + parseInt(twoDigitEnd[1], 10));
+    }
+  });
+
+  // Find all BIAN sessions corresponding to these years
+  const matchingBianSessions = [];
+  bianList.forEach(sess => {
+    const yrs = String(sess).match(/\d{4}/g) || [];
+    const hasMatch = yrs.some(y => involvedYears.has(parseInt(y, 10)));
+    if (hasMatch) {
+      matchingBianSessions.push(sess);
+    }
+  });
+
+  const defaultRecentCohort = Array.from(new Set([...latestRegularSessions, ...matchingBianSessions]));
+  
+  const defaultRecentLowerSet = new Set(defaultRecentCohort.map(s => String(s).trim().toLowerCase()));
+  defaultRecentCohort.forEach(s => {
+    const low = String(s).trim().toLowerCase();
+    defaultRecentLowerSet.add(low);
+    const base = low.split('(')[0].trim();
+    if (base) defaultRecentLowerSet.add(base);
+  });
+
+  const isDefaultSession = (sess) => {
+    if (!sess) return false;
+    const low = String(sess).trim().toLowerCase();
+    if (defaultRecentLowerSet.has(low)) return true;
+    const base = low.split('(')[0].trim();
+    return defaultRecentLowerSet.has(base);
+  };
+
+  return {
+    latestRegularSessions,
+    matchingBianSessions,
+    defaultRecentCohort,
+    defaultRecentLowerSet,
+    isDefaultSession
+  };
+}
+
 // ─── Reusable Multi-Select Checkbox Dropdown Component ───
-function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onChange, align = 'left', presetAction = null }) {
+function MultiSelectCheckboxDropdown({
+  label,
+  options = [],
+  selected = [],
+  onChange,
+  align = 'left',
+  presetAction = null,
+  maxAdditionalLimit = null,
+  isDefaultOption = null,
+  onLimitExceeded = null
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [localSelected, setLocalSelected] = useState(selected);
@@ -908,26 +1030,70 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const isAllSelected = localSelected.length === 0;
+  const hasDefaultScoping = typeof isDefaultOption === 'function';
+  const isDefaultSelected = hasDefaultScoping && localSelected.length === 0;
+  const isAllSelected = !hasDefaultScoping && localSelected.length === 0;
   const isNoneSelected = localSelected.includes('__NONE__');
 
+  const isOptionChecked = (opt) => {
+    if (isNoneSelected) return false;
+    if (isDefaultSelected) return isDefaultOption(opt);
+    if (isAllSelected) return true;
+    return localSelected.includes(opt);
+  };
+
   const toggleOption = (opt) => {
+    const checked = isOptionChecked(opt);
     let next;
-    if (localSelected.includes('__NONE__')) {
-      next = [opt];
-    } else if (localSelected.length === 0) {
-      next = options.filter((item) => item !== opt);
-    } else if (localSelected.includes(opt)) {
-      next = localSelected.filter((item) => item !== opt);
+
+    if (checked) {
+      // User is unchecking an option
+      if (isDefaultSelected) {
+        next = options.filter(item => isDefaultOption(item) && item !== opt);
+      } else if (isAllSelected) {
+        next = options.filter(item => item !== opt);
+      } else {
+        next = localSelected.filter(item => item !== opt);
+      }
     } else {
-      next = [...localSelected, opt];
+      // User is checking an option: verify max additional limit on non-default/historical items
+      if (hasDefaultScoping && typeof maxAdditionalLimit === 'number' && !isDefaultOption(opt)) {
+        const currentActiveList = isDefaultSelected
+          ? options.filter(item => isDefaultOption(item))
+          : (isAllSelected ? options : localSelected.filter(item => item !== '__NONE__'));
+        
+        const nonDefaultCount = currentActiveList.filter(item => !isDefaultOption(item)).length;
+        if (nonDefaultCount >= maxAdditionalLimit) {
+          if (onLimitExceeded) {
+            onLimitExceeded(opt, maxAdditionalLimit);
+          }
+          return;
+        }
+      }
+
+      if (isDefaultSelected) {
+        const defaultItems = options.filter(item => isDefaultOption(item));
+        next = [...defaultItems, opt];
+      } else if (localSelected.includes('__NONE__')) {
+        next = [opt];
+      } else {
+        next = [...localSelected, opt];
+      }
     }
 
     if (next.length === 0) {
       next = ['__NONE__'];
+    } else if (hasDefaultScoping) {
+      // If user selected precisely all default options, represent cleanly as []
+      const defaultOnly = options.filter(item => isDefaultOption(item));
+      const isExactlyDefault = defaultOnly.length === next.length && defaultOnly.every(item => next.includes(item));
+      if (isExactlyDefault) {
+        next = [];
+      }
     } else if (next.length === options.length) {
       next = [];
     }
+
     setLocalSelected(next);
     React.startTransition(() => {
       onChange(next);
@@ -935,6 +1101,14 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
   };
 
   const handleSelectAll = () => {
+    if (hasDefaultScoping) {
+      // "All" in scoped mode defaults cleanly to the latest recent cohort
+      setLocalSelected([]);
+      React.startTransition(() => {
+        onChange([]);
+      });
+      return;
+    }
     setLocalSelected([]);
     React.startTransition(() => {
       onChange([]);
@@ -948,30 +1122,35 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
     });
   };
 
-  const displayText = isAllSelected
-    ? `All ${label}`
-    : isNoneSelected
-      ? `No ${label}`
-      : localSelected.length <= 2
-        ? localSelected.join(', ')
-        : `${label} (${localSelected.length})`;
+  const displayText = isDefaultSelected
+    ? `Recent ${label}`
+    : isAllSelected
+      ? `All ${label}`
+      : isNoneSelected
+        ? `No ${label}`
+        : localSelected.length <= 2
+          ? localSelected.join(', ')
+          : `${label} (${localSelected.length})`;
 
   return (
     <div className="relative w-full text-left" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full p-1.5 rounded-lg text-xs font-bold flex items-center justify-between gap-1 transition-all cursor-pointer shadow-2xs ${!isAllSelected
-          ? 'bg-amber-600 text-white border border-amber-700'
-          : 'bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-amber-500'
-          }`}
+        className={`w-full p-1.5 rounded-lg text-xs font-bold flex items-center justify-between gap-1 transition-all cursor-pointer shadow-2xs ${
+          !isAllSelected && !isDefaultSelected
+            ? 'bg-amber-600 text-white border border-amber-700'
+            : isDefaultSelected
+              ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 hover:border-amber-500'
+              : 'bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-amber-500'
+        }`}
       >
         <span className="truncate flex-1 min-w-0 text-left">{displayText}</span>
         <ChevronDown size={12} className={`flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-52 sm:w-60 max-w-[calc(100vw-32px)] rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[100000] p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}>
+        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-64 sm:w-72 max-w-[calc(100vw-32px)] rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[100000] p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}>
           <div className="flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-[11px] font-black gap-1">
             <span className="text-[10px] text-amber-700 dark:text-amber-400 uppercase tracking-wider font-extrabold truncate flex-1 min-w-0">{label}</span>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -979,9 +1158,9 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
                 type="button"
                 onClick={handleSelectAll}
                 className="px-1.5 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
-                title="Select All"
+                title={hasDefaultScoping ? "Select All Recent Sessions (Default)" : "Select All"}
               >
-                All
+                {hasDefaultScoping ? 'Default' : 'All'}
               </button>
               <button
                 type="button"
@@ -1009,22 +1188,43 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
             </div>
           </div>
 
-          <div className="max-h-44 overflow-y-auto space-y-0.5 py-0.5">
+          {/* Scoped session resource limit note */}
+          {hasDefaultScoping && typeof maxAdditionalLimit === 'number' && (
+            <div className="px-2 py-1 text-[9.5px] font-bold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/50 rounded-lg border border-amber-200/80 dark:border-amber-900/60 leading-tight">
+              ⚡ Recent 3 cycles (+BIAN) active by default. Select up to {maxAdditionalLimit} archive sessions.
+            </div>
+          )}
+
+          <div className="max-h-52 overflow-y-auto space-y-0.5 py-0.5">
             {options.map((opt, idx) => {
-              const checked = isAllSelected || (selected.includes(opt) && !isNoneSelected);
+              const checked = isOptionChecked(opt);
+              const isDefault = hasDefaultScoping && isDefaultOption(opt);
               return (
                 <button
                   key={`${opt}_${idx}`}
                   type="button"
                   onClick={() => toggleOption(opt)}
-                  className="w-full flex items-center gap-2 px-1.5 py-1 rounded-lg text-xs font-extrabold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left text-slate-900 dark:text-slate-100 cursor-pointer"
+                  className={`w-full flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg text-xs font-extrabold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left text-slate-900 dark:text-slate-100 cursor-pointer ${
+                    checked ? 'bg-amber-50/50 dark:bg-amber-950/20' : ''
+                  }`}
                 >
-                  {checked ? (
-                    <CheckSquare size={14} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                  ) : (
-                    <Square size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {checked ? (
+                      <CheckSquare size={14} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    ) : (
+                      <Square size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                    )}
+                    <span className="truncate flex-1 min-w-0">{opt}</span>
+                  </div>
+                  {hasDefaultScoping && (
+                    <span className={`text-[8.5px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider shrink-0 ${
+                      isDefault
+                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700'
+                    }`}>
+                      {isDefault ? 'Recent' : 'Archive'}
+                    </span>
                   )}
-                  <span className="truncate flex-1 min-w-0">{opt}</span>
                 </button>
               );
             })}
@@ -1057,7 +1257,9 @@ function UnifiedFiltersGroupDropdown({
   sortOrder = 'asc',
   setSortOrder,
   setCurrentPage,
-  onOpen
+  onOpen,
+  isDefaultSession,
+  onHistoricalLimitExceeded
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -1159,6 +1361,9 @@ function UnifiedFiltersGroupDropdown({
                   selected={selectedSessions}
                   onChange={(val) => { setSelectedSessions(val); setCurrentPage(1); }}
                   align="left"
+                  maxAdditionalLimit={3}
+                  isDefaultOption={isDefaultSession}
+                  onLimitExceeded={onHistoricalLimitExceeded}
                 />
               )}
 
@@ -7187,6 +7392,36 @@ function AdvancedReports({
   const [isHydratingMasterRegisters, setIsHydratingMasterRegisters] = useState(false);
   const [historyLoadRequested, setHistoryLoadRequested] = useState(false);
   const [fullHistoryRequested, setFullHistoryRequested] = useState(false);
+  const [fullDbSearchActive, setFullDbSearchActive] = useState(false);
+
+  const handleToggleFullDbSearch = useCallback((enable) => {
+    const nextState = typeof enable === 'boolean' ? enable : !fullDbSearchActive;
+    setFullDbSearchActive(nextState);
+    if (nextState) {
+      setFullHistoryRequested(true);
+      setHistoryLoadRequested(true);
+      setToast({
+        message: '⚡ Full Database Search Active: Searching entire 20-year student register (~30x Firestore read resource usage). Disable when finished.',
+        type: 'warning'
+      });
+      setTimeout(() => setToast(null), 5000);
+    } else {
+      setFullHistoryRequested(false);
+      setToast({
+        message: '✅ Reverted to lightweight search (Recent sessions cohort). Spark quota preserved.',
+        type: 'success'
+      });
+      setTimeout(() => setToast(null), 3000);
+    }
+  }, [fullDbSearchActive]);
+
+  const handleHistoricalLimitExceeded = useCallback((opt, limit) => {
+    setToast({
+      message: `⚠️ Limit reached: Maximum ${limit} historical sessions can be selected simultaneously to conserve cloud resources. Please uncheck another session or use Full DB Search.`,
+      type: 'warning'
+    });
+    setTimeout(() => setToast(null), 4500);
+  }, []);
 
   useEffect(() => {
     if (searchTerm === debouncedSearch) {
@@ -11301,45 +11536,27 @@ function AdvancedReports({
     return (allStudents && allStudents.length > 0) ? allStudents.length : (currentAdmissions?.length || 0);
   }, [currentAdmissions, masterHistoricalRecords, allStudents]);
 
-  // Helper set of recent sessions: current active session + previous 4 sessions (e.g. 2022-23 through 2025-26)
-  const defaultSearchSessionsLowerSet = useMemo(() => {
-    const sessSet = new Set();
-    let distinctYears = 0;
-    const seenYears = new Set();
-    for (const sess of availableSessions) {
-      const match = String(sess).match(/\d{4}/);
-      const yr = match ? parseInt(match[0], 10) : null;
-      if (yr) {
-        if (!seenYears.has(yr)) {
-          seenYears.add(yr);
-          distinctYears++;
-        }
-        if (distinctYears <= 5 || yr >= 2022) {
-          sessSet.add(String(sess).trim().toLowerCase());
-        }
-      } else {
-        sessSet.add(String(sess).trim().toLowerCase());
-      }
-    }
-    ['2025-26', '2026', '2025 apr/bian', '2026 apr/bian', '2024-25', '2024-25 (oct-nov)', '2024-25 (mar-apr)', '2023-24', '2022-23'].forEach(s => sessSet.add(s));
-    return sessSet;
-  }, [availableSessions]);
+  // Dynamic Recent Academic Sessions Cohort (Latest 3 regular sessions + all associated BIAN sessions)
+  // Handles dual 2024-25 sessions (Mar-Apr and Oct-Nov) and dynamically updates for future academic sessions
+  const {
+    latestRegularSessions,
+    matchingBianSessions,
+    defaultRecentCohort,
+    defaultRecentLowerSet,
+    isDefaultSession
+  } = useMemo(() => getDynamicRecentSessionCohort(availableSessions), [availableSessions]);
 
-  // Lazy load masterRegisters on demand with 4-session scoping:
-  // - Global search loads ONLY the previous 4 sessions by default (saves ~70 document reads!).
-  // - Older historical sessions (2006-2021) are loaded ONLY when fullHistoryRequested is true or an older session is chosen.
+  // Lazy load masterRegisters on demand with dynamic scoping:
+  // - Global search loads ONLY the dynamic recent sessions (latest 3 + BIAN) by default (saves ~95% Firestore reads!).
+  // - Older historical sessions (2006-2023) or full archives are loaded ONLY when fullDbSearchActive is true, fullHistoryRequested is true, or an older session is chosen.
   useEffect(() => {
     const isSearchActive = deferredSearchTerm.trim() !== '';
     const isSessionSelected = selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__');
 
-    // Check if user specifically requested an older session from filter dropdown (< 2022)
-    const hasOldSessionSelected = isSessionSelected && selectedSessions.some(sess => {
-      const match = String(sess).match(/\d{4}/);
-      const yr = match ? parseInt(match[0], 10) : 2026;
-      return yr < 2022;
-    });
+    // Check if user specifically requested an older session from filter dropdown
+    const hasOldSessionSelected = isSessionSelected && selectedSessions.some(sess => !isDefaultSession(sess));
 
-    const shouldLoadFull = fullHistoryRequested || hasOldSessionSelected || showAnalyticsModal;
+    const shouldLoadFull = fullDbSearchActive || fullHistoryRequested || hasOldSessionSelected || showAnalyticsModal;
     const shouldLoadMaster = historyLoadRequested || isSearchActive || isSessionSelected || shouldLoadFull || showAnalyticsModal;
 
     if (shouldLoadMaster && !isHydratingMasterRegisters) {
@@ -11359,22 +11576,27 @@ function AdvancedReports({
         });
       }
     }
-  }, [historyLoadRequested, deferredSearchTerm, selectedSessions, masterHistoricalRecords.length, isHydratingMasterRegisters, fullHistoryRequested, showAnalyticsModal]);
+  }, [historyLoadRequested, deferredSearchTerm, selectedSessions, masterHistoricalRecords.length, isHydratingMasterRegisters, fullDbSearchActive, fullHistoryRequested, showAnalyticsModal, isDefaultSession]);
 
   // Target dataset:
-  // When searching, by default search across active admissions + previous 4 sessions for lightning speed.
-  // When fullHistoryRequested is true or an older session is picked, search across all 20+ years.
+  // When searching, by default search across active admissions + dynamic recent cohort (latest 3 regular + BIAN) + up to 3 chosen older sessions.
+  // When fullDbSearchActive is true (or fullHistoryRequested), search across all 20+ years of historical archives.
   const targetDataset = useMemo(() => {
     const activeQuery = (deferredSearchTerm || '').trim();
     if (activeQuery !== '') {
-      if (fullHistoryRequested) {
+      if (fullDbSearchActive || fullHistoryRequested) {
         return allStudents;
       }
-      // By default: ONLY active admissions + previous 4 sessions
+      // Scoped search: ONLY active admissions + dynamic recent cohort + any explicitly selected older sessions
       return allStudents.filter(s => {
         if (s._isCurrentScope === true) return true;
         const sSessLower = String(s.session || '').trim().toLowerCase();
-        return defaultSearchSessionsLowerSet.has(sSessLower);
+        if (defaultRecentLowerSet.has(sSessLower)) return true;
+        if (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
+          const activeSessionLowerSet = new Set(selectedSessions.map(sess => String(sess || '').trim().toLowerCase()));
+          return activeSessionLowerSet.has(sSessLower);
+        }
+        return false;
       });
     }
     if (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
@@ -11383,7 +11605,7 @@ function AdvancedReports({
     }
     // Default view ("All Sessions" without search query): only active admissions for 0ms instant speed
     return allStudents.filter(s => s._isCurrentScope === true);
-  }, [allStudents, deferredSearchTerm, selectedSessions, fullHistoryRequested, defaultSearchSessionsLowerSet]);
+  }, [allStudents, deferredSearchTerm, selectedSessions, fullDbSearchActive, fullHistoryRequested, defaultRecentLowerSet]);
 
   // ─── Pre-Parsed Google-like Intelligent Search & Relevance Engine ───
   const evaluateParsedGoogleSearch = useCallback((s, parsed) => {
@@ -13312,6 +13534,8 @@ function AdvancedReports({
                 setSortOrder={setSortOrder}
                 setCurrentPage={setCurrentPage}
                 onOpen={() => setHistoryLoadRequested(true)}
+                isDefaultSession={isDefaultSession}
+                onHistoricalLimitExceeded={handleHistoricalLimitExceeded}
               />
             </div>
 
@@ -13352,73 +13576,41 @@ function AdvancedReports({
               )}
             </div>
 
-            {/* Global Search Scope Tag (Previous 4 Sessions by default vs Full History) */}
+            {/* Direct Full DB Search Toggle Button */}
+            <button
+              type="button"
+              onClick={() => handleToggleFullDbSearch(!fullDbSearchActive)}
+              title={fullDbSearchActive 
+                ? "Full Database Search is Active (~30x cloud resource usage). Click to turn off." 
+                : "Search across all 20+ years of historical student records (2006–2026). High resource mode."}
+              className={`compact-btn px-2 py-0.5 rounded-lg sm:rounded-xl text-[10px] sm:text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs whitespace-nowrap !min-h-0 ${
+                fullDbSearchActive
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white border border-amber-700 animate-pulse'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600'
+              }`}
+              style={{ minHeight: 'unset', height: '28px' }}
+            >
+              <Database size={11} className={fullDbSearchActive ? 'text-white' : 'text-amber-600 dark:text-amber-400'} />
+              <span className="hidden md:inline">{fullDbSearchActive ? '⚡ Full DB Active' : '⚡ Full DB Search'}</span>
+              <span className="md:hidden">{fullDbSearchActive ? '⚡ Full' : '⚡ DB'}</span>
+            </button>
+
+            {/* Global Search Scope Tag (Recent 3 Cycles by default vs Full History) */}
             {searchTerm.trim() && (
               <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-                {fullHistoryRequested ? (
-                  <div className="inline-flex items-center gap-0.5">
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-2xs">
-                      <span className="sm:hidden">🌐 All</span>
-                      <span className="hidden sm:inline">🌐 Full History (2006–26)</span>
-                    </span>
-                    <div className="sm:hidden">
-                      <StandardTooltip
-                        title="Search Scope: Full Archive"
-                        content={`Searching across all 20 historical sessions (2006–2026). Displaying ${filteredStudents.length} matching students.`}
-                        position="bottom"
-                      />
-                    </div>
-                  </div>
+                {fullDbSearchActive || fullHistoryRequested ? (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-2xs">
+                    <span className="sm:hidden">🌐 All</span>
+                    <span className="hidden sm:inline">🌐 All Archives (2006–26)</span>
+                  </span>
                 ) : (
-                  <>
-                    {/* Desktop: Full descriptive button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFullHistoryRequested(true);
-                        setHistoryLoadRequested(true);
-                      }}
-                      title="By default, search is scoped to active admissions + previous 4 sessions (2022-2026). Click to load full 20-year history."
-                      className="hidden sm:inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs transition-all cursor-pointer whitespace-nowrap !min-h-0"
-                      style={{ height: '28px' }}
-                    >
-                      <span>Scope: 4 Sessions</span>
-                      <span className="text-amber-600 dark:text-amber-400 font-black underline decoration-dotted ml-0.5">+ All History</span>
-                    </button>
-
-                    {/* Mobile: Ultra-compact trigger button with small tooltip icon */}
-                    <div className="flex sm:hidden items-center gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFullHistoryRequested(true);
-                          setHistoryLoadRequested(true);
-                        }}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[9.5px] font-black bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs transition-all cursor-pointer whitespace-nowrap !min-h-0"
-                        style={{ height: '28px' }}
-                        aria-label="Load full 20-year history"
-                      >
-                        <Globe size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span>+All</span>
-                      </button>
-                      <StandardTooltip
-                        title="Search Scope & Records"
-                        content={
-                          <div className="space-y-1 text-[11px]">
-                            <div><strong>Results:</strong> {filteredStudents.length} matching students out of {allStudents.length} loaded.</div>
-                            <div><strong>Current Scope:</strong> Scoped to recent 4 sessions (2022–2026) for faster results.</div>
-                            <div className="pt-1 border-t border-slate-700/60 text-amber-300">
-                              Tap <strong>+All</strong> to search the complete 20-year historical archive (2006–2026).
-                            </div>
-                          </div>
-                        }
-                        position="bottom"
-                      />
-                    </div>
-                  </>
+                  <span className="hidden lg:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[9.5px] font-extrabold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs">
+                    Scope: Recent 3 Cycles
+                  </span>
                 )}
               </div>
             )}
+
           </div>
         </div>
 
@@ -13525,6 +13717,8 @@ function AdvancedReports({
                   setSortOrder={setSortOrder}
                   setCurrentPage={setCurrentPage}
                   onOpen={() => setHistoryLoadRequested(true)}
+                  isDefaultSession={isDefaultSession}
+                  onHistoricalLimitExceeded={handleHistoricalLimitExceeded}
                 />
             </div>
           </div>
@@ -13719,6 +13913,37 @@ function AdvancedReports({
             aria-label="Clear selected applications"
           >
             <X size={13} />
+          </button>
+        </div>
+      )}
+
+      {/* Prominent but Compact Full DB Search Warning Banner */}
+      {fullDbSearchActive && (
+        <div className="mx-0.5 mb-1.5 px-2.5 py-1.5 rounded-xl border border-amber-400 dark:border-amber-600 bg-amber-500/10 dark:bg-amber-950/70 text-amber-950 dark:text-amber-100 shadow-xs flex items-center justify-between gap-2 text-xs animate-fadeIn">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white font-black text-[11px] shrink-0 shadow-xs animate-pulse">
+              ⚡
+            </span>
+            <div className="truncate text-[11px] sm:text-xs">
+              <span className="font-black text-amber-900 dark:text-amber-200">
+                Full Database Search Active:
+              </span>
+              <span className="font-semibold text-amber-800 dark:text-amber-300 ml-1">
+                Searching across entire 20-year student database (2006–2026).
+              </span>
+              <span className="hidden md:inline text-rose-700 dark:text-rose-400 font-extrabold ml-1.5">
+                ⚠️ Consumes ~30x cloud resources. Disable when not required.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleToggleFullDbSearch(false)}
+            className="shrink-0 px-2 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-black text-[10.5px] shadow-xs cursor-pointer flex items-center gap-1 transition-all"
+            title="Switch back to lightweight default search (Recent sessions cohort)"
+          >
+            <X size={12} />
+            <span className="whitespace-nowrap">Turn Off (Fast Mode)</span>
           </button>
         </div>
       )}
