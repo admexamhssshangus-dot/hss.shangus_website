@@ -456,9 +456,11 @@ export const checkStudentApprovalState = (st) => {
   const statusStr = String(st.Status || st.status || st['Admission Status'] || st.admissionStatus || '').toLowerCase();
   const isRejected = isDropped || statusStr.includes('reject') || statusStr.includes('cancel') || st.isRejected === true;
 
-  // Once class roll is assigned, the student is approved. Also approved if marked as approved/admitted/completed or from master registers.
+  const stSess = String(st.Session || st.session || st.academicSession || '');
+  const isCurrentSession = !stSess || stSess.includes('2025-26');
+  // For the current academic session (2025-26), only students with an authentic assigned Class Roll Number are approved
   const isExplicitApproved = statusStr.includes('approv') || statusStr.includes('admit') || statusStr.includes('complet') || statusStr.includes('active') || st.isApproved === true || st._source === 'masterRegisters';
-  const isApproved = !isRejected && !isDropped && (hasRoll || isExplicitApproved);
+  const isApproved = !isRejected && !isDropped && (hasRoll || (!isCurrentSession && isExplicitApproved));
   const isPending = !isApproved && !isRejected && !isDropped;
 
   return { isApproved, isRejected, isPending, isDropped, hasRoll };
@@ -1045,6 +1047,28 @@ function AdminPracticals() {
           }
         });
       });
+
+      // 4. Offline / Quota Fallback Seed: If live collections returned no students for the current session
+      if (studentsMap.size === 0) {
+        try {
+          const verifiedModule = await import('../../data/verifiedStudentsCatalog.json');
+          const verifiedList = verifiedModule.default || verifiedModule;
+          if (Array.isArray(verifiedList) && verifiedList.length > 0) {
+            verifiedList.forEach(st => {
+              const approval = checkStudentApprovalState(st);
+              if (!approval.isApproved) return;
+              addOrMergeStudent({
+                ...st,
+                class: st.className || st.class,
+                Class: st.className || st.Class,
+                session: st.session || '2025-26',
+                Session: st.session || '2025-26',
+                _source: 'verifiedCatalog'
+              }, 'verifiedCatalog');
+            });
+          }
+        } catch (_) {}
+      }
 
       const allStudentList = Array.from(studentsMap.values());
 
@@ -2214,6 +2238,18 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
   const pendingCount = totalClassStudents.length - approvedCount;
 
+  const droppedCount = useMemo(() => {
+    return students.filter(st => {
+      const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
+      if (!classMatch) return false;
+      if (selectedSession !== 'all') {
+        const sess = getStudentSession(st);
+        if (!isSessionMatch(sess, selectedSession)) return false;
+      }
+      return isStudentExamDropped(st);
+    }).length;
+  }, [students, cls, selectedSession]);
+
   const cSts = useMemo(() => {
     return totalClassStudents.filter(st => {
       if (isStudentExamDropped(st)) return false;
@@ -2482,6 +2518,11 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
               </h2>
               <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] sm:text-[10.5px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                 <strong className="text-indigo-600 dark:text-indigo-400">{selectedStudentsList.length}</strong>/{cSts.length} <span className="hidden xs:inline">Sts</span>
+                {droppedCount > 0 && (
+                  <span className="text-rose-600 dark:text-rose-400 font-bold ml-1" title={`${droppedCount} student(s) in dropped category (${cSts.length + droppedCount} total enrolled)`}>
+                    ({droppedCount} dropped)
+                  </span>
+                )}
                 {pendingCount > 0 && selectedStatusFilter === 'approved' && (
                   <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">
                     ({pendingCount}<span className="hidden sm:inline"> unassigned</span>)

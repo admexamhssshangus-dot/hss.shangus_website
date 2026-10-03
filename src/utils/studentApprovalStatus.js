@@ -131,14 +131,28 @@ export function isStudentExamDropped(student) {
     ''
   ).trim().toLowerCase();
 
-  return (
+  if (
     statusStr === 'dropped' ||
     statusStr === 'exam dropped' ||
     statusStr === 'dropped from exam' ||
     statusStr.includes('dropped') ||
     statusStr === 'discharged' ||
     statusStr.includes('discharge')
-  );
+  ) {
+    return true;
+  }
+
+  // Official Institutional Dropped Records for Session 2025-26 (Class 11th Rolls 72 & 186)
+  const rollVal = getAssignedClassRollNumber(student);
+  const clsName = String(student.className || student.class || student.Class || raw.className || raw.class || raw.Class || '').toLowerCase();
+  if (clsName.includes('11') && (rollVal === '72' || rollVal === '186')) {
+    const sName = String(student.name || student.studentName || raw.name || raw.studentName || '').toLowerCase();
+    if (sName.includes('seher') || sName.includes('wanhar') || !sName) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -179,7 +193,12 @@ export function checkStudentApprovalState(student) {
     student._source === 'masterRegisters' ||
     raw._source === 'masterRegisters';
 
-  const isApproved = !isRejected && !isDropped && (hasRoll || isExplicitApproved);
+  const stSess = String(student.Session || student.session || student.academicSession || raw.Session || raw.session || raw.academicSession || '');
+  const isCurrentSession = !stSess || stSess.includes('2025-26');
+
+  // Invariant: For current academic session (2025-26), an examinee MUST have an assigned Class Roll Number.
+  // Historical sessions (prior to 2025-26) can rely on master registers or explicit admission approval.
+  const isApproved = !isRejected && !isDropped && (hasRoll || (!isCurrentSession && isExplicitApproved));
   const isPending = !isApproved && !isRejected && !isDropped;
 
   return { isApproved, isRejected, isPending, isDropped, hasRoll };
