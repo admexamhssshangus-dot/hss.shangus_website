@@ -26,7 +26,9 @@ import {
   printAttendanceSheet,
   printMarksRecordAwardRoll,
   printFailList,
-  PRACTICAL_SUBJECT_DEFS
+  PRACTICAL_SUBJECT_DEFS,
+  getCurrentOfficialExamRoll,
+  isValidExamRollForClass
 } from '../../utils/practicalsPdfGenerator';
 import {
   generatePracticalsExcelTemplate,
@@ -492,14 +494,17 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
     ''
   ).trim();
 
-  let examRoll = String(
-    st['Exam R.No. (Current)'] ||
-    st.examRollNo ||
-    st['Exam Roll No'] ||
-    st['Exam Roll No.'] ||
-    st.examRoll ||
-    ''
-  ).trim();
+  let examRoll = getCurrentOfficialExamRoll(st);
+  if (!examRoll) {
+    examRoll = String(
+      st['Exam R.No. (Current)'] ||
+      st.examRollNo ||
+      st['Exam Roll No'] ||
+      st['Exam Roll No.'] ||
+      st.examRoll ||
+      ''
+    ).trim();
+  }
 
   const boardReg = cleanRegistrationNumber(
     st['Board Registration Number'] ||
@@ -846,17 +851,17 @@ function AdminPracticals() {
         const reg = cleanRegistrationNumber(st['Board Registration Number'] || st.regNo || '');
         const form = String(st['Form No.'] || '').trim();
         const roll = String(getRollNo(st) || '').trim();
-        const exam = String(st['Exam R.No. (Current)'] || st.examRollNo || '').trim().toUpperCase();
+        const cls = cleanCls(st);
+        const canonicalCls = extractCleanClass(st);
+        st.Class = canonicalCls;
+        st.class = canonicalCls;
+
+        const exam = String(getCurrentOfficialExamRoll(st, canonicalCls) || st['Exam R.No. (Current)'] || st.examRollNo || '').trim().toUpperCase();
 
         // STRICT GUARD: Skip empty / ghost rows
         if (!name && !father && (!roll || roll === '—') && (!exam || exam === '—') && (!reg || reg === '—')) {
           return;
         }
-
-        const cls = cleanCls(st);
-        const canonicalCls = extractCleanClass(st);
-        st.Class = canonicalCls;
-        st.class = canonicalCls;
 
         const sess = cleanSess(st);
         st.Session = sess;
@@ -889,7 +894,9 @@ function AdminPracticals() {
           const finalSubs = (isLiveAdmission && stSubs) ? stSubs : (stSubs || existingSubs || '');
 
           const finalRoll = getRollNo(st) || getRollNo(existing) || '—';
-          const finalExam = (exam && exam !== '—' && exam !== 'NA' && exam !== 'N/A') ? exam : (existing['Exam R.No. (Current)'] || existing.examRollNo || '—');
+          const stOfficialExam = getCurrentOfficialExamRoll(st, canonicalCls);
+          const existingOfficialExam = getCurrentOfficialExamRoll(existing, canonicalCls);
+          const finalExam = stOfficialExam || existingOfficialExam || (isValidExamRollForClass(exam, canonicalCls) ? exam : (existing['Exam R.No. (Current)'] || existing.examRollNo || '—'));
           const finalReg = (reg && reg !== '—' && reg !== 'N/A') ? reg : (existing['Board Registration Number'] || existing.regNo || '—');
 
           // Session priority: prefer '2025-26' if present in either existing or new record
@@ -1022,10 +1029,14 @@ function AdminPracticals() {
 
           if (existingId && studentsMap.has(existingId)) {
             const existing = studentsMap.get(existingId);
+            const currentOfficialExam = getCurrentOfficialExamRoll(existing, subCls);
+            const shouldAdoptSubmissionExam = !currentOfficialExam && isValidExamRollForClass(rawExam, subCls);
+            const finalExamRoll = currentOfficialExam || (shouldAdoptSubmissionExam ? rawExam : (existing['Exam R.No. (Current)'] || existing.examRollNo || '—'));
+
             studentsMap.set(existingId, {
               ...existing,
-              'Exam R.No. (Current)': (rawExam && rawExam !== '—') ? rawExam : (existing['Exam R.No. (Current)'] || existing.examRollNo || '—'),
-              examRollNo: (rawExam && rawExam !== '—') ? rawExam : (existing.examRollNo || existing['Exam R.No. (Current)'] || '—'),
+              'Exam R.No. (Current)': finalExamRoll,
+              examRollNo: finalExamRoll,
               'Board Registration Number': (rawReg && rawReg !== '—') ? rawReg : (existing['Board Registration Number'] || existing.regNo || '—'),
               boardRegNo: (rawReg && rawReg !== '—') ? rawReg : (existing.boardRegNo || existing['Board Registration Number'] || '—'),
             });
@@ -2227,7 +2238,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
     const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').toLowerCase();
     const mother = String(st["Mother's Name (as per school records)"] || st["Mother's Name"] || st.motherName || st.mother || '').toLowerCase();
     const roll = String(getRollNo(st) || '').toLowerCase();
-    const exam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '').toLowerCase();
+    const exam = String(getCurrentOfficialExamRoll(st, cls) || st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '').toLowerCase();
     const reg = String(st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '').toLowerCase();
     const stream = String(st.stream || st.Stream || '').toLowerCase();
     return name.includes(term) || father.includes(term) || mother.includes(term) || roll.includes(term) || exam.includes(term) || reg.includes(term) || stream.includes(term);
@@ -2370,8 +2381,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
         aVal = String(a['Exam R.No. (Current)'] || a["Student's Name (as per school records)"] || a.studentName || a.name || '').toLowerCase();
         bVal = String(b['Exam R.No. (Current)'] || b["Student's Name (as per school records)"] || b.studentName || b.name || '').toLowerCase();
       } else if (sortField === 'examRoll') {
-        aVal = String(a['Exam R.No. (Current)'] || a.examRollNo || '').toLowerCase();
-        bVal = String(b['Exam R.No. (Current)'] || b.examRollNo || '').toLowerCase();
+        aVal = String(getCurrentOfficialExamRoll(a, cls) || a['Exam R.No. (Current)'] || a.examRollNo || '').toLowerCase();
+        bVal = String(getCurrentOfficialExamRoll(b, cls) || b['Exam R.No. (Current)'] || b.examRollNo || '').toLowerCase();
       } else if (sortField === 'regNo') {
         aVal = String(a['Board Registration Number'] || a['Board Reg. No.'] || a.boardRegNo || a.regNo || '').toLowerCase();
         bVal = String(b['Board Registration Number'] || b['Board Reg. No.'] || b.boardRegNo || b.regNo || '').toLowerCase();
@@ -3254,8 +3265,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
               const streamRaw = getStudentStreamStr(st, cls);
               const streamDisplay = streamRaw ? toTitleCase(streamRaw) : 'Science';
               const streamLower = streamRaw.toLowerCase();
-              const rawExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim();
-              // Always show exam roll if available (board issues rolls well before the exam)
+              const rawExam = getCurrentOfficialExamRoll(st, cls) || String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim();
+              // Always show official current exam roll if available (board issues rolls well before the exam)
               const examRoll = (rawExam && rawExam !== '—' && rawExam !== 'NA' && rawExam !== 'N/A') ? rawExam : '—';
               
               const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';

@@ -18,11 +18,15 @@ import {
 } from '../../utils/practicalsSettingsManager';
 import {
   extractRawSubjectsString,
-  getAbbreviatedSubjects
+  getAbbreviatedSubjects,
+  getExamRoll
 } from './PracticalsPage';
 import { 
   getAbbreviatedSubjects as getPdfAbbreviatedSubjects,
-  isStudentEnrolledInPracticalSubject
+  isStudentEnrolledInPracticalSubject,
+  getCurrentOfficialExamRoll,
+  isValidExamRollForClass,
+  getStudentCentreNo
 } from '../../utils/practicalsPdfGenerator';
 
 describe('Practicals Dynamic Configuration and Roster Logic', () => {
@@ -492,6 +496,68 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
       expect(isStudentEnrolledInPracticalSubject(artsStudent, 'CH', '12th')).toBe(false);
       expect(isStudentEnrolledInPracticalSubject(artsStudent, 'BO', '12th')).toBe(false);
       expect(isStudentEnrolledInPracticalSubject(artsStudent, 'ZO', '12th')).toBe(false);
+    });
+  });
+
+  describe('Official Exam Roll Resolution & Centre Code Derivation', () => {
+    test('strictly validates JKBOSE exam roll prefix per class', () => {
+      // 10th must start with 1 (Centre 101061)
+      expect(isValidExamRollForClass('101061058', '10th')).toBe(true);
+      expect(isValidExamRollForClass('201003029', '10th')).toBe(false);
+      expect(isValidExamRollForClass('301004100', '10th')).toBe(false);
+
+      // 11th must start with 2 (Centres 201003, 201004)
+      expect(isValidExamRollForClass('201003029', '11th')).toBe(true);
+      expect(isValidExamRollForClass('201004043', '11th')).toBe(true);
+      expect(isValidExamRollForClass('101061058', '11th')).toBe(false);
+      expect(isValidExamRollForClass('301004100', '11th')).toBe(false);
+
+      // 12th must start with 3 (Centres 301003, 301004)
+      expect(isValidExamRollForClass('301003051', '12th')).toBe(true);
+      expect(isValidExamRollForClass('301004100', '12th')).toBe(true);
+      expect(isValidExamRollForClass('201000224', '12th')).toBe(false); // Old redundant roll
+      expect(isValidExamRollForClass('201003080', '12th')).toBe(false); // 11th roll
+      expect(isValidExamRollForClass('101057000', '12th')).toBe(false); // 10th roll
+    });
+
+    test('resolves current official 12th exam roll and rejects old redundant rolls', () => {
+      const rohitStudentRecord = {
+        name: 'Rohit Chidanand Raina',
+        class: '12th',
+        currExamRollNo: '301004100',
+        boardRollNo: '301004100',
+        'Exam Roll Number of Class 11th': '201003080',
+        'Exam Roll Number of Class 10th': '101057000',
+        examRollNo: '201000224' // Old redundant placeholder
+      };
+
+      const resolved = getCurrentOfficialExamRoll(rohitStudentRecord, '12th');
+      expect(resolved).toBe('301004100');
+
+      const teacherPageRoll = getExamRoll(rohitStudentRecord, '12th');
+      expect(teacherPageRoll).toBe('301004100');
+
+      // Centre derivation correctly extracts 301004
+      const centre = getStudentCentreNo(rohitStudentRecord, '', '12th');
+      expect(centre).toBe('301004');
+    });
+
+    test('correctly extracts official centres: 1 centre for 10th and 2 centres for 11th and 12th', () => {
+      // 10th: 1 Centre (101061)
+      const st10 = { class: '10th', currExamRollNo: '101061058' };
+      expect(getStudentCentreNo(st10, '', '10th')).toBe('101061');
+
+      // 11th: 2 Centres (201003 and 201004)
+      const st11A = { class: '11th', currExamRollNo: '201003029' };
+      const st11B = { class: '11th', currExamRollNo: '201004043' };
+      expect(getStudentCentreNo(st11A, '', '11th')).toBe('201003');
+      expect(getStudentCentreNo(st11B, '', '11th')).toBe('201004');
+
+      // 12th: 2 Centres (301003 and 301004)
+      const st12A = { class: '12th', currExamRollNo: '301003051' };
+      const st12B = { class: '12th', currExamRollNo: '301004100' };
+      expect(getStudentCentreNo(st12A, '', '12th')).toBe('301003');
+      expect(getStudentCentreNo(st12B, '', '12th')).toBe('301004');
     });
   });
 });

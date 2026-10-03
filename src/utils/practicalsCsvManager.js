@@ -22,7 +22,7 @@ import {
   PageOrientation,
   HeightRule
 } from 'docx';
-import { findStudentMarkRecord, resolveAwardRollTitles, isStudentEnrolledInPracticalSubject, getAbbreviatedSubjects, hasSubjectPracticalSubmission } from './practicalsPdfGenerator';
+import { findStudentMarkRecord, resolveAwardRollTitles, isStudentEnrolledInPracticalSubject, getAbbreviatedSubjects, hasSubjectPracticalSubmission, getCurrentOfficialExamRoll } from './practicalsPdfGenerator';
 import { isStudentExamDropped } from './studentApprovalStatus';
 import { getSubjectDisplayName, normalizePracticalSession } from './practicalsSettingsManager';
 
@@ -251,7 +251,7 @@ export function exportCurrentRosterToExcel({
   const rows = students.map((st, idx) => {
     const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st.regNo || st.boardRegNo || '';
     const regNo = cleanRegistrationNumber(rawReg);
-    const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || '').trim();
+    const examRoll = getCurrentOfficialExamRoll(st, className) || String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || '').trim();
     const classRoll = String(st['Class Roll No'] || st.classRollNo || st.rollNo || (idx + 1)).trim();
     const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').trim();
     const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').trim();
@@ -492,7 +492,7 @@ export function exportConsolidatedAwardsToExcel({
 
   const matrixDataRows = students.map((st, idx) => {
     const classRoll = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1)).trim();
-    const rawExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
+    const rawExam = getCurrentOfficialExamRoll(st, className) || String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
     const examRoll = (rawExam && rawExam !== '—' && rawExam !== 'N/A' && rawExam !== 'NA') ? rawExam : '—';
     const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '';
     const regNo = cleanRegistrationNumber(rawReg) || '—';
@@ -865,7 +865,7 @@ export async function exportConsolidatedAwardsToDocx({
   });
 
   const matrixDataRows = students.map((st, idx) => {
-    const rawExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
+    const rawExam = getCurrentOfficialExamRoll(st, className) || String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
     const examRoll = (rawExam && rawExam !== '—' && rawExam !== 'N/A' && rawExam !== 'NA') ? rawExam : '—';
     let rowHashTotal = 0;
 

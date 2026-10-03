@@ -14,7 +14,7 @@ import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, addDoc, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
-import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll } from '../../utils/practicalsPdfGenerator';
+import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll, getCurrentOfficialExamRoll, isValidExamRollForClass } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import {
   getSubjectMarksConfig,
@@ -634,68 +634,7 @@ export function getRegNo(st) {
 // Helper: Extract Current Class Exam Roll Number ONLY (returns '' if not assigned)
 export function getExamRoll(st, selectedClass) {
   if (!st) return '';
-
-  const getCleanVal = (val) => {
-    if (val === undefined || val === null) return '';
-    const str = String(val).trim();
-    if (str === 'undefined' || str === 'null' || str === '—' || str === '-' || str === '#N/A' || str === 'N/A' || str === 'NA') return '';
-    return str;
-  };
-
-  const clsStr = String(selectedClass || st.className || st.Class || st.class || '').toLowerCase();
-  const is12th = clsStr.includes('12');
-  const is11th = clsStr.includes('11');
-  const is10th = clsStr.includes('10');
-
-  let roll = '';
-
-  if (is12th) {
-    roll = getCleanVal(
-      st['12th Exam Roll'] ||
-      st['Exam Roll Number of Class 12th'] ||
-      st['12th Board Roll'] ||
-      st['Class 12th Exam Roll'] ||
-      st['12th Roll']
-    );
-  } else if (is11th) {
-    roll = getCleanVal(
-      st['11th Exam Roll'] ||
-      st['Exam Roll Number of Class 11th'] ||
-      st['11th Board Roll'] ||
-      st['Class 11th Exam Roll'] ||
-      st['11th Roll']
-    );
-  } else if (is10th) {
-    roll = getCleanVal(
-      st['10th Exam Roll'] ||
-      st['Exam Roll Number of Class 10th'] ||
-      st['10th Board Roll'] ||
-      st['Class 10th Exam Roll'] ||
-      st['10th Roll']
-    );
-  }
-
-  if (!roll) {
-    roll = getCleanVal(
-      st['Exam R.No. (Current)'] ||
-      st['Exam Roll'] ||
-      st['Exam Roll No'] ||
-      st['Exam Roll No.'] ||
-      st['Exam Roll Number'] ||
-      st['Board Roll'] ||
-      st['Board Roll No'] ||
-      st['Board Roll No.'] ||
-      st['Board Roll Number'] ||
-      st['Current Exam Roll'] ||
-      st.examRoll ||
-      st.examRollNo ||
-      st.boardRoll ||
-      st.boardRollNo ||
-      st.currentExamRoll
-    );
-  }
-
-  return roll;
+  return getCurrentOfficialExamRoll(st, selectedClass);
 }
 
 // Helper: Extract Student Subjects across all schemas

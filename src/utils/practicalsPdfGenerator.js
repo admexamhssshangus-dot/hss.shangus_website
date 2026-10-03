@@ -200,11 +200,135 @@ export function getStudentRegNo(st) {
   return '';
 }
 
-export function getStudentCentreNo(st, fallbackCentre = '') {
+/**
+ * Checks whether an exam roll number matches the official JKBOSE series for a given class:
+ * - Class 10th: starts with '1' (typically 7-9 digits; 2025-26 centre 101061)
+ * - Class 11th: starts with '2' (typically 7-9 digits; 2025-26 centres 201003, 201004)
+ * - Class 12th: starts with '3' (typically 7-9 digits; 2025-26 centres 301003, 301004)
+ */
+export function isValidExamRollForClass(roll, targetClass = '') {
+  if (!roll) return false;
+  const digits = String(roll).replace(/\D/g, '');
+  if (digits.length < 6) return false;
+  if (!targetClass) return true;
+
+  const c = String(targetClass).toLowerCase();
+  if (c.includes('12')) {
+    return digits.startsWith('3');
+  }
+  if (c.includes('11')) {
+    return digits.startsWith('2');
+  }
+  if (c.includes('10')) {
+    return digits.startsWith('1');
+  }
+  return true;
+}
+
+/**
+ * Extracts the current official exam roll number for a student or record,
+ * rigorously prioritizing current official board rolls (currExamRollNo / boardRollNo / Exam R.No. (Current))
+ * and filtering out old redundant or previous-class exam rolls.
+ */
+export function getCurrentOfficialExamRoll(st, targetClass = '') {
+  if (!st) return '';
+
+  const cls = String(targetClass || st.Class || st.class || st.className || st['Admission sought for class'] || '').trim();
+
+  const getClean = (val) => {
+    if (val === undefined || val === null) return '';
+    const str = String(val).trim();
+    if (!str || /^(undefined|null|—|-|#N\/A|N\/A|NA|none|nil)$/i.test(str)) return '';
+    return str;
+  };
+
+  const is12 = cls.includes('12');
+  const is11 = cls.includes('11');
+  const is10 = cls.includes('10');
+
+  // 1. Explicit class-prefixed keys (e.g. from admissions)
+  let classSpecificRoll = '';
+  if (is12) {
+    classSpecificRoll = getClean(
+      st['12th Exam Roll'] ||
+      st['Exam Roll Number of Class 12th'] ||
+      st['12th Board Roll'] ||
+      st['Class 12th Exam Roll'] ||
+      st['12th Roll']
+    );
+  } else if (is11) {
+    classSpecificRoll = getClean(
+      st['11th Exam Roll'] ||
+      st['Exam Roll Number of Class 11th'] ||
+      st['11th Board Roll'] ||
+      st['Class 11th Exam Roll'] ||
+      st['11th Roll']
+    );
+  } else if (is10) {
+    classSpecificRoll = getClean(
+      st['10th Exam Roll'] ||
+      st['Exam Roll Number of Class 10th'] ||
+      st['10th Board Roll'] ||
+      st['Class 10th Exam Roll'] ||
+      st['10th Roll']
+    );
+  }
+
+  if (classSpecificRoll && isValidExamRollForClass(classSpecificRoll, cls)) {
+    return classSpecificRoll;
+  }
+
+  // 2. Priority check: currExamRollNo / boardRollNo / Exam R.No. (Current)
+  const candidateKeys = [
+    'currExamRollNo',
+    'currExamRoll',
+    'boardRollNo',
+    'boardRoll',
+    'Board Roll No',
+    'Board Roll No.',
+    'Board Roll',
+    'Board Roll Number',
+    'Exam R.No. (Current)',
+    'Exam R. No. (Current)',
+    'Current Exam Roll',
+    'currentExamRoll',
+    'examRollNo',
+    'Exam Roll No.',
+    'Exam Roll No',
+    'Exam Roll',
+    'Exam Roll Number',
+    'examRoll'
+  ];
+
+  for (const k of candidateKeys) {
+    const val = getClean(st[k]);
+    if (val && isValidExamRollForClass(val, cls)) {
+      return val;
+    }
+  }
+
+  // 3. Fallback: check rollNo if it is a multi-digit number matching class prefix
+  const rollNo = getClean(st.rollNo);
+  if (rollNo && /^\d{6,}$/.test(rollNo) && isValidExamRollForClass(rollNo, cls)) {
+    return rollNo;
+  }
+
+  // 4. If class wasn't specified, return the first candidate matching multi-digit
+  if (!cls) {
+    for (const k of candidateKeys) {
+      const val = getClean(st[k]);
+      if (val && /^\d{6,}$/.test(val)) return val;
+    }
+  }
+
+  return '';
+}
+
+export function getStudentCentreNo(st, fallbackCentre = '', targetClass = '') {
   if (!st) return fallbackCentre;
 
   // 1. Derive from Exam Roll No: In JKBOSE, the first 6 digits represent the official Centre Code
-  const examRoll = getRecordExamRoll(st);
+  const examRoll = getCurrentOfficialExamRoll(st, targetClass) || getRecordExamRoll(st, targetClass);
   const digits = examRoll.replace(/\D/g, '');
   if (digits.length >= 6) {
     return digits.slice(0, 6);
@@ -222,34 +346,8 @@ export function getStudentCentreNo(st, fallbackCentre = '') {
 /**
  * Extracts a clean, non-placeholder Exam Roll Number from a record or student object.
  */
-export function getRecordExamRoll(r) {
-  if (!r) return '';
-  const explicitKeys = [
-    'examRollNo',
-    'Exam Roll No.',
-    'Exam Roll No',
-    'Exam R.No. (Current)',
-    'Exam Roll',
-    'Board Roll',
-    'examRoll',
-    'currentExamRoll'
-  ];
-  for (const k of explicitKeys) {
-    if (r[k] !== undefined && r[k] !== null) {
-      const s = String(r[k]).trim();
-      if (s && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s)) {
-        return s;
-      }
-    }
-  }
-  // Fallback: if r.rollNo is a multi-digit number (>= 6 digits in JKBOSE), it is an exam roll
-  if (r.rollNo !== undefined && r.rollNo !== null) {
-    const s = String(r.rollNo).trim();
-    if (s && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s) && /^\d{6,}$/.test(s)) {
-      return s;
-    }
-  }
-  return '';
+export function getRecordExamRoll(r, targetClass = '') {
+  return getCurrentOfficialExamRoll(r, targetClass);
 }
 
 /**
