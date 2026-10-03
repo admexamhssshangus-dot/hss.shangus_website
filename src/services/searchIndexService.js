@@ -58,7 +58,7 @@ export function cleanSearchMobile(val) {
  * Known common name synonyms and prefix abbreviations in Kashmiri & Indian academic records
  */
 const CANONICAL_SYNONYMS = {
-  // Mohammad variants
+  // Mohammad / Ahmad variants
   mohd: 'mohammad',
   mhd: 'mohammad',
   md: 'mohammad',
@@ -68,6 +68,8 @@ const CANONICAL_SYNONYMS = {
   muhammed: 'mohammad',
   mahmod: 'mohammad',
   mehmood: 'mahmood',
+  ahmad: 'ahmad',
+  ahmed: 'ahmad',
   // Syed variants
   syed: 'syed',
   sayed: 'syed',
@@ -80,39 +82,129 @@ const CANONICAL_SYNONYMS = {
   // Sheikh variants
   shk: 'sheikh',
   shkh: 'sheikh',
+  shaik: 'sheikh',
   shaikh: 'sheikh',
   shaykh: 'sheikh',
   sheekh: 'sheikh',
-  // Parray variants
-  parray: 'parray',
-  parrey: 'parray',
-  parey: 'parray',
-  pary: 'parray',
-  // Wani variants
-  wani: 'wani',
-  wain: 'wani',
-  vani: 'wani',
-  // Dar variants
-  dar: 'dar',
-  dhar: 'dar',
+  // Peer variants
+  peer: 'peer',
+  pir: 'peer',
+  per: 'peer',
   // Bhat / Butt variants
   bhat: 'bhat',
   butt: 'bhat',
   bhatt: 'bhat',
   bat: 'bhat',
+  // Wani variants
+  wani: 'wani',
+  waani: 'wani',
+  wain: 'wani',
+  vani: 'wani',
+  // Dar variants
+  dar: 'dar',
+  darr: 'dar',
+  dhar: 'dar',
+  // Mir variants
+  mir: 'mir',
+  meer: 'mir',
+  myer: 'mir',
+  // Lone variants
+  lone: 'lone',
+  loan: 'lone',
+  loni: 'lone',
+  // Ganie variants
+  ganie: 'ganie',
+  ganai: 'ganie',
+  ganaie: 'ganie',
+  ganay: 'ganie',
+  gany: 'ganie',
+  // Parray variants
+  parray: 'parray',
+  parrey: 'parray',
+  parey: 'parray',
+  pary: 'parray',
+  // Magray variants
+  magray: 'magray',
+  magrey: 'magray',
+  magre: 'magray',
+  // Naik variants
+  naik: 'naik',
+  nayik: 'naik',
+  naick: 'naik',
+  // Itoo variants
+  itoo: 'itoo',
+  itu: 'itoo',
+  ittoo: 'itoo',
+  // Khanday variants
+  khanday: 'khanday',
+  khandey: 'khanday',
+  khande: 'khanday',
+  // Wagay variants
+  wagay: 'wagay',
+  wagey: 'wagay',
+  wage: 'wagay',
+  // Rather variants
+  rather: 'rather',
+  ratar: 'rather',
+  // Sofi variants
+  sofi: 'sofi',
+  soufi: 'sofi',
+  soafi: 'sofi',
+  // Malik variants
+  malik: 'malik',
+  malick: 'malik',
+  mallik: 'malik',
+  // Padder variants
+  padder: 'padder',
+  padar: 'padder',
+  pader: 'padder',
+  // Chopan variants
+  chopan: 'chopan',
+  chupan: 'chopan',
+  chaupan: 'chopan',
+  // Ahanger variants
+  ahanger: 'ahanger',
+  ahangar: 'ahanger',
+  // Najar variants
+  najar: 'najar',
+  najaar: 'najar',
+  // Teeli variants
+  teeli: 'teeli',
+  teli: 'teeli',
+  // Hajam variants
+  hajam: 'hajam',
+  hazam: 'hajam',
   // Reshi variants
   reshi: 'reshi',
   reshie: 'reshi',
   rishi: 'reshi',
+  // Pandit / Shah / Zargar / Baba / Raina / Koul / Tak
+  pandit: 'pandit',
+  pundit: 'pandit',
+  shah: 'shah',
+  shaah: 'shah',
+  zargar: 'zargar',
+  zarger: 'zargar',
+  khuroo: 'khuroo',
+  kharoo: 'khuroo',
+  baba: 'baba',
+  baaba: 'baba',
+  raina: 'raina',
+  rayna: 'raina',
+  koul: 'koul',
+  kaul: 'koul',
+  tak: 'tak',
+  taak: 'tak',
+  tantray: 'tantray',
+  tantrey: 'tantray',
+  yatoo: 'yatoo',
+  yatu: 'yatoo',
   // Bano / Begum variants
   bano: 'banoo',
   banoo: 'banoo',
   banu: 'banoo',
   begum: 'begum',
   begam: 'begum',
-  // Lone variants
-  lone: 'lone',
-  loni: 'lone',
   // Common personal names with varied spellings
   mumin: 'mumin',
   momin: 'mumin',
@@ -122,9 +214,12 @@ const CANONICAL_SYNONYMS = {
   kowser: 'kousar',
   kousur: 'kousar',
   koushar: 'kousar',
+  kounser: 'kousar',
+  kownsip: 'kousar',
   zahoor: 'zahoor',
   zuhoor: 'zahoor',
   zahoore: 'zahoor',
+  zahur: 'zahoor',
   gulfam: 'gulfam',
   goolfam: 'gulfam',
   ghulfam: 'gulfam',
@@ -157,6 +252,7 @@ const CANONICAL_SYNONYMS = {
   goolzar: 'gulzar',
   manzoor: 'manzoor',
   manzor: 'manzoor',
+  manzur: 'manzoor',
   shafi: 'shafi',
   shafee: 'shafi',
   shafy: 'shafi',
@@ -170,6 +266,7 @@ const CANONICAL_SYNONYMS = {
   suhail: 'suhail',
   sohail: 'suhail',
   suhayl: 'suhail',
+  sohil: 'suhail',
   tanveer: 'tanvir',
   tanvir: 'tanvir',
   mudasir: 'mudasir',
@@ -200,14 +297,143 @@ const CANONICAL_SYNONYMS = {
   owais: 'owais',
   uwais: 'owais',
   awais: 'owais',
+  gowhar: 'gowhar',
+  gauhar: 'gowhar',
+  gauher: 'gowhar',
+  gohar: 'gowhar',
+  sajad: 'sajad',
+  sajjad: 'sajad',
+  saajad: 'sajad',
+  feroz: 'feroz',
+  fayroz: 'feroz',
+  farooz: 'feroz',
+  farooq: 'farooq',
+  faruq: 'farooq',
+  rouf: 'rouf',
+  raouf: 'rouf',
+  rauf: 'rouf',
+  irfan: 'irfan',
+  erfan: 'irfan',
+  irfaan: 'irfan',
+  imran: 'imran',
+  imraan: 'imran',
+  bilal: 'bilal',
+  bilaal: 'bilal',
+  reyaz: 'reyaz',
+  riaz: 'reyaz',
+  riyaz: 'reyaz',
+  junaid: 'junaid',
+  junayd: 'junaid',
+  burhan: 'burhan',
+  burhaan: 'burhan',
+  umer: 'umar',
+  umar: 'umar',
+  omer: 'umar',
+  huzaif: 'huzaif',
+  huzaifa: 'huzaif',
+  mehran: 'mehran',
+  mehraan: 'mehran',
+  aijaz: 'aijaz',
+  ejaz: 'aijaz',
+  ijaz: 'aijaz',
+  altaf: 'altaf',
+  altaaf: 'altaf',
+  mehraj: 'mehraj',
+  meraj: 'mehraj',
+  hassan: 'hassan',
+  hasan: 'hassan',
+  hussain: 'hussain',
+  husain: 'hussain',
+  ghulam: 'ghulam',
+  gh: 'ghulam',
+  abdul: 'abdul',
+  abd: 'abdul',
+  ab: 'abdul',
+  khursheed: 'khursheed',
+  khurshid: 'khursheed',
+  shabnam: 'shabnam',
+  rubeena: 'rubina',
+  rubina: 'rubina',
+  shaheena: 'shahina',
+  shahina: 'shahina',
+  rukhsana: 'rukhsana',
+  ruksana: 'rukhsana',
+  naseema: 'nasima',
+  nasima: 'nasima',
+  shakeela: 'shakeela',
+  shakila: 'shakeela',
+  parveena: 'parveena',
+  parvina: 'parveena',
+  shameema: 'shameema',
+  shamima: 'shameema',
+  tabasum: 'tabasum',
+  tabassum: 'tabasum',
+  saima: 'saima',
+  sayma: 'saima',
+  nuzhat: 'nuzhat',
+  nuzhath: 'nuzhat',
+  sumaira: 'sumaira',
+  samaira: 'sumaira',
+  sumira: 'sumaira',
+  afroza: 'afroza',
+  afrooz: 'afroza',
+  suraya: 'suraya',
+  suraiya: 'suraya',
+  fancy: 'fancy',
+  fanci: 'fancy',
+  nelofar: 'nelofar',
+  nilofer: 'nelofar',
+  nilofar: 'nelofar',
+  // Regional locations in Shangus constituency
   shangus: 'shangus',
   shangas: 'shangus',
   chitergul: 'chitergul',
   chhattergul: 'chitergul',
+  chattergul: 'chitergul',
+  chatargul: 'chitergul',
   nowgam: 'nowgam',
   nougam: 'nowgam',
   wangam: 'wangam',
+  brakpora: 'brakpora',
+  achabal: 'achabal',
+  anantnag: 'anantnag',
+  islamabad: 'anantnag',
+  ranipora: 'ranipora',
+  uttarsoo: 'uttarsoo',
+  deetho: 'deetho',
+  soaf: 'soaf',
+  shaling: 'shaling',
+  kutpora: 'kutpora',
+  hardpora: 'hardpora'
 };
+
+/**
+ * Normalizes vowel patterns and consonant transliterations so that words
+ * like "Rashid" / "Rasheed", "Zahoor" / "Zahur", "Gowhar" / "Gauhar" map to the same representation.
+ */
+export function normalizeVowels(word) {
+  if (!word || typeof word !== 'string') return '';
+  return word
+    .toLowerCase()
+    .trim()
+    .replace(/ph/g, 'f')
+    .replace(/kh/g, 'k')
+    .replace(/gh/g, 'g')
+    .replace(/th/g, 't')
+    .replace(/dh/g, 'd')
+    .replace(/ch/g, 'c')
+    .replace(/sh/g, 's')
+    .replace(/zh/g, 'z')
+    .replace(/ee|ea|ie|ei|ey/g, 'i')
+    .replace(/oo|ou|ow/g, 'u')
+    .replace(/aa|ah/g, 'a')
+    .replace(/ai|ay/g, 'i')
+    .replace(/au|aw/g, 'o')
+    .replace(/y/g, 'i')
+    .replace(/e/g, 'i')
+    .replace(/o/g, 'u')
+    .replace(/(.)\1+/g, '$1');
+}
 
 /**
  * South Asian & Kashmiri Phonetic Transform:
@@ -594,15 +820,19 @@ export function levenshteinSimilarity(s1, s2) {
 /**
  * Extract tokens and phonetic hashes from a string of words
  */
-function extractWordTokens(text) {
+export function extractWordTokens(text) {
   if (!text || typeof text !== 'string') return [];
   const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 0);
   return words.map(w => {
     const kHash = kashmiriPhoneticHash(w);
     const dm = doubleMetaphone(w);
     const sndx = soundex(w);
+    const vNorm = normalizeVowels(w);
+    const syn = CANONICAL_SYNONYMS[w] || w;
     return {
       word: w,
+      syn,
+      vNorm,
       kHash,
       dmPrimary: dm.primary,
       dmSecondary: dm.secondary,
@@ -958,11 +1188,15 @@ export function parseSearchQuery(query) {
     const kHash = kashmiriPhoneticHash(cleanAlpha);
     const dm = doubleMetaphone(cleanAlpha);
     const sndx = soundex(cleanAlpha);
+    const vNorm = normalizeVowels(cleanAlpha);
+    const syn = CANONICAL_SYNONYMS[cleanAlpha] || cleanAlpha;
 
     return {
       raw: token,
       cleanAlpha,
       cleanNum,
+      syn,
+      vNorm,
       isNumeric: /^\d+$/.test(token),
       kHash,
       dmPrimary: dm.primary,
@@ -983,13 +1217,103 @@ export function parseSearchQuery(query) {
 }
 
 // =================================================================
-// 7. CORE INTELLIGENT STUDENT RECORD SEARCH EVALUATOR
+// 7. SEMANTIC ACADEMIC & INSTITUTIONAL DICTIONARIES
+// =================================================================
+
+export const SEMANTIC_STREAM_MAP = {
+  med: ['medical', 'pre-medical', 'science'],
+  medical: ['medical', 'pre-medical', 'science'],
+  pcb: ['medical', 'science'],
+  nonmed: ['non-medical', 'non medical', 'science', 'pcm'],
+  'non-med': ['non-medical', 'non medical', 'science', 'pcm'],
+  pcm: ['non-medical', 'non medical', 'science'],
+  sci: ['science', 'medical', 'non-medical'],
+  science: ['science', 'medical', 'non-medical'],
+  arts: ['arts', 'humanities', 'hum'],
+  art: ['arts', 'humanities', 'hum'],
+  hum: ['arts', 'humanities', 'hum'],
+  humanities: ['arts', 'humanities', 'hum'],
+  comm: ['commerce'],
+  commerce: ['commerce']
+};
+
+export const SEMANTIC_CLASS_MAP = {
+  '9': ['9th', 'class 9th', '9'],
+  '9th': ['9th', 'class 9th', '9'],
+  'ix': ['9th', 'class 9th', '9'],
+  '10': ['10th', 'class 10th', '10'],
+  '10th': ['10th', 'class 10th', '10'],
+  'x': ['10th', 'class 10th', '10'],
+  '11': ['11th', 'class 11th', '11'],
+  '11th': ['11th', 'class 11th', '11'],
+  'xi': ['11th', 'class 11th', '11'],
+  '12': ['12th', 'class 12th', '12'],
+  '12th': ['12th', 'class 12th', '12'],
+  'xii': ['12th', 'class 12th', '12']
+};
+
+export const SEMANTIC_GENDER_MAP = {
+  male: ['male', 'boy', 'boys', 'm'],
+  boy: ['male', 'boy', 'boys', 'm'],
+  boys: ['male', 'boy', 'boys', 'm'],
+  m: ['male', 'boy', 'boys', 'm'],
+  female: ['female', 'girl', 'girls', 'f'],
+  girl: ['female', 'girl', 'girls', 'f'],
+  girls: ['female', 'girl', 'girls', 'f'],
+  f: ['female', 'girl', 'girls', 'f']
+};
+
+export const SEMANTIC_CATEGORY_MAP = {
+  om: ['om', 'open merit', 'open'],
+  open: ['om', 'open merit', 'open'],
+  rba: ['rba'],
+  sc: ['sc'],
+  st: ['st'],
+  ews: ['ews'],
+  alc: ['alc', 'ib', 'alcc'],
+  ib: ['alc', 'ib', 'alcc'],
+  psp: ['psp'],
+  cpm: ['cpm'],
+  pwd: ['pwd', 'ph']
+};
+
+export const SEMANTIC_STATUS_MAP = {
+  approved: ['approved', 'active', 'enrolled', 'verified'],
+  provisional: ['provisional', 'pending'],
+  promoted: ['promoted'],
+  alumni: ['alumni', 'passout', 'passed'],
+  cancelled: ['cancelled', 'rejected']
+};
+
+export const SEMANTIC_SUBJECT_MAP = {
+  phy: ['physics'],
+  chem: ['chemistry'],
+  bio: ['biology'],
+  math: ['mathematics', 'maths'],
+  maths: ['mathematics', 'maths'],
+  eng: ['english', 'general english'],
+  urdu: ['urdu'],
+  kash: ['kashmiri'],
+  geo: ['geography'],
+  pol: ['political science'],
+  hist: ['history'],
+  eco: ['economics'],
+  soc: ['sociology'],
+  edu: ['education'],
+  evs: ['environmental science', 'evs'],
+  cs: ['computer science', 'information practices', 'ip'],
+  it: ['information technology', 'computer science'],
+  ped: ['physical education']
+};
+
+// =================================================================
+// 8. CORE INTELLIGENT STUDENT RECORD SEARCH EVALUATOR
 // =================================================================
 
 /**
- * Matches a single query token against a candidate word item
+ * Matches a single query token against a candidate word item with fuzzy & semantic tolerance
  */
-function matchTokenToWord(tokenMeta, wordItem, maxDistance = 1) {
+export function matchTokenToWord(tokenMeta, wordItem) {
   if (!tokenMeta || !wordItem) return { matches: false, score: 0, matchType: null };
 
   const qRaw = tokenMeta.raw;
@@ -997,53 +1321,70 @@ function matchTokenToWord(tokenMeta, wordItem, maxDistance = 1) {
 
   // 1. Exact string match
   if (targetWord === qRaw) {
-    return { matches: true, score: 2000, matchType: 'exact' };
+    return { matches: true, score: 2200, matchType: 'exact' };
   }
 
-  // 2. Prefix match (e.g. "mum" matches "mumin")
-  if (tokenMeta.len >= 2 && targetWord.startsWith(qRaw)) {
-    return { matches: true, score: 1500, matchType: 'prefix' };
+  // 2. Canonical Name Synonym Match (e.g. "shk" <-> "sheikh", "mohd" <-> "mohammad", "bhat" <-> "butt")
+  if (tokenMeta.syn && wordItem.syn && tokenMeta.syn === wordItem.syn) {
+    return { matches: true, score: 2000, matchType: 'canonical_synonym' };
   }
 
-  // 3. Substring match
-  if (tokenMeta.len >= 3 && targetWord.includes(qRaw)) {
-    return { matches: true, score: 1100, matchType: 'substring' };
+  // 3. Vowel-Normalized Exact Match (e.g. "rasheed" <-> "rashid", "gowhar" <-> "gauhar", "zahoor" <-> "zahur")
+  if (tokenMeta.vNorm && wordItem.vNorm && tokenMeta.vNorm === wordItem.vNorm) {
+    return { matches: true, score: 1850, matchType: 'vowel_normalized' };
   }
 
-  // 4. Kashmiri & South Asian Phonetic Hash Match (e.g. "syad" <-> "syed" <-> "sayed")
+  // 4. Kashmiri & South Asian Phonetic Hash Match (e.g. "syad" <-> "syed")
   if (tokenMeta.kHash && wordItem.kHash) {
     if (tokenMeta.kHash === wordItem.kHash) {
       return { matches: true, score: 1700, matchType: 'kashmiri_phonetic' };
     }
-    // Prefix phonetic match
-    if (tokenMeta.kHash.length >= 3 && wordItem.kHash.startsWith(tokenMeta.kHash)) {
-      return { matches: true, score: 1300, matchType: 'kashmiri_phonetic_prefix' };
-    }
   }
 
-  // 5. Double Metaphone Match
+  // 5. Prefix match (e.g. "suh" matches "suhail", "dani" matches "danish")
+  if (tokenMeta.len >= 2 && targetWord.startsWith(qRaw)) {
+    return { matches: true, score: 1550, matchType: 'prefix' };
+  }
+
+  // 6. Double Metaphone Match
   if (tokenMeta.dmPrimary && wordItem.dmPrimary) {
     if (tokenMeta.dmPrimary === wordItem.dmPrimary || (tokenMeta.dmSecondary && tokenMeta.dmSecondary === wordItem.dmPrimary)) {
       return { matches: true, score: 1400, matchType: 'double_metaphone' };
     }
   }
 
-  // 6. Soundex Match (for words >= 4 characters)
+  // 7. Kashmiri Phonetic Hash Prefix Match
+  if (tokenMeta.kHash && wordItem.kHash && tokenMeta.kHash.length >= 3 && wordItem.kHash.startsWith(tokenMeta.kHash)) {
+    return { matches: true, score: 1300, matchType: 'kashmiri_phonetic_prefix' };
+  }
+
+  // 8. Soundex Match (for words >= 4 characters)
   if (tokenMeta.len >= 4 && tokenMeta.soundex && wordItem.soundex && tokenMeta.soundex === wordItem.soundex) {
     return { matches: true, score: 1200, matchType: 'soundex' };
   }
 
-  // 7. Typo-tolerant Damerau-Levenshtein Fuzzy Match
+  // 9. Typo-Tolerant Damerau-Levenshtein Fuzzy Match
   if (tokenMeta.len >= 3 && targetWord.length >= 3) {
     const dist = damerauLevenshtein(qRaw, targetWord);
-    const maxAllowedDist = tokenMeta.len >= 7 ? 2 : (tokenMeta.len >= 4 ? 1 : 1);
+    const maxAllowedDist = tokenMeta.len >= 9 ? 3 : (tokenMeta.len >= 6 ? 2 : 1);
 
     if (dist <= maxAllowedDist) {
-      const sim = 1 - (dist / Math.max(tokenMeta.len, targetWord.length));
-      if (sim >= 0.65) {
-        return { matches: true, score: Math.round(900 * sim), matchType: 'fuzzy' };
+      const maxLen = Math.max(tokenMeta.len, targetWord.length);
+      const sim = 1 - (dist / maxLen);
+      if (sim >= 0.55) {
+        return { matches: true, score: Math.round(1100 * sim), matchType: 'fuzzy' };
       }
     }
+  }
+
+  // 10. Substring & Infix match (e.g. compound names "bhatumar" or "mohammadsuhail")
+  if (tokenMeta.len >= 3 && targetWord.includes(qRaw)) {
+    return { matches: true, score: 1000, matchType: 'substring' };
+  }
+
+  // 11. Target word prefix inside query (e.g. user typed "sheikhs" when record has "sheikh")
+  if (targetWord.length >= 4 && qRaw.startsWith(targetWord)) {
+    return { matches: true, score: 950, matchType: 'query_prefix' };
   }
 
   return { matches: false, score: 0, matchType: null };
@@ -1051,11 +1392,11 @@ function matchTokenToWord(tokenMeta, wordItem, maxDistance = 1) {
 
 /**
  * Evaluates whether a student document matches the parsed Google-like query,
- * computing a rich relevance score across all aspects (phonetic, fuzzy, exact).
+ * computing a rich relevance score across all aspects (phonetic, fuzzy, semantic, exact).
  *
  * @param {object} s - The student document or search index entry
  * @param {object} parsed - The parsed query from parseSearchQuery()
- * @returns {{ matches: boolean, score: number, details: object }}
+ * @returns {{ matches: boolean, score: number }}
  */
 export function evaluateStudentRecord(s, parsed) {
   if (!s || !parsed || !parsed.raw) {
@@ -1068,7 +1409,7 @@ export function evaluateStudentRecord(s, parsed) {
     const cleanVal = val.replace(/[^a-z0-9]/g, '');
 
     if (parsed.patternType === 'admNo') {
-      const sAdm = String(s.an || s.admNo || '').toLowerCase();
+      const sAdm = String(s.an || s.admNo || s['Adm. No.'] || s['Admission No.'] || '').toLowerCase();
       const sRawAdm = cleanSearchAdm(sAdm);
       if (sAdm === val || (cleanVal && sRawAdm === cleanVal)) return { matches: true, score: 5000 };
       if (sAdm.includes(val) || (cleanVal && sRawAdm.includes(cleanVal))) return { matches: true, score: 2500 };
@@ -1076,7 +1417,7 @@ export function evaluateStudentRecord(s, parsed) {
     }
 
     if (parsed.patternType === 'boardRegNo') {
-      const sReg = cleanSearchReg(s.r || s.boardRegNo);
+      const sReg = cleanSearchReg(s.r || s.boardRegNo || s['Board Registration Number'] || s['Board Registration No. (Class 11th)'] || s['Board Registration No. (Class 10th)'] || s['DIET/Board Reg. No.'] || s.regNo);
       const targetReg = cleanSearchReg(val);
       if (sReg && sReg === targetReg) return { matches: true, score: 5000 };
       if (sReg && targetReg && sReg.includes(targetReg)) return { matches: true, score: 2500 };
@@ -1084,21 +1425,21 @@ export function evaluateStudentRecord(s, parsed) {
     }
 
     if (parsed.patternType === 'formNo') {
-      const sFNo = String(s.fn || s.formNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const sFNo = String(s.fn || s.formNo || s['Form Number'] || s['Form No.'] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       if (sFNo === cleanVal) return { matches: true, score: 5000 };
       if (sFNo.includes(cleanVal)) return { matches: true, score: 2500 };
       return { matches: false, score: 0 };
     }
 
     if (parsed.patternType === 'classRollNo') {
-      const sRoll = String(s.rn || s.classRollNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const sRoll = String(s.rn || s.classRollNo || s['Class Roll No'] || s.rollNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       if (sRoll === cleanVal) return { matches: true, score: 5000 };
       if (sRoll.includes(cleanVal)) return { matches: true, score: 2500 };
       return { matches: false, score: 0 };
     }
 
     if (parsed.patternType === 'mobile') {
-      const sMob = cleanSearchMobile(s.mob || s.mobile || s.parentContact || s.pmob);
+      const sMob = cleanSearchMobile(s.mob || s.mobile || s.parentContact || s.pmob || s['Mobile No. (with working WhatsApp)']);
       if (sMob.includes(cleanVal)) return { matches: true, score: 5000 };
       return { matches: false, score: 0 };
     }
@@ -1108,19 +1449,22 @@ export function evaluateStudentRecord(s, parsed) {
   const tokenMetas = parsed.tokenMeta;
   if (!tokenMetas || tokenMetas.length === 0) return { matches: true, score: 0 };
 
-  // Prepare normalized field strings & token arrays
-  const sName = s.n || s.studentName || s["Student's Name (as per school records)"] || s["Student's Name"] || '';
-  const sFather = s.f || s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || '';
-  const sMother = s.m || s.motherName || s["Mother's Name (as per school records)"] || s["Mother's Name"] || '';
-  const sVillage = s.v || s.village || s['Name of your village'] || s['Village/Town'] || '';
-  const sSubs = s.subs || s.Subjects || s['Subjects to be taken in Class 11th'] || s['Subjects to be taken in Class 12th'] || '';
-  const sClass = s.c || s.class || s.Class || '';
-  const sSession = s.s || s.session || s.Session || '';
-  const sStream = s.st || s.stream || s.Stream || '';
+  // Prepare normalized field strings
+  const sName = s.n || s.studentName || s["Student's Name (as per school records)"] || s["Student's Name"] || s['Student Name'] || '';
+  const sFather = s.f || s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s['Father Name'] || '';
+  const sMother = s.m || s.motherName || s["Mother's Name (as per school records)"] || s["Mother's Name"] || s['Mother Name'] || '';
+  const sVillage = s.v || s.village || s['Name of your village'] || s['Village/Town'] || s.address || '';
+  const sSubs = s.subs || s.subjects || s.Subjects || s['Subjects to be taken in Class 11th'] || s['Subjects to be taken in Class 12th'] || '';
+  const sClass = String(s.c || s.class || s.Class || '').toLowerCase();
+  const sSession = String(s.s || s.session || s.Session || '').toLowerCase();
+  const sStream = String(s.st || s.stream || s.Stream || '').toLowerCase();
+  const sGender = String(s.g || s.gender || s.Gender || '').toLowerCase();
+  const sCategory = String(s.cat || s.category || s.Category || '').toLowerCase();
+  const sStatus = String(s.status || s.Status || (typeof s.getStudentEffectiveStatus === 'function' ? s.getStudentEffectiveStatus(s) : '')).toLowerCase();
 
   const sFormNo = String(s.fn || s.formNo || s['Form Number'] || s['Form No.'] || '').trim();
   const sAdmNo = String(s.an || s.admNo || s['Adm. No.'] || s['Admission No.'] || '').trim();
-  const sBoardRegNo = String(s.r || s.boardRegNo || s['Board Registration Number'] || s['Board Registration No. (Class 11th)'] || s['Board Registration No. (Class 10th)'] || s['Board Registration No. (Class 9th)'] || s['DIET Registration No.'] || s['DIET/Board Reg. No.'] || s['DIET Reg. No.'] || s['Board Reg. No.'] || s.dietRegNo || s.regNo || '').trim();
+  const sBoardRegNo = String(s.r || s.boardRegNo || s['Board Registration Number'] || s['Board Registration No. (Class 11th)'] || s['Board Registration No. (Class 10th)'] || s['DIET/Board Reg. No.'] || s.regNo || '').trim();
   const sRollNo = String(s.rn || s.classRollNo || s['Class Roll No'] || s.rollNo || '').trim();
   const sMob = String(s.mob || s.mobile || s['Mobile No. (with working WhatsApp)'] || '').trim();
   const sPMob = String(s.pmob || s.parentContact || s["Parent's Contact"] || s["Parent's Mobile No."] || '').trim();
@@ -1132,16 +1476,16 @@ export function evaluateStudentRecord(s, parsed) {
   const cleanMob = cleanSearchMobile(sMob);
   const cleanPMob = cleanSearchMobile(sPMob);
 
-  // Extract or use precomputed token arrays
-  const nameTokens = s._nameTokens || extractWordTokens(sName);
-  const fatherTokens = s._fatherTokens || extractWordTokens(sFather);
-  const motherTokens = s._motherTokens || extractWordTokens(sMother);
-  const villageTokens = s._villageTokens || extractWordTokens(sVillage);
-  const subjectTokens = s._subjectTokens || extractWordTokens(sSubs);
+  // Extract or memoize token arrays directly on record s to prevent redundant computation
+  const nameTokens = s._nameTokens || (s._nameTokens = extractWordTokens(sName));
+  const fatherTokens = s._fatherTokens || (s._fatherTokens = extractWordTokens(sFather));
+  const motherTokens = s._motherTokens || (s._motherTokens = extractWordTokens(sMother));
+  const villageTokens = s._villageTokens || (s._villageTokens = extractWordTokens(sVillage));
+  const subjectTokens = s._subjectTokens || (s._subjectTokens = extractWordTokens(sSubs));
 
   let totalScore = 0;
+  let matchedTokensCount = 0;
 
-  // ALL tokens in query must find at least one match in this record (AND logic)
   for (let i = 0; i < tokenMetas.length; i++) {
     const t = tokenMetas[i];
     let tokenMatched = false;
@@ -1157,28 +1501,27 @@ export function evaluateStudentRecord(s, parsed) {
       }
       if (cleanAdm && (cleanAdm === qNum || cleanAdm.endsWith(qNum))) {
         tokenMatched = true;
-        maxTokenScore = Math.max(maxTokenScore, cleanAdm === qNum ? 4500 : 2200);
+        maxTokenScore = Math.max(maxTokenScore, cleanAdm === qNum ? 4800 : 2400);
       }
       if (cleanReg && (cleanReg === qNum || cleanReg.includes(qNum))) {
         tokenMatched = true;
-        maxTokenScore = Math.max(maxTokenScore, cleanReg === qNum ? 4200 : 2000);
+        maxTokenScore = Math.max(maxTokenScore, cleanReg === qNum ? 4500 : 2200);
       }
       if (cleanRoll && (cleanRoll === qNum || cleanRoll === t.raw)) {
         tokenMatched = true;
-        maxTokenScore = Math.max(maxTokenScore, cleanRoll === qNum ? 3500 : 1800);
+        maxTokenScore = Math.max(maxTokenScore, cleanRoll === qNum ? 4000 : 2000);
       }
       if (qNum.length >= 4 && (cleanMob.includes(qNum) || cleanPMob.includes(qNum))) {
         tokenMatched = true;
-        maxTokenScore = Math.max(maxTokenScore, (cleanMob === qNum || cleanPMob === qNum) ? 3800 : 1600);
+        maxTokenScore = Math.max(maxTokenScore, (cleanMob === qNum || cleanPMob === qNum) ? 3800 : 1800);
       }
     }
 
-    // 2. Student Name Word Match (Exact, Phonetic, Soundex, Fuzzy)
+    // 2. Student Name Word Match (Exact, Synonym, Vowel, Phonetic, Levenshtein, Substring)
     for (const wt of nameTokens) {
       const res = matchTokenToWord(t, wt);
       if (res.matches) {
         tokenMatched = true;
-        // Priority multiplier 2.2x for student name
         maxTokenScore = Math.max(maxTokenScore, Math.round(res.score * 2.2));
       }
     }
@@ -1188,7 +1531,6 @@ export function evaluateStudentRecord(s, parsed) {
       const res = matchTokenToWord(t, wt);
       if (res.matches) {
         tokenMatched = true;
-        // Priority multiplier 1.6x for father name
         maxTokenScore = Math.max(maxTokenScore, Math.round(res.score * 1.6));
       }
     }
@@ -1198,7 +1540,6 @@ export function evaluateStudentRecord(s, parsed) {
       const res = matchTokenToWord(t, wt);
       if (res.matches) {
         tokenMatched = true;
-        // Priority multiplier 1.5x for mother name
         maxTokenScore = Math.max(maxTokenScore, Math.round(res.score * 1.5));
       }
     }
@@ -1208,53 +1549,108 @@ export function evaluateStudentRecord(s, parsed) {
       const res = matchTokenToWord(t, wt);
       if (res.matches) {
         tokenMatched = true;
-        maxTokenScore = Math.max(maxTokenScore, Math.round(res.score * 1.2));
+        maxTokenScore = Math.max(maxTokenScore, Math.round(res.score * 1.3));
       }
     }
 
-    // 6. Subjects / Stream / Class Match
+    // 6. Subject Words Match
     for (const wt of subjectTokens) {
       const res = matchTokenToWord(t, wt);
       if (res.matches) {
         tokenMatched = true;
-        maxTokenScore = Math.max(maxTokenScore, Math.round(res.score * 1.0));
+        maxTokenScore = Math.max(maxTokenScore, Math.round(res.score * 1.1));
       }
     }
 
-    const clsLower = sClass.toLowerCase();
-    if (clsLower.includes(t.raw) || (t.raw.includes('10') && clsLower.includes('10')) || (t.raw.includes('11') && clsLower.includes('11')) || (t.raw.includes('12') && clsLower.includes('12')) || (t.raw.includes('9') && clsLower.includes('9'))) {
-      tokenMatched = true;
-      maxTokenScore = Math.max(maxTokenScore, 600);
+    // 7. Semantic Stream Match
+    const streamAliases = SEMANTIC_STREAM_MAP[t.raw] || SEMANTIC_STREAM_MAP[t.cleanAlpha];
+    if (streamAliases) {
+      if (streamAliases.some(alias => sStream.includes(alias))) {
+        tokenMatched = true;
+        maxTokenScore = Math.max(maxTokenScore, 1800);
+      } else if (t.raw.startsWith('med') && sSubs.toLowerCase().includes('bio')) {
+        tokenMatched = true;
+        maxTokenScore = Math.max(maxTokenScore, 1700);
+      } else if ((t.raw === 'nonmed' || t.raw === 'non-med' || t.raw === 'pcm') && sSubs.toLowerCase().includes('math')) {
+        tokenMatched = true;
+        maxTokenScore = Math.max(maxTokenScore, 1700);
+      }
     }
 
-    const streamLower = sStream.toLowerCase();
-    if (streamLower && (streamLower.includes(t.raw) || (t.raw.startsWith('sci') && streamLower.includes('sci')) || (t.raw.startsWith('hum') && streamLower.includes('hum')) || (t.raw.startsWith('art') && streamLower.includes('hum')) || (t.raw.startsWith('med') && streamLower.includes('sci')))) {
+    // 8. Semantic Class Match
+    const classAliases = SEMANTIC_CLASS_MAP[t.raw] || SEMANTIC_CLASS_MAP[t.cleanAlpha];
+    if (classAliases) {
+      if (classAliases.some(alias => sClass.includes(alias))) {
+        tokenMatched = true;
+        maxTokenScore = Math.max(maxTokenScore, 1800);
+      }
+    } else if (sClass.includes(t.raw)) {
       tokenMatched = true;
-      maxTokenScore = Math.max(maxTokenScore, 500);
+      maxTokenScore = Math.max(maxTokenScore, 1200);
     }
 
-    const sessionLower = sSession.toLowerCase();
-    if (sessionLower && sessionLower.includes(t.raw)) {
+    // 9. Semantic Gender Match
+    const genderAliases = SEMANTIC_GENDER_MAP[t.raw];
+    if (genderAliases && genderAliases.some(alias => sGender === alias || sGender.startsWith(alias))) {
       tokenMatched = true;
-      maxTokenScore = Math.max(maxTokenScore, 400);
+      maxTokenScore = Math.max(maxTokenScore, 1600);
     }
 
-    // Fallback: Check full blob substring
-    const fullBlob = s._blob || `${sName} ${sFather} ${sMother} ${sVillage} ${sFormNo} ${sBoardRegNo} ${sAdmNo} ${sRollNo} ${sMob} ${sPMob} ${sClass} ${sSession} ${sStream} ${sSubs}`.toLowerCase();
-    if (fullBlob.includes(t.raw)) {
+    // 10. Semantic Category Match
+    const catAliases = SEMANTIC_CATEGORY_MAP[t.raw];
+    if (catAliases && catAliases.some(alias => sCategory === alias || sCategory.includes(alias))) {
       tokenMatched = true;
-      maxTokenScore = Math.max(maxTokenScore, 300);
+      maxTokenScore = Math.max(maxTokenScore, 1600);
     }
 
-    // If ANY token in multi-token query fails to match anything, the record is rejected (AND logic)
+    // 11. Semantic Subject Shorthand Match
+    const subAliases = SEMANTIC_SUBJECT_MAP[t.raw];
+    if (subAliases && subAliases.some(alias => sSubs.toLowerCase().includes(alias))) {
+      tokenMatched = true;
+      maxTokenScore = Math.max(maxTokenScore, 1700);
+    }
+
+    // 12. Semantic Status Match
+    const statusAliases = SEMANTIC_STATUS_MAP[t.raw];
+    if (statusAliases && statusAliases.some(alias => sStatus.includes(alias))) {
+      tokenMatched = true;
+      maxTokenScore = Math.max(maxTokenScore, 1600);
+    }
+
+    // 13. Academic Session Match
+    if (sSession && (sSession.includes(t.raw) || (t.raw.includes('bian') && sSession.includes('bian')))) {
+      tokenMatched = true;
+      maxTokenScore = Math.max(maxTokenScore, 1500);
+    }
+
+    // 14. Fallback Full Record Substring Match
     if (!tokenMatched) {
-      return { matches: false, score: 0 };
+      const fullBlob = s._blob || `${sName} ${sFather} ${sMother} ${sVillage} ${sFormNo} ${sBoardRegNo} ${sAdmNo} ${sRollNo} ${sMob} ${sPMob} ${sClass} ${sSession} ${sStream} ${sSubs}`.toLowerCase();
+      if (fullBlob.includes(t.raw)) {
+        tokenMatched = true;
+        maxTokenScore = Math.max(maxTokenScore, 500);
+      }
     }
 
-    totalScore += maxTokenScore;
+    if (tokenMatched) {
+      matchedTokensCount++;
+      totalScore += maxTokenScore;
+    }
   }
 
-  return { matches: true, score: totalScore };
+  // Google-like Matching & Ranking Decision:
+  // 1. All tokens matched -> 100% full match bonus (+3000)
+  if (matchedTokensCount === tokenMetas.length) {
+    return { matches: true, score: totalScore + 3000 };
+  }
+
+  // 2. Multi-token query with near-complete match (N-1 tokens matched out of N, N >= 2):
+  // Tolerates 1 missing/typo token if matched tokens have high relevance (e.g. name or ID matched)
+  if (tokenMetas.length >= 2 && matchedTokensCount >= tokenMetas.length - 1 && totalScore >= 2000) {
+    return { matches: true, score: totalScore };
+  }
+
+  return { matches: false, score: 0 };
 }
 
 // =================================================================

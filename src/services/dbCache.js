@@ -441,12 +441,21 @@ export async function getMasterRegistersScoped(options = {}) {
 
   // 2. If user explicitly requested full 20-year history:
   if (forceAll) {
-    const all = await fetchFreshFromFirestore('masterRegisters');
-    if (typeof window !== 'undefined') {
-      window._hssMasterRegistersCache = all;
-      window._hssMasterRegistersIsFull = true;
+    try {
+      const querySnapshot = await getDocs(collection(db, 'masterRegisters'));
+      const all = [];
+      querySnapshot.forEach(docSnap => {
+        all.push(...unpackMasterRegisterDoc(docSnap));
+      });
+      if (typeof window !== 'undefined') {
+        window._hssMasterRegistersCache = all;
+        window._hssMasterRegistersIsFull = true;
+      }
+      return all;
+    } catch (err) {
+      console.warn('[dbCache] getMasterRegistersScoped forceAll note:', err);
+      return window._hssMasterRegistersCache || [];
     }
-    return all;
   }
 
   // 3. If recent cache already exists, return it (0 reads)
@@ -454,21 +463,17 @@ export async function getMasterRegistersScoped(options = {}) {
     return window._hssMasterRegistersCache;
   }
 
-  // 4. Default: Load only modern/recent chunks from Firestore (saves ~70 reads!)
+  // 4. Default: Load modern/recent chunks from Firestore in parallel (saves ~70 reads!)
   try {
     const results = [];
-    const BATCH_SIZE = 15;
-    for (let i = 0; i < MODERN_CHUNK_IDS.length; i += BATCH_SIZE) {
-      const batchIds = MODERN_CHUNK_IDS.slice(i, i + BATCH_SIZE);
-      const snaps = await Promise.all(
-        batchIds.map(id => getDoc(doc(db, 'masterRegisters', id)).catch(() => null))
-      );
-      snaps.forEach(snap => {
-        if (snap && snap.exists()) {
-          results.push(...unpackMasterRegisterDoc(snap));
-        }
-      });
-    }
+    const snaps = await Promise.all(
+      MODERN_CHUNK_IDS.map(id => getDoc(doc(db, 'masterRegisters', id)).catch(() => null))
+    );
+    snaps.forEach(snap => {
+      if (snap && snap.exists()) {
+        results.push(...unpackMasterRegisterDoc(snap));
+      }
+    });
 
     if (results.length > 0) {
       if (typeof window !== 'undefined') {

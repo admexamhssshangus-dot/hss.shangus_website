@@ -7400,18 +7400,8 @@ function AdvancedReports({
     if (nextState) {
       setFullHistoryRequested(true);
       setHistoryLoadRequested(true);
-      setToast({
-        message: '⚡ Full Database Search Active: Searching entire 20-year student register (~30x Firestore read resource usage). Disable when finished.',
-        type: 'warning'
-      });
-      setTimeout(() => setToast(null), 5000);
     } else {
       setFullHistoryRequested(false);
-      setToast({
-        message: '✅ Reverted to lightweight search (Recent sessions cohort). Spark quota preserved.',
-        type: 'success'
-      });
-      setTimeout(() => setToast(null), 3000);
     }
   }, [fullDbSearchActive]);
 
@@ -13414,7 +13404,7 @@ function AdvancedReports({
           <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
             {/* Search Input Bar with Shortcut Tooltip Popover */}
             <div className="relative flex-1 min-w-[100px] sm:min-w-[240px] md:min-w-[320px] lg:min-w-[380px] lg:max-w-[480px]" ref={searchHelpRef}>
-              {isSearching || searchTerm !== deferredSearchTerm ? (
+              {isSearching || searchTerm !== deferredSearchTerm || isHydratingMasterRegisters ? (
                 <RefreshCw size={12} className="absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 text-amber-500 animate-spin pointer-events-none" />
               ) : (
                 <Search size={12} className="absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -13551,7 +13541,7 @@ function AdvancedReports({
                   <span className="hidden sm:inline">Syncing...</span>
                   <span className="font-mono text-slate-900 dark:text-white font-extrabold">({filteredStudents.length})</span>
                 </div>
-              ) : (isSearching || searchTerm !== deferredSearchTerm) ? (
+              ) : (isSearching || searchTerm !== deferredSearchTerm || isHydratingMasterRegisters) ? (
                 <div className="flex items-center gap-1 sm:gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
                   <RefreshCw size={11} className="animate-spin text-amber-600 shrink-0" />
                   <span className="hidden sm:inline">Searching...</span>
@@ -17146,28 +17136,7 @@ function AdvancedReports({
         activeSession={siteSettings?.academicSession || '2025-26'}
       />
 
-      {/* Master Registers Indexing & Loading Shield HUD Overlay */}
-      {isHydratingMasterRegisters && (
-        <div className="fixed inset-0 z-[10000] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn pointer-events-auto cursor-wait select-none">
-          <div className="bg-white dark:bg-slate-900 border border-amber-500/40 rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-scaleUp">
-            <div className="relative mx-auto w-14 h-14 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full border-4 border-amber-500/20 border-t-amber-500 animate-spin" />
-              <Sparkles size={24} className="text-amber-500 animate-pulse" />
-            </div>
-            <div className="space-y-1">
-              <h4 className="text-base font-black text-slate-900 dark:text-slate-100">
-                Indexing School Registers...
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
-                Fast-indexing 4,500+ student records across all academic registers. Please wait a moment...
-              </p>
-            </div>
-            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-amber-500 via-teal-400 to-indigo-500 w-full animate-pulse" />
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Global Confirmation Modal */}
       {confirmModalConfig && (
