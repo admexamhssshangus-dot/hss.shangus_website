@@ -203,29 +203,123 @@ export function getStudentRegNo(st) {
 export function getStudentCentreNo(st, fallbackCentre = '') {
   if (!st) return fallbackCentre;
 
-  // 1. Direct explicit centre number if set on student record
+  // 1. Derive from Exam Roll No: In JKBOSE, the first 6 digits represent the official Centre Code
+  const examRoll = getRecordExamRoll(st);
+  const digits = examRoll.replace(/\D/g, '');
+  if (digits.length >= 6) {
+    return digits.slice(0, 6);
+  }
+
+  // 2. Direct explicit centre number if set on student record
   const explicit = st.centreNo || st['Centre No.'] || st['Centre No'] || st['Centre'] || '';
   if (explicit && !/^(N\/A|—|-|null|undefined)$/i.test(String(explicit).trim())) {
     return String(explicit).trim();
   }
 
-  // 2. Derive from Exam Roll No: In JKBOSE, the first 6 digits represent the Centre Code
-  const rawExam = String(
-    st.examRollNo ||
-    st['Exam R.No. (Current)'] ||
-    st['Exam Roll No'] ||
-    st['Exam Roll No.'] ||
-    st['Board Roll'] ||
-    st.examRoll ||
-    ''
-  ).trim();
-
-  const digits = rawExam.replace(/\D/g, '');
-  if (digits.length >= 6) {
-    return digits.slice(0, 6);
-  }
-
   return fallbackCentre;
+}
+
+/**
+ * Extracts a clean, non-placeholder Exam Roll Number from a record or student object.
+ */
+export function getRecordExamRoll(r) {
+  if (!r) return '';
+  const explicitKeys = [
+    'examRollNo',
+    'Exam Roll No.',
+    'Exam Roll No',
+    'Exam R.No. (Current)',
+    'Exam Roll',
+    'Board Roll',
+    'examRoll',
+    'currentExamRoll'
+  ];
+  for (const k of explicitKeys) {
+    if (r[k] !== undefined && r[k] !== null) {
+      const s = String(r[k]).trim();
+      if (s && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s)) {
+        return s;
+      }
+    }
+  }
+  // Fallback: if r.rollNo is a multi-digit number (>= 6 digits in JKBOSE), it is an exam roll
+  if (r.rollNo !== undefined && r.rollNo !== null) {
+    const s = String(r.rollNo).trim();
+    if (s && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s) && /^\d{6,}$/.test(s)) {
+      return s;
+    }
+  }
+  return '';
+}
+
+/**
+ * Extracts a clean Class Roll Number from a record or student object.
+ */
+export function getRecordClassRoll(r) {
+  if (!r) return '';
+  const candidates = [
+    r.classRollNo,
+    r.classRoll,
+    r['Class Roll No'],
+    r['Class Roll No.'],
+    r['Class Roll'],
+    r.rollNo,
+    r.roll
+  ];
+  for (const c of candidates) {
+    if (c !== undefined && c !== null) {
+      const s = String(c).trim();
+      if (s && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s) && !/^\d{7,}$/.test(s)) {
+        return s;
+      }
+    }
+  }
+  return '';
+}
+
+/**
+ * Sorts student records for Individual Award Rolls.
+ * When Exam Roll Numbers are given, arranges them as per Exam Roll No in dictionary / natural ascending order
+ * so that Centre Numbers (which correspond to the prefix) are grouped together consecutively and do not repeat again and again.
+ * If Exam Roll Numbers are not given, falls back to Class Roll Number, then Student Name.
+ */
+export function sortRecordsForAwardRoll(recordsList) {
+  if (!Array.isArray(recordsList) || recordsList.length === 0) return [];
+
+  return [...recordsList].sort((a, b) => {
+    const examA = getRecordExamRoll(a);
+    const examB = getRecordExamRoll(b);
+
+    // 1. Both have Exam Roll No -> sort in dictionary order (natural numeric/alphanumeric order)
+    if (examA && examB) {
+      const cmp = examA.localeCompare(examB, undefined, { numeric: true, sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+    }
+
+    // 2. Prioritize students with Exam Roll No over those without
+    if (examA && !examB) return -1;
+    if (!examA && examB) return 1;
+
+    // 3. Fallback to Class Roll Number
+    const classA = getRecordClassRoll(a);
+    const classB = getRecordClassRoll(b);
+    if (classA && classB) {
+      const numA = parseInt(classA, 10);
+      const numB = parseInt(classB, 10);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+        return numA - numB;
+      }
+      const cmpClass = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
+      if (cmpClass !== 0) return cmpClass;
+    }
+    if (classA && !classB) return -1;
+    if (!classA && classB) return 1;
+
+    // 4. Fallback to student name
+    const nameA = String(a.name || a.studentName || '').trim();
+    const nameB = String(b.name || b.studentName || '').trim();
+    return nameA.localeCompare(nameB);
+  });
 }
 
 export function cleanRegistrationNumber(val) {
@@ -679,12 +773,16 @@ export function printIndividualAwardRoll({
   records = records.filter(r => !isStudentExamDropped(r));
   if (records.length === 0) return false;
 
+  // Arrange records in dictionary order by exam roll number so centre numbers do not repeat
+  records = sortRecordsForAwardRoll(records);
+
   const titles = resolveAwardRollTitles(evaluationType || practicalType || examTitle, isExternal);
   const heading = titles.heading;
   const examType = titles.examLabel;
   const totalRecs = records.length;
   const pageSize = 50; // 25 left + 25 right per A4 page
   const totalPages = Math.ceil(totalRecs / pageSize);
+  const hasAnyExamRoll = records.some(r => Boolean(getRecordExamRoll(r)));
 
   let fullHtml = '';
 
@@ -726,11 +824,6 @@ export function printIndividualAwardRoll({
         }
       });
 
-      const hasAnyExamRoll = colChunk.some(r => {
-        const raw = r.examRollNo || r['Exam Roll No.'] || r['Exam Roll No'] || r['Exam Roll'] || r['Board Roll'] || '';
-        return raw && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(raw).trim());
-      });
-
       let colHtml = `
         <div class="award-col-box">
           <div class="award-header-block">
@@ -765,11 +858,8 @@ export function printIndividualAwardRoll({
 
       colChunk.forEach((r, idx) => {
         const sno = startSno + idx;
-        const rawExamRoll = r.examRollNo || r['Exam Roll No.'] || r['Exam Roll No'] || r['Exam Roll'] || r['Board Roll'] || '';
-        const cleanExamRoll = (rawExamRoll && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExamRoll).trim())) ? String(rawExamRoll).trim() : '';
-
-        const rawClassRoll = r.classRollNo || r.rollNo || r.classRoll || r['Class Roll No'] || r['Class Roll'] || '';
-        const cleanClassRoll = (rawClassRoll && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawClassRoll).trim())) ? String(rawClassRoll).trim() : '';
+        const cleanExamRoll = getRecordExamRoll(r);
+        const cleanClassRoll = getRecordClassRoll(r);
 
         const rawName = r.name || r.studentName || r['Candidate Name'] || r['Student Name'] || '';
         const cleanName = (rawName && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawName).trim())) ? toTitleCase(String(rawName).trim()) : '';
@@ -1962,13 +2052,16 @@ export function printAllIndividualAwardRolls({
       const markRec = findStudentMarkRecord(subDoc, st);
       if (isEnrolled || markRec) {
         const rawMark = markRec ? String(markRec.totalMarks ?? markRec.practicalMarks ?? '').trim() : '';
-        const rawExamRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
-        const displayExamRoll = (rawExamRoll && rawExamRoll !== '—' && rawExamRoll !== 'N/A' && rawExamRoll !== 'NA') ? rawExamRoll : '—';
+        const rawExamRoll = getRecordExamRoll(st);
+        const displayExamRoll = rawExamRoll || '—';
         const cNo = getStudentCentreNo(st, centreNo);
 
         subjectStudents.push({
           sno: subjectStudents.length + 1,
           rollNo: displayExamRoll,
+          examRollNo: rawExamRoll,
+          classRollNo: getRecordClassRoll(st),
+          name: st.name || st.studentName || '',
           marks: rawMark,
           totalMarks: rawMark,
           centreNo: cNo
@@ -1978,10 +2071,15 @@ export function printAllIndividualAwardRolls({
 
     if (subjectStudents.length === 0) return;
 
-    const totalPages = Math.ceil(subjectStudents.length / pageSize);
+    // Arrange records in dictionary order by exam roll number so centre numbers do not repeat
+    const sortedSubjectStudents = sortRecordsForAwardRoll(subjectStudents).map((rec, i) => ({
+      ...rec,
+      sno: i + 1
+    }));
+    const totalPages = Math.ceil(sortedSubjectStudents.length / pageSize);
 
     for (let p = 0; p < totalPages; p++) {
-      const pageRecords = subjectStudents.slice(p * pageSize, (p + 1) * pageSize);
+      const pageRecords = sortedSubjectStudents.slice(p * pageSize, (p + 1) * pageSize);
       const leftChunk = pageRecords.slice(0, 25);
       const rightChunk = pageRecords.slice(25, 50);
 

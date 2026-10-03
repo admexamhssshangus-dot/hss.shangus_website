@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): enable real-time firestore sync for faculty submissions and permission reflection`
+- **Commit Message**: `fix(practicals): arrange individual award roll records by exam roll number in dictionary order to prevent repeating centre headers`
 - **Date**: October 03, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Security, Admission, and SEO regression checks passed (`Exit Code 0`).
 
@@ -10,55 +10,51 @@
 ## Architectural Purpose & Issues Resolved
 
 ### Problem Statement
-1. When a faculty member submitted practical awards or saved evaluation drafts in the teacher portal (`PracticalsPage.jsx`), the submission did not reflect immediately on the administrator's screen under **Faculty & Submissions** or in the pending approvals badge counter without manually hard-refreshing.
-2. When an administrator granted or revoked evaluation permissions for a teacher under **Settings & Permissions -> Teacher Permissions**, the permissions did not take effect on the teacher portal immediately. Teachers still saw "Cross-Subject" warnings, or the granted subject was not listed as assigned.
-3. Submissions were subject to multiple caching layers (a 3-minute in-memory cache in `AdminPracticals.jsx` and a 10-minute collection cache in `practicalsSettingsManager.js`) that prevented instant synchronization across active browser sessions.
-
----
+In individual practical award roll printouts (such as `INTERNAL PRACTICAL AWARD ROLL` for Class 12th Botany), when student records have Board Exam Roll Numbers assigned, the centre number header (e.g., `centre no. 301003` and `centre no. 301004`) was alternating and repeating back and forth dozens of times across the award sheet.
 
 ### Technical Root Cause Analysis
-1. **Absence of Real-time Firestore Listeners (`onSnapshot`) in `AdminPracticals.jsx`**:
-   - `AdminPracticals.jsx` only loaded data once on component mount via `getDocs(collection(db, 'practicalsData'))`.
-   - Switching tabs (`class10`, `class11`, `class12`, `faculty_submissions`, `settings`) simply changed UI state without re-querying Firestore.
-   - When a teacher submitted an award on their device, the administrator's browser had no event listener to receive the newly created staging document (`pending_*`), leaving the pending approvals tray and tab counters stale.
-2. **Aggressive In-Memory Caching (`memoryPracticalsData`)**:
-   - `loadData` cached `practicalsData` in module memory for 3 minutes (`Date.now() - memoryPracticalsTs < 3 * 60 * 1000`). Even if `loadData()` was invoked without `force=true`, stale cached documents were returned.
-3. **Teacher Evaluation Permissions Disconnect & Caching**:
-   - `getAdminPracticalsSettings()` in `practicalsSettingsManager.js` cached `adminPracticalsSettings` collection for 10 minutes (`10 * 60 * 1000`).
-   - When admin saved permissions, `saveSettingsDoc` in `AdminPracticals.jsx` did not invalidate `adminPracticalsSettings` cache.
-   - Furthermore, `getTeacherClassSubjectPermissions` and `isCrossSubject` in `PracticalsPage.jsx` only checked `user.assignedSubjects` from the user profile; they were never merging explicit permissions granted by administrators in `adminPracticalsSettings.permissions`.
+1. **Roster Sorting By Class Roll Number**:
+   - In `PracticalsPage.jsx`, student records are loaded and default-sorted by Class Roll Number (`rollAsc`: 1, 2, 3, 4...).
+   - In Class 12th, Class Roll 1 has Exam Roll `301003037` (Centre 301003), Roll 2 has `301003038` (Centre 301003), but Roll 3 is assigned to Centre 301004 (`301004055`), and Roll 4 returns to Centre 301003 (`301003039`).
+2. **Missing Exam Roll Number Natural Dictionary Ordering**:
+   - In JKBOSE examinations, the first 6 digits of the Exam Roll Number strictly represent the Examination Centre Code (e.g., `301003` vs `301004`).
+   - When printing individual awards, neither `printIndividualAwardRoll` nor `PracticalsPage.jsx` was sorting student records by Exam Roll Number.
+   - Because the centre header row checks `if (rCentre && rCentre !== currentCentre)`, each time the list alternated between student rolls of different centres, a new `centre no. XXXXXX` header was injected, cluttering the sheet and wasting vertical table rows.
 
 ---
 
 ## Changes Implemented
 
-### 1. Real-Time Firestore Sync on Submissions & Pending Approvals
-- File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
-  - Extracted modular `parsePracticalsSnap` helper to sanitize records, normalize academic sessions, and separate canonical awards from pending approval staging documents.
-  - Added an active `onSnapshot(collection(db, 'practicalsData'), ...)` listener inside `useEffect`. As soon as any faculty member saves a draft, submits an award, or updates student marks, the admin portal receives the update in real time.
-  - Updated `setSubmissions` and `setPendingApprovals` reactively, updating the ribbon count `Faculty & Submissions (N)` and the pulsing `Pending Award Approvals` alert tray instantly.
-  - Added real-time listener on `doc(db, 'adminPracticalsSettings', 'config')` to sync practical configurations and permissions.
-  - Updated `loadData(force)` to flush both memory and collection caches whenever force refresh is requested.
-  - Updated `saveSettingsDoc` to invalidate `adminPracticalsSettings` cache upon every write.
+### 1. Robust Roll Extraction & Dictionary Sorting Engine
+- File: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
+  - **`getRecordExamRoll(r)`**: Robustly extracts clean, non-placeholder Exam Roll Numbers across all candidate keys (`examRollNo`, `Exam Roll No.`, `Exam R.No. (Current)`, `Exam Roll`, `Board Roll`, etc.).
+  - **`getRecordClassRoll(r)`**: Robustly extracts clean Class Roll Numbers without mistaking 7-digit exam rolls.
+  - **`getStudentCentreNo(st, fallbackCentre)`**: Prioritizes deriving the 6-digit Centre Code directly from `getRecordExamRoll(st)` so it always reflects the student's true examination centre.
+  - **`sortRecordsForAwardRoll(recordsList)`**:
+    - When students have Exam Roll Numbers, sorts them in dictionary / natural ascending order (`examA.localeCompare(examB, undefined, { numeric: true, sensitivity: 'base' })`).
+    - Groups all records with the same centre prefix consecutively (e.g. all `301003xxx` contiguously, followed by all `301004xxx` contiguously).
+    - Ensures the centre header (`centre no. XXXXXX`) appears **exactly once** at the beginning of each centre section and never repeats or alternates.
+    - If Exam Roll Numbers are not given or for trailing students, cleanly falls back to Class Roll Number (numeric ascending), then Student Name.
 
-### 2. Immediate Teacher Evaluation Permission Propagation
-- File: [src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js)
-  - Added `force` parameter support to `getAdminPracticalsSettings(force = false)` to allow callers to bypass the 10-minute cache on demand.
-  - Enhanced `getTeacherClassSubjectPermissions(user, practicalsSettings = null)` to merge explicit administrator permissions granted under `adminPracticalsSettings.permissions` for the teacher's email.
-  - Updated `getTeacherAssignedSubjectsForClass(user, targetClass, practicalsSettings = null)` to incorporate merged permissions.
+### 2. Universal Integration in Individual Award Rolls
+- File: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
+  - In `printIndividualAwardRoll`, applied `records = sortRecordsForAwardRoll(records);` immediately at entry.
+  - Derived unified column headers based on dataset-wide exam roll presence (`hasAnyExamRoll = records.some(...)`).
+  - In `printAllIndividualAwardRolls`, sorted `subjectStudents` with `sortRecordsForAwardRoll` before pagination, guaranteeing that bulk award roll printing also eliminates repeating centre headers.
 
-### 3. Reactive Permissions & Cross-Subject Validation on Teacher Portal
+### 3. Teacher Portal Print Handler & Multi-Column Sorting
 - File: [src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)
-  - Added real-time `onSnapshot` listener on `doc(db, 'adminPracticalsSettings', 'config')` so teacher portals receive permissions within milliseconds of admin granting them.
-  - Merged `practicalsSettings.permissions` into `allTeacherAssignedSubjects` and `teacherAssignedClasses`.
-  - Updated `isCrossSubject` logic to verify explicit permissions from `practicalsSettings.permissions`, eliminating false cross-subject flags and enabling frictionless submissions.
+  - Imported `sortRecordsForAwardRoll` and `getRecordExamRoll`.
+  - In `handlePrintAwardRoll`, sorted `studentMarks` using `sortRecordsForAwardRoll(studentMarks)` prior to generating print records.
+  - In `sortedStudents`, added support for `sortBy === 'examAsc'` and `sortBy === 'examDesc'` with dictionary order comparisons.
+  - Added `Exam R.No. ↑` and `Exam R.No. ↓` options to the teacher roster toolbar sort dropdown for effortless on-screen inspection.
 
 ---
 
 ## Verification & Build Results
 - **Production Build**: Executed `npm run build` with `Exit Code 0`.
-- **Search Pages & SEO Verification**: 11 public pages generated; automated SEO regression checks passed with zero errors.
-- **Firebase Security Rules**: Checked and confirmed intact.
+- **Static Asset Generation**: 11 public pages generated; canonical redirects, sitemap, and SEO regression checks passed with zero errors.
+- **Firebase Security Rules**: Security rules remain compliant with RBAC isolation.
 
 ---
 
@@ -74,7 +70,7 @@ git log -n 1 --stat
 If you wish to edit or amend the commit:
 ```bash
 git reset --soft HEAD~1
-git commit -m "fix(practicals): enable real-time firestore sync for faculty submissions and permission reflection"
+git commit -m "fix(practicals): arrange individual award roll records by exam roll number in dictionary order to prevent repeating centre headers"
 ```
 
 ### Pushing to Production

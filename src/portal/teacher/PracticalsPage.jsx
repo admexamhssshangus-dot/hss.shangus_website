@@ -14,7 +14,7 @@ import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, addDoc, doc, onSnapshot } from 'firebase/firestore';
 import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
-import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
+import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import {
   getSubjectMarksConfig,
@@ -3499,9 +3499,9 @@ export default function PracticalsPage() {
       return;
     }
 
-    const recordsForPrint = studentMarks.map((st, i) => {
-      const rawExam = st.examRollNo;
-      const cleanExam = (rawExam && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExam).trim())) ? String(rawExam).trim() : '';
+    const sortedStudentMarks = sortRecordsForAwardRoll(studentMarks);
+    const recordsForPrint = sortedStudentMarks.map((st, i) => {
+      const cleanExam = getRecordExamRoll(st);
       return {
         sno: i + 1,
         classRollNo: st.classRollNo || st.rollNo || '',
@@ -3538,6 +3538,32 @@ export default function PracticalsPage() {
 
   // Dynamic Multi-Column Sorting
   const sortedStudents = [...studentMarks].sort((a, b) => {
+    if (sortBy === 'examAsc') {
+      const eA = getRecordExamRoll(a);
+      const eB = getRecordExamRoll(b);
+      if (eA && eB) {
+        const cmp = eA.localeCompare(eB, undefined, { numeric: true, sensitivity: 'base' });
+        if (cmp !== 0) return cmp;
+      }
+      if (eA && !eB) return -1;
+      if (!eA && eB) return 1;
+      const rA = parseInt(a.rollNo, 10) || 0;
+      const rB = parseInt(b.rollNo, 10) || 0;
+      return rA - rB;
+    }
+    if (sortBy === 'examDesc') {
+      const eA = getRecordExamRoll(a);
+      const eB = getRecordExamRoll(b);
+      if (eA && eB) {
+        const cmp = eB.localeCompare(eA, undefined, { numeric: true, sensitivity: 'base' });
+        if (cmp !== 0) return cmp;
+      }
+      if (eA && !eB) return 1;
+      if (!eA && eB) return -1;
+      const rA = parseInt(a.rollNo, 10) || 0;
+      const rB = parseInt(b.rollNo, 10) || 0;
+      return rB - rA;
+    }
     if (sortBy === 'rollAsc') {
       const rA = parseInt(a.rollNo, 10) || 0;
       const rB = parseInt(b.rollNo, 10) || 0;
@@ -3549,7 +3575,7 @@ export default function PracticalsPage() {
       return rB - rA;
     }
     if (sortBy === 'nameAsc') {
-      return a.name.localeCompare(b.name);
+      return (a.name || a.studentName || '').localeCompare(b.name || b.studentName || '');
     }
     if (sortBy === 'formAsc') {
       const fA = parseInt(a.formNo, 10) || 0;
@@ -3981,11 +4007,13 @@ export default function PracticalsPage() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="practicals-select practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] w-[58px] sm:w-[70px] px-1 rounded-lg border text-[10px] sm:text-[10.5px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
+                className="practicals-select practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] w-[64px] sm:w-[82px] px-1 rounded-lg border text-[10px] sm:text-[10.5px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
                 title="Sort students"
               >
                 <option value="rollAsc">Roll ↑</option>
                 <option value="rollDesc">Roll ↓</option>
+                <option value="examAsc">Exam R.No. ↑</option>
+                <option value="examDesc">Exam R.No. ↓</option>
                 <option value="nameAsc">A-Z</option>
                 <option value="formAsc">Form #</option>
               </select>
