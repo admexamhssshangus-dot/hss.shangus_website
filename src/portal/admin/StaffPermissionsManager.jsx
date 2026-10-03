@@ -4,7 +4,7 @@ import {
   Sparkles, Save, RefreshCw, CheckCircle2, AlertCircle, X, Search,
   SlidersHorizontal, ChevronDown, Eye, EyeOff, Check, Users, BookOpen
 } from 'lucide-react';
-import { db } from '../../services/firebase';
+import { auth, db } from '../../services/firebase';
 import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import ConfirmModal from '../components/ConfirmModal';
 import { 
@@ -28,6 +28,7 @@ import {
 } from '../../utils/practicalsSettingsManager';
 import {
   ROLES,
+  isSuperAdminEmail,
   getStrictCanonicalRole,
   enforceStrictRoleAttributes
 } from '../../utils/authRoles';
@@ -132,6 +133,9 @@ const DEFAULT_ADMIN_USERS = [
 ];
 
 export default function StaffPermissionsManager() {
+  const currentAuthEmail = String(auth?.currentUser?.email || '').trim().toLowerCase();
+  const isCurrentSuperAdmin = isSuperAdminEmail(currentAuthEmail);
+
   const [adminUsers, setAdminUsers] = useState(DEFAULT_ADMIN_USERS);
   const [staffRoleFilter, setStaffRoleFilter] = useState('all'); // 'all' | 'superadmin' | 'admin' | 'teacher'
   const [searchQuery, setSearchQuery] = useState('');
@@ -414,6 +418,14 @@ export default function StaffPermissionsManager() {
 
   // Toggle Module Permission for an individual account
   const togglePermission = (userEmail, moduleCode) => {
+    const cleanEmail = String(userEmail || '').trim().toLowerCase();
+    if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' && !isCurrentSuperAdmin) {
+      setAlert({
+        type: 'error',
+        text: 'Access Denied: SuperAdmin permissions are locked to full access and cannot be modified by standard administrators.',
+      });
+      return;
+    }
     setAdminUsers((prev) =>
       prev.map((u) => {
         if (u.email.toLowerCase() === userEmail.toLowerCase()) {
@@ -430,6 +442,14 @@ export default function StaffPermissionsManager() {
   };
 
   const setAllPermissionsForUser = (userEmail, enableAll = true) => {
+    const cleanEmail = String(userEmail || '').trim().toLowerCase();
+    if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' && !isCurrentSuperAdmin) {
+      setAlert({
+        type: 'error',
+        text: 'Access Denied: SuperAdmin permissions are permanently granted to all modules.',
+      });
+      return;
+    }
     setAdminUsers((prev) =>
       prev.map((u) => {
         if (u.email.toLowerCase() === userEmail.toLowerCase()) {
@@ -478,6 +498,11 @@ export default function StaffPermissionsManager() {
       await Promise.all(sanitizedList.map(async (account) => {
         const cleanEmail = String(account.email || '').trim().toLowerCase();
         if (!cleanEmail) return;
+
+        // Standard admins cannot modify the SuperAdmin user document in Firestore
+        if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' && !isCurrentSuperAdmin) {
+          return;
+        }
 
         const payload = enforceStrictRoleAttributes({
           name: account.name,
@@ -560,6 +585,13 @@ export default function StaffPermissionsManager() {
   const handleOpenEditAdmin = (user) => {
     const cleanEmail = String(user.email || '').trim().toLowerCase();
     const isSuperTarget = cleanEmail === 'adm.exam.hss.shangus@gmail.com';
+    if (isSuperTarget && !isCurrentSuperAdmin) {
+      setAlert({
+        type: 'error',
+        text: 'Access Denied: The Master SuperAdmin account is protected and cannot be modified by standard administrators.',
+      });
+      return;
+    }
     setEditingAdminEmail(user.email);
 
     // Normalize existing assigned subjects from array or delimited string
@@ -987,6 +1019,7 @@ export default function StaffPermissionsManager() {
             const cleanEmail = String(user.email || '').trim().toLowerCase();
             const roleStr = String(user.role || '').toLowerCase();
             const isSuper = cleanEmail === 'adm.exam.hss.shangus@gmail.com' || roleStr === 'superadmin';
+            const canModifyTarget = isCurrentSuperAdmin || !isSuper;
             const isTeacher = roleStr === 'teacher' || roleStr === 'faculty' || roleStr === 'staff';
             const userPerms = Array.isArray(user.perms) ? user.perms : [];
             const activeCount = isSuper ? ALL_ADMIN_MODULES.length : userPerms.length;
@@ -1024,7 +1057,7 @@ export default function StaffPermissionsManager() {
                         <span className={`px-1.5 py-0.5 rounded-full font-black text-[8px] sm:text-[9px] uppercase tracking-wider shrink-0 ${
                           isSuper ? 'bg-purple-600 text-white' : isTeacher ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
                         }`}>
-                          {isSuper ? 'SuperAdmin' : isTeacher ? 'Teacher' : 'Standard Admin'}
+                          {isSuper ? (isCurrentSuperAdmin ? 'SuperAdmin' : 'SuperAdmin (Master Protected)') : isTeacher ? 'Teacher' : 'Standard Admin'}
                         </span>
 
                         {/* Special Designation Label (Principal, Clerk, etc.) */}
@@ -1098,7 +1131,7 @@ export default function StaffPermissionsManager() {
 
                   {/* Actions & Modules Controls */}
                   <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-wrap justify-end">
-                    {hasOutdatedStatus && (
+                    {hasOutdatedStatus && canModifyTarget && (
                       <button
                         type="button"
                         onClick={() => setAllPermissionsForUser(user.email, true)}
@@ -1110,28 +1143,42 @@ export default function StaffPermissionsManager() {
                     )}
 
                     {!isTeacher && (
-                      <button
-                        type="button"
-                        onClick={() => toggleModulesDropdown(cleanEmail)}
-                        className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10.5px] font-bold inline-flex items-center gap-1 sm:gap-1.5 cursor-pointer transition-all border ${
-                          activeCount === ALL_ADMIN_MODULES.length
-                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
-                            : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20'
-                        }`}
-                      >
-                        <SlidersHorizontal size={11} className="text-indigo-600 dark:text-indigo-400" />
-                        <span>{activeCount}/{ALL_ADMIN_MODULES.length} Modules</span>
-                        <ChevronDown size={10} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-                      </button>
+                      canModifyTarget ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleModulesDropdown(cleanEmail)}
+                          className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10.5px] font-bold inline-flex items-center gap-1 sm:gap-1.5 cursor-pointer transition-all border ${
+                            activeCount === ALL_ADMIN_MODULES.length
+                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                              : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20'
+                          }`}
+                        >
+                          <SlidersHorizontal size={11} className="text-indigo-600 dark:text-indigo-400" />
+                          <span>{activeCount}/{ALL_ADMIN_MODULES.length} Modules</span>
+                          <ChevronDown size={10} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                      ) : (
+                        <div
+                          title="SuperAdmin permissions are permanently granted to all modules"
+                          className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10.5px] font-bold inline-flex items-center gap-1 sm:gap-1.5 border bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 cursor-default"
+                        >
+                          <ShieldCheck size={11} className="text-purple-600 dark:text-purple-400" />
+                          <span>{ALL_ADMIN_MODULES.length}/{ALL_ADMIN_MODULES.length} Full Access</span>
+                        </div>
+                      )
                     )}
 
                     {/* Reset Password Email */}
                     <button
                       type="button"
                       onClick={() => handleSendPasswordReset(user.email)}
-                      disabled={isSendingReset}
-                      title="Send Password Reset Email"
-                      className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10px] font-bold bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 flex items-center gap-1 cursor-pointer transition-colors"
+                      disabled={isSendingReset || (!canModifyTarget && isSuper)}
+                      title={(!canModifyTarget && isSuper) ? "Password reset for Master SuperAdmin must be initiated by SuperAdmin" : "Send Password Reset Email"}
+                      className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10px] font-bold border flex items-center gap-1 transition-colors ${
+                        (!canModifyTarget && isSuper)
+                          ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 text-slate-400 border-slate-300 dark:border-slate-800'
+                          : 'bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900 border-teal-200 dark:border-teal-800 cursor-pointer'
+                      }`}
                     >
                       {isSendingReset ? <RefreshCw size={10} className="animate-spin" /> : <Key size={10} />}
                       <span>Reset</span>
@@ -1140,11 +1187,16 @@ export default function StaffPermissionsManager() {
                     {/* Edit Staff Account */}
                     <button
                       type="button"
-                      onClick={() => handleOpenEditAdmin(user)}
-                      title="Edit Account Details"
-                      className="p-1 sm:p-1.5 rounded-md sm:rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 border border-indigo-200/60 dark:border-indigo-800/60 cursor-pointer"
+                      onClick={() => canModifyTarget && handleOpenEditAdmin(user)}
+                      disabled={!canModifyTarget}
+                      title={!canModifyTarget ? "Master SuperAdmin account is protected and cannot be edited by standard administrators" : "Edit Account Details"}
+                      className={`p-1 sm:p-1.5 rounded-md sm:rounded-xl border ${
+                        !canModifyTarget
+                          ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 text-slate-400 border-slate-300 dark:border-slate-800'
+                          : 'bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 border border-indigo-200/60 dark:border-indigo-800/60 cursor-pointer'
+                      }`}
                     >
-                      <Edit3 size={12} />
+                      {!canModifyTarget ? <Lock size={12} /> : <Edit3 size={12} />}
                     </button>
 
                     {/* Delete / Revoke Access (Forbidden for sole SuperAdmin) */}

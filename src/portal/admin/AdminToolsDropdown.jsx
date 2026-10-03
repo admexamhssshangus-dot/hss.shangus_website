@@ -10,7 +10,11 @@ import {
   ADMIN_MODULE_CATALOG,
   getModuleMaturity,
 } from './adminModuleCatalog';
-import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
+import { 
+  isBootstrapSuperAdminEmail, 
+  isStandardAdminEmail, 
+  isBootstrapAdminEmail 
+} from '../../services/staffAuthService';
 import { searchAdminModules, getHighlightedSegments } from './adminModuleSearchEngine';
 
 function HighlightedText({ text, query, className = '' }) {
@@ -73,10 +77,15 @@ export const isUserPermittedForModule = (user, moduleId) => {
   const role = String(user.role || '').toLowerCase().trim();
   const email = String(user.email || '').toLowerCase().trim();
 
-  // SuperAdmin has global unrestricted access to every module
+  // SuperAdmin and Admins have global unrestricted operational access to every administrative module
   if (
     role === 'superadmin' ||
-    isBootstrapSuperAdminEmail(email)
+    role === 'admin' ||
+    role === 'administrator' ||
+    user.isAdmin === true ||
+    isBootstrapSuperAdminEmail(email) ||
+    isStandardAdminEmail(email) ||
+    isBootstrapAdminEmail(email)
   ) {
     return true;
   }

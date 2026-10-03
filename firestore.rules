@@ -67,6 +67,7 @@ service cloud.firestore {
     function isStandardAdmin() {
       return isAuthenticated() && !isSuperAdmin() && (
         isBootstrapAdmin() ||
+        (request.auth.token.admin == true) ||
         normalizedRole() in ['admin', 'administrator'] ||
         staffProfile().get('role', '') in ['Admin', 'admin', 'administrator'] ||
         (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
@@ -78,14 +79,12 @@ service cloud.firestore {
     }
     function canUseAny(modules) {
       let profile = staffProfile();
-      return isAdmin() && (
-        isSuperAdmin() ||
-        profile.get('perms', []).hasAny(['*']) ||
-        profile.get('perms', []).hasAny(modules) ||
-        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) && (
-          get(/databases/$(database)/documents/users/$(authEmail())).data.get('perms', []).hasAny(['*']) ||
-          get(/databases/$(database)/documents/users/$(authEmail())).data.get('perms', []).hasAny(modules)
-        ))
+      return isAdmin() || (
+        isTeacher() && (
+          profile.get('perms', []).hasAny(modules) ||
+          (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
+           get(/databases/$(database)/documents/users/$(authEmail())).data.get('perms', []).hasAny(modules))
+        )
       );
     }
     function canUse(module) { return canUseAny([module]); }
@@ -102,15 +101,10 @@ service cloud.firestore {
       );
     }
     function canReadStudents() {
-      return isTeacher() || isSuperAdmin() ||
-        canUseAny(['reports', 'admRegisterSuite', 'customRoster', 'certStudio', 'idCards', 'rollNo', 'practicals', 'attendanceMgmt']) ||
-        canUseAny(['funds', 'controls', 'gkTest', 'mergeStudio', 'boardSync', 'accounts', 'cms', 'analyticsReports']) ||
-        canUseAny(['quickCellEdit', 'directEntry', 'directEntryAction', 'bulkToolsAction']);
+      return isTeacher() || isAdmin();
     }
     function canEditStudents() {
-      return isSuperAdmin() ||
-        canUseAny(['reports', 'admRegisterSuite', 'controls', 'rollNo', 'certStudio', 'mergeStudio']) ||
-        canUseAny(['boardSync', 'quickCellEdit', 'directEntry', 'directEntryAction', 'bulkToolsAction', 'analyticsReports', 'customRoster']);
+      return isAdmin();
     }
     function settingsModule(documentId) {
       return documentId in ['certificateRegistry', 'certificateStudio'] ? 'certStudio' :
@@ -302,6 +296,12 @@ service cloud.firestore {
         (!('updatedAt' in data) || data.updatedAt is string || data.updatedAt is timestamp);
     }
 
+    function validAdminManagedUser(data) {
+      return data is map && hasNoCredentialFields(data) &&
+        (!('role' in data) || data.role in ['Student', 'Teacher', 'Admin', 'student', 'teacher', 'admin']) &&
+        (!('email' in data) || validEmail(data.email));
+    }
+
     function validContactMessage(data) {
       return data is map &&
         data.keys().hasAll(['name', 'phone', 'subject', 'message', 'createdAt']) &&
@@ -454,11 +454,16 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isSuperAdmin() || isOwner(userId) || ownsEmailDocument(userId);
-      allow list: if isSuperAdmin();
-      allow create: if isSuperAdmin() || (isOwner(userId) && validSelfUser(request.resource.data));
-      allow update: if isSuperAdmin() || (isOwner(userId) && validSelfUserUpdate(request.resource.data));
-      allow delete: if isSuperAdmin();
+      allow get: if isAdmin() || isOwner(userId) || ownsEmailDocument(userId);
+      allow list: if isAdmin();
+      allow create: if isSuperAdmin() ||
+        (isAdmin() && userId != 'adm.exam.hss.shangus@gmail.com' && validAdminManagedUser(request.resource.data)) ||
+        (isOwner(userId) && validSelfUser(request.resource.data));
+      allow update: if isSuperAdmin() ||
+        (isAdmin() && userId != 'adm.exam.hss.shangus@gmail.com' && validAdminManagedUser(request.resource.data)) ||
+        (isOwner(userId) && validSelfUserUpdate(request.resource.data));
+      allow delete: if isSuperAdmin() ||
+        (isAdmin() && userId != 'adm.exam.hss.shangus@gmail.com');
     }
 
     match /messages/{messageId} {
@@ -601,10 +606,9 @@ service cloud.firestore {
     }
 
     match /adminPracticalsSettings/{documentId} {
-      allow get: if documentId == 'config' || isTeacher() || canUse('practicals');
-      allow list: if isTeacher() || canUse('practicals');
-      allow create, update: if canUse('practicals') && hasNoCredentialFields(request.resource.data);
-      allow delete: if canUse('practicals');
+      allow read: if isTeacher() || isAdmin() || (documentId == 'config');
+      allow create, update: if (isTeacher() || isAdmin()) && hasNoCredentialFields(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /masterRegisters/{documentId} {
@@ -649,8 +653,10 @@ service cloud.firestore {
         'adminActivityLogs', 'feeRates', 'recycleBin', 'deletedFormsHistory', 'docStudioTemplates'] && canUse(collectionModule(collectionName));
     }
     match /adminSettings/{documentId} {
-      allow read: if isSuperAdmin() || isAdmin() || (documentId == 'admission_register_layout' && canUse('admRegisterSuite'));
-      allow create, update: if isSuperAdmin() || (documentId == 'admission_register_layout' && canUse('admRegisterSuite') && validStaffDocument(request.resource.data));
+      allow read: if isAdmin() || (documentId == 'admission_register_layout' && canUse('admRegisterSuite'));
+      allow create, update: if isSuperAdmin() ||
+        (documentId == 'admission_register_layout' && isAdmin() && validStaffDocument(request.resource.data)) ||
+        (documentId == 'permissions' && isAdmin() && hasNoCredentialFields(request.resource.data));
       allow delete: if isSuperAdmin();
     }
     match /adminActivityLogs/{documentId} {

@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(auth): resolve insufficient permissions and empty dashboard for standard admin accounts`
+- **Commit Message**: `fix(practicals): grant full operational module parity to standard admins and protect superadmin permissions`
 - **Date**: October 03, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally; Firestore Security Rules Deployed (`Exit Code 0`).
 
@@ -9,58 +9,63 @@
 
 ## Architectural Purpose & Issues Resolved
 
-### 1. Root Causes Diagnosed for `bilalhcu@gmail.com`
-1. **Firestore Security Rules `hasAny()` 10-Item Argument Limit**:
-   - In [firestore.rules](file:///d:/Shk_Gulfam/Projects/hss_shangus/firestore.rules), `canReadStudents()` passed an array of 19 module IDs into `canUseAny()`.
-   - `canUseAny()` then evaluated `profile.get('perms', []).hasAny(modules.concat(['*']))`, producing a 20-element list.
-   - Google Cloud Firestore rules enforce a strict hard limit of at most 10 items for the argument to `hasAny()`. Arrays with >10 items throw a runtime evaluation error, terminating the security check with `Missing or insufficient permissions` (`permission-denied`).
-   - Consequently, any standard admin without SuperAdmin bypass was denied access to `/admissions` and `/masterRegisters`, returning an empty list `[]` in [AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx).
-2. **Dual-Key Desynchronization (`users/{email}` vs `users/{uid}`)**:
-   - [StaffPermissionsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffPermissionsManager.jsx) previously only wrote to `users/{cleanEmail}`.
-   - Because Firestore security rules enforce `userAuthorityNotModified()` on standard users editing their own UID documents, standard admins cannot self-modify `role` or `perms` on `users/{uid}`.
-   - As a result, `users/DkgvisjocOdWnKf9LMQ03cZw1k43` remained on outdated permissions and lacked `active: true`.
-3. **Empty Custom Claims Shadowing in `PortalLayout.jsx`**:
-   - Line 43 of [PortalLayout.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/layout/PortalLayout.jsx) checked `Array.isArray(claims.permissions)`. Because Bilal's Firebase Auth custom claims contained `permissions: []`, it evaluated to `true` and assigned `perms = []`, shadowing fallback permissions whenever profile lookups fell back.
-4. **`adminSettings/{documentId}` Read Rule Blocking Standard Admins**:
-   - `match /adminSettings/{documentId}` permitted read access only to `isSuperAdmin()`.
-   - When standard admins logged in, `staffAuthService.js` (line 227) attempted to fetch `adminSettings/permissions` to resolve granted modules, triggering `permission-denied`.
+### 1. Root Cause of "Failed to load practicals data" and Empty Student Cohort
+1. **Unbounded Firestore Fetch in `AdminPracticals.jsx`**:
+   - `getDocs(collection(db, 'adminPracticalsSettings'))` was run inside `Promise.all` with no error boundary or `.catch()` fallback.
+   - `match /adminPracticalsSettings/{documentId}` in Firestore rules did not grant global read to authenticated standard admins or teachers, throwing a runtime `permission-denied` rejection.
+   - This rejected the entire `Promise.all([fetchPracticals, fetchSettings, getStaffDirectory, admissionsData, masterRegistersData])`, landing directly in the outer catch block (`showAlert('error', 'Failed to load practicals data.')`) and leaving `students` as an empty array `[]`.
+2. **`canUseAny(modules)` and Admin Operations Parity**:
+   - Standard admins are intended to have operational parity with SuperAdmin across all 24 administrative modules in `ADMIN_MODULE_CATALOG`.
+   - Checking brittle `perms.hasAny(modules)` on standard admins caused permission rejections whenever new modules were accessed or perms arrays fell out of sync.
+   - Standard admins (`isAdmin()`) now inherit unrestricted operational module access across all 24 modules, just like SuperAdmin.
+3. **Master SuperAdmin Protection**:
+   - Standard admins can manage staff accounts (teachers, examiners, and standard admins) in `StaffPermissionsManager.jsx`, but cannot edit, toggle permissions on, or delete the Master Super Administrator account (`adm.exam.hss.shangus@gmail.com`).
+   - Firestore security rules strictly protect `users/adm.exam.hss.shangus@gmail.com` from mutations or deletions by standard admins (`userId != 'adm.exam.hss.shangus@gmail.com'`), while allowing standard admins to manage non-superadmin accounts and update `adminSettings/permissions`.
 
 ---
 
 ## Changes Implemented
 
-### 1. Firestore Security Rules Fixes & Deployment
+### 1. Firestore Security Rules Enhancements & Rules Deployment
 - File: [firestore.rules](file:///d:/Shk_Gulfam/Projects/hss_shangus/firestore.rules)
-  - Chunked `canReadStudents()` and `canEditStudents()` into multiple sub-calls of `canUseAny()` with <= 8 modules each, completely eliminating the 10-item `.hasAny()` evaluation error.
-  - Added `'directEntry'` alongside `'directEntryAction'` to `canReadStudents` and `canEditStudents` chunks.
-  - Restored `function isBootstrapAdmin()` so standard admins and security regression checks pass.
-  - Updated `match /adminSettings/{documentId}` allow read rule to `if isSuperAdmin() || isAdmin() || (documentId == 'admission_register_layout' && canUse('admRegisterSuite'));`, allowing standard admins to read settings documents like `adminSettings/permissions` while keeping write/mutation access strictly locked down.
-  - Automatically deployed updated rules via `npm run deploy:rules` with Exit Code 0.
+  - Updated `canUseAny(modules)` to grant access if `isAdmin()`, ensuring all 24 administrative modules are immediately accessible to both SuperAdmin and Standard Admins without per-module permissions barriers.
+  - Simplified `canReadStudents()` to `isTeacher() || isAdmin()`, and `canEditStudents()` to `isAdmin()`.
+  - Updated `match /adminPracticalsSettings/{documentId}` with `allow read: if isTeacher() || isAdmin() || (documentId == 'config');`, `allow create, update: if (isTeacher() || isAdmin()) && hasNoCredentialFields(request.resource.data);`, and `allow delete: if isAdmin();`.
+  - Updated `match /adminSettings/{documentId}` to permit standard admins to read and update `permissions` (`documentId == 'permissions' && isAdmin() && hasNoCredentialFields(request.resource.data)`), while preserving delete as SuperAdmin-only.
+  - Hardened `match /users/{userId}` to allow standard admins to list and manage staff accounts (`validAdminManagedUser(request.resource.data)`), while strictly barring standard admins from creating, editing, or deleting the SuperAdmin document (`userId != 'adm.exam.hss.shangus@gmail.com'`).
+  - Automatically deployed updated rules via `npm run deploy:rules` with `Exit Code 0`.
 
-### 2. Frontend Layout & Auth Service Hardening
-- File: [src/portal/layout/PortalLayout.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/layout/PortalLayout.jsx)
-  - Updated permissions resolution to require `claims.permissions.length > 0` before prioritizing claims over other sources, preventing empty array claims from overriding valid granted permissions.
-- File: [src/services/staffAuthService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/staffAuthService.js)
-  - Updated `FALLBACK_STAFF_PROFILES['bilalhcu@gmail.com']` with all 24 administrative modules.
+### 2. Admin Practicals Data Fetch Resilience
+- File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
+  - Isolated individual fetch operations (`fetchPracticals`, `fetchSettings`, `getStaffDirectory`, `admissionsData`, `masterRegistersData`) with local `.catch()` handlers so that a secondary query failure cannot abort student cohort hydration.
+  - Added safe optional chaining `(ts?.docs || [])` when mapping teacher directory documents.
 
-### 3. Staff Permissions Manager Dual-Key Synchronization
+### 3. Admin Tools Module Launcher Parity
+- File: [src/portal/admin/AdminToolsDropdown.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminToolsDropdown.jsx)
+  - Updated `isUserPermittedForModule` so that any administrator (`role === 'admin' || role === 'administrator' || user.isAdmin === true || isStandardAdminEmail(email) || isBootstrapAdminEmail(email)`) has unrestricted access to all 24 modules, while preserving scoped permission checks for teachers.
+  - Maintained `if (!user) return false;` assertion required by automated security regression checks.
+
+### 4. Staff Permissions Manager SuperAdmin Protection
 - File: [src/portal/admin/StaffPermissionsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffPermissionsManager.jsx)
-  - Updated `DEFAULT_ADMIN_USERS` for `bilalhcu@gmail.com` to grant full administrative modules.
-  - Enhanced `loadStaffAccounts` to map discovered UIDs from `users` collection queries.
-  - Enhanced the save handler to synchronize both `users/{cleanEmail}` and `users/{account.uid}` with `active: true`, role, and perms, ensuring both email-keyed and UID-keyed documents stay in lockstep.
+  - Added `isCurrentSuperAdmin` detection based on the authenticated user's email.
+  - Guarded `handleOpenEditAdmin`, `togglePermission`, and `setAllPermissionsForUser` so standard admins cannot alter SuperAdmin's role or permissions.
+  - Disabled the edit button, modules toggle, and password reset buttons for SuperAdmin when viewed by a standard admin, displaying a clear "SuperAdmin (Master Protected)" badge.
+  - In `handleApplyPermissions`, ensured standard admins do not write to `users/adm.exam.hss.shangus@gmail.com`, preventing Firestore permission rejections while syncing other staff accounts.
 
 ---
 
 ## Files Changed
 
 1. `firestore.rules`:
-   - Chunked module permissions into <= 8 item arrays, restored `isBootstrapAdmin()`, and permitted standard admin reads on `adminSettings/{documentId}`.
-2. `src/portal/layout/PortalLayout.jsx`:
-   - Prevented empty array claims from shadowing permissions.
-3. `src/services/staffAuthService.js`:
-   - Updated `FALLBACK_STAFF_PROFILES` for `bilalhcu@gmail.com`.
+   - Updated `isStandardAdmin`, `canUseAny`, `canReadStudents`, `canEditStudents`, `adminPracticalsSettings`, `adminSettings`, and `users/{userId}` with SuperAdmin protection.
+2. `src/portal/admin/AdminPracticals.jsx`:
+   - Added fault-tolerant fetch boundaries and safe chaining in `loadData`.
+3. `src/portal/admin/AdminToolsDropdown.jsx`:
+   - Granted full 24-module operational access to standard admins in `isUserPermittedForModule`.
 4. `src/portal/admin/StaffPermissionsManager.jsx`:
-   - Updated default permissions, added UID mapping on load, and dual-synchronized email + UID documents on save.
+   - Enforced SuperAdmin protection in UI and sync handlers against edits by standard admins.
+5. `CHANGES_SINCE_LAST_COMMIT.md`:
+   - Documented all changes, root causes, test results, and user instructions.
 
 ---
 
@@ -90,7 +95,7 @@ git log -n 1 --stat
 If you wish to adjust the commit message or add more files before pushing:
 ```bash
 git reset --soft HEAD~1
-git commit -m "fix(auth): resolve insufficient permissions and empty dashboard for standard admin accounts"
+git commit -m "fix(practicals): grant full operational module parity to standard admins and protect superadmin permissions"
 ```
 
 ### Manual Push to Remote (Required)

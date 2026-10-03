@@ -678,6 +678,9 @@ function AdminPracticals() {
             memoryPracticalsData = snap;
             memoryPracticalsTs = Date.now();
             return snap;
+          }).catch(err => {
+            console.warn('practicalsData fetch note:', err?.message || err);
+            return { docs: [], empty: true };
           });
 
       const fetchSettings = (!force && memoryPracticalsSettings)
@@ -685,6 +688,9 @@ function AdminPracticals() {
         : getDocs(collection(db, 'adminPracticalsSettings')).then(snap => {
             memoryPracticalsSettings = snap;
             return snap;
+          }).catch(err => {
+            console.warn('adminPracticalsSettings fetch note:', err?.message || err);
+            return { docs: [], empty: true };
           });
 
       const [ssRaw, setDocSnap, ts, admissionsData, masterRegistersData] = await Promise.all([
@@ -694,8 +700,14 @@ function AdminPracticals() {
           console.warn('getStaffDirectory error handled:', err?.message || err);
           return { docs: [], empty: true, forEach: () => {} };
         }),
-        getCachedCollection('admissions', force, 30 * 60 * 1000),
-        getCachedCollection('masterRegisters', force, 30 * 60 * 1000)
+        getCachedCollection('admissions', force, 30 * 60 * 1000).catch(err => {
+          console.warn('admissions fetch note:', err?.message || err);
+          return [];
+        }),
+        getCachedCollection('masterRegisters', force, 30 * 60 * 1000).catch(err => {
+          console.warn('masterRegisters fetch note:', err?.message || err);
+          return [];
+        })
       ]);
 
       const savedSettings = !setDocSnap.empty ? setDocSnap.docs.find(x => x.id === 'config')?.data() : null;
@@ -1025,7 +1037,7 @@ function AdminPracticals() {
       const excludedSet = new Set(rawExclusions.map(e => String(e).toLowerCase().trim()));
 
       setTeachers(
-        ts.docs
+        (ts?.docs || [])
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(u => {
             const email = String(u.email || '').toLowerCase().trim();
