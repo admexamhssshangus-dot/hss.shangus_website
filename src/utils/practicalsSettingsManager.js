@@ -1105,3 +1105,38 @@ export function formatPracticalDocId(cls, subject, practicalType, yearSuffix) {
   return `${clsNorm}_${subjClean}_${typeClean}_${sessClean}`;
 }
 
+/**
+ * Normalizes academic session strings across legacy and modern formats into canonical session keys
+ */
+export function normalizePracticalSession(sess) {
+  if (!sess) return '2025-26';
+  const str = String(sess).toLowerCase().trim();
+
+  // 1. Current / Live 2025-26 Session
+  if (
+    str.includes('2025-26') ||
+    str.includes('2025–26') ||
+    str.includes('2025-2026') ||
+    str === '2026' ||
+    str.includes('current') ||
+    str.includes('live')
+  ) {
+    return '2025-26';
+  }
+
+  // 2. Previous 2024-25 Session (Oct-Nov)
+  if (
+    str.includes('2024-25') ||
+    str.includes('2024–25') ||
+    str.includes('2024-2025') ||
+    str === '2025' ||
+    str.includes('oct') ||
+    str.includes('nov') ||
+    str.includes('previous')
+  ) {
+    return '2024-25 (Oct-Nov)';
+  }
+
+  return sess;
+}
+

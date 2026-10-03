@@ -1,43 +1,60 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): dynamically render examiner signatures matching subject columns across all classes in print and Word exports`
-- **Date**: October 02, 2026
+- **Commit Message**: `fix(practicals): enforce strict session isolation in print roll, match signatures to subject columns, and verify approval pipeline`
+- **Date**: October 03, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally.
 
 ---
 
 ## Architectural Purpose & Issues Resolved
 
-### Dynamic Examiner Signatures Matching Subject Columns
-- **Problem**:
-  - In `printConsolidatedAwardRoll`, the examiner signatures block at the bottom of the Page 2+ matrix was statically hardcoded to 12 generic dotted lines (`1. ...` through `12. ...`) regardless of the class or the actual number of subject columns rendered.
-  - In Class 10th (where only 1 or 2 subjects like Science or Mathematics are evaluated) or Class 11th/12th (where 3 to 5 practical subjects are evaluated), displaying 12 generic lines was misleading, uninstitutional, and failed to clearly indicate which examiner was signing for which subject.
-  - Furthermore, in Microsoft Word (`.docx`) consolidated exports, examiner signatures were omitted entirely from the certificate footer.
+### 1. Fix for Class 10th Deleted Awards in Consolidated Printout
+- **Root Cause**:
+  - In `AwardsSummaryView` (the web table), submissions were strictly queried by `normalizePracticalSession(querySess)` (`2025-26`), which properly excluded deleted or historical awards.
+  - However, in `printConsolidatedAwardRoll` (`src/utils/practicalsPdfGenerator.js`), `isSubDocMatch` and `hasSubjectPracticalSubmission` were missing strict session checks and did not check `!s.isDeleted`. When no current submissions existed for Class 10th (`subsWithMarks.length === 0`), `activeSubs` fell back to `candidateSubs` (which includes 10th Mathematics and Science), and `submissions.find(isSubDocMatch)` matched historical/deleted submissions.
 - **Resolution**:
-  - **Dynamic Signature Count & Subject-Aware Numbering (`practicalsPdfGenerator.js`)**:
-    - Replaced the hardcoded 12 items with a dynamic calculation matching `activeSubs.length` (the exact number of subject columns present in the award roll).
-    - If 1 subject is present (e.g. Class 10th Science): Renders `Signature of Examiner` with `1. Science (SC): ....................................` and examiner name `Name: Sheikh Gulfam`.
-    - If multiple subjects are present (e.g. Class 10th Science & Math, or Class 12th Physics, Chemistry, Biology): Renders `Signature of Examiner/s` with numbered lines for each subject column (`1. Physics (PH): ...`, `2. Chemistry (CH): ...`, etc.).
-    - Dynamically resolves each subject's official display name using `getSubjectDisplayName` (e.g., `English` for Class 10th, `General English` for Class 11th/12th).
-    - Checks `submissions` for each subject column to identify and render the authorized examiner / faculty name (`Name: ...`) directly under the corresponding signature line.
-    - Responsive grid column layout: automatically adjusts columns (`gridCols = 1, 2, 3, or 4`) with clean line-height and spacing so dots and text never wrap or break across print margins.
-  - **Class-Aware Institutional Certificate Text**:
-    - Refined certificate text to dynamically reflect `Secondary School Examination Class 10th` for Class 10th and `Higher Secondary Examination Part-I (class 11th)` / `Part-II (class 12th)` for Classes 11th and 12th.
-  - **Parity in Native Word Export (`exportConsolidatedAwardsToDocx` in `practicalsCsvManager.js`)**:
-    - Added `examinerDocxTable` matching the exact subject columns in the Word export document, with subject name, code, dotted line, and examiner name.
-    - Synchronized certificate text with `examLevelText` and `partText`.
+  - Added `session` parameter and strict normalized comparison (`normalizePracticalSession`) to `hasSubjectPracticalSubmission`.
+  - Added strict session check and `!s.isDeleted && s.status !== 'deleted'` guard to `isSubDocMatch`.
+  - Prevented deleted or cross-session records from ever leaking into the matrix cells or row hash totals.
+
+### 2. Signatures Dynamically Matched to Subject Columns in All Classes
+- **Resolution**:
+  - In `printConsolidatedAwardRoll`, `examinerSignaturesHtml` directly maps over `activeSubs` (the exact subject columns appearing in the matrix table).
+  - For each subject column:
+    - Renders `${idx + 1}. ${subDisplayName} (${sub.code}): ....................................`
+    - Resolves examiner name strictly using `isSubDocMatch(s)` so only live, non-deleted, session-matched submissions provide examiner names.
+    - If no live submission exists for that subject, renders a clean blank dotted line for manual signing on paper.
+  - Responsive grid layout (`1, 2, 3, or 4` columns based on subject count) ensures clean alignment across all classes (10th, 11th, and 12th).
+
+### 3. Verification of Re-submission & Approval Window Pipeline
+- **Verification**:
+  - Confirmed that when an admin deletes a submission (moving it to the Practicals Recycle Bin), the teacher's slot in `PracticalsPage.jsx` is completely freed.
+  - When the teacher re-submits, the award document is created with ID `pending_${docId}` and status `'pending_approval'`.
+  - On admin load, this is filtered into `pendingApprovals` and rendered in the **Pending Award Approvals Tray** at the top of the "Faculty & Submissions" tab with full candidate details, Inspect, Approve, and Reject actions.
+  - The tab navigation button displays the total submissions including pending (`submissions.length + pendingApprovals.length`), with an animated amber counter badge alerting the admin to pending actions.
+
+### 4. Consolidated Architecture for Faculty & Submissions
+- Inside `FacultySubmissionsView`, submissions and faculty are unified:
+  - Each faculty member row presents their contact details, phone editing, and subject submissions badges (Internal & External) with record counts and pending alerts.
+  - Inline Audit Drawers allow expanding full document details per teacher or expanding all at once.
 
 ---
 
 ## Files Changed
 
 1. `src/utils/practicalsPdfGenerator.js`:
-   - Updated `printConsolidatedAwardRoll` to dynamically generate examiner signature lines matching the exact subject columns (`activeSubs`), with subject names, codes, examiner names, and responsive grid layout.
-   - Polished certificate text for Class 10th secondary vs higher secondary.
-2. `src/utils/practicalsCsvManager.js`:
-   - Added dynamic `examinerDocxTable` to `exportConsolidatedAwardsToDocx` matching subject columns.
-   - Synchronized certificate text and resolved duplicate variable declarations.
+   - Updated `hasSubjectPracticalSubmission` to accept `session` and check `!s.isDeleted`.
+   - Updated `isSubDocMatch` in `printConsolidatedAwardRoll` to strictly check session and deletion status.
+   - Updated `examinerSignaturesHtml` to use `isSubDocMatch`, ensuring signatures match subject columns and never pull stale/deleted examiner names.
+   - Cleaned up unused variable warning (`targetType`).
+2. `src/portal/admin/AdminPracticals.jsx`:
+   - Enhanced faculty matching by email and normalized name.
+   - Added pending approval status badges and approval actions inside document audit rows.
+3. `src/utils/practicalsSettingsManager.js`:
+   - Added `normalizePracticalSession` for consistent session key normalization across the application.
+4. `src/utils/practicalsCsvManager.js`:
+   - Synchronized Word `.docx` exports with dynamic subject column signatures and institutional certificate text.
 
 ---
 
@@ -64,7 +81,7 @@ If you wish to make additional adjustments before pushing:
 git reset --soft HEAD~1
 # Make desired adjustments
 git add .
-git commit -m "fix(practicals): dynamically render examiner signatures matching subject columns across all classes in print and Word exports"
+git commit -m "fix(practicals): enforce strict session isolation in print roll, match signatures to subject columns, and verify approval pipeline"
 ```
 
 ### Pushing Changes
