@@ -1009,7 +1009,10 @@ function MultiSelectCheckboxDropdown({
   presetAction = null,
   maxAdditionalLimit = null,
   isDefaultOption = null,
-  onLimitExceeded = null
+  onLimitExceeded = null,
+  onRequestConfirmArchive = null,
+  isArchiveLoaded = false,
+  onLoadAllArchive = null
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -1042,45 +1045,7 @@ function MultiSelectCheckboxDropdown({
     return localSelected.includes(opt);
   };
 
-  const toggleOption = (opt) => {
-    const checked = isOptionChecked(opt);
-    let next;
-
-    if (checked) {
-      // User is unchecking an option
-      if (isDefaultSelected) {
-        next = options.filter(item => isDefaultOption(item) && item !== opt);
-      } else if (isAllSelected) {
-        next = options.filter(item => item !== opt);
-      } else {
-        next = localSelected.filter(item => item !== opt);
-      }
-    } else {
-      // User is checking an option: verify max additional limit on non-default/historical items
-      if (hasDefaultScoping && typeof maxAdditionalLimit === 'number' && !isDefaultOption(opt)) {
-        const currentActiveList = isDefaultSelected
-          ? options.filter(item => isDefaultOption(item))
-          : (isAllSelected ? options : localSelected.filter(item => item !== '__NONE__'));
-        
-        const nonDefaultCount = currentActiveList.filter(item => !isDefaultOption(item)).length;
-        if (nonDefaultCount >= maxAdditionalLimit) {
-          if (onLimitExceeded) {
-            onLimitExceeded(opt, maxAdditionalLimit);
-          }
-          return;
-        }
-      }
-
-      if (isDefaultSelected) {
-        const defaultItems = options.filter(item => isDefaultOption(item));
-        next = [...defaultItems, opt];
-      } else if (localSelected.includes('__NONE__')) {
-        next = [opt];
-      } else {
-        next = [...localSelected, opt];
-      }
-    }
-
+  const applyNext = (next) => {
     if (next.length === 0) {
       next = ['__NONE__'];
     } else if (hasDefaultScoping) {
@@ -1098,6 +1063,62 @@ function MultiSelectCheckboxDropdown({
     React.startTransition(() => {
       onChange(next);
     });
+  };
+
+  const proceedCheckingOption = (opt) => {
+    // verify max additional limit on non-default/historical items
+    if (hasDefaultScoping && typeof maxAdditionalLimit === 'number' && !isDefaultOption(opt) && !isArchiveLoaded) {
+      const currentActiveList = isDefaultSelected
+        ? options.filter(item => isDefaultOption(item))
+        : (isAllSelected ? options : localSelected.filter(item => item !== '__NONE__'));
+      
+      const nonDefaultCount = currentActiveList.filter(item => !isDefaultOption(item)).length;
+      if (nonDefaultCount >= maxAdditionalLimit) {
+        if (onLimitExceeded) {
+          onLimitExceeded(opt, maxAdditionalLimit);
+        }
+        return;
+      }
+    }
+
+    let next;
+    if (isDefaultSelected) {
+      const defaultItems = options.filter(item => isDefaultOption(item));
+      next = [...defaultItems, opt];
+    } else if (localSelected.includes('__NONE__')) {
+      next = [opt];
+    } else {
+      next = [...localSelected, opt];
+    }
+    applyNext(next);
+  };
+
+  const toggleOption = (opt) => {
+    const checked = isOptionChecked(opt);
+
+    if (checked) {
+      // User is unchecking an option
+      let next;
+      if (isDefaultSelected) {
+        next = options.filter(item => isDefaultOption(item) && item !== opt);
+      } else if (isAllSelected) {
+        next = options.filter(item => item !== opt);
+      } else {
+        next = localSelected.filter(item => item !== opt);
+      }
+      applyNext(next);
+    } else {
+      // User is checking an option:
+      // If checking an archive session and archive data is not yet loaded, prompt user for confirmation
+      const isArchiveOption = hasDefaultScoping && !isDefaultOption(opt);
+      if (isArchiveOption && !isArchiveLoaded && typeof onRequestConfirmArchive === 'function') {
+        onRequestConfirmArchive(opt, () => {
+          proceedCheckingOption(opt);
+        });
+        return;
+      }
+      proceedCheckingOption(opt);
+    }
   };
 
   const handleSelectAll = () => {
@@ -1188,10 +1209,26 @@ function MultiSelectCheckboxDropdown({
             </div>
           </div>
 
-          {/* Scoped session resource limit note */}
-          {hasDefaultScoping && typeof maxAdditionalLimit === 'number' && (
-            <div className="px-2 py-1 text-[9.5px] font-bold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/50 rounded-lg border border-amber-200/80 dark:border-amber-900/60 leading-tight">
-              ⚡ Recent 3 cycles (+BIAN) active by default. Select up to {maxAdditionalLimit} archive sessions.
+          {/* Scoped session resource limit note & load data action */}
+          {hasDefaultScoping && (
+            <div className="space-y-1">
+              <div className="px-2 py-1 text-[9.5px] font-bold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/50 rounded-lg border border-amber-200/80 dark:border-amber-900/60 leading-tight">
+                ⚡ Recent 3 cycles (+BIAN) active by default. Checking an archive session will prompt to load data.
+              </div>
+              {!isArchiveLoaded && onLoadAllArchive && (
+                <button
+                  type="button"
+                  onClick={() => onLoadAllArchive()}
+                  className="w-full py-1 px-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <span>⚡ Load All Historical Data (2006–2023)</span>
+                </button>
+              )}
+              {isArchiveLoaded && (
+                <div className="py-0.5 px-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-[9px] font-bold flex items-center justify-center gap-1">
+                  <span>✓ Complete 20-Year Archive Loaded</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -1238,6 +1275,7 @@ function MultiSelectCheckboxDropdown({
 // ─── Unified Filters Group Dropdown (Grouped Classes, Gender, Stream, Status, Session) ───
 function UnifiedFiltersGroupDropdown({
   availableSessions,
+  allKnownSessions = [],
   selectedSessions,
   setSelectedSessions,
   availableClasses,
@@ -1259,7 +1297,10 @@ function UnifiedFiltersGroupDropdown({
   setCurrentPage,
   onOpen,
   isDefaultSession,
-  onHistoricalLimitExceeded
+  onHistoricalLimitExceeded,
+  onRequestConfirmArchive,
+  isArchiveLoaded,
+  onLoadAllArchive
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -1354,16 +1395,19 @@ function UnifiedFiltersGroupDropdown({
             </div>
 
             <div className="grid grid-cols-2 gap-1.5 w-full">
-              {availableSessions.length > 1 && (
+              {((allKnownSessions && allKnownSessions.length > 1) || availableSessions.length > 1) && (
                 <MultiSelectCheckboxDropdown
                   label="Sessions"
-                  options={availableSessions}
+                  options={allKnownSessions && allKnownSessions.length > 0 ? allKnownSessions : availableSessions}
                   selected={selectedSessions}
                   onChange={(val) => { setSelectedSessions(val); setCurrentPage(1); }}
                   align="left"
                   maxAdditionalLimit={3}
                   isDefaultOption={isDefaultSession}
                   onLimitExceeded={onHistoricalLimitExceeded}
+                  onRequestConfirmArchive={onRequestConfirmArchive}
+                  isArchiveLoaded={isArchiveLoaded}
+                  onLoadAllArchive={onLoadAllArchive}
                 />
               )}
 
@@ -9439,6 +9483,45 @@ function AdvancedReports({
     }
   }, []);
 
+  const handleConfirmArchiveSession = useCallback((sessionName, onProceed) => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: `Load Historical Data for Session ${sessionName}?`,
+      message: `Archived student records for academic session "${sessionName}" are stored in Cloud Firestore. Would you like to load archive records now?`,
+      confirmText: 'Yes, Load Data',
+      cancelText: 'Cancel',
+      type: 'info',
+      onConfirm: async () => {
+        setConfirmModalConfig(null);
+        if (typeof onProceed === 'function') {
+          onProceed();
+        }
+        await ensureFullHistoryLoaded();
+      },
+      onClose: () => {
+        setConfirmModalConfig(null);
+      }
+    });
+  }, [ensureFullHistoryLoaded]);
+
+  const handleConfirmLoadAllArchive = useCallback(() => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Load Complete 2006–2026 Historical Archive?',
+      message: 'This will fetch all 20+ years of archived student master register records from Cloud Firestore. Do you want to load the complete historical database now?',
+      confirmText: 'Yes, Load Data',
+      cancelText: 'Cancel',
+      type: 'info',
+      onConfirm: async () => {
+        setConfirmModalConfig(null);
+        await ensureFullHistoryLoaded();
+      },
+      onClose: () => {
+        setConfirmModalConfig(null);
+      }
+    });
+  }, [ensureFullHistoryLoaded]);
+
   const handleBulkFormsSessionsChange = (val) => {
     setBulkFormsSelectedSessions(val);
     const list = val.length === 0 ? allKnownSessions : val;
@@ -13504,6 +13587,7 @@ function AdvancedReports({
             <div className="hidden sm:block flex-shrink-0">
               <UnifiedFiltersGroupDropdown
                 availableSessions={availableSessions}
+                allKnownSessions={allKnownSessions}
                 selectedSessions={selectedSessions}
                 setSelectedSessions={setSelectedSessions}
                 availableClasses={availableClasses}
@@ -13526,6 +13610,9 @@ function AdvancedReports({
                 onOpen={() => setHistoryLoadRequested(true)}
                 isDefaultSession={isDefaultSession}
                 onHistoricalLimitExceeded={handleHistoricalLimitExceeded}
+                onRequestConfirmArchive={handleConfirmArchiveSession}
+                isArchiveLoaded={Boolean(window._hssMasterRegistersIsFull || masterHistoricalRecords.length > 0)}
+                onLoadAllArchive={handleConfirmLoadAllArchive}
               />
             </div>
 
@@ -13687,6 +13774,7 @@ function AdvancedReports({
             <div className="block sm:hidden flex-shrink-0">
               <UnifiedFiltersGroupDropdown
                 availableSessions={availableSessions}
+                allKnownSessions={allKnownSessions}
                 selectedSessions={selectedSessions}
                 setSelectedSessions={setSelectedSessions}
                 availableClasses={availableClasses}
@@ -13703,13 +13791,16 @@ function AdvancedReports({
                 setSelectedStatuses={setSelectedStatuses}
                 sortBy={sortBy}
                 setSortBy={setSortBy}
-                  sortOrder={sortOrder}
-                  setSortOrder={setSortOrder}
-                  setCurrentPage={setCurrentPage}
-                  onOpen={() => setHistoryLoadRequested(true)}
-                  isDefaultSession={isDefaultSession}
-                  onHistoricalLimitExceeded={handleHistoricalLimitExceeded}
-                />
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
+                setCurrentPage={setCurrentPage}
+                onOpen={() => setHistoryLoadRequested(true)}
+                isDefaultSession={isDefaultSession}
+                onHistoricalLimitExceeded={handleHistoricalLimitExceeded}
+                onRequestConfirmArchive={handleConfirmArchiveSession}
+                isArchiveLoaded={Boolean(window._hssMasterRegistersIsFull || masterHistoricalRecords.length > 0)}
+                onLoadAllArchive={handleConfirmLoadAllArchive}
+              />
             </div>
           </div>
 

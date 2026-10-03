@@ -1788,6 +1788,7 @@ function AdminPracticals() {
               cls="10th"
               students={students}
               submissions={submissions}
+              pendingApprovals={pendingApprovals}
               getPD={getPD}
               settings={settings}
               onOpenImportModal={() => setShowImportModal(true)}
@@ -1799,6 +1800,7 @@ function AdminPracticals() {
               cls="11th"
               students={students}
               submissions={submissions}
+              pendingApprovals={pendingApprovals}
               getPD={getPD}
               settings={settings}
               onOpenImportModal={() => setShowImportModal(true)}
@@ -1810,6 +1812,7 @@ function AdminPracticals() {
               cls="12th"
               students={students}
               submissions={submissions}
+              pendingApprovals={pendingApprovals}
               getPD={getPD}
               settings={settings}
               onOpenImportModal={() => setShowImportModal(true)}
@@ -1969,7 +1972,7 @@ function AdminPracticals() {
 // ─────────────────────────────────────────────────────────────
 // AWARDS SUMMARY COMPONENT (WITH INTERNAL/EXTERNAL & BO/ZO TOGGLES)
 // ─────────────────────────────────────────────────────────────
-function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpenImportModal }) {
+function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], getPD, settings, onOpenImportModal }) {
   const [bioMode, setBioMode] = useState('separate'); // 'separate' (BO & ZO) | 'combined' (BI)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSession, setSelectedSession] = useState('2025-26');
@@ -2756,6 +2759,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
                             session: localPrintOpts.sessionText,
                             students: listToPrint,
                             submissions,
+                            pendingSubmissions: pendingApprovals,
                             selectedSubjectCodes: targetCodes,
                             isExternal: localPrintOpts.practicalType === 'external',
                             evaluationType: localPrintOpts.practicalType,

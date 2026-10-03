@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(search): remove blocking hydration modal, eliminate redundant toast, and add Google-like fuzzy semantic search`
+- **Commit Message**: `fix(practicals-reports): resolve wrong/old fail list data with pending awards overview, and show all sessions with archive load confirmation`
 - **Date**: October 03, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Security, Admission, and SEO regression checks passed (`Exit Code 0`).
 
@@ -10,62 +10,68 @@
 ## Architectural Purpose & Issues Resolved
 
 ### Problem Statement
-1. **Blocking Modal HUD**: Toggling Full Database Search or querying older registers triggered a full-screen blocking modal overlay (*"Indexing School Registers... Fast-indexing 4,500+ student records..."* with `pointer-events-auto cursor-wait select-none`), freezing the entire UI while background Firestore chunks were being fetched.
-2. **Redundant Notification Toast**: Toggling Full DB Search displayed an intrusive green/amber toast in the bottom-right corner, duplicating the prominent, compact warning banner already displayed above the student records table.
-3. **Hydration Latency**: Historical archive retrieval was executing 4 sequential batches of individual `getDoc` calls, causing noticeable delay.
-4. **Google-like Fuzzy & Semantic Search**: Search needed to cover all spelling variations, typos, Kashmiri patronymic transliterations (e.g. `shk` <-> `sheikh`, `mohd` <-> `mohammad`, `syed` <-> `sayed`, `bhat` <-> `butt`, `gowhar` <-> `gauhar`, `zahoor` <-> `zahur`), semantic stream synonyms (`med` -> Medical, `non-med` -> Non-Medical, `arts` -> Humanities/Arts, `comm` -> Commerce), class synonyms (`11th`, `11`, `xi`), gender (`boy`/`girl`/`m`/`f`), category (`om`, `rba`, `sc`, `st`), status, and subjects without returning zero results on minor typos.
+1. **Practicals Fail / Absent List Wrong / Old Data**:
+   - The print/export function (`printFailList`) was evaluating all practical subjects for every student regardless of stream or enrollment (e.g. Science/Medical students were being checked against Mathematics, or Arts students against Science), falsely flagging them as absent.
+   - `printFailList` did not filter submissions by academic session, causing it to match submissions from older or prior academic cycles (e.g. 2024-25 records matching 2025-26 candidates), displaying outdated marks or old absentees.
+   - Awards submitted by faculty that were pending Admin approval (`pendingApprovals`) were omitted from the evaluation.
+   - The report lacked institutional clarity regarding which practical awards are finalized/approved, which are pending admin approval, and which have not yet been submitted by teachers.
+2. **Academic Sessions Filter Dropdown Scope**:
+   - The Sessions filter dropdown in `AdvancedReports.jsx` only displayed sessions present in currently loaded cache (`availableSessions`), hiding the complete 20-year historical register (2006–2023).
+   - The user requested that all sessions be shown in the dropdown, but when an archive session is checked, the system should prompt the user with a confirmation popup ("Yes, Load Data" / "Cancel") or an inline load button before fetching historical data from Cloud Firestore.
 
 ---
 
 ## Changes Implemented
 
-### 1. Elimination of Blocking Modal Overlay & Non-Blocking Search Indicator
+### 1. Practicals Fail / Absent List Overhaul & Pending Awards Overview
+- File: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
+  - **Student Subject Enrollment Guard**: Added `isStudentEnrolledInPracticalSubject(st, sub.code, className)` validation. Students are strictly evaluated only for subjects they actually offer according to their enrolled stream and subject choices.
+  - **Academic Session Isolation**: Normalized session matching (`targetSess = normalizePracticalSession(session)`) to strictly isolate current session documents and eliminate false matches against prior-year records.
+  - **Pending Submissions Integration**: Accepted `pendingSubmissions` parameter. Differentiates between finalized absentees/failures vs. awards awaiting Admin approval (`ABSENT (Award Pending Admin Approval)` / `FAIL (... — Pending Approval)`).
+  - **Institutional Award Submissions & Pending Status Overview Table**:
+    - Added an institutional status summary at the top of the printout detailing:
+      - Subject Code & Name
+      - Enrolled vs. Evaluated Candidate Counts
+      - Evaluator / Teacher Name
+      - Date of Submission
+      - Current Status (`Approved / Finalized`, `Pending Admin Approval`, `Awaiting Teacher Submission`)
+  - **Contextual Notice Banners**:
+    - Amber notice banner alerting that awards pending approval are provisional.
+    - Informative notice banner explaining that subjects awaiting teacher submissions do not penalize students as absent.
+  - **Official Signatures Section**: Added institutional sign-off footers for Subject Teacher/Evaluator, Practical Exam Superintendent, and Principal/Head of Institution.
+
+- File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
+  - Passed `pendingApprovals` from `AdminPracticals` state down through `AwardsSummaryView` for Class 10th, 11th, and 12th.
+  - Passed `pendingSubmissions: pendingApprovals` into `printFailList` call.
+
+### 2. Complete 20-Year Sessions Dropdown with Confirmation & Archive Hydration
 - File: [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx)
-  - Completely removed the full-screen blocking overlay `{isHydratingMasterRegisters && (<div className="fixed inset-0 z-[10000] ...">...</div>)}`.
-  - Added non-blocking indicators to the search input icon and status counters (`RefreshCw` spinner when `isHydratingMasterRegisters` is active). The UI remains 100% interactive, responsive, and scrollable at all times during background data sync.
-
-### 2. Elimination of Redundant Bottom-Right Notification Toast
-- File: [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx)
-  - Removed `setToast` calls from `handleToggleFullDbSearch`.
-  - The prominent, compact warning banner directly above the master records table (complete with `⚡ Full Database Search Active` badge and 1-click `[Turn Off (Fast Mode)]` button) remains the single, clean source of state feedback.
-
-### 3. High-Speed Parallel Firestore Chunk Hydration
-- File: [src/services/dbCache.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/dbCache.js)
-  - Refactored `getMasterRegistersScoped`:
-    - Replaced slow sequential batching with a single parallel `Promise.all` across modern chunk IDs for lightweight mode, cutting network latency by ~75%.
-    - For `forceAll: true`, utilizes a direct collection query `getDocs(collection(db, 'masterRegisters'))` to hydrate all 20+ years in a single fast stream.
-
-### 4. Google-like Fuzzy, Phonetic & Semantic Search Engine
-- File: [src/services/searchIndexService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/searchIndexService.js)
-  - **Expanded Kashmiri Canonical Synonyms (`CANONICAL_SYNONYMS`)**: Covers common surname variations (`ganie`/`ganai`, `naik`/`nayik`, `itoo`/`itu`, `rather`/`ratar`, `sofi`/`soufi`, `padder`/`pader`, `chopan`/`chupan`, `ahanger`/`ahangar`, `najar`/`najaar`, `teeli`/`teli`, `hajam`/`hazam`, `reshie`/`rishi`, `pandit`/`pundit`, `zargar`/`zarger`, `raina`/`rayna`, `koul`/`kaul`, `tak`/`taak`, `tantray`/`tantrey`, `yatoo`/`yatu`, etc.) and Kashmiri names (`gowhar`/`gauhar`, `sajad`/`sajjad`, `feroz`/`fayroz`, `farooq`/`faruq`, `rouf`/`raouf`, `bilal`/`bilaal`, `reyaz`/`riaz`, `junaid`/`junayd`, `burhan`/`burhaan`, `umer`/`umar`, `huzaif`/`huzaifa`, `aijaz`/`ejaz`, `altaf`/`altaaf`, `mehraj`/`meraj`, `hassan`/`hasan`, `hussain`/`husain`, `ghulam`/`gh`, `abdul`/`ab`, etc.).
-  - **Vowel Normalization Engine (`normalizeVowels`)**: Compresses vowel shifts and transliteration irregularities (`ee`/`ea`/`ie`/`ei` -> `i`, `oo`/`ou`/`ow` -> `u`, `aa`/`ah` -> `a`, `ai`/`ay` -> `i`, `au`/`aw` -> `o`, `ph` -> `f`, `kh` -> `k`, `gh` -> `g`, `th` -> `t`, `dh` -> `d`, `ch` -> `c`, `sh` -> `s`, repeated letters collapsed), matching names like `Rashid` and `Rasheed`, `Zahoor` and `Zahur`, `Suhail` and `Sohail` instantaneously.
-  - **Semantic Institutional Dictionaries**:
-    - `SEMANTIC_STREAM_MAP`: Maps `med`, `medical`, `pcb` -> Medical/Science; `nonmed`, `non-med`, `pcm` -> Non-Medical/Science; `arts`, `art`, `hum`, `humanities` -> Arts/Humanities; `comm`, `commerce` -> Commerce.
-    - `SEMANTIC_CLASS_MAP`: Maps `9th`, `9`, `ix`, `10th`, `10`, `x`, `11th`, `11`, `xi`, `12th`, `12`, `xii`.
-    - `SEMANTIC_GENDER_MAP`: Maps `male`, `boy`, `boys`, `m`, `female`, `girl`, `girls`, `f`.
-    - `SEMANTIC_CATEGORY_MAP`: Maps `om`, `open`, `rba`, `sc`, `st`, `ews`, `alc`, `ib`, `psp`, `cpm`, `pwd`, `ph`.
-    - `SEMANTIC_STATUS_MAP`: Maps `approved`, `active`, `enrolled`, `provisional`, `pending`, `promoted`, `alumni`, `cancelled`.
-    - `SEMANTIC_SUBJECT_MAP`: Maps `phy`, `chem`, `bio`, `math`, `maths`, `eng`, `urdu`, `kash`, `geo`, `pol`, `hist`, `eco`, `soc`, `edu`, `evs`, `cs`, `it`, `ped`.
-  - **Multi-Aspect Scoring & Typo Tolerance (`matchTokenToWord`)**:
-    - Exact match (2200), Canonical synonym (2000), Vowel-normalized (1850), Kashmiri phonetic hash (1700), Prefix (1550), Double Metaphone (1400), Soundex (1200), Typo-tolerant Damerau-Levenshtein distance (distance <= 1 for 3-5 chars, <= 2 for 6-8 chars, <= 3 for 9+ chars) (1100 * similarity), Substring/Infix (1000).
-  - **Multi-Token Google Ranking (`evaluateStudentRecord`)**:
-    - 100% token matches receive an immediate +3000 score bonus.
-    - Queries with 2+ tokens tolerate 1 typo or missing token if core names/identifiers match, eliminating frustrating blank result screens.
-    - Caches token arrays directly on student objects (`s._nameTokens ||= ...`), providing 50x faster evaluations across 4,500+ records on subsequent keystrokes.
+  - **All Known Sessions Display**: Passed `allKnownSessions` (covering 2006 to 2026, including BIAN sessions) to `UnifiedFiltersGroupDropdown` for both Desktop and Mobile viewports.
+  - **Interactive Confirmation Popup (`ConfirmModal`)**:
+    - Added `onRequestConfirmArchive` callback to `MultiSelectCheckboxDropdown`.
+    - When an unchecked historical/archive session is clicked and archive data is not yet loaded (`!window._hssMasterRegistersIsFull`), triggers `ConfirmModal`:
+      - Title: `Load Historical Data for Session [Session]?`
+      - Message: `Archived student records for academic session "[Session]" are stored in Cloud Firestore. Would you like to load archive records now?`
+      - Actions: `[Yes, Load Data]` | `[Cancel]`
+    - On confirmation: selects the session and immediately executes `ensureFullHistoryLoaded()`.
+  - **In-Dropdown Load Action & Status Indicator**:
+    - Inside the Sessions dropdown popup, provided a 1-click action button: `[⚡ Load All Historical Data (2006–2023)]`.
+    - Once archives are hydrated, displays a clean status badge: `✓ Complete 20-Year Archive Loaded`.
 
 ---
 
 ## Files Changed
-1. `src/portal/admin/AdvancedReports.jsx` (Removed blocking modal overlay and removed redundant bottom-right toast)
-2. `src/services/dbCache.js` (Parallelized modern chunk fetching and streamlined full collection hydration)
-3. `src/services/searchIndexService.js` (Implemented Google-like fuzzy and semantic search engine)
-4. `CHANGES_SINCE_LAST_COMMIT.md` (Updated commit memory documentation)
+1. `src/utils/practicalsPdfGenerator.js` (Subject enrollment check, session isolation, pending submissions integration, institutional pending awards overview)
+2. `src/portal/admin/AdminPracticals.jsx` (Integrated pendingApprovals into AwardsSummaryView and printFailList)
+3. `src/portal/admin/AdvancedReports.jsx` (Displayed allKnownSessions in dropdown, added archive confirmation modal, and in-dropdown hydration action)
+4. `CHANGES_SINCE_LAST_COMMIT.md` (Updated memory file of changes)
 
 ---
 
 ## Verification & Build Results
 - **Production Build**: Verified locally with `npm run build` (`Exit Code 0`).
-- **SEO & Admin Regression Checks**: Passed across all 11 static pages, canonical redirects, sitemap validation, and offline navigation with zero errors.
+- **ESLint & Compiler**: Zero breaking errors, zero unresolved imports.
+- **SEO & Routing Check**: Passed all 11 static pages, sitemaps, and canonical redirects.
 
 ---
 
@@ -84,7 +90,7 @@ If you wish to modify the commit message or make adjustments:
 ```bash
 git reset --soft HEAD~1
 # Make desired adjustments, then re-commit:
-git commit -m "fix(search): remove blocking hydration modal, eliminate redundant toast, and add Google-like fuzzy semantic search"
+git commit -m "fix(practicals-reports): resolve wrong/old fail list data with pending awards overview, and show all sessions with archive load confirmation"
 ```
 
 ### 3. Push to Remote Repository

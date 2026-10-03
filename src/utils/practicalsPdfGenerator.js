@@ -2260,12 +2260,15 @@ export function printAllIndividualAwardRolls({
 
 /**
  * 5. Print Fail / Absent Student List
+ * Enhanced with accurate student subject enrollment verification, session isolation,
+ * pending submission integration, and a comprehensive Institutional Pending Awards Status Overview.
  */
 export function printFailList({
   className = '11th',
   session = 'Annual Regular 2025',
   students = [],
   submissions = [],
+  pendingSubmissions = [],
   selectedSubjectCodes = null,
   isExternal = false,
   evaluationType = '',
@@ -2275,6 +2278,7 @@ export function printFailList({
   if (!students || students.length === 0) return false;
   students = students.filter(st => !isStudentExamDropped(st));
   if (students.length === 0) return false;
+
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const isClass10 = String(className).toLowerCase().includes('10');
   const hseText = isClass10
@@ -2284,9 +2288,98 @@ export function printFailList({
       : 'HSE-II (Class 12th)';
   const examType = titles.examLabel;
 
+  const targetSess = session && session !== 'all' ? normalizePracticalSession(session) : '';
+  const clsTarget = className.toLowerCase().replace(/[^0-9]/g, '');
+
+  const isSubDocMatch = (s) => {
+    if (!s) return false;
+    const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+    if (!matchClass) return false;
+
+    // Strict session check to avoid mixing old/prior-year submissions
+    if (targetSess && targetSess !== 'all') {
+      const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
+      if (subSess && subSess !== 'all' && subSess !== targetSess) return false;
+    }
+
+    const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
+    const targetNorm = (String(evaluationType || practicalType || (isExternal ? 'external' : 'internal'))).toLowerCase().includes('ext') ? 'external' : 'internal';
+    const sNorm = sType.includes('ext') ? 'external' : 'internal';
+    if (sNorm !== targetNorm) return false;
+
+    return true;
+  };
+
+  const approvedSubs = (submissions || []).filter(isSubDocMatch);
+  const pendingSubs = (pendingSubmissions || []).filter(isSubDocMatch);
+
   const activeSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {
     if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
     return selectedSubjectCodes.includes(s.code);
+  });
+
+  // Build subject-level status list (Approved, Pending Approval, or Awaiting Teacher Submission)
+  const subjectStatusOverview = [];
+  let pendingCount = 0;
+  let unsubmittedCount = 0;
+  let approvedCount = 0;
+
+  activeSubs.forEach(sub => {
+    const enrolledStudents = students.filter(st => isStudentEnrolledInPracticalSubject(st, sub.code, className));
+    if (enrolledStudents.length === 0) return; // Only track subjects offered by this student cohort
+
+    let doc = approvedSubs.find(s => {
+      const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+      return codeStr === sub.code || codeStr.includes(sub.code);
+    });
+    let isPendingDoc = false;
+
+    if (!doc) {
+      doc = pendingSubs.find(s => {
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+        return codeStr === sub.code || codeStr.includes(sub.code);
+      });
+      if (doc) isPendingDoc = true;
+    }
+
+    let statusKey = 'unsubmitted';
+    let statusLabel = 'Awaiting Teacher Submission';
+    let teacherName = '—';
+    let submittedDate = '—';
+    let evaluatedCount = 0;
+
+    if (doc) {
+      teacherName = doc.submittedByName || doc.teacherName || doc.submittedBy || 'Faculty Member';
+      const rawDate = doc.submittedAt || doc.updatedAt || doc.createdAt;
+      submittedDate = rawDate
+        ? (typeof rawDate.toDate === 'function' ? rawDate.toDate().toLocaleDateString('en-GB') : String(rawDate).substring(0, 10))
+        : 'Submitted';
+      evaluatedCount = Array.isArray(doc.records) ? doc.records.length : 0;
+
+      if (isPendingDoc) {
+        statusKey = 'pending';
+        statusLabel = 'Pending Admin Approval';
+        pendingCount++;
+      } else {
+        statusKey = 'approved';
+        statusLabel = 'Approved / Finalized';
+        approvedCount++;
+      }
+    } else {
+      unsubmittedCount++;
+    }
+
+    subjectStatusOverview.push({
+      code: sub.code,
+      name: getSubjectDisplayName(sub.code, className),
+      enrolledCount: enrolledStudents.length,
+      evaluatedCount,
+      teacherName,
+      submittedDate,
+      statusKey,
+      statusLabel,
+      isPendingDoc
+    });
   });
 
   let failRecords = [];
@@ -2294,28 +2387,36 @@ export function printFailList({
   students.forEach((st) => {
     const rawExamRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || st['Board Roll'] || '';
     const examRoll = (rawExamRoll && !/^(N\/A|—|-|null|undefined)$/i.test(String(rawExamRoll).trim())) ? String(rawExamRoll).trim() : '—';
+    const classRoll = String(st['Class R.No.'] || st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || st.roll || '—').trim();
     const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
+    const fatherName = st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || st.parentage || '—';
 
     activeSubs.forEach(sub => {
-      const subDoc = submissions.find(s => {
-        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(className.toLowerCase().replace(/[^0-9]/g, ''));
-        if (!matchClass) return false;
+      // 1. CRITICAL: Strictly verify that student is actually enrolled in this practical subject!
+      if (!isStudentEnrolledInPracticalSubject(st, sub.code, className)) {
+        return; // Skip: Student does not take this subject (e.g. Science students never take Arts subjects; Non-Medical never takes Botany/Zoology)
+      }
 
-        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-        if (evaluationType || practicalType) {
-          const target = String(evaluationType || practicalType).toLowerCase();
-          if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
-            const targetNorm = target.includes('ext') ? 'external' : 'internal';
-            if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
-          }
-        } else {
-          const targetType = isExternal ? 'external' : 'internal';
-          if (sType !== targetType && !sType.includes(targetType)) return false;
-        }
-
+      // 2. Find matching submission doc for this session and subject
+      let subDoc = approvedSubs.find(s => {
         const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
         return codeStr === sub.code || codeStr.includes(sub.code);
       });
+      let isPending = false;
+
+      if (!subDoc) {
+        subDoc = pendingSubs.find(s => {
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+          return codeStr === sub.code || codeStr.includes(sub.code);
+        });
+        if (subDoc) isPending = true;
+      }
+
+      // If no submission exists at all for this subject in the target session:
+      // Do NOT falsely mark the student absent! The award has not been submitted by the teacher yet.
+      if (!subDoc) {
+        return;
+      }
 
       const markCfg = getSubjectMarksConfig(printDetails?.settings || printDetails, className, isExternal ? 'external' : 'internal', sub.code);
       const minMarks = markCfg.min || Math.ceil(markCfg.max * 0.36);
@@ -2323,55 +2424,216 @@ export function printFailList({
       const rec = findStudentMarkRecord(subDoc, st);
       if (rec) {
         const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim().toUpperCase();
+        const subjectLabel = `${getSubjectDisplayName(sub.code, className)} (${sub.code})`;
+
         if (rawMark === 'AB' || rawMark === 'A' || rawMark === 'ABSENT') {
-          failRecords.push({ rollNo: examRoll, name, subject: `${getSubjectDisplayName(sub.code, className)} (${sub.code})`, status: 'ABSENT' });
+          failRecords.push({
+            rollNo: examRoll,
+            classRoll,
+            name,
+            fatherName,
+            subject: subjectLabel,
+            status: isPending ? 'ABSENT (Award Pending Admin Approval)' : 'ABSENT',
+            isPending,
+            isAbsent: true
+          });
         } else if (!isNaN(Number(rawMark)) && Number(rawMark) < minMarks) {
-          failRecords.push({ rollNo: examRoll, name, subject: `${getSubjectDisplayName(sub.code, className)} (${sub.code})`, status: `FAIL (${rawMark}/${markCfg.max}M, Min: ${minMarks}M)` });
+          failRecords.push({
+            rollNo: examRoll,
+            classRoll,
+            name,
+            fatherName,
+            subject: subjectLabel,
+            status: isPending
+              ? `FAIL (${rawMark}/${markCfg.max}M, Min: ${minMarks}M — Pending Approval)`
+              : `FAIL (${rawMark}/${markCfg.max}M, Min: ${minMarks}M)`,
+            isPending,
+            isAbsent: false
+          });
         }
       }
     });
   });
 
+  // Sort fail records by exam roll number (or class roll)
+  failRecords.sort((a, b) => {
+    const rA = parseInt(String(a.rollNo).replace(/\D/g, '') || '0', 10);
+    const rB = parseInt(String(b.rollNo).replace(/\D/g, '') || '0', 10);
+    if (rA && rB && rA !== rB) return rA - rB;
+    return a.name.localeCompare(b.name);
+  });
+
   let html = `
     <div class="award-page">
-      <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #cc0000; padding-bottom: 8px;">
-        <h1 style="font-size: 14pt; font-weight: bold; margin: 0; color: #cc0000;">Govt. Higher Secondary School Shangus</h1>
-        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">FAIL / ABSENT LIST (${examType}) — ${hseText}</h2>
-        <p style="font-size: 9.5pt; font-weight: bold; margin: 2px 0;">Session & Year: <strong>${session}</strong></p>
+      <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #b91c1c; padding-bottom: 8px;">
+        <h1 style="font-size: 13.5pt; font-weight: 800; margin: 0; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">Govt. Higher Secondary School Shangus</h1>
+        <h2 style="font-size: 10.5pt; font-weight: 700; margin: 3px 0; color: #1e293b;">FAIL / ABSENT LIST (${examType}) — ${hseText}</h2>
+        <div style="font-size: 9pt; font-weight: 600; margin: 2px 0; color: #475569;">
+          <span>Session: <strong style="color: #0f172a;">${session}</strong></span>
+          <span style="margin: 0 8px;">•</span>
+          <span>Target Class: <strong style="color: #0f172a;">${className}</strong></span>
+          <span style="margin: 0 8px;">•</span>
+          <span>Generated On: <strong>${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></span>
+        </div>
       </div>
 
-      <table class="award-table" style="font-size: 9.5pt;">
-        <thead>
-          <tr style="background: #fee2e2;">
-            <th style="width: 10%;">S.No.</th>
-            <th style="width: 20%;">Exam Roll No.</th>
-            <th style="width: 35%; text-align: left; padding-left: 8px;">Student Name</th>
-            <th style="width: 20%;">Subject</th>
-            <th style="width: 15%;">Remarks</th>
-          </tr>
-        </thead>
-        <tbody>
+      <!-- Institutional Practical Awards & Pending Status Overview -->
+      <div style="margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; font-size: 8.5pt;">
+        <div style="background: #f1f5f9; padding: 4px 8px; font-weight: bold; color: #334155; border-bottom: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+          <span style="text-transform: uppercase; letter-spacing: 0.5px;">Institutional Award Submissions & Pending Status Overview</span>
+          <span style="font-size: 8pt; font-weight: 600; color: #64748b;">
+            Approved: <strong style="color: #15803d;">${approvedCount}</strong> | 
+            Pending Approval: <strong style="color: #b45309;">${pendingCount}</strong> | 
+            Awaiting Submission: <strong style="color: #b91c1c;">${unsubmittedCount}</strong>
+          </span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 8pt; color: #475569;">
+              <th style="padding: 4px 6px; width: 6%;">Code</th>
+              <th style="padding: 4px 6px; width: 26%;">Subject Name</th>
+              <th style="padding: 4px 6px; width: 12%; text-align: center;">Enrolled / Evaluated</th>
+              <th style="padding: 4px 6px; width: 22%;">Teacher / Evaluator</th>
+              <th style="padding: 4px 6px; width: 14%;">Submission Date</th>
+              <th style="padding: 4px 6px; width: 20%;">Current Status</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+
+  subjectStatusOverview.forEach((sObj, sIdx) => {
+    const isOdd = sIdx % 2 === 1;
+    let badgeBg = '#f1f5f9';
+    let badgeColor = '#475569';
+    let badgeBorder = '#cbd5e1';
+
+    if (sObj.statusKey === 'approved') {
+      badgeBg = '#dcfce7';
+      badgeColor = '#166534';
+      badgeBorder = '#86efac';
+    } else if (sObj.statusKey === 'pending') {
+      badgeBg = '#fef3c7';
+      badgeColor = '#92400e';
+      badgeBorder = '#fcd34d';
+    } else {
+      badgeBg = '#fee2e2';
+      badgeColor = '#991b1b';
+      badgeBorder = '#fca5a5';
+    }
+
+    html += `
+      <tr style="background: ${isOdd ? '#fbfcfe' : '#ffffff'}; border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 3px 6px; font-weight: bold; font-family: monospace;">${sObj.code}</td>
+        <td style="padding: 3px 6px; font-weight: 600;">${sObj.name}</td>
+        <td style="padding: 3px 6px; text-align: center; font-weight: bold;">
+          ${sObj.evaluatedCount > 0 ? `${sObj.evaluatedCount} / ${sObj.enrolledCount}` : `${sObj.enrolledCount} enrolled`}
+        </td>
+        <td style="padding: 3px 6px; color: #334155;">${sObj.teacherName}</td>
+        <td style="padding: 3px 6px; color: #64748b;">${sObj.submittedDate}</td>
+        <td style="padding: 3px 6px;">
+          <span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 7.5pt; font-weight: bold; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder};">
+            ${sObj.statusLabel}
+          </span>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `
+          </tbody>
+        </table>
+      </div>
+  `;
+
+  // Informative alert banners for pending awards or unsubmitted subjects
+  if (pendingCount > 0) {
+    const pendingSubjects = subjectStatusOverview.filter(s => s.statusKey === 'pending').map(s => `${s.name} (${s.code})`).join(', ');
+    html += `
+      <div style="margin-bottom: 10px; padding: 6px 10px; background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 4px; font-size: 8pt; color: #92400e; line-height: 1.4;">
+        <strong>⚠️ PENDING AWARDS NOTICE:</strong> Practical awards for <strong>${pendingSubjects}</strong> have been submitted by the respective subject teachers and are currently <strong>Awaiting Administrative Verification & Approval</strong>. Any failing marks or absentees shown below for these subjects are provisional until officially approved.
+      </div>
+    `;
+  }
+
+  if (unsubmittedCount > 0) {
+    const unsubmittedSubjects = subjectStatusOverview.filter(s => s.statusKey === 'unsubmitted').map(s => `${s.name} (${s.code})`).join(', ');
+    html += `
+      <div style="margin-bottom: 10px; padding: 6px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #64748b; border-radius: 4px; font-size: 8pt; color: #334155; line-height: 1.4;">
+        <strong>ℹ️ AWAITING TEACHER SUBMISSIONS:</strong> Awards for <strong>${unsubmittedSubjects}</strong> have not yet been submitted by subject teachers for session ${session}. Enrolled candidates for these subjects are not flagged as absent until official award sheets are finalized.
+      </div>
+    `;
+  }
+
+  // Fail & Absent Student Table
+  html += `
+      <div style="margin-top: 10px;">
+        <h3 style="font-size: 9.5pt; font-weight: bold; color: #991b1b; margin: 0 0 6px 0; text-transform: uppercase;">
+          Defaulters List (Candidates Marked Absent or Below Passing Minimum)
+        </h3>
+        <table class="award-table" style="font-size: 8.5pt;">
+          <thead>
+            <tr style="background: #fee2e2;">
+              <th style="width: 5%;">S.No.</th>
+              <th style="width: 12%;">Class Roll</th>
+              <th style="width: 15%;">Exam Roll No.</th>
+              <th style="width: 25%; text-align: left; padding-left: 8px;">Student Name</th>
+              <th style="width: 20%; text-align: left; padding-left: 8px;">Parentage</th>
+              <th style="width: 18%;">Subject</th>
+              <th style="width: 15%;">Remarks / Status</th>
+            </tr>
+          </thead>
+          <tbody>
   `;
 
   if (failRecords.length === 0) {
-    html += `<tr><td colspan="5" style="padding: 20px; text-align: center; font-weight: bold; color: green;">All examinees passed. Zero absentees/fails found.</td></tr>`;
+    html += `
+      <tr>
+        <td colspan="7" style="padding: 24px; text-align: center; font-weight: bold; color: #166534; background: #f0fdf4;">
+          <div style="font-size: 11pt; margin-bottom: 4px;">✓ Zero Absentees / Failures Recorded</div>
+          <div style="font-size: 8.5pt; font-weight: normal; color: #15803d;">
+            All evaluated examinees across submitted practical award rolls for Class ${className} have passed the practical examination.
+          </div>
+        </td>
+      </tr>
+    `;
   } else {
     failRecords.forEach((f, idx) => {
+      const isOdd = idx % 2 === 1;
+      const statusColor = f.isPending ? '#b45309' : '#b91c1c';
       html += `
-        <tr>
-          <td>${idx + 1}</td>
-          <td><strong>${f.rollNo}</strong></td>
+        <tr style="background: ${isOdd ? '#fff5f5' : '#ffffff'};">
+          <td style="text-align: center;">${idx + 1}</td>
+          <td style="text-align: center;"><strong>${f.classRoll}</strong></td>
+          <td style="text-align: center;"><strong style="font-family: monospace;">${f.rollNo}</strong></td>
           <td style="text-align: left; padding-left: 8px;"><strong>${f.name}</strong></td>
-          <td>${f.subject}</td>
-          <td style="color: #cc0000; font-weight: bold;">${f.status}</td>
+          <td style="text-align: left; padding-left: 8px; color: #475569;">${f.fatherName}</td>
+          <td style="text-align: center;">${f.subject}</td>
+          <td style="text-align: center; color: ${statusColor}; font-weight: bold;">${f.status}</td>
         </tr>
       `;
     });
   }
 
   html += `
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Institutional Sign-Off Certification -->
+      <div style="margin-top: 36px; display: flex; justify-content: space-between; text-align: center; font-size: 8.5pt; color: #334155;">
+        <div style="width: 28%; border-top: 1px dashed #64748b; padding-top: 6px;">
+          <strong>Subject Teacher / Evaluator</strong><br>
+          <span style="font-size: 7.5pt; color: #64748b;">Signature & Date</span>
+        </div>
+        <div style="width: 28%; border-top: 1px dashed #64748b; padding-top: 6px;">
+          <strong>Practical Exam Superintendent</strong><br>
+          <span style="font-size: 7.5pt; color: #64748b;">Signature & Date</span>
+        </div>
+        <div style="width: 28%; border-top: 1px dashed #64748b; padding-top: 6px;">
+          <strong>Principal / Head of Institution</strong><br>
+          <span style="font-size: 7.5pt; color: #64748b;">Official Seal & Signature</span>
+        </div>
+      </div>
     </div>
   `;
 
