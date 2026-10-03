@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): enforce strict session isolation in print roll, match signatures to subject columns, and verify approval pipeline`
+- **Commit Message**: `feat(admin): implement Google-like fuzzy and semantic module search with keyword thesaurus and keyboard navigation`
 - **Date**: October 03, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally.
 
@@ -9,60 +9,71 @@
 
 ## Architectural Purpose & Issues Resolved
 
-### 1. Fix for Class 10th Deleted Awards in Consolidated Printout
-- **Root Cause**:
-  - In `AwardsSummaryView` (the web table), submissions were strictly queried by `normalizePracticalSession(querySess)` (`2025-26`), which properly excluded deleted or historical awards.
-  - However, in `printConsolidatedAwardRoll` (`src/utils/practicalsPdfGenerator.js`), `isSubDocMatch` and `hasSubjectPracticalSubmission` were missing strict session checks and did not check `!s.isDeleted`. When no current submissions existed for Class 10th (`subsWithMarks.length === 0`), `activeSubs` fell back to `candidateSubs` (which includes 10th Mathematics and Science), and `submissions.find(isSubDocMatch)` matched historical/deleted submissions.
-- **Resolution**:
-  - Added `session` parameter and strict normalized comparison (`normalizePracticalSession`) to `hasSubjectPracticalSubmission`.
-  - Added strict session check and `!s.isDeleted && s.status !== 'deleted'` guard to `isSubDocMatch`.
-  - Prevented deleted or cross-session records from ever leaking into the matrix cells or row hash totals.
+### 1. Problem with Previous Substring Search
+- In the "Administrative Modules" dialog (`AdminToolsDropdown.jsx`), searching previously relied on a naive case-insensitive substring match:
+  `item.label.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q) || item.category.toLowerCase().includes(q)`
+- **Issues identified**:
+  1. Searching for `"board"` only surfaced 2 modules (`gkTest` due to "Pre-Board" and `boardSync` due to "Board"). Critical board modules like `admRegisterSuite` (JKBOSE Sent-Up Roll / Board Registration), `analyticsReports` (JKBOSE Subject Roll Returns), and `practicals` (Board Practical Award Rolls) were completely omitted because their descriptions didn't contain the literal word "board".
+  2. Zero tolerance for typos or spelling mistakes (e.g., "admisn", "atendance", "jkbse" returned 0 results).
+  3. No semantic understanding of school administration workflows (e.g. typing "marks", "scores", "salary", "tax", "photo", "tc", "roll" failed to pull up their corresponding functional modules).
+  4. No visual match indicator or keyboard navigation.
 
-### 2. Signatures Dynamically Matched to Subject Columns in All Classes
-- **Resolution**:
-  - In `printConsolidatedAwardRoll`, `examinerSignaturesHtml` directly maps over `activeSubs` (the exact subject columns appearing in the matrix table).
-  - For each subject column:
-    - Renders `${idx + 1}. ${subDisplayName} (${sub.code}): ....................................`
-    - Resolves examiner name strictly using `isSubDocMatch(s)` so only live, non-deleted, session-matched submissions provide examiner names.
-    - If no live submission exists for that subject, renders a clean blank dotted line for manual signing on paper.
-  - Responsive grid layout (`1, 2, 3, or 4` columns based on subject count) ensures clean alignment across all classes (10th, 11th, and 12th).
+### 2. Implementation of Google-Like Fuzzy & Semantic Search Engine
+- Created `src/portal/admin/adminModuleSearchEngine.js`:
+  - **Educational Domain Thesaurus (`SEMANTIC_THESAURUS`)**:
+    - Maps domain concepts: `board` (jkbose, sent-up, gazette, roll return, matric, higher secondary), `marks`, `exam`, `admission`, `fee`, `salary`, `photo`, `message`, `staff`, `certificate`, `export`, `delete` (trash/bin), `attendance`, `roll`, `website`, `audit`, `duplicate`, `contacts`, `curriculum`, `letter`.
+    - Bidirectional semantic query expander (`expandSemanticQuery`).
+  - **Damerau-Levenshtein Fuzzy Matching (`getDamerauLevenshteinDistance` & `matchTokenFuzzy`)**:
+    - Tolerates letter transpositions, missing letters, and extra letters with length-adaptive edit distance thresholds.
+  - **Multi-Tier Relevance Scoring (`searchAdminModules`)**:
+    - Exact whole query match (+2000)
+    - Title prefix (+1200) / Title substring (+900)
+    - Keyword / alias match (+650)
+    - Semantic concept / synonym match (+450)
+    - Multi-term coverage multiplier (1.6x when all search tokens are satisfied)
+  - **Matched Reasons Extractor**:
+    - Extracts up to 3 matched keyword tokens or concepts so admins see *why* a module was suggested (e.g., `Matches: jkbose, sent-up roll`).
+  - **Highlighting Engine (`getHighlightedSegments`)**:
+    - Tokenizes matching substrings for visual highlighting in both module title and description.
 
-### 3. Verification of Re-submission & Approval Window Pipeline
-- **Verification**:
-  - Confirmed that when an admin deletes a submission (moving it to the Practicals Recycle Bin), the teacher's slot in `PracticalsPage.jsx` is completely freed.
-  - When the teacher re-submits, the award document is created with ID `pending_${docId}` and status `'pending_approval'`.
-  - On admin load, this is filtered into `pendingApprovals` and rendered in the **Pending Award Approvals Tray** at the top of the "Faculty & Submissions" tab with full candidate details, Inspect, Approve, and Reject actions.
-  - The tab navigation button displays the total submissions including pending (`submissions.length + pendingApprovals.length`), with an animated amber counter badge alerting the admin to pending actions.
+### 3. Comprehensive Keyword Enrichment in Admin Module Catalog
+- Updated `src/portal/admin/adminModuleCatalog.js`:
+  - Added comprehensive `keywords` arrays to all 24 modules across all categories:
+    - `admRegisterSuite`: `['board', 'jkbose', 'sent-up roll', 'board registration', 'enrolment ledger', 'r-register']`
+    - `analyticsReports`: `['board roll returns', 'jkbose subject rolls', 'subject rolls', 'checklist', 'aishe', 'udise']`
+    - `gkTest`: `['pre-board', 'golden test', 'unit test', 'term exam', 'omr', 'admit cards', 'gazette']`
+    - `practicals`: `['internal assessment', 'external practical', 'award rolls', 'board practicals', 'viva', 'evaluations']`
+    - `boardSync`: `['jkbose api', 'board sync', 'bulk ingestion', 'board data', 'verified records']`
+    - And corresponding keywords for fees, attendance, certificates, faculty, ID cards, cell quick edit, trash, and salary accounts.
 
-### 4. Consolidated Architecture for Faculty & Submissions
-- Inside `FacultySubmissionsView`, submissions and faculty are unified:
-  - Each faculty member row presents their contact details, phone editing, and subject submissions badges (Internal & External) with record counts and pending alerts.
-  - Inline Audit Drawers allow expanding full document details per teacher or expanding all at once.
+### 4. Search UX & Keyboard Navigation Upgrades in `AdminToolsDropdown.jsx`
+- Replaced the naive filter with `searchAdminModules(allItems, searchQuery)`.
+- Added `<HighlightedText>` component to emphasize matching search characters in both label and description.
+- Rendered `<Sparkles /> Matches: [tags]` badges under each result card.
+- Implemented full keyboard accessibility:
+  - `ArrowDown` & `ArrowUp` to navigate through search results smoothly.
+  - `Enter` to immediately activate or toggle the selected module.
+  - `Escape` or clicking outside to close.
+- Added Google-style empty state with clickable functionality suggestions ("board", "marks", "admission", "fees", "attendance").
 
 ---
 
 ## Files Changed
 
-1. `src/utils/practicalsPdfGenerator.js`:
-   - Updated `hasSubjectPracticalSubmission` to accept `session` and check `!s.isDeleted`.
-   - Updated `isSubDocMatch` in `printConsolidatedAwardRoll` to strictly check session and deletion status.
-   - Updated `examinerSignaturesHtml` to use `isSubDocMatch`, ensuring signatures match subject columns and never pull stale/deleted examiner names.
-   - Cleaned up unused variable warning (`targetType`).
-2. `src/portal/admin/AdminPracticals.jsx`:
-   - Enhanced faculty matching by email and normalized name.
-   - Added pending approval status badges and approval actions inside document audit rows.
-3. `src/utils/practicalsSettingsManager.js`:
-   - Added `normalizePracticalSession` for consistent session key normalization across the application.
-4. `src/utils/practicalsCsvManager.js`:
-   - Synchronized Word `.docx` exports with dynamic subject column signatures and institutional certificate text.
+1. `src/portal/admin/adminModuleSearchEngine.js` *(NEW)*:
+   - Domain semantic thesaurus, Damerau-Levenshtein fuzzy matching, multi-tier ranking, match reason tags, and text segment highlighting.
+2. `src/portal/admin/adminModuleCatalog.js`:
+   - Enriched all 24 administrative modules with deep keyword metadata covering exams, board operations, admissions, and institutional workflows.
+3. `src/portal/admin/AdminToolsDropdown.jsx`:
+   - Connected fuzzy search engine, added highlighted text rendering, semantic badges, keyboard arrow navigation, and interactive empty states.
 
 ---
 
 ## Verification & Build Details
-- **Production Build**:
-  - `npm run build` -> `Exit Code 0` (Zero breaking errors).
-- **SEO & Static Checks**:
-  - 11 static pages generated, canonical redirects, routing, and sitemap verified.
+- **Build Verification**:
+  - `npm run build` -> Exit Code 0 (zero breaking errors).
+- **Security Rules**:
+  - `firestore.rules` and `storage.rules` were not modified.
 
 ---
 
@@ -81,7 +92,7 @@ If you wish to make additional adjustments before pushing:
 git reset --soft HEAD~1
 # Make desired adjustments
 git add .
-git commit -m "fix(practicals): enforce strict session isolation in print roll, match signatures to subject columns, and verify approval pipeline"
+git commit -m "feat(admin): implement Google-like fuzzy and semantic module search with keyword thesaurus and keyboard navigation"
 ```
 
 ### Pushing Changes
