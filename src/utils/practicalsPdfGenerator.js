@@ -2811,16 +2811,31 @@ export function isSubmissionOwnedByTeacher(item, user, authUser) {
   const itemBy = String(item.submittedBy || '').toLowerCase().trim();
   const itemUid = String(item.submittedByUid || item.teacherId || item.userId || item.uid || '').trim();
 
+  // Normalization for merged admin -> teacher account alias:
+  // Sheikh Gulfam's submissions created under institutional admin account (e.educational.24@gmail.com)
+  // are canonically owned by teacher email socialshiftz@gmail.com
+  let resolvedItemEmail = itemEmail || (itemBy.includes('@') ? itemBy : '');
+  if (resolvedItemEmail.includes('e.educational')) {
+    resolvedItemEmail = 'socialshiftz@gmail.com';
+  }
+  let normalizedCurrentEmail = currentEmail;
+  if (normalizedCurrentEmail.includes('e.educational')) {
+    normalizedCurrentEmail = 'socialshiftz@gmail.com';
+  }
+
   // 1. UID match takes highest precedence if both present
   if (currentUid && itemUid) {
     if (itemUid === currentUid) return true;
-    return false; // Explicitly different UID
+    // If this item was created under e.educational and current teacher is socialshiftz, allow email alias matching even if UIDs differ
+    const isGulfamAlias = (itemEmail.includes('e.educational') || resolvedItemEmail === 'socialshiftz@gmail.com') && normalizedCurrentEmail === 'socialshiftz@gmail.com';
+    if (!isGulfamAlias) {
+      return false; // Explicitly different UID
+    }
   }
 
-  // 2. Email match (exact)
-  const resolvedItemEmail = itemEmail || (itemBy.includes('@') ? itemBy : '');
+  // 2. Email match (exact / normalized alias)
   if (resolvedItemEmail) {
-    if (currentEmail && resolvedItemEmail === currentEmail) {
+    if (normalizedCurrentEmail && resolvedItemEmail === normalizedCurrentEmail) {
       return true;
     }
     // Item carries an explicit email of a different teacher — strictly reject!

@@ -73,7 +73,8 @@ export const DEFAULT_EXCLUDED_TEACHERS = [
   'smuzaffera@gmail.com',
   'sameerganie5899445@gmail.com',
   'mwani@gmail.com',
-  'bilalhcut@gmail.com'
+  'bilalhcut@gmail.com',
+  'e.educational.24@gmail.com'
 ];
 
 export const formatClassDisplay = (rawCls, doc = null) => {
@@ -574,9 +575,23 @@ export const parsePracticalsSnap = (snap) => {
         return true;
       });
       const canonicalSession = normalizePracticalSession(data.sessionCanonical || data.yearSuffix || data.sessionText || data.session || '');
+      
+      // Unify practicals history of e.educational.24@gmail.com (admin) into socialshiftz@gmail.com (teacher)
+      let tEmail = String(data.teacherEmail || data.submittedByEmail || data.email || '').toLowerCase().trim();
+      let subByEmail = String(data.submittedByEmail || data.teacherEmail || '').toLowerCase().trim();
+      if (tEmail.includes('e.educational')) tEmail = 'socialshiftz@gmail.com';
+      if (subByEmail.includes('e.educational')) subByEmail = 'socialshiftz@gmail.com';
+      const tName = (tEmail === 'socialshiftz@gmail.com' || subByEmail === 'socialshiftz@gmail.com')
+        ? 'Sheikh Gulfam'
+        : (data.teacherName || data.submittedByName || 'Faculty Member');
+
       return {
         id: d.id,
         ...data,
+        teacherEmail: tEmail || data.teacherEmail,
+        submittedByEmail: subByEmail || data.submittedByEmail,
+        teacherName: tName,
+        submittedByName: tName,
         sessionText: canonicalSession,
         session: canonicalSession,
         records: cleanRecs
@@ -1124,9 +1139,9 @@ function AdminPracticals() {
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(u => {
             const email = String(u.email || '').toLowerCase().trim();
-            if (excludedSet.has(email)) return false;
+            if (excludedSet.has(email) || email.includes('e.educational')) return false;
             const r = String(u.role || '').toLowerCase();
-            return r === 'teacher' || r === 'faculty' || r === 'examiner' || r === 'staff' || r === 'admin';
+            return r === 'teacher' || r === 'faculty' || r === 'examiner' || r === 'staff';
           })
       );
     } catch (e) {
@@ -4734,8 +4749,13 @@ function FacultySubmissionsView({
 
   const isDocMatchingTeacher = useCallback((docItem, t) => {
     if (!docItem || !t) return false;
-    const dEmail = String(docItem.teacherEmail || docItem.submittedByEmail || docItem.Email || docItem.email || '').toLowerCase().trim();
+    let dEmail = String(docItem.teacherEmail || docItem.submittedByEmail || docItem.Email || docItem.email || '').toLowerCase().trim();
+    if (dEmail.includes('e.educational')) {
+      dEmail = 'socialshiftz@gmail.com';
+    }
     const tEmail = String(t.email || t.id || '').toLowerCase().trim();
+    if (tEmail.includes('e.educational')) return false; // Pure admin account never claims teacher docs
+
     if (dEmail && tEmail && dEmail === tEmail) return true;
 
     const dName = normalizeCleanName(docItem.teacherName || docItem.submittedByName || docItem.submittedBy || docItem['Teacher Name'] || docItem.author);
@@ -4756,7 +4776,7 @@ function FacultySubmissionsView({
 
     teachers.forEach(t => {
       const tEmail = String(t.email || '').toLowerCase().trim();
-      if (excludedSet.has(tEmail)) return;
+      if (excludedSet.has(tEmail) || tEmail.includes('e.educational')) return;
 
       const r = String(t.role || '').toLowerCase().trim();
       const isPureAdmin = (r === 'admin' || r === 'administrator' || r === 'principal' || r === 'superadmin');
@@ -4786,8 +4806,9 @@ function FacultySubmissionsView({
     // Also include any teacher or evaluator from submissions who wasn't in teachers
     allDocs.forEach(d => {
       if (matchedDocIds.has(d.id)) return;
-      const dEmail = String(d.teacherEmail || d.submittedByEmail || d.Email || d.email || '').toLowerCase().trim();
-      if (dEmail && excludedSet.has(dEmail)) return;
+      let dEmail = String(d.teacherEmail || d.submittedByEmail || d.Email || d.email || '').toLowerCase().trim();
+      if (dEmail.includes('e.educational')) dEmail = 'socialshiftz@gmail.com';
+      if (dEmail && (excludedSet.has(dEmail) || dEmail.includes('e.educational'))) return;
 
       const sName = d.teacherName || d.submittedByName || d.submittedBy || d['Teacher Name'] || 'Other Evaluator';
       const key = dEmail || `evaluator_${sName.toLowerCase().replace(/\s+/g, '_')}`;

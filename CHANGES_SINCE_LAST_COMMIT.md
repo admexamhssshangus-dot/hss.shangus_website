@@ -1,106 +1,99 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): correct student enrollment counts, guarantee PH/CH for science students, and separate Enrolled and Evaluated columns in reports`
+- **Commit Message**: `fix(practicals): merge practicals history from e.educational admin to socialshiftz teacher email and exclude admin from faculty roster`
 - **Date**: October 03, 2026
-- **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Security, Admission, SEO regression checks, and Jest test suite passed (`Exit Code 0`, 21/21 tests passed).
+- **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Jest tests passed (`Exit Code 0`).
 
 ---
 
 ## Architectural Purpose & Issues Resolved
 
 ### Problem Statement
-1. **Under-Calculated Physics & Chemistry Enrollment in Class 12th**:
-   - In Class 12th, there are **134 Medical students** (Botany/Zoology) and **24 Non-Medical students** (Mathematics), totaling **158 Science students**.
-   - In JKBOSE Higher Secondary curriculum, **Physics (PH) and Chemistry (CH) are mandatory foundation subjects for all Science stream students**.
-   - However, 14 Medical students had their database subject string entered as only their chosen electives (e.g. `"Botany, Zoology, Environmental Science"`), omitting the explicit words "Physics" or "Chemistry".
-   - `isStudentEnrolledInPracticalSubject` in `practicalsPdfGenerator.js`, `isStudentEnrolledInSubject` in `AdminPracticals.jsx`, and `isSubjectOrStreamMatch` in `PracticalsPage.jsx` strictly required `"PH"`/`"Physics"` to be explicitly written in the student's text string when non-empty. This caused 14 Science students to be excluded from Physics and Chemistry, incorrectly reflecting only **144** students enrolled instead of the true count of **158**.
-2. **Ambiguous and Reversed Progress Display in Fail / Absent Printout**:
-   - The table header in the Institutional Award Submissions overview was labeled `Enrolled / Evaluated`, but the cell values were formatted in reverse: `${sObj.evaluatedCount} / ${sObj.enrolledCount}` (e.g. `15 / 144`, `105 / 134`).
-   - This caused confusion where `15` appeared to be the enrolled count and `144` the evaluated count.
-   - For unsubmitted subjects, it displayed `144 enrolled` instead of progress metrics.
-3. **Class 12th Record Enrichment & Previous Class Inheritance**:
-   - Registration number matching for Class 11th inheritance only checked `st['Board Registration Number'] || st.regNo`, missing aliases like `st['Board Reg. No.']`, `st.boardRegNo`, etc.
-   - Incomplete subject strings (e.g. `"Same as in Class 11th"`, single placeholders like `"General English"`) prevented the full 5-subject list from being inherited from Class 11th records.
+1. **Duplicate Faculty Entries in Admin Practicals Roster**:
+   - In the Practicals Faculty & Evaluator Submissions view, Sheikh Gulfam appeared twice:
+     - Row 2: Sheikh Gulfam (`e.educational.24@gmail.com`) with role badge `EXAMINER`, displaying Botany 11th (Internal 86, External 170) and 12th (Internal 105).
+     - Row 3: Sheikh Gulfam (`socialshiftz@gmail.com`) with role badge `TEACHER`, displaying the exact same Botany practical documents.
+2. **Account Role Ambiguity**:
+   - `e.educational.24@gmail.com` is the primary institutional Master Admin email account, whereas `socialshiftz@gmail.com` is Sheikh Gulfam's official Teacher/Faculty email.
+   - Historical Botany practical evaluations and audit versions were created or logged using `e.educational.24@gmail.com`.
+   - In `AdminPracticals.jsx`, `setTeachers` included users with `role === 'admin'`. Because `e.educational.24@gmail.com` had `name: 'Sheikh Gulfam'` and `socialshiftz@gmail.com` also had `name: 'Sheikh Gulfam'`, fuzzy name matching linked the same Botany documents to both accounts.
+3. **Teacher Portal Ownership & Access**:
+   - When Sheikh Gulfam signs in with his official teacher email `socialshiftz@gmail.com`, any historical practical submissions originally created under `e.educational.24@gmail.com` must be seamlessly owned, accessible, and editable in the Teacher Workspace without UID or email mismatches.
 
 ---
 
 ## Changes Implemented
 
-### 1. Robust Science Stream Foundation & Subject Enrollment Logic
-- File: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
-  - **`resolveStudentStream`**: Added a helper that inspects all stream field aliases (`Stream for Class 12th`, `Stream Studied in Class 11th`, `Selected Stream`, etc.) and accurately infers Medical / Non-Medical / Humanities / Commerce from subject tokens.
-  - **`resolveStudentSubjectsRaw`**: Enhanced candidate resolution to prefer complete 3+ subject records over single placeholder entries (e.g. `"General English"`).
-  - **`getAbbreviatedSubjects`**: For Higher Secondary Science students, guarantees that `EN, PH, CH` are always present, and `BI` is present for Medical students, while maintaining strict isolation against Arts-only electives.
-  - **`isStudentEnrolledInPracticalSubject`**:
-    - For Secondary School (9th & 10th): Strictly limits to the core 5 compulsory subjects (`EN, MA, SC, SS, UR`) and vocational subjects (`HTC, ITE`).
-    - For Higher Secondary (11th & 12th):
-      - General English (`EN`) is compulsory for 100% of students across all streams.
-      - Any student offering Medical subjects (`BO`, `ZO`, `BI`) or in the Science stream is automatically enrolled in Physics (`PH`) and Chemistry (`CH`).
-      - Botany (`BO`) and Zoology (`ZO`) are linked through Biology equivalence.
-      - Mathematics (`MA`) is enrolled for Non-Medical and explicit Math takers.
-      - Science students are strictly prevented from Arts electives (`ED`, `HT`, `PS`, etc.).
+### 1. Firestore Database Consolidation
+- **Executed Migration Script**: [scripts/merge_gulfam_practicals_history.mjs](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/merge_gulfam_practicals_history.mjs)
+  - **`practicalsData` Collection**:
+    - `11th_BO_external_2024-25_(Oct-Nov)`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
+    - `11th_BO_internal_2024-25_(Oct-Nov)`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
+    - `11th_Botany_Pre-Board Test_2025-26`: confirmed canonical ownership by `socialshiftz@gmail.com`.
+    - `12th_BO_internal_2024-25_(Oct-Nov)`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
+    - `12th_Botany_Internal Assessment_2025-26`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
+    - `12th_Botany_Pre-Board Test_2025-26`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`, `submittedByName: 'Sheikh Gulfam'`.
+    - `history_11th_Botany_Pre-Board Test_2025-26_1789487999790`: set `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`.
+  - **`practicalsBin` Collection**:
+    - Updated 10 historical audit log and trash bin entries to `socialshiftz@gmail.com`.
+  - **`adminPracticalsSettings/config` Collection**:
+    - Added `'e.educational.24@gmail.com'` to `excludedTeacherEmails`.
 
+### 2. Admin Practicals Portal Normalization & Deduplication
 - File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
-  - **`isStudentEnrolledInSubject`**: Synchronized the same authoritative enrollment rules for admin tables, matrices, and reports.
-  - **Enhanced Class 11th Inheritance**: Added `extractReg` to check all registration number aliases. Replaces incomplete/placeholder subject strings with the complete 5-subject list from Class 11th records, and ensures stream is properly flagged as Science.
-  - **`getStudentSubjectsStr`**: Prefer complete subject listings over 1-word placeholders when searching candidate fields.
+  - Added `'e.educational.24@gmail.com'` to `DEFAULT_EXCLUDED_TEACHERS`.
+  - In `parsePracticalsSnap`: Automatically normalizes any practicals submission with `e.educational` to `teacherEmail: 'socialshiftz@gmail.com'`, `submittedByEmail: 'socialshiftz@gmail.com'`, `teacherName: 'Sheikh Gulfam'`.
+  - In `setTeachers`: Filters out pure administrative roles (`admin`) and strictly excludes `e.educational` from the faculty roster.
+  - In `isDocMatchingTeacher` and `facultyMembers`:
+    - Normalizes `dEmail` from `e.educational` to `socialshiftz@gmail.com`.
+    - Strictly prevents the institutional admin email from claiming teacher submissions.
+    - Prevents orphan or fallback evaluator rows from rendering for `e.educational`.
 
-- File: [src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)
-  - **`isSubjectOrStreamMatch`**: Updated Physics (`PH`) and Chemistry (`CH`) checks to include all Science students (`isScienceStrict || hasMedicalSubs`), ensuring the teacher evaluation roster displays all 158 Science students.
-
-### 2. Crystal-Clear Overview Table Formatting
+### 3. Unified Submissions Ownership in Teacher Portal
 - File: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
-  - Split the confusing single column into **two dedicated, unambiguous columns**:
-    - **`Enrolled`**: Displays the exact eligible candidate count (e.g., `158` for Physics/Chemistry, `134` for Botany/Zoology, `24` for Math, `296` for English).
-    - **`Evaluated`**: Displays evaluation progress with clear completion percentages (e.g., `15 (9%)`, `105 (78%)`, or `0 (Awaiting)`).
+  - In `isSubmissionOwnedByTeacher`:
+    - Normalizes both `itemEmail` and `currentEmail` aliasing `e.educational` to `socialshiftz@gmail.com`.
+    - Allows email alias matching across accounts even if Firebase Auth UIDs differ, ensuring Sheikh Gulfam logged in as `socialshiftz@gmail.com` can view, generate award rolls, and edit all historical submissions.
 
-### 3. Comprehensive Automated Tests
-- File: [src/portal/teacher/PracticalsPage.test.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.test.jsx)
-  - Added unit test verifying that Class 12th Medical students with elective-only subjects are enrolled in `PH`, `CH`, `BO`, `ZO`, `EN`, and excluded from `ED`, `HT`, `MA`.
-  - Added unit test verifying that Arts students are never enrolled in Science subjects (`PH`, `CH`, `BO`, `ZO`).
-  - Added unit test verifying that `studentWith11Placeholder` resolves `PH` and `CH`.
-  - All 21 tests in the suite passed with zero errors.
+### 4. Audit & Verification Scripts
+- Files:
+  - [scripts/inspect_gulfam_practicals.mjs](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/inspect_gulfam_practicals.mjs): Deep audit script inspecting `practicalsData`, `practicalsBin`, `users`, and settings.
+  - [scripts/merge_gulfam_practicals_history.mjs](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/merge_gulfam_practicals_history.mjs): Migration script automating consolidation in Firestore.
 
 ---
 
 ## Files Changed
-1. `src/portal/admin/AdminPracticals.jsx` (Accurate enrollment calculation, comprehensive registration matching, Class 11th inheritance)
-2. `src/portal/teacher/PracticalsPage.jsx` (Physics/Chemistry enrollment matching for Science cohorts in teacher roster)
-3. `src/portal/teacher/PracticalsPage.test.jsx` (21 unit tests covering all enrollment rules and stream boundaries)
-4. `src/utils/practicalsPdfGenerator.js` (resolveStudentStream helper, science foundation PH/CH guarantee, distinct Enrolled and Evaluated columns)
-5. `CHANGES_SINCE_LAST_COMMIT.md` (Updated memory file of changes)
+- `src/portal/admin/AdminPracticals.jsx` (Modified)
+- `src/utils/practicalsPdfGenerator.js` (Modified)
+- `scripts/inspect_gulfam_practicals.mjs` (Added)
+- `scripts/merge_gulfam_practicals_history.mjs` (Added)
+- `CHANGES_SINCE_LAST_COMMIT.md` (Updated)
 
 ---
 
-## Verification & Build Results
-- **Jest Test Suite**: Verified locally with `react-scripts test` (`21 passed, 21 total`, `Exit Code 0`).
-- **Production Build**: Verified locally with `npm run build` (`Exit Code 0`).
-- **ESLint & Compiler**: Zero breaking errors, zero unresolved imports.
-- **SEO & Routing Check**: Passed all 11 static pages, sitemaps, and canonical redirects.
+## Instructions for the User
 
----
-
-## Git Review, Amend & Push Instructions
-
-### 1. Inspect the Local Commit
-To review the changes in this commit:
+### 1. How to Review This Commit
+To inspect the changes committed locally:
 ```bash
-git show HEAD
-# or view the log
+git log -1 -p
+```
+or view a condensed stat summary:
+```bash
 git log -1 --stat
 ```
 
-### 2. Amend or Re-Commit (Optional)
-If you wish to modify the commit message or make adjustments:
+### 2. How to Amend or Re-Commit If Desired
+If you wish to modify the commit message or make further edits:
 ```bash
 git reset --soft HEAD~1
-# Make desired adjustments, then re-commit:
-git commit -m "fix(practicals): correct student enrollment counts, guarantee PH/CH for science students, and separate Enrolled and Evaluated columns in reports"
+# (make edits or stage new changes)
+git commit -m "fix(practicals): merge practicals history from e.educational admin to socialshiftz teacher email and exclude admin from faculty roster"
 ```
 
-### 3. Push to Remote Repository
-When you are ready to publish these changes to production:
+### 3. How to Push Changes
+Per institutional policy, the assistant never pushes to remote repositories. When you are ready to publish:
 ```bash
 git push origin main
 ```
