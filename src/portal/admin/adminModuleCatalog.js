@@ -67,6 +67,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: false,
     aliases: ['reports'],
+    keywords: ['student records', 'admissions', 'approval', 'pending admission', 'enrolment', 'intake', 'recycle bin', 'restore student', 'drop student', 'excel export', 'pdf print', 'search student', 'form review', 'applicant', 'student profile'],
   },
   {
     id: 'admRegisterSuite',
@@ -79,6 +80,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['admRegisterSuite', 'admissionRegister'],
+    keywords: ['board', 'jkbose', 'sent up', 'sent-up roll', 'admission register', 'official ledger', 'board registration', 'board roll', 'state board', 'class 10 sent up', 'class 11 sent up', 'class 12 sent up', 'matric sent up', 'permanent ledger', 'serial numbers', 'admission dates'],
   },
   {
     id: 'analyticsReports',
@@ -91,6 +93,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['analyticsReports', 'analytics', 'statisticalReports', 'jkboseSubjectRolls', 'subjectRolls', 'jkboseRolls'],
+    keywords: ['board', 'jkbose', 'subject roll returns', 'roll statement', 'analytics', 'statistics', 'intake metrics', 'stream distribution', 'gender ratio', 'boys girls', 'enrollment charts', 'bose returns', 'range compression', 'class distribution'],
   },
   {
     id: 'directEntry',
@@ -103,6 +106,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['directEntry', 'directEntryAction', 'ingestion'],
+    keywords: ['direct admission', 'new admission', 'add student', 'manual entry', 'express entry', 'walk-in', 'single student', 'quick registration', 'enroll student', 'new intake', 'applicant entry'],
   },
   {
     id: 'customRoster',
@@ -115,6 +119,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['customRoster', 'docStudio', 'roster'],
+    keywords: ['roster', 'student lists', 'class list', 'photo roster', 'fee sheet', 'custom columns', 'class register', 'tabular print', 'subject list', 'stream list', 'excel export', 'pdf roster', 'printable list', 'spreadsheet'],
   },
   {
     id: 'officialLetter',
@@ -127,6 +132,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['officialLetter', 'letterhead'],
+    keywords: ['letterhead', 'official letter', 'compose letter', 'ai letter writer', 'gemini letter', 'formal letter', 'correspondence', 'office order', 'circular', 'memo', 'requisition', 'print letter', 'school letterhead'],
   },
   {
     id: 'certStudio',
@@ -139,6 +145,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['certStudio', 'certificate'],
+    keywords: ['certificate', 'bonafide', 'character certificate', 'provisional certificate', 'dob certificate', 'birth certificate', 'slc', 'transfer certificate', 'school leaving', 'discharge certificate', 'qr verification', 'board certificate', 'student certificates'],
   },
   {
     id: 'idCards',
@@ -151,6 +158,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['idCards', 'idcard'],
+    keywords: ['id cards', 'identity card', 'id card studio', 'student badge', 'smart card', 'id card print', 'photo id', 'batch id cards', 'barcode', 'qr id card', 'student pass', 'card design'],
   },
   {
     id: 'gkTest',
@@ -163,6 +171,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['gkTest', 'examPrep', 'schoolAssessment', 'schoolAssessments', 'schoolBasedAssessment', 'assessments', 'omr'],
+    keywords: ['board', 'pre-board', 'pre board', 'school based assessment', 'golden test', 'unit test', 'term test', 'examinations', 'exams', 'admit cards', 'omr', 'mcq test', 'competitive test', 'gazette', 'results', 'marks', 'teacher approval', 'evaluation', 'test score'],
   },
 
   // CATEGORY 2: Academics & Controls (5 Modules)
@@ -177,6 +186,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: false,
     aliases: ['controls', 'admissionControls', 'systemControls', 'storage', 'quota'],
+    keywords: ['admission window', 'admission controls', 'academic session', 'session rollover', 'open admissions', 'close admissions', 'system settings', 'storage quota', 'cloud storage', 'quota health', 'faculty portal switch', 'annual rollover', 'portal controls'],
   },
   {
     id: 'curriculum',
@@ -189,6 +199,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['curriculum', 'subjects', 'streams', 'feederSchools'],
+    keywords: ['curriculum', 'subjects', 'streams', 'subject combinations', 'subject codes', 'feeder schools', 'middle schools', 'medical', 'non-medical', 'arts', 'humanities', 'commerce', 'subject pool', 'electives', 'course structure', 'feeder registry'],
   },
   {
     id: 'practicals',
@@ -201,6 +212,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: false,
     aliases: ['practicals'],
+    keywords: ['board', 'practicals', 'practical marks', 'award rolls', 'internal assessment', 'external practical', 'laboratory', 'science practicals', 'examiner', 'examiner signatures', 'practical gazette', 'board award roll', 'physics practical', 'chemistry practical', 'biology practical', 'marks entry'],
   },
   {
     id: 'attendanceMgmt',
@@ -213,6 +225,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: false,
     aliases: ['attendanceMgmt', 'attendance'],
+    keywords: ['attendance', 'student attendance', 'daily attendance', 'absent', 'present', 'leave', 'roll call', 'attendance register', 'monthly attendance', 'attendance report', 'defaulter list', 'attendance percentage', 'class attendance'],
   },
   {
     id: 'rollNo',
@@ -225,6 +238,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: false,
     aliases: ['rollNo', 'rollNumbers'],
+    keywords: ['roll numbers', 'class roll no', 'roll no assigner', 'auto roll number', 'sequence roll numbers', 'roll number manager', 'class rolls', 're-index rolls', 'bulk roll numbers', 'serial roll'],
   },
 
   // CATEGORY 3: Operations & Automation (6 Modules)
@@ -239,6 +253,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['mergeStudio', 'merger'],
+    keywords: ['merge', 'deduplication', 'duplicate students', 'duplicate applications', 'double admission', 'identity merge', 'clean duplicates', 'merge studio', 'cluster duplicates', 'dedup'],
   },
   {
     id: 'automations',
@@ -251,6 +266,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: false,
     aliases: ['automations', 'emails'],
+    keywords: ['communications', 'email', 'group email', 'bulk email', 'parent notifications', 'whatsapp', 'sms', 'broadcast', 'announcements', 'alerts', 'parent message', 'delivery logs', 'cohort broadcast'],
   },
   {
     id: 'funds',
@@ -263,6 +279,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: false,
     aliases: ['funds', 'fees'],
+    keywords: ['fees', 'funds', 'fee accounts', 'student ledger', 'fee structure', 'fee receipt', 'dues', 'payment', 'fee concession', 'school funds', 'collection register', 'reconciliation', 'account heads'],
   },
   {
     id: 'accounts',
@@ -275,6 +292,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['accounts', 'salary', 'tax'],
+    keywords: ['accounts', 'salary', 'staff salary', 'income tax', 'tax calculator', 'tds', 'deductions', 'nps', 'gp fund', 'form 16', 'accounts clerk', 'salary statements', 'pay bill', 'fiscal planning'],
   },
   {
     id: 'cms',
@@ -287,6 +305,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['cms', 'websiteCms', 'heroButtons'],
+    keywords: ['website', 'cms', 'homepage', 'notices', 'circulars', 'slider', 'hero banner', 'photo gallery', 'school website', 'announcements', 'public pages', 'news', 'content management', 'website bin'],
   },
   {
     id: 'boardSync',
@@ -299,6 +318,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['boardSync', 'jkboseSync', 'ingestionHub', 'bulkOverwrite'],
+    keywords: ['board', 'jkbose', 'board sync', 'board ingestion', 'gazette import', 'board data', 'jkbose gazette', 'bulk overwrite', 'board roll', 'board reg no', 'verified board records', 'ai data extraction', 'state board', 'import gazette'],
   },
   {
     id: 'activityAudit',
@@ -311,6 +331,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['activityAudit', 'auditLogs', 'activityLogs'],
+    keywords: ['audit', 'activity audit', 'audit logs', 'activity logs', 'history', 'change history', 'who did what', 'dispute trail', 'security logs', 'tracking', 'action history', 'investigation', 'audit trail'],
   },
   {
     id: 'googleContacts',
@@ -323,6 +344,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['googleContacts', 'bulkContacts', 'contactSaver'],
+    keywords: ['google contacts', 'contacts export', 'phone contacts', 'parent phonebook', 'whatsapp contacts', 'csv contacts', 'contact saver', 'phone numbers', 'mobile export', 'address book'],
   },
   {
     id: 'staff',
@@ -335,6 +357,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
     isNew: true,
     aliases: ['staff', 'staffPermissions', 'permissions', 'adminMgmt'],
+    keywords: ['staff', 'teachers', 'faculty', 'permissions', 'roles', 'rbac', 'access control', 'administrators', 'superadmin', 'passwords', 'staff accounts', 'designations', 'user management', 'privileges'],
   },
 
   // CATEGORY 4: Quick Actions & Ingestion Tools (2 Tools)
@@ -350,6 +373,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     isQuickAction: true,
     isNew: true,
     aliases: ['quickCellEdit'],
+    keywords: ['quick cell edit', 'inline edit', 'edit table', 'fast edit', 'cell edit', 'quick update', 'rapid cell edit'],
   },
   {
     id: 'bulkToolsAction',
@@ -363,6 +387,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     isQuickAction: true,
     isNew: true,
     aliases: ['bulkToolsAction', 'bulkTools', 'bulk'],
+    keywords: ['bulk tools', 'bulk status', 'batch export', 'photo suite', 'photo export', 'batch photo download', 'data tools', 'bulk actions', 'bulk updater'],
   },
 ]);
 

@@ -4,13 +4,35 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen, Award, X, Search, Calculator, Trash2, History, Users
+  GitMerge, BookOpen, Award, X, Search, Calculator, Trash2, History, Users, Sparkles
 } from 'lucide-react';
 import {
   ADMIN_MODULE_CATALOG,
   getModuleMaturity,
 } from './adminModuleCatalog';
 import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
+import { searchAdminModules, getHighlightedSegments } from './adminModuleSearchEngine';
+
+function HighlightedText({ text, query, className = '' }) {
+  if (!query || !query.trim()) return <span className={className}>{text}</span>;
+  const segments = getHighlightedSegments(text, query);
+  return (
+    <span className={className}>
+      {segments.map((seg, i) =>
+        seg.highlight ? (
+          <mark
+            key={i}
+            className="bg-teal-100 dark:bg-teal-900/70 text-teal-900 dark:text-teal-100 font-black px-0.5 rounded shadow-2xs"
+          >
+            {seg.text}
+          </mark>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        )
+      )}
+    </span>
+  );
+}
 
 const MODULE_ICONS = {
   reports: BarChart2,
@@ -169,6 +191,8 @@ export default function AdminToolsDropdown({
         icon: m.icon,
         maturity: m.maturity,
         maturityNote: m.maturityNote,
+        keywords: m.keywords || [],
+        aliases: m.aliases || [],
         isActive: activeTab === m.id,
         onMouseEnter: () => onPrefetchModule && onPrefetchModule(m.id),
         onClick: () => {
@@ -202,6 +226,8 @@ export default function AdminToolsDropdown({
         desc: 'Click directly on report cells to edit student records',
         category: 'Quick Actions',
         icon: Edit3,
+        keywords: ['quick cell edit', 'inline edit', 'edit table', 'fast edit', 'cell edit', 'quick update', 'rapid cell edit'],
+        aliases: ['quickCellEdit'],
         isChecked: enableQuickCellEdit,
         onToggle: (val) => setEnableQuickCellEdit(val),
       });
@@ -214,6 +240,8 @@ export default function AdminToolsDropdown({
         desc: 'Bulk status updates, photo batch exports and recovery',
         category: 'Quick Actions',
         icon: Wrench,
+        keywords: ['bulk tools', 'bulk status', 'batch export', 'photo suite', 'photo export', 'batch photo download', 'data tools', 'bulk actions', 'bulk updater'],
+        aliases: ['bulkToolsAction', 'bulkTools', 'bulk'],
         onMouseEnter: () => onPrefetchModule && onPrefetchModule('reports'),
         onClick: () => {
           if (onOpenBulkTools) onOpenBulkTools();
@@ -250,16 +278,18 @@ export default function AdminToolsDropdown({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Filter items when searching
+  // Keyboard selection index for arrow-key navigation in search
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
+
+  // Google-like Fuzzy & Semantic Search Engine
   const filteredSearchResults = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return [];
-    return allItems.filter(item => 
-      item.label.toLowerCase().includes(q) ||
-      (item.desc && item.desc.toLowerCase().includes(q)) ||
-      (item.category && item.category.toLowerCase().includes(q))
-    );
+    return searchAdminModules(allItems, searchQuery);
   }, [allItems, searchQuery]);
+
+  // Reset keyboard selected index when query changes
+  useEffect(() => {
+    setSelectedSearchIndex(0);
+  }, [searchQuery]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -268,7 +298,27 @@ export default function AdminToolsDropdown({
       }
     }
     function handleKeyDown(e) {
-      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      } else if (searchQuery && filteredSearchResults.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedSearchIndex(prev => (prev + 1) % filteredSearchResults.length);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedSearchIndex(prev => (prev - 1 + filteredSearchResults.length) % filteredSearchResults.length);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const target = filteredSearchResults[selectedSearchIndex];
+          if (target) {
+            if (target.type === 'toggle') {
+              target.onToggle(!target.isChecked);
+            } else if (target.onClick) {
+              target.onClick();
+            }
+          }
+        }
+      }
     }
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
@@ -278,7 +328,7 @@ export default function AdminToolsDropdown({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, setIsOpen]);
+  }, [isOpen, setIsOpen, searchQuery, filteredSearchResults, selectedSearchIndex]);
 
   // Reset search when opening/closing
   useEffect(() => {
@@ -324,14 +374,19 @@ export default function AdminToolsDropdown({
 
   const currentCategoryItems = allItems.filter(m => m.category === activeCategoryKey);
 
-  const renderItemCard = (item) => {
+  const renderItemCard = (item, index = 0) => {
     const Icon = item.icon;
+    const isSelectedByKey = searchQuery && index === selectedSearchIndex;
 
     if (item.type === 'toggle') {
       return (
         <div
           key={item.id}
-          className="w-full text-left p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl flex items-center justify-between gap-2 sm:gap-3 bg-white dark:bg-slate-900/90 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-2xs"
+          className={`w-full text-left p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl flex items-center justify-between gap-2 sm:gap-3 bg-white dark:bg-slate-900/90 text-slate-800 dark:text-slate-200 border transition-all shadow-2xs ${
+            isSelectedByKey
+              ? 'border-teal-500 ring-2 ring-teal-500/30 bg-teal-50/40 dark:bg-teal-950/30'
+              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+          }`}
         >
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
             <div className="w-6.5 h-6.5 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -341,16 +396,16 @@ export default function AdminToolsDropdown({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="font-semibold text-[11px] sm:text-xs text-slate-900 dark:text-white truncate">
-                  {item.label}
+                  <HighlightedText text={item.label} query={searchQuery} />
                 </span>
                 {searchQuery && (
-                  <span className="text-[8px] sm:text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0">
+                  <span className="text-[8px] sm:text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0 font-medium">
                     {item.category}
                   </span>
                 )}
               </div>
               <div className="text-[9px] sm:text-[10.5px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                {item.desc}
+                <HighlightedText text={item.desc} query={searchQuery} />
               </div>
             </div>
           </div>
@@ -381,12 +436,17 @@ export default function AdminToolsDropdown({
         key={item.id}
         type="button"
         onClick={item.onClick}
-        onMouseEnter={item.onMouseEnter}
+        onMouseEnter={() => {
+          if (searchQuery) setSelectedSearchIndex(index);
+          if (item.onMouseEnter) item.onMouseEnter();
+        }}
         aria-current={isActive ? 'page' : undefined}
         className={`w-full text-left p-1 sm:p-2.5 rounded-lg sm:rounded-xl flex items-center justify-between gap-1.5 sm:gap-3 transition-all cursor-pointer group ${
           isActive
             ? 'bg-teal-50/70 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 border border-teal-500/80 shadow-xs ring-1 ring-teal-500/20'
-            : 'bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-800 hover:border-teal-300/80 dark:hover:border-teal-700/80 hover:shadow-xs'
+            : isSelectedByKey
+              ? 'bg-teal-50/60 dark:bg-teal-950/40 border-teal-500 ring-2 ring-teal-500/30 text-slate-900 dark:text-white shadow-xs'
+              : 'bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-800 hover:border-teal-300/80 dark:hover:border-teal-700/80 hover:shadow-xs'
         }`}
       >
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
@@ -403,7 +463,7 @@ export default function AdminToolsDropdown({
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1">
               <span className="min-w-0 truncate font-bold text-[10px] sm:text-xs text-slate-900 dark:text-white group-hover:text-teal-950 dark:group-hover:text-teal-100 transition-colors">
-                {item.label}
+                <HighlightedText text={item.label} query={searchQuery} />
               </span>
               {isBeta && (
                 <span className="shrink-0 rounded px-1 py-0.2 text-[7px] sm:text-[8px] font-bold border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/70 dark:text-amber-300 leading-none tracking-wide">
@@ -411,14 +471,31 @@ export default function AdminToolsDropdown({
                 </span>
               )}
               {searchQuery && (
-                <span className="text-[7.5px] sm:text-[9px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0">
+                <span className="text-[7.5px] sm:text-[9px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0 font-medium">
                   {item.category}
                 </span>
               )}
             </div>
             <div className="text-[8px] sm:text-[10.5px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.2 leading-tight">
-              {item.desc}
+              <HighlightedText text={item.desc} query={searchQuery} />
             </div>
+
+            {/* Google-like Matched Functionality Tags */}
+            {searchQuery && item._matchedReasons && item._matchedReasons.length > 0 && (
+              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                <span className="text-[7.5px] sm:text-[8px] font-bold text-teal-600 dark:text-teal-400 flex items-center gap-0.5 shrink-0">
+                  <Sparkles size={8} /> Matches:
+                </span>
+                {item._matchedReasons.map((r, rIdx) => (
+                  <span
+                    key={rIdx}
+                    className="px-1.5 py-0.2 text-[7px] sm:text-[8px] rounded bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-200 border border-teal-200/70 dark:border-teal-800/70 font-semibold truncate max-w-[170px]"
+                  >
+                    {r}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -429,14 +506,8 @@ export default function AdminToolsDropdown({
           </span>
         ) : (
           <ChevronRight
-            size={11}
-            className="sm:hidden text-slate-300 dark:text-slate-600 group-hover:text-teal-600 dark:group-hover:text-teal-400 group-hover:translate-x-0.5 transition-transform shrink-0"
-          />
-        )}
-        {!isActive && (
-          <ChevronRight
             size={14}
-            className="hidden sm:block text-slate-300 dark:text-slate-600 group-hover:text-teal-600 dark:group-hover:text-teal-400 group-hover:translate-x-0.5 transition-transform shrink-0"
+            className="text-slate-300 dark:text-slate-600 group-hover:text-teal-600 dark:group-hover:text-teal-400 group-hover:translate-x-0.5 transition-transform shrink-0"
           />
         )}
       </button>
@@ -638,13 +709,26 @@ export default function AdminToolsDropdown({
 
             {/* List of items */}
             <div className="space-y-1 sm:space-y-1.5 pt-0.5">
-              {!searchQuery && currentCategoryItems.map((item) => renderItemCard(item))}
+              {!searchQuery && currentCategoryItems.map((item, idx) => renderItemCard(item, idx))}
 
-              {searchQuery && filteredSearchResults.map((item) => renderItemCard(item))}
+              {searchQuery && filteredSearchResults.map((item, idx) => renderItemCard(item, idx))}
 
               {searchQuery && filteredSearchResults.length === 0 && (
-                <div className="py-8 sm:py-12 text-center text-slate-400 text-[11px] sm:text-xs">
-                  No modules or tools found matching "{searchQuery}".
+                <div className="py-8 sm:py-12 text-center space-y-2.5">
+                  <div className="w-10 h-10 mx-auto rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                    <Search size={18} />
+                  </div>
+                  <div className="text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm">
+                    No modules or tools found for "{searchQuery}"
+                  </div>
+                  <p className="text-slate-400 text-[10px] sm:text-xs max-w-sm mx-auto leading-relaxed">
+                    Try searching by functionality like{' '}
+                    <button type="button" onClick={() => setSearchQuery('board')} className="text-teal-600 dark:text-teal-400 font-bold underline cursor-pointer">board</button>,{' '}
+                    <button type="button" onClick={() => setSearchQuery('marks')} className="text-teal-600 dark:text-teal-400 font-bold underline cursor-pointer">marks</button>,{' '}
+                    <button type="button" onClick={() => setSearchQuery('admission')} className="text-teal-600 dark:text-teal-400 font-bold underline cursor-pointer">admission</button>,{' '}
+                    <button type="button" onClick={() => setSearchQuery('fees')} className="text-teal-600 dark:text-teal-400 font-bold underline cursor-pointer">fees</button>, or{' '}
+                    <button type="button" onClick={() => setSearchQuery('attendance')} className="text-teal-600 dark:text-teal-400 font-bold underline cursor-pointer">attendance</button>.
+                  </p>
                 </div>
               )}
             </div>
