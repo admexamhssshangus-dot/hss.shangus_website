@@ -12,7 +12,7 @@ import {
 import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, addDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, onSnapshot } from 'firebase/firestore';
 import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
@@ -1189,15 +1189,39 @@ export default function PracticalsPage() {
   const outletContext = useOutletContext() || {};
   const user = outletContext.user || null;
 
-  // Resolve all teacher's officially assigned teaching subjects (supporting multiple subjects)
+  const [practicalsSettings, setPracticalsSettings] = useState(null);
+
+  // Resolve all teacher's officially assigned teaching subjects (supporting multiple subjects and explicit admin permissions)
   const allTeacherAssignedSubjects = useMemo(() => {
+    let base = [];
     if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
-      return user.assignedSubjects;
+      base = [...user.assignedSubjects];
+    } else {
+      const rawSubj = user?.subject || user?.teachingSubject || '';
+      if (rawSubj) {
+        base = String(rawSubj).split(',').map(s => s.trim()).filter(Boolean);
+      }
     }
-    const rawSubj = user?.subject || user?.teachingSubject || '';
-    if (!rawSubj) return [];
-    return String(rawSubj).split(',').map(s => s.trim()).filter(Boolean);
-  }, [user?.assignedSubjects, user?.subject, user?.teachingSubject]);
+
+    // Merge subjects explicitly authorized for this teacher in practicalsSettings.permissions
+    const uEmail = String(user?.email || auth.currentUser?.email || '').toLowerCase().trim();
+    if (uEmail && practicalsSettings && Array.isArray(practicalsSettings.permissions)) {
+      practicalsSettings.permissions.forEach(p => {
+        if (String(p?.email || '').toLowerCase().trim() === uEmail) {
+          const rawSub = p.subject || p.subjectCode;
+          if (rawSub) {
+            const norm = normalizeSubjectIdentity(rawSub);
+            const subName = norm ? norm.name : rawSub;
+            if (subName && !base.some(s => isTeacherSubjectMatch(s, subName))) {
+              base.push(subName);
+            }
+          }
+        }
+      });
+    }
+
+    return base;
+  }, [user?.assignedSubjects, user?.subject, user?.teachingSubject, user?.email, practicalsSettings]);
 
   // Overall teacher registered subject label
   const teacherRegisteredSubject = useMemo(() => {
@@ -1212,11 +1236,20 @@ export default function PracticalsPage() {
 
   // Resolve teacher's officially assigned teaching classes (normalized and deduplicated)
   const teacherAssignedClasses = useMemo(() => {
-    if (Array.isArray(user?.assignedClasses) && user.assignedClasses.length > 0) {
-      return normalizeTeacherClasses(user.assignedClasses);
+    const list = Array.isArray(user?.assignedClasses) && user.assignedClasses.length > 0
+      ? [...user.assignedClasses]
+      : [];
+    const uEmail = String(user?.email || auth.currentUser?.email || '').toLowerCase().trim();
+    if (uEmail && practicalsSettings && Array.isArray(practicalsSettings.permissions)) {
+      practicalsSettings.permissions.forEach(p => {
+        if (String(p?.email || '').toLowerCase().trim() === uEmail) {
+          const c = p.className || p.class;
+          if (c) list.push(c);
+        }
+      });
     }
-    return [];
-  }, [user?.assignedClasses]);
+    return normalizeTeacherClasses(list);
+  }, [user?.assignedClasses, user?.email, practicalsSettings]);
 
   // Initial class defaulting: location state > first assigned class > '11th'
   const initialClass = useMemo(() => {
@@ -1287,7 +1320,7 @@ export default function PracticalsPage() {
 
   // Class-specific assigned subjects for the currently selected class
   const teacherClassAssignedSubjects = useMemo(() => {
-    const assigned = getTeacherAssignedSubjectsForClass(user, selectedClass);
+    const assigned = getTeacherAssignedSubjectsForClass(user, selectedClass, practicalsSettings);
     if (assigned && assigned.length > 0) return assigned;
     // Fallback: filter allTeacherAssignedSubjects against current class curriculum
     const isSecondary = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
@@ -1297,7 +1330,7 @@ export default function PracticalsPage() {
     );
     if (matched.length > 0) return matched;
     return [];
-  }, [user, selectedClass, allTeacherAssignedSubjects]);
+  }, [user, selectedClass, allTeacherAssignedSubjects, practicalsSettings]);
 
   // Primary subject display string for current class
   const teacherClassRegisteredSubject = useMemo(() => {
@@ -1421,7 +1454,6 @@ export default function PracticalsPage() {
   const [sortBy, setSortBy] = useState('rollAsc'); // 'rollAsc' | 'rollDesc' | 'nameAsc' | 'formAsc'
   const [showFilterSettings, setShowFilterSettings] = useState(false);
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);
-  const [practicalsSettings, setPracticalsSettings] = useState(null);
 
   useEffect(() => {
     loadSiteSettings().then(cfg => {
@@ -1430,9 +1462,23 @@ export default function PracticalsPage() {
       }
     }).catch(() => {});
 
-    getAdminPracticalsSettings().then(cfg => {
+    // Initial fetch with cache bypass
+    getAdminPracticalsSettings(true).then(cfg => {
       if (cfg) setPracticalsSettings(cfg);
     }).catch(() => {});
+
+    // Real-time Firestore sync on adminPracticalsSettings/config so admin-granted permissions reflect immediately
+    const unsub = onSnapshot(doc(db, 'adminPracticalsSettings', 'config'), (snap) => {
+      if (snap.exists()) {
+        setPracticalsSettings(snap.data());
+      }
+    }, (err) => {
+      console.warn('Real-time practical settings sync note:', err?.message || err);
+    });
+
+    return () => {
+      try { unsub(); } catch (_) {}
+    };
   }, []);
 
   // Roster & Marks State
@@ -1566,8 +1612,23 @@ export default function PracticalsPage() {
       return false;
     }
 
+    // 4. Check explicit permissions in practicalsSettings.permissions
+    const uEmail = String(user?.email || auth.currentUser?.email || '').toLowerCase().trim();
+    if (uEmail && practicalsSettings && Array.isArray(practicalsSettings.permissions)) {
+      const hasExplicitPerm = practicalsSettings.permissions.some(p => {
+        if (!p || String(p.email || '').toLowerCase().trim() !== uEmail) return false;
+        const normSub = normalizeSubjectIdentity(p.subject);
+        const subMatch = isTeacherSubjectMatch(p.subject, selectedSubject) || (normSub && isTeacherSubjectMatch(normSub.name, selectedSubject));
+        const cleanPermCls = String(p.className || p.class || '').toLowerCase().replace(/[^0-9]/g, '');
+        const cleanSelCls = String(selectedClass || '').toLowerCase().replace(/[^0-9]/g, '');
+        const clsMatch = !cleanPermCls || !cleanSelCls || cleanPermCls === cleanSelCls;
+        return subMatch && clsMatch;
+      });
+      if (hasExplicitPerm) return false;
+    }
+
     return true;
-  }, [teacherRegisteredSubject, allTeacherAssignedSubjects, teacherClassAssignedSubjects, selectedSubject]);
+  }, [teacherRegisteredSubject, allTeacherAssignedSubjects, teacherClassAssignedSubjects, selectedSubject, practicalsSettings, selectedClass, user?.email]);
 
   const isOverwrite = useMemo(() => {
     return Boolean(

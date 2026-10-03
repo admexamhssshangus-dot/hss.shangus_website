@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): resolve approved practical awards not displaying in web grid and consolidated print`
+- **Commit Message**: `fix(practicals): enable real-time firestore sync for faculty submissions and permission reflection`
 - **Date**: October 03, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Security, Admission, and SEO regression checks passed (`Exit Code 0`).
 
@@ -10,115 +10,75 @@
 ## Architectural Purpose & Issues Resolved
 
 ### Problem Statement
-Even after an administrator clicked "Approve" on a teacher's practical award submission in the Practicals portal (`AdminPracticals.jsx`), the approved marks and candidate records were not reflected in:
-1. The live administrative web practicals data grid table (`AwardsSummaryView`).
-2. The print and preview version of the consolidated awards matrix and forwarding letter (`printConsolidatedAwardRoll`).
-3. The Excel export (`exportConsolidatedAwardsToExcel`) and Word export (`exportConsolidatedAwardsToWord`).
+1. When a faculty member submitted practical awards or saved evaluation drafts in the teacher portal (`PracticalsPage.jsx`), the submission did not reflect immediately on the administrator's screen under **Faculty & Submissions** or in the pending approvals badge counter without manually hard-refreshing.
+2. When an administrator granted or revoked evaluation permissions for a teacher under **Settings & Permissions -> Teacher Permissions**, the permissions did not take effect on the teacher portal immediately. Teachers still saw "Cross-Subject" warnings, or the granted subject was not listed as assigned.
+3. Submissions were subject to multiple caching layers (a 3-minute in-memory cache in `AdminPracticals.jsx` and a 10-minute collection cache in `practicalsSettingsManager.js`) that prevented instant synchronization across active browser sessions.
 
-### Root Cause Analysis
-1. **Evaluation Type Normalization Mismatch**:
-   - In teacher submissions (`PracticalsPage.jsx`), `practicalType` is stored as `"Internal Assessment"` or `"External Practical"`.
-   - In `AdminPracticals.jsx`, `localPrintOpts.practicalType` is initialized or toggled to `"internal"` or `"external"`.
-   - In `getSubjectMarkForStudent`, a strict check `if (sType !== targetType) return false;` compared `"internal assessment"` directly with `"internal"`, which always evaluated to `false`. As a result, the live web data grid table displayed `—` for every enrolled student.
-   - Similarly, in `practicalsCsvManager.js`, `if (sType !== targetType) return false;` caused the same failure during Excel and Word exports.
-2. **Session Normalization Discrepancy**:
-   - `normalizePracticalSession` performed strict equality checks (`str === '2026'` and `str === '2025'`).
-   - As a result, default JKBOSE session formats like `"Annual Regular 2026"` and `"Annual Regular 2025"` were returned unmodified instead of mapping to `"2025-26"` and `"2024-25 (Oct-Nov)"`.
-   - Submissions stored `yearSuffix` as `"2025-26"`.
-   - In `printConsolidatedAwardRoll` and `hasSubjectPracticalSubmission`, the strict comparison `if (subSess && targetSess && subSess !== targetSess) return false;` compared `"2025-26"` against `"Annual Regular 2026"`, causing every approved subject submission to be rejected.
-3. **Student Record Matching Gaps**:
-   - In `findStudentMarkRecord` (`practicalsPdfGenerator.js`), the student matching loop did not check `r.rollNo` or `r.roll` (only `r.classRollNo`). In `PracticalsPage.jsx`, class roll numbers were stored under `rollNo`.
-   - Strict session isolation previously rejected students if the master register session string had minor historical differences.
-   - Admission Form Number (`admissionNo` / `formNo`) was not checked.
-4. **Approval Lifecycle Synchronization**:
-   - In `handleApproveSubmission`, canonical records were created without canonicalizing session fields (`session`, `sessionText`, `sessionCanonical`).
-   - The student roster state (`students`) was not re-hydrated after approval, preventing newly approved marks and exam roll numbers from instantly populating memory.
+---
+
+### Technical Root Cause Analysis
+1. **Absence of Real-time Firestore Listeners (`onSnapshot`) in `AdminPracticals.jsx`**:
+   - `AdminPracticals.jsx` only loaded data once on component mount via `getDocs(collection(db, 'practicalsData'))`.
+   - Switching tabs (`class10`, `class11`, `class12`, `faculty_submissions`, `settings`) simply changed UI state without re-querying Firestore.
+   - When a teacher submitted an award on their device, the administrator's browser had no event listener to receive the newly created staging document (`pending_*`), leaving the pending approvals tray and tab counters stale.
+2. **Aggressive In-Memory Caching (`memoryPracticalsData`)**:
+   - `loadData` cached `practicalsData` in module memory for 3 minutes (`Date.now() - memoryPracticalsTs < 3 * 60 * 1000`). Even if `loadData()` was invoked without `force=true`, stale cached documents were returned.
+3. **Teacher Evaluation Permissions Disconnect & Caching**:
+   - `getAdminPracticalsSettings()` in `practicalsSettingsManager.js` cached `adminPracticalsSettings` collection for 10 minutes (`10 * 60 * 1000`).
+   - When admin saved permissions, `saveSettingsDoc` in `AdminPracticals.jsx` did not invalidate `adminPracticalsSettings` cache.
+   - Furthermore, `getTeacherClassSubjectPermissions` and `isCrossSubject` in `PracticalsPage.jsx` only checked `user.assignedSubjects` from the user profile; they were never merging explicit permissions granted by administrators in `adminPracticalsSettings.permissions`.
 
 ---
 
 ## Changes Implemented
 
-### 1. Unified Session Normalization
-- Files: [src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js) and [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
-  - Enhanced `normalizePracticalSession` to recognize and normalize `"Annual Regular 2026"`, `"Session 2026"`, `"2026"`, and `"2025-26"` to `"2025-26"`.
-  - Normalized `"Annual Regular 2025"`, `"2025"`, and `"2024-25"` to `"2024-25 (Oct-Nov)"`.
-  - Added support for `"2023-24"` and pass-through for `"all"`.
-  - Updated `isSessionMatch` to support bidirectional session matching across all normalized session keys.
-
-### 2. Multi-Key Student Matching & PDF Print Engine
-- File: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
-  - Added `cleanRegistrationNumber` with delimiter-stripping (`replace(/[\s\-_/]/g, '')`) so registration numbers with dashes/spaces match seamlessly.
-  - Rewrote `findStudentMarkRecord` with 5 cascading priority keys:
-    1. Board Registration Number (clean match).
-    2. Exam Roll Number (digits >= 5, non-placeholder).
-    3. Admission Form Number (`stForm === rForm`).
-    4. Class Roll Number (`r.classRollNo`, `r.classRoll`, `r.rollNo`, `r.roll`) with student name verification.
-    5. Exact Student Full Name + Parentage match.
-  - Updated `hasSubjectPracticalSubmission` and `isSubDocMatch` in `printConsolidatedAwardRoll` to use normalized evaluation type matching (`includes('ext') ? 'external' : 'internal'`) and normalized session matching.
-
-### 3. Consolidated Spreadsheet & Word Export Engines
-- File: [src/utils/practicalsCsvManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsCsvManager.js)
-  - Updated `isSubDocMatch` in both `exportConsolidatedAwardsWorkbook` (Excel) and `exportConsolidatedAwardsToWord` (Word) to use normalized evaluation type and session matching.
-
-### 4. Admin Practicals Web Grid Table & Approval Flow
+### 1. Real-Time Firestore Sync on Submissions & Pending Approvals
 - File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
-  - Updated `getSubjectMarkForStudent` to normalize evaluation types (`targetNorm` vs `sNorm`), check `isSessionMatch`, and utilize the multi-key student record matching logic.
-  - Updated `subjectsWithSubmissions` so active subjects with approved practicals are correctly identified.
-  - In `handleApproveSubmission`:
-    - Populated `session`, `sessionText`, and `sessionCanonical` on the canonical document.
-    - Added `await loadData(true)` to re-enrich the student roster with approved marks, registration numbers, and exam roll numbers immediately upon approval.
+  - Extracted modular `parsePracticalsSnap` helper to sanitize records, normalize academic sessions, and separate canonical awards from pending approval staging documents.
+  - Added an active `onSnapshot(collection(db, 'practicalsData'), ...)` listener inside `useEffect`. As soon as any faculty member saves a draft, submits an award, or updates student marks, the admin portal receives the update in real time.
+  - Updated `setSubmissions` and `setPendingApprovals` reactively, updating the ribbon count `Faculty & Submissions (N)` and the pulsing `Pending Award Approvals` alert tray instantly.
+  - Added real-time listener on `doc(db, 'adminPracticalsSettings', 'config')` to sync practical configurations and permissions.
+  - Updated `loadData(force)` to flush both memory and collection caches whenever force refresh is requested.
+  - Updated `saveSettingsDoc` to invalidate `adminPracticalsSettings` cache upon every write.
 
----
+### 2. Immediate Teacher Evaluation Permission Propagation
+- File: [src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js)
+  - Added `force` parameter support to `getAdminPracticalsSettings(force = false)` to allow callers to bypass the 10-minute cache on demand.
+  - Enhanced `getTeacherClassSubjectPermissions(user, practicalsSettings = null)` to merge explicit administrator permissions granted under `adminPracticalsSettings.permissions` for the teacher's email.
+  - Updated `getTeacherAssignedSubjectsForClass(user, targetClass, practicalsSettings = null)` to incorporate merged permissions.
 
-## Files Changed
-
-1. [src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js):
-   - Comprehensive academic session string normalization for 2026, 2025, 2024, and 2023 cohorts.
-2. [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js):
-   - Added `cleanRegistrationNumber`.
-   - Multi-key student record resolution in `findStudentMarkRecord`.
-   - Normalized evaluation type and session in `hasSubjectPracticalSubmission` and `isSubDocMatch`.
-3. [src/utils/practicalsCsvManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsCsvManager.js):
-   - Normalized evaluation type and session in `exportConsolidatedAwardsWorkbook` and `exportConsolidatedAwardsToWord`.
-4. [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx):
-   - Normalized session and evaluation type matching in `getSubjectMarkForStudent` and `subjectsWithSubmissions`.
-   - Immediate re-enrichment of student cohort on award approval with `loadData(true)`.
+### 3. Reactive Permissions & Cross-Subject Validation on Teacher Portal
+- File: [src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)
+  - Added real-time `onSnapshot` listener on `doc(db, 'adminPracticalsSettings', 'config')` so teacher portals receive permissions within milliseconds of admin granting them.
+  - Merged `practicalsSettings.permissions` into `allTeacherAssignedSubjects` and `teacherAssignedClasses`.
+  - Updated `isCrossSubject` logic to verify explicit permissions from `practicalsSettings.permissions`, eliminating false cross-subject flags and enabling frictionless submissions.
 
 ---
 
 ## Verification & Build Results
-
-1. **Security Regression Check**:
-   - `npm run security:check`: Passed (`Exit Code 0`).
-2. **Admission Regression Check**:
-   - `npm run admission:check`: Passed (`Exit Code 0`).
-3. **SEO Regression Check**:
-   - `npm run seo:check`: Passed (`Exit Code 0`).
-4. **Production Build**:
-   - `npm run build`: Production build completed successfully with `Exit Code 0` and zero breaking errors.
+- **Production Build**: Executed `npm run build` with `Exit Code 0`.
+- **Search Pages & SEO Verification**: 11 public pages generated; automated SEO regression checks passed with zero errors.
+- **Firebase Security Rules**: Checked and confirmed intact.
 
 ---
 
-## Instructions for the User
+## Instructions for User
 
-### How to Inspect the Commit
-To review the local commit and inspect the diff:
+### Reviewing the Local Commit
+To inspect the commit history:
 ```bash
-git log -1 --stat
-git show HEAD
+git log -n 1 --stat
 ```
 
-### How to Amend or Re-commit (Optional)
-If you wish to edit the commit message or make additional modifications before finalizing:
+### Amending or Re-committing (Optional)
+If you wish to edit or amend the commit:
 ```bash
 git reset --soft HEAD~1
-# Make any desired edits...
-git add .
-git commit -m "fix(practicals): resolve approved practical awards not displaying in web grid and consolidated print"
+git commit -m "fix(practicals): enable real-time firestore sync for faculty submissions and permission reflection"
 ```
 
-### Mandatory Git Push Policy
-Per project safety rules, the assistant does NOT execute `git push`. When you are satisfied with the changes, please manually push them to GitHub:
+### Pushing to Production
+Per the strict project instructions, the AI assistant **never pushes to remote repositories**. Please deploy your verified changes to GitHub and Firebase Hosting by running:
 ```bash
 git push origin main
 ```

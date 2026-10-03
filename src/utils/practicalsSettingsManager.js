@@ -526,9 +526,9 @@ export function getSubjectMarksConfig(settings, cls = '11th', evalType = 'intern
 /**
  * Fetches practical settings from cache / Firestore
  */
-export async function getAdminPracticalsSettings() {
+export async function getAdminPracticalsSettings(force = false) {
   try {
-    const cachedDocs = await getCachedCollection('adminPracticalsSettings', false, 10 * 60 * 1000).catch(() => []);
+    const cachedDocs = await getCachedCollection('adminPracticalsSettings', force, 10 * 60 * 1000).catch(() => []);
     if (Array.isArray(cachedDocs)) {
       const configDoc = cachedDocs.find(d => d.id === 'config');
       if (configDoc) return configDoc;
@@ -922,7 +922,7 @@ export const HIGHER_SECONDARY_CURRICULUM_SUBJECTS = [
  *
  * Returns array of: { subject: string, classes: string[], classText: string, shortClassText: string, tier: string }
  */
-export function getTeacherClassSubjectPermissions(user) {
+export function getTeacherClassSubjectPermissions(user, practicalsSettings = null) {
   if (!user) return [];
   const classes = normalizeTeacherClasses(user.assignedClasses || user.assignedClass);
   const formatClassText = (clsList) => (!clsList || clsList.length === 0) ? '' : 'Class ' + clsList.join(', ');
@@ -1071,15 +1071,55 @@ export function getTeacherClassSubjectPermissions(user) {
     });
   });
 
+  // 4. Merge explicit permissions granted by administrator under Settings & Permissions
+  const userEmail = String(user?.email || '').toLowerCase().trim();
+  if (userEmail && practicalsSettings && Array.isArray(practicalsSettings.permissions)) {
+    practicalsSettings.permissions.forEach(p => {
+      if (!p || String(p.email || '').toLowerCase().trim() !== userEmail) return;
+      const permCls = normalizeTeacherClasses(p.className || p.class || '');
+      const rawSub = p.subject || p.subjectCode || '';
+      if (!rawSub || permCls.length === 0) return;
+
+      const norm = normalizeSubjectIdentity(rawSub);
+      const subName = norm?.name || rawSub;
+      const code = norm?.code || '';
+
+      const existing = result.find(r =>
+        isTeacherSubjectMatch(r.subject, subName) || (code && r.code === code)
+      );
+
+      if (existing) {
+        permCls.forEach(c => {
+          if (!existing.classes.includes(c)) {
+            existing.classes.push(c);
+          }
+        });
+        existing.classes = normalizeTeacherClasses(existing.classes);
+        existing.classText = formatClassText(existing.classes);
+        existing.shortClassText = existing.classes.join(', ');
+      } else {
+        result.push({
+          subject: subName,
+          canonicalName: subName,
+          code,
+          classes: permCls,
+          classText: formatClassText(permCls),
+          shortClassText: permCls.join(', '),
+          tier: permCls.some(c => c === '11th' || c === '12th') ? 'Higher Secondary' : 'Secondary'
+        });
+      }
+    });
+  }
+
   return result;
 }
 
 /**
  * Returns list of subjects assigned to teacher for a specific class.
  */
-export function getTeacherAssignedSubjectsForClass(user, targetClass) {
+export function getTeacherAssignedSubjectsForClass(user, targetClass, practicalsSettings = null) {
   if (!user) return [];
-  const permissions = getTeacherClassSubjectPermissions(user);
+  const permissions = getTeacherClassSubjectPermissions(user, practicalsSettings);
   const cleanTarget = String(targetClass || '').toLowerCase().trim();
   const matched = permissions.filter(p =>
     p.subject && p.classes.some(c => c.toLowerCase() === cleanTarget || cleanTarget.includes(c.toLowerCase()))

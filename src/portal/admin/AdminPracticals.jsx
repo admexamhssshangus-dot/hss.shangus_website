@@ -9,7 +9,7 @@ import {
   History, Archive
 } from 'lucide-react';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
@@ -547,10 +547,45 @@ let memoryPracticalsData = null;
 let memoryPracticalsSettings = null;
 let memoryPracticalsTs = 0;
 
+export const parsePracticalsSnap = (snap) => {
+  if (!snap || !Array.isArray(snap.docs)) return { canonicalSubmissions: [], pendingSubmissions: [] };
+  const allSubmissions = snap.docs
+    .map(d => {
+      const data = d.data();
+      const cleanRecs = (data.records || []).filter(r => {
+        if (!r || typeof r !== 'object') return false;
+        const name = String(r.name || r.studentName || '').toLowerCase().trim();
+        if (!name || name.includes('studentname') || name.includes('fathername')) return false;
+        return true;
+      });
+      const canonicalSession = normalizePracticalSession(data.sessionCanonical || data.yearSuffix || data.sessionText || data.session || '');
+      return {
+        id: d.id,
+        ...data,
+        sessionText: canonicalSession,
+        session: canonicalSession,
+        records: cleanRecs
+      };
+    })
+    .filter(sub => !sub.id.startsWith('history_') && sub.records && sub.records.length > 0);
+
+  // Practicals portal strictly holds practical data only (Internal Assessment & External Practical)
+  const practicalSubmissions = allSubmissions.filter(sub =>
+    isPracticalEvaluationType(sub.practicalType || sub.evaluationType || sub.examTitle || sub.title)
+  );
+
+  const canonicalSubmissions = practicalSubmissions.filter(sub => !sub.id.startsWith('pending_') && sub.status !== 'pending_approval');
+  const pendingSubmissions = practicalSubmissions.filter(sub => sub.id.startsWith('pending_') || sub.status === 'pending_approval');
+
+  return { canonicalSubmissions, pendingSubmissions };
+};
+
 export const invalidatePracticalsCache = () => {
   memoryPracticalsData = null;
   memoryPracticalsSettings = null;
   memoryPracticalsTs = 0;
+  invalidateCollectionCache('practicalsData');
+  invalidateCollectionCache('adminPracticalsSettings');
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -681,6 +716,13 @@ function AdminPracticals() {
 
   const loadData = useCallback(async (force = false) => {
     setLoading(true);
+    if (force) {
+      memoryPracticalsData = null;
+      memoryPracticalsSettings = null;
+      memoryPracticalsTs = 0;
+      invalidateCollectionCache('practicalsData');
+      invalidateCollectionCache('adminPracticalsSettings');
+    }
     try {
       const isFresh = !force && memoryPracticalsData && (Date.now() - memoryPracticalsTs < 3 * 60 * 1000);
 
@@ -872,33 +914,7 @@ function AdminPracticals() {
         }
       };
 
-      const allSubmissions = ssRaw.docs
-        .map(d => {
-          const data = d.data();
-          const cleanRecs = (data.records || []).filter(r => {
-            if (!r || typeof r !== 'object') return false;
-            const name = String(r.name || r.studentName || '').toLowerCase().trim();
-            if (!name || name.includes('studentname') || name.includes('fathername')) return false;
-            return true;
-          });
-          const canonicalSession = normalizePracticalSession(data.sessionCanonical || data.yearSuffix || data.sessionText || data.session || '');
-          return {
-            id: d.id,
-            ...data,
-            sessionText: canonicalSession,
-            session: canonicalSession,
-            records: cleanRecs
-          };
-        })
-        .filter(sub => !sub.id.startsWith('history_') && sub.records && sub.records.length > 0);
-
-      // Practicals portal strictly holds practical data only (Internal Assessment & External Practical)
-      const practicalSubmissions = allSubmissions.filter(sub =>
-        isPracticalEvaluationType(sub.practicalType || sub.evaluationType || sub.examTitle || sub.title)
-      );
-
-      const canonicalSubmissions = practicalSubmissions.filter(sub => !sub.id.startsWith('pending_') && sub.status !== 'pending_approval');
-      const pendingSubmissions = practicalSubmissions.filter(sub => sub.id.startsWith('pending_') || sub.status === 'pending_approval');
+      const { canonicalSubmissions, pendingSubmissions } = parsePracticalsSnap(ssRaw);
 
       setSubmissions(canonicalSubmissions);
       setPendingApprovals(pendingSubmissions);
@@ -1091,6 +1107,33 @@ function AdminPracticals() {
 
   useEffect(() => {
     loadData();
+
+    // 1. Real-time Firestore sync on practicalsData so submissions by faculty reflect immediately
+    const unsubPracticals = onSnapshot(collection(db, 'practicalsData'), (snap) => {
+      if (!snap || snap.empty === undefined) return;
+      memoryPracticalsData = snap;
+      memoryPracticalsTs = Date.now();
+      const { canonicalSubmissions, pendingSubmissions } = parsePracticalsSnap(snap);
+      setSubmissions(canonicalSubmissions);
+      setPendingApprovals(pendingSubmissions);
+    }, (err) => {
+      console.warn('Real-time practicalsData listener error:', err?.message || err);
+    });
+
+    // 2. Real-time Firestore sync on adminPracticalsSettings/config so permissions reflect immediately
+    const unsubSettings = onSnapshot(doc(db, 'adminPracticalsSettings', 'config'), (snap) => {
+      if (!snap || !snap.exists()) return;
+      const data = snap.data();
+      memoryPracticalsSettings = { docs: [{ id: 'config', data: () => data }], empty: false };
+      setSettings(prev => ({
+        ...prev,
+        ...data,
+        evaluationMarksConfig: data.evaluationMarksConfig || data.evaluationSettings || data.marksConfig || prev.evaluationMarksConfig || DEFAULT_PRACTICAL_MARKS_CONFIG
+      }));
+    }, (err) => {
+      console.warn('Real-time adminPracticalsSettings listener error:', err?.message || err);
+    });
+
     let debounceTimer = null;
     const handleUpdate = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -1108,6 +1151,8 @@ function AdminPracticals() {
     window.addEventListener('hss-results-updated', handleResultsUpdate);
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
+      try { unsubPracticals(); } catch (_) {}
+      try { unsubSettings(); } catch (_) {}
       window.removeEventListener('hss-student-updated', handleUpdate);
       window.removeEventListener('hss-results-updated', handleResultsUpdate);
     };
@@ -1120,6 +1165,8 @@ function AdminPracticals() {
       try {
         localStorage.setItem('hss_admin_practicals_settings', JSON.stringify(updatedSettings));
       } catch (_) {}
+      invalidateCollectionCache('adminPracticalsSettings');
+      memoryPracticalsSettings = null;
       setSettings(updatedSettings);
       logAdminActivity({
         actionType: 'update',
