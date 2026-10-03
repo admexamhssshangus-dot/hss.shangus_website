@@ -54,16 +54,19 @@ service cloud.firestore {
          get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['SuperAdmin', 'superadmin'])
       );
     }
+    function isBootstrapAdmin() {
+      return verifiedStaffIdentity() && authEmail() in [
+        'e.educational.24@gmail.com',
+        'ghssshangus74@gmail.com',
+        'majidhassannajar@gmail.com',
+        'bilalhcu@gmail.com',
+        'shahnawaz13678@gmail.com',
+        'shahnawaz@gmail.com'
+      ];
+    }
     function isStandardAdmin() {
       return isAuthenticated() && !isSuperAdmin() && (
-        (verifiedStaffIdentity() && authEmail() in [
-          'e.educational.24@gmail.com',
-          'ghssshangus74@gmail.com',
-          'majidhassannajar@gmail.com',
-          'bilalhcu@gmail.com',
-          'shahnawaz13678@gmail.com',
-          'shahnawaz@gmail.com'
-        ]) ||
+        isBootstrapAdmin() ||
         normalizedRole() in ['admin', 'administrator'] ||
         staffProfile().get('role', '') in ['Admin', 'admin', 'administrator'] ||
         (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
@@ -77,9 +80,12 @@ service cloud.firestore {
       let profile = staffProfile();
       return isAdmin() && (
         isSuperAdmin() ||
-        profile.get('perms', []).hasAny(modules.concat(['*'])) ||
-        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
-         get(/databases/$(database)/documents/users/$(authEmail())).data.get('perms', []).hasAny(modules.concat(['*'])))
+        profile.get('perms', []).hasAny(['*']) ||
+        profile.get('perms', []).hasAny(modules) ||
+        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) && (
+          get(/databases/$(database)/documents/users/$(authEmail())).data.get('perms', []).hasAny(['*']) ||
+          get(/databases/$(database)/documents/users/$(authEmail())).data.get('perms', []).hasAny(modules)
+        ))
       );
     }
     function canUse(module) { return canUseAny([module]); }
@@ -96,17 +102,15 @@ service cloud.firestore {
       );
     }
     function canReadStudents() {
-      return isTeacher() || isSuperAdmin() || canUseAny([
-        'reports', 'admRegisterSuite', 'customRoster', 'certStudio', 'idCards', 'rollNo', 'practicals', 'attendanceMgmt', 'funds', 'controls', 'gkTest',
-        'mergeStudio', 'boardSync', 'accounts', 'cms', 'quickCellEdit', 'analyticsReports', 'directEntryAction', 'bulkToolsAction'
-      ]);
+      return isTeacher() || isSuperAdmin() ||
+        canUseAny(['reports', 'admRegisterSuite', 'customRoster', 'certStudio', 'idCards', 'rollNo', 'practicals', 'attendanceMgmt']) ||
+        canUseAny(['funds', 'controls', 'gkTest', 'mergeStudio', 'boardSync', 'accounts', 'cms', 'analyticsReports']) ||
+        canUseAny(['quickCellEdit', 'directEntry', 'directEntryAction', 'bulkToolsAction']);
     }
     function canEditStudents() {
-      return canUseAny([
-        'reports', 'admRegisterSuite', 'controls', 'rollNo', 'certStudio',
-        'mergeStudio', 'boardSync', 'quickCellEdit', 'directEntryAction', 'bulkToolsAction',
-        'analyticsReports', 'customRoster'
-      ]);
+      return isSuperAdmin() ||
+        canUseAny(['reports', 'admRegisterSuite', 'controls', 'rollNo', 'certStudio', 'mergeStudio']) ||
+        canUseAny(['boardSync', 'quickCellEdit', 'directEntry', 'directEntryAction', 'bulkToolsAction', 'analyticsReports', 'customRoster']);
     }
     function settingsModule(documentId) {
       return documentId in ['certificateRegistry', 'certificateStudio'] ? 'certStudio' :
@@ -645,7 +649,7 @@ service cloud.firestore {
         'adminActivityLogs', 'feeRates', 'recycleBin', 'deletedFormsHistory', 'docStudioTemplates'] && canUse(collectionModule(collectionName));
     }
     match /adminSettings/{documentId} {
-      allow read: if isSuperAdmin() || (documentId == 'admission_register_layout' && canUse('admRegisterSuite'));
+      allow read: if isSuperAdmin() || isAdmin() || (documentId == 'admission_register_layout' && canUse('admRegisterSuite'));
       allow create, update: if isSuperAdmin() || (documentId == 'admission_register_layout' && canUse('admRegisterSuite') && validStaffDocument(request.resource.data));
       allow delete: if isSuperAdmin();
     }

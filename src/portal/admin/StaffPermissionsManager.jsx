@@ -101,7 +101,7 @@ const DEFAULT_ADMIN_USERS = [
     name: 'Bilal Ahmad Khandy',
     email: 'bilalhcu@gmail.com',
     role: 'Admin',
-    perms: ['reports'],
+    perms: ALL_ADMIN_MODULES.map(m => m.code),
   },
   {
     name: 'Majid Hassan Najar',
@@ -219,6 +219,21 @@ export default function StaffPermissionsManager() {
           const usersSnap = await getDocs(query(collection(db, 'users'), where('isStaff', '==', true)));
           if (!usersSnap.empty) {
             const extraStaff = [];
+            const uidMap = new Map();
+            usersSnap.docs.forEach((d) => {
+              const data = d.data();
+              const cleanE = String(data.email || '').trim().toLowerCase();
+              if (cleanE && d.id !== cleanE) {
+                uidMap.set(cleanE, d.id);
+              }
+            });
+            loadedList = loadedList.map((u) => {
+              const clean = String(u.email || '').trim().toLowerCase();
+              return {
+                ...u,
+                uid: u.uid || uidMap.get(clean) || null,
+              };
+            });
             usersSnap.docs.forEach((d) => {
               const data = d.data();
               const roleStr = String(data.role || '').toLowerCase();
@@ -235,6 +250,7 @@ export default function StaffPermissionsManager() {
                   extraStaff.push({
                     name: data.name || data.displayName || cleanE.split('@')[0],
                     email: cleanE,
+                    uid: (d.id !== cleanE) ? d.id : (data.uid || null),
                     role: isTeacher ? 'Teacher' : 'Admin',
                     designation: data.designation || data.label || '',
                     perms: data.perms || (isTeacher ? ['attendanceMgmt', 'practicals'] : ['reports', 'analyticsReports']),
@@ -458,27 +474,41 @@ export default function StaffPermissionsManager() {
         localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(sanitizedList));
       } catch (_) {}
 
-      // Synchronize each user doc in users/{email}
+      // Synchronize each user doc in users/{email} and users/{uid}
       await Promise.all(sanitizedList.map(async (account) => {
         const cleanEmail = String(account.email || '').trim().toLowerCase();
         if (!cleanEmail) return;
 
+        const payload = enforceStrictRoleAttributes({
+          name: account.name,
+          email: cleanEmail,
+          role: account.role,
+          designation: account.designation || '',
+          perms: account.perms || [],
+          subject: account.subject || '',
+          teachingSubject: account.teachingSubject || '',
+          assignedSubjects: account.assignedSubjects || [],
+          assignedClasses: account.assignedClasses || [],
+          mobile: account.mobile || '',
+          active: true,
+          updatedAt: new Date().toISOString(),
+        });
+
         try {
-          await setDoc(doc(db, 'users', cleanEmail), enforceStrictRoleAttributes({
-            name: account.name,
-            email: cleanEmail,
-            role: account.role,
-            designation: account.designation || '',
-            perms: account.perms || [],
-            subject: account.subject || '',
-            teachingSubject: account.teachingSubject || '',
-            assignedSubjects: account.assignedSubjects || [],
-            assignedClasses: account.assignedClasses || [],
-            mobile: account.mobile || '',
-            updatedAt: new Date().toISOString(),
-          }), { merge: true });
+          await setDoc(doc(db, 'users', cleanEmail), payload, { merge: true });
         } catch (syncErr) {
           console.warn(`Sync user ${cleanEmail} note:`, syncErr);
+        }
+
+        if (account.uid) {
+          try {
+            await setDoc(doc(db, 'users', account.uid), {
+              ...payload,
+              uid: account.uid,
+            }, { merge: true });
+          } catch (syncErr) {
+            console.warn(`Sync user UID ${account.uid} note:`, syncErr);
+          }
         }
       }));
 

@@ -38,11 +38,11 @@ async function resolveUserProfile(firebaseUser, forceFresh = false) {
   const isSuper = isBootstrapSuperAdminEmail(emailLower) || role === 'SuperAdmin';
   const perms = isSuper
     ? ['*']
-    : Array.isArray(staffProfile?.perms)
+    : (Array.isArray(staffProfile?.perms) && staffProfile.perms.length > 0)
       ? staffProfile.perms
-      : Array.isArray(claims.permissions)
+      : (Array.isArray(claims.permissions) && claims.permissions.length > 0)
         ? claims.permissions
-        : (isBootstrapAdmin ? ['reports'] : []);
+        : (isBootstrapAdmin ? ['reports'] : (staffProfile?.perms || []));
 
   const userSubject = staffProfile?.subject || staffProfile?.teachingSubject || '';
   const userTeachingSubject = staffProfile?.teachingSubject || staffProfile?.subject || '';
