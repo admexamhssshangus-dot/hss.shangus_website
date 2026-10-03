@@ -1,4 +1,8 @@
+http://hssshangus.netlify.app/* https://hssshangus.in/:splat 301!
 https://hssshangus.netlify.app/* https://hssshangus.in/:splat 301!
+http://www.hssshangus.in/* https://hssshangus.in/:splat 301!
+https://www.hssshangus.in/* https://hssshangus.in/:splat 301!
+http://hssshangus.in/* https://hssshangus.in/:splat 301!
 /slides/admins.json  /privacy-removed.txt  404!
 /slides/messages.json  /privacy-removed.txt  404!
 /slides/faculty_roster.csv  /privacy-removed.txt  404!

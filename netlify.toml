@@ -25,6 +25,30 @@
   force = true
 
 [[redirects]]
+  from = "http://hssshangus.netlify.app/*"
+  to = "https://hssshangus.in/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://www.hssshangus.in/*"
+  to = "https://hssshangus.in/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.hssshangus.in/*"
+  to = "https://hssshangus.in/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://hssshangus.in/*"
+  to = "https://hssshangus.in/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
   from = "/slides/admins.json"
   to = "/privacy-removed.txt"
   status = 404

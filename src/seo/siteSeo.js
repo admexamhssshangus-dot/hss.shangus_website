@@ -120,7 +120,7 @@ function getStructuredData(seo) {
   const graph = [
     {
       '@type': 'HighSchool', '@id': `${SITE_ORIGIN}/#school`, name: SCHOOL_NAME,
-      alternateName: [SITE_NAME, 'GHSS Shangus', 'Govt HSS Shangus'],
+      alternateName: [SITE_NAME, 'GHSS Shangus', 'Govt HSS Shangus', 'Govt. Boys Higher Secondary School Shangus', 'Government Higher Secondary School Shangus'],
       url: `${SITE_ORIGIN}/`, logo: `${SITE_ORIGIN}/logo.png`,
       image: [
         `${SITE_ORIGIN}/slides/og-card.jpg`,
@@ -129,7 +129,10 @@ function getStructuredData(seo) {
       ],
       description: PUBLIC_PAGES['/'].description, foundingDate: '1917',
       email: 'adm.exam.hss.shangus@gmail.com', telephone: '+91-7006034501',
-      sameAs: ['https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus'],
+      sameAs: [
+        'https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus',
+        'https://www.facebook.com/p/Govt-Boys-Higher-Secondary-School-Shangus-100069352932970/'
+      ],
       address: {
         '@type': 'PostalAddress', streetAddress: 'Main Road, Shangus',
         addressLocality: 'Shangus, Anantnag', addressRegion: 'Jammu and Kashmir',

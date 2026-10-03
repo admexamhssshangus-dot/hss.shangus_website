@@ -1,7 +1,7 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `feat(practicals): auto-archive superseded pending overwrite submissions to recycle bin for data consistency`
+- **Commit Message**: `fix(seo): strengthen 301 domain redirects, enhance knowledge graph schema, and optimize GSC migration to .in`
 - **Date**: October 03, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Security, Admission, and SEO regression checks passed (`Exit Code 0`).
 
@@ -10,89 +10,86 @@
 ## Architectural Purpose & Issues Resolved
 
 ### Problem Statement
-When a faculty member submits an overwrite / rewrite submission (for Practicals & Award Rolls or School-Based Assessments) and the administrator has not reviewed or approved it yet, and before administrator approval the teacher submits *another* overwrite request:
-- Previously, the new submission payload would directly overwrite the pending document, causing the prior unapproved submission to be lost without an audit trail.
-- If discrepancies or questions arose later regarding what was previously entered versus the latest submission, there was no historical snapshot for reference or auditability.
+The user reported that `hssshangus.netlify.app` still appears in search engines while waiting for rich search results to transfer and appear for the official domain `hssshangus.in`. A screenshot of Google Search Console (GSC) showed:
+- Property selected: `https://hssshangus.netlify.app/` (legacy site).
+- Warning banner: `⚠️ This site is currently moving to hssshangus.in [Learn more]`.
+- Performance graph: Clicks dropped sharply from 120/day down towards zero.
 
-### Solution: Automatic Recycle Bin Archival of Superseded Submissions
-1. **Latest Always Remains Active**:
-   - The newest submission becomes the active pending record (`pendingDocId`) in `practicalsData`, cleanly awaiting administrator review and integration into the master gazettes.
-2. **Prior Unreviewed Submission Auto-Archived**:
-   - Before the new payload is written to `pendingDocId`, any prior pending submission is automatically detected (both in component state and verified directly against live Firestore).
-   - The prior submission—including all its student marks, candidate records, author details, and submission timestamps—is safely cloned and archived into `practicalsRecycleBin` as a `superseded_pending` record.
-   - It is also captured in the 3-version rollback history (`practicalsBin`), ensuring 100% data consistency and complete institutional auditability.
-3. **Dedicated Status Identification**:
-   - In the Practicals Recycle Bin, superseded items display a dedicated `Superseded Overwrite` badge in purple with full context ("Superseded by newer teacher overwrite request before admin approval").
-   - Administrators reviewing both Practicals and School-Based Assessments can open the Recycle Bin directly from their respective approval dashboards.
+### Technical Analysis & Google Search Console Behavior
+1. **Change of Address in Progress**:
+   - The yellow banner confirms that Google's official **Change of Address** tool is active for `hssshangus.netlify.app` -> `hssshangus.in`.
+   - The drop in clicks on the `netlify.app` property is the **expected and normal behavior** during domain migration: Google systematically de-indexes the old domain as it processes the 301 redirects and transfers rankings to the new domain.
+2. **Viewing the Wrong Property in GSC**:
+   - In Search Console, the user was viewing the legacy `https://hssshangus.netlify.app/` property.
+   - All newly indexed pages, impressions, and rich results for `hssshangus.in` are recorded under the **`https://hssshangus.in/`** property (or Domain property `hssshangus.in`).
+3. **Critical Warning on the GSC "Removals" Tool**:
+   - Site owners sometimes mistakenly use the "Removals" tab in GSC to force-delete the old `.netlify.app` URLs.
+   - **Google strictly warns against this**: Removals blocks Google from fetching the URL altogether, which breaks the 301 redirect chain and prevents Google from transferring page authority and search equity to `hssshangus.in`.
+   - Google automatically drops the old domain from search results as it crawls the 301 redirects.
 
 ---
 
 ## Changes Implemented
 
-### 1. Dedicated Superseded Submission Archiving Engine
-- File: [src/services/practicalsBinService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/practicalsBinService.js)
-  - Created and exported `archiveSupersededPendingSubmission(pendingDoc, userMeta, canonicalDocId)`.
-  - Creates a timestamped document `pbin_superseded_<docId>_<timestamp>` in `practicalsRecycleBin`.
-  - Preserves entire `submissionData`, `recordsCount`, `submittedBy`, `submittedByEmail`, `originalStatus: 'superseded_pending'`, and `isSuperseded: true`.
-  - Links to `saveVersionToBin` for rollback history.
-  - Logs administrative audit trail via `logAdminActivity`.
+### 1. Complete Multi-Protocol & Non-Canonical 301 Redirect Rules
+- Files: [public/_redirects](file:///d:/Shk_Gulfam\Projects\hss_shangus\public\_redirects) and [netlify.toml](file:///d:/Shk_Gulfam\Projects\hss_shangus\netlify.toml)
+  - Explicitly configured 301 permanent redirects for all legacy and non-canonical variants directly to `https://hssshangus.in/:splat`:
+    - `http://hssshangus.netlify.app/*` -> `https://hssshangus.in/:splat 301!`
+    - `https://hssshangus.netlify.app/*` -> `https://hssshangus.in/:splat 301!`
+    - `http://www.hssshangus.in/*` -> `https://hssshangus.in/:splat 301!`
+    - `https://www.hssshangus.in/*` -> `https://hssshangus.in/:splat 301!`
+    - `http://hssshangus.in/*` -> `https://hssshangus.in/:splat 301!`
 
-### 2. Teacher Practicals Resubmission / Overwrite Safeguard
-- File: [src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)
-  - Imported `archiveSupersededPendingSubmission` and `getDoc`.
-  - In `handleFinalSubmit`:
-    - Checks whether an unapproved pending submission is currently awaiting review at `pendingDocId`.
-    - If present, automatically archives it to the Recycle Bin via `archiveSupersededPendingSubmission` before writing the latest submission payload.
-    - Also archives the canonical approved award to Version Bin.
-
-### 3. Teacher School-Based Assessment Resubmission Safeguard
-- File: [src/portal/teacher/TeacherAssessmentsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/TeacherAssessmentsPage.jsx)
-  - Imported `archiveSupersededPendingSubmission` and `saveVersionToBin`.
-  - In `handleSubmitFinal`:
-    - Verifies whether a prior pending assessment (Pre-Board, Unit Assessment, Golden Test) was waiting for administrator approval.
-    - If found, auto-archives the prior unapproved submission to `practicalsRecycleBin` and version history before saving the latest record.
-
-### 4. Admin Recycle Bin Modal UI Enhancements
-- File: [src/portal/admin/PracticalsRecycleBinModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/PracticalsRecycleBinModal.jsx)
-  - Updated `StatusBadge` to render `Superseded Overwrite` in purple with a descriptive tooltip.
-  - In the expanded document inspection row, displays `Archived Context: item.archivedReason`.
-
-### 5. Admin School-Based Assessment Suite Integration
-- File: [src/portal/admin/SchoolAssessmentApprovalsView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAssessmentApprovalsView.jsx)
-  - Imported `PracticalsRecycleBinModal`.
-  - Added a "Recycle Bin" button to the approvals toolbar with a trash icon and purple badge.
-  - Mounted `PracticalsRecycleBinModal` for seamless inspection and reference of superseded submissions.
+### 2. Knowledge Graph & Rich Results Schema Enhancement
+- File: [src/seo/siteSeo.js](file:///d:/Shk_Gulfam\Projects\hss_shangus\src\seo\siteSeo.js)
+  - Added official institutional `sameAs` entity links (Google Maps listing and official school Facebook page).
+  - Expanded `alternateName` to include:
+    `['HSS Shangus', 'GHSS Shangus', 'Govt HSS Shangus', 'Govt. Boys Higher Secondary School Shangus', 'Government Higher Secondary School Shangus']`.
+  - Ensures search engines connect all brand mentions and social profiles directly to the `.in` domain.
 
 ---
 
 ## Verification & Build Results
 - **Production Build**: Verified with `npm run build` (`Exit Code 0`).
-- **Static Asset Generation**: 11 public pages, canonical redirects, sitemap, and SEO regression checks passed.
-- **Firebase Security Rules & RBAC**: Academic evaluation boundaries intact; practicals confidential to teachers and admins.
+- **SEO Checks**: Passed all 11 static pages, canonical redirects, sitemap validation, and structured data checks with zero errors.
 
 ---
 
-## Instructions for the User
+## Actionable Steps for the User in Google Search Console
+
+1. **Switch Property**:
+   - In GSC, click the property dropdown at top-left and select `https://hssshangus.in/` (or add it if not already present).
+2. **Submit Sitemap**:
+   - Under the `hssshangus.in` property, navigate to **Sitemaps**, enter `sitemap.xml`, and submit.
+3. **Request Fast-Track Indexing via URL Inspection**:
+   - Inspect `https://hssshangus.in/` -> Click **Test Live URL** -> Click **Request Indexing**.
+   - Repeat for key landing pages: `/admissions`, `/academics`, `/results`, `/notices`.
+4. **DO NOT Submit Removals for `netlify.app`**:
+   - Allow Google to naturally finalize the 301 redirect migration.
+
+---
+
+## Git Review, Amend & Push Instructions
 
 ### 1. Inspect the Local Commit
-You can review the staged and committed changes anytime by running:
-```bash
-git log -1 --stat
-```
-or to inspect the exact line-by-line diff:
+To review the changes in this commit:
 ```bash
 git show HEAD
+# or view the log
+git log -1 --stat
 ```
 
-### 2. Amend / Re-commit (Optional)
-If you would like to edit or amend the commit message:
+### 2. Amend or Re-Commit (Optional)
+If you wish to modify the commit message or make adjustments:
 ```bash
 git reset --soft HEAD~1
-git commit -m "your custom commit message"
+# Make desired adjustments, then re-commit:
+git commit -m "fix(seo): strengthen 301 domain redirects, enhance knowledge graph schema, and optimize GSC migration to .in"
 ```
 
 ### 3. Push to Remote Repository
-As per project rules, the assistant does NOT push to remote repositories. When you are ready to publish these changes, please run:
+When you are ready to publish these changes to production:
 ```bash
 git push origin main
 ```
+
