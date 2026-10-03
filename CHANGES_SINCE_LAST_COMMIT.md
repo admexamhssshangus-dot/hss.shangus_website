@@ -1,105 +1,124 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): grant full operational module parity to standard admins and protect superadmin permissions`
+- **Commit Message**: `fix(practicals): resolve approved practical awards not displaying in web grid and consolidated print`
 - **Date**: October 03, 2026
-- **Status**: Production Build Passed (`Exit Code 0`), verified locally; Firestore Security Rules Deployed (`Exit Code 0`).
+- **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Security, Admission, and SEO regression checks passed (`Exit Code 0`).
 
 ---
 
 ## Architectural Purpose & Issues Resolved
 
-### 1. Root Cause of "Failed to load practicals data" and Empty Student Cohort
-1. **Unbounded Firestore Fetch in `AdminPracticals.jsx`**:
-   - `getDocs(collection(db, 'adminPracticalsSettings'))` was run inside `Promise.all` with no error boundary or `.catch()` fallback.
-   - `match /adminPracticalsSettings/{documentId}` in Firestore rules did not grant global read to authenticated standard admins or teachers, throwing a runtime `permission-denied` rejection.
-   - This rejected the entire `Promise.all([fetchPracticals, fetchSettings, getStaffDirectory, admissionsData, masterRegistersData])`, landing directly in the outer catch block (`showAlert('error', 'Failed to load practicals data.')`) and leaving `students` as an empty array `[]`.
-2. **`canUseAny(modules)` and Admin Operations Parity**:
-   - Standard admins are intended to have operational parity with SuperAdmin across all 24 administrative modules in `ADMIN_MODULE_CATALOG`.
-   - Checking brittle `perms.hasAny(modules)` on standard admins caused permission rejections whenever new modules were accessed or perms arrays fell out of sync.
-   - Standard admins (`isAdmin()`) now inherit unrestricted operational module access across all 24 modules, just like SuperAdmin.
-3. **Master SuperAdmin Protection**:
-   - Standard admins can manage staff accounts (teachers, examiners, and standard admins) in `StaffPermissionsManager.jsx`, but cannot edit, toggle permissions on, or delete the Master Super Administrator account (`adm.exam.hss.shangus@gmail.com`).
-   - Firestore security rules strictly protect `users/adm.exam.hss.shangus@gmail.com` from mutations or deletions by standard admins (`userId != 'adm.exam.hss.shangus@gmail.com'`), while allowing standard admins to manage non-superadmin accounts and update `adminSettings/permissions`.
+### Problem Statement
+Even after an administrator clicked "Approve" on a teacher's practical award submission in the Practicals portal (`AdminPracticals.jsx`), the approved marks and candidate records were not reflected in:
+1. The live administrative web practicals data grid table (`AwardsSummaryView`).
+2. The print and preview version of the consolidated awards matrix and forwarding letter (`printConsolidatedAwardRoll`).
+3. The Excel export (`exportConsolidatedAwardsToExcel`) and Word export (`exportConsolidatedAwardsToWord`).
+
+### Root Cause Analysis
+1. **Evaluation Type Normalization Mismatch**:
+   - In teacher submissions (`PracticalsPage.jsx`), `practicalType` is stored as `"Internal Assessment"` or `"External Practical"`.
+   - In `AdminPracticals.jsx`, `localPrintOpts.practicalType` is initialized or toggled to `"internal"` or `"external"`.
+   - In `getSubjectMarkForStudent`, a strict check `if (sType !== targetType) return false;` compared `"internal assessment"` directly with `"internal"`, which always evaluated to `false`. As a result, the live web data grid table displayed `—` for every enrolled student.
+   - Similarly, in `practicalsCsvManager.js`, `if (sType !== targetType) return false;` caused the same failure during Excel and Word exports.
+2. **Session Normalization Discrepancy**:
+   - `normalizePracticalSession` performed strict equality checks (`str === '2026'` and `str === '2025'`).
+   - As a result, default JKBOSE session formats like `"Annual Regular 2026"` and `"Annual Regular 2025"` were returned unmodified instead of mapping to `"2025-26"` and `"2024-25 (Oct-Nov)"`.
+   - Submissions stored `yearSuffix` as `"2025-26"`.
+   - In `printConsolidatedAwardRoll` and `hasSubjectPracticalSubmission`, the strict comparison `if (subSess && targetSess && subSess !== targetSess) return false;` compared `"2025-26"` against `"Annual Regular 2026"`, causing every approved subject submission to be rejected.
+3. **Student Record Matching Gaps**:
+   - In `findStudentMarkRecord` (`practicalsPdfGenerator.js`), the student matching loop did not check `r.rollNo` or `r.roll` (only `r.classRollNo`). In `PracticalsPage.jsx`, class roll numbers were stored under `rollNo`.
+   - Strict session isolation previously rejected students if the master register session string had minor historical differences.
+   - Admission Form Number (`admissionNo` / `formNo`) was not checked.
+4. **Approval Lifecycle Synchronization**:
+   - In `handleApproveSubmission`, canonical records were created without canonicalizing session fields (`session`, `sessionText`, `sessionCanonical`).
+   - The student roster state (`students`) was not re-hydrated after approval, preventing newly approved marks and exam roll numbers from instantly populating memory.
 
 ---
 
 ## Changes Implemented
 
-### 1. Firestore Security Rules Enhancements & Rules Deployment
-- File: [firestore.rules](file:///d:/Shk_Gulfam/Projects/hss_shangus/firestore.rules)
-  - Updated `canUseAny(modules)` to grant access if `isAdmin()`, ensuring all 24 administrative modules are immediately accessible to both SuperAdmin and Standard Admins without per-module permissions barriers.
-  - Simplified `canReadStudents()` to `isTeacher() || isAdmin()`, and `canEditStudents()` to `isAdmin()`.
-  - Updated `match /adminPracticalsSettings/{documentId}` with `allow read: if isTeacher() || isAdmin() || (documentId == 'config');`, `allow create, update: if (isTeacher() || isAdmin()) && hasNoCredentialFields(request.resource.data);`, and `allow delete: if isAdmin();`.
-  - Updated `match /adminSettings/{documentId}` to permit standard admins to read and update `permissions` (`documentId == 'permissions' && isAdmin() && hasNoCredentialFields(request.resource.data)`), while preserving delete as SuperAdmin-only.
-  - Hardened `match /users/{userId}` to allow standard admins to list and manage staff accounts (`validAdminManagedUser(request.resource.data)`), while strictly barring standard admins from creating, editing, or deleting the SuperAdmin document (`userId != 'adm.exam.hss.shangus@gmail.com'`).
-  - Automatically deployed updated rules via `npm run deploy:rules` with `Exit Code 0`.
+### 1. Unified Session Normalization
+- Files: [src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js) and [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
+  - Enhanced `normalizePracticalSession` to recognize and normalize `"Annual Regular 2026"`, `"Session 2026"`, `"2026"`, and `"2025-26"` to `"2025-26"`.
+  - Normalized `"Annual Regular 2025"`, `"2025"`, and `"2024-25"` to `"2024-25 (Oct-Nov)"`.
+  - Added support for `"2023-24"` and pass-through for `"all"`.
+  - Updated `isSessionMatch` to support bidirectional session matching across all normalized session keys.
 
-### 2. Admin Practicals Data Fetch Resilience
+### 2. Multi-Key Student Matching & PDF Print Engine
+- File: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
+  - Added `cleanRegistrationNumber` with delimiter-stripping (`replace(/[\s\-_/]/g, '')`) so registration numbers with dashes/spaces match seamlessly.
+  - Rewrote `findStudentMarkRecord` with 5 cascading priority keys:
+    1. Board Registration Number (clean match).
+    2. Exam Roll Number (digits >= 5, non-placeholder).
+    3. Admission Form Number (`stForm === rForm`).
+    4. Class Roll Number (`r.classRollNo`, `r.classRoll`, `r.rollNo`, `r.roll`) with student name verification.
+    5. Exact Student Full Name + Parentage match.
+  - Updated `hasSubjectPracticalSubmission` and `isSubDocMatch` in `printConsolidatedAwardRoll` to use normalized evaluation type matching (`includes('ext') ? 'external' : 'internal'`) and normalized session matching.
+
+### 3. Consolidated Spreadsheet & Word Export Engines
+- File: [src/utils/practicalsCsvManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsCsvManager.js)
+  - Updated `isSubDocMatch` in both `exportConsolidatedAwardsWorkbook` (Excel) and `exportConsolidatedAwardsToWord` (Word) to use normalized evaluation type and session matching.
+
+### 4. Admin Practicals Web Grid Table & Approval Flow
 - File: [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)
-  - Isolated individual fetch operations (`fetchPracticals`, `fetchSettings`, `getStaffDirectory`, `admissionsData`, `masterRegistersData`) with local `.catch()` handlers so that a secondary query failure cannot abort student cohort hydration.
-  - Added safe optional chaining `(ts?.docs || [])` when mapping teacher directory documents.
-
-### 3. Admin Tools Module Launcher Parity
-- File: [src/portal/admin/AdminToolsDropdown.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminToolsDropdown.jsx)
-  - Updated `isUserPermittedForModule` so that any administrator (`role === 'admin' || role === 'administrator' || user.isAdmin === true || isStandardAdminEmail(email) || isBootstrapAdminEmail(email)`) has unrestricted access to all 24 modules, while preserving scoped permission checks for teachers.
-  - Maintained `if (!user) return false;` assertion required by automated security regression checks.
-
-### 4. Staff Permissions Manager SuperAdmin Protection
-- File: [src/portal/admin/StaffPermissionsManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StaffPermissionsManager.jsx)
-  - Added `isCurrentSuperAdmin` detection based on the authenticated user's email.
-  - Guarded `handleOpenEditAdmin`, `togglePermission`, and `setAllPermissionsForUser` so standard admins cannot alter SuperAdmin's role or permissions.
-  - Disabled the edit button, modules toggle, and password reset buttons for SuperAdmin when viewed by a standard admin, displaying a clear "SuperAdmin (Master Protected)" badge.
-  - In `handleApplyPermissions`, ensured standard admins do not write to `users/adm.exam.hss.shangus@gmail.com`, preventing Firestore permission rejections while syncing other staff accounts.
+  - Updated `getSubjectMarkForStudent` to normalize evaluation types (`targetNorm` vs `sNorm`), check `isSessionMatch`, and utilize the multi-key student record matching logic.
+  - Updated `subjectsWithSubmissions` so active subjects with approved practicals are correctly identified.
+  - In `handleApproveSubmission`:
+    - Populated `session`, `sessionText`, and `sessionCanonical` on the canonical document.
+    - Added `await loadData(true)` to re-enrich the student roster with approved marks, registration numbers, and exam roll numbers immediately upon approval.
 
 ---
 
 ## Files Changed
 
-1. `firestore.rules`:
-   - Updated `isStandardAdmin`, `canUseAny`, `canReadStudents`, `canEditStudents`, `adminPracticalsSettings`, `adminSettings`, and `users/{userId}` with SuperAdmin protection.
-2. `src/portal/admin/AdminPracticals.jsx`:
-   - Added fault-tolerant fetch boundaries and safe chaining in `loadData`.
-3. `src/portal/admin/AdminToolsDropdown.jsx`:
-   - Granted full 24-module operational access to standard admins in `isUserPermittedForModule`.
-4. `src/portal/admin/StaffPermissionsManager.jsx`:
-   - Enforced SuperAdmin protection in UI and sync handlers against edits by standard admins.
-5. `CHANGES_SINCE_LAST_COMMIT.md`:
-   - Documented all changes, root causes, test results, and user instructions.
+1. [src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js):
+   - Comprehensive academic session string normalization for 2026, 2025, 2024, and 2023 cohorts.
+2. [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js):
+   - Added `cleanRegistrationNumber`.
+   - Multi-key student record resolution in `findStudentMarkRecord`.
+   - Normalized evaluation type and session in `hasSubjectPracticalSubmission` and `isSubDocMatch`.
+3. [src/utils/practicalsCsvManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsCsvManager.js):
+   - Normalized evaluation type and session in `exportConsolidatedAwardsWorkbook` and `exportConsolidatedAwardsToWord`.
+4. [src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx):
+   - Normalized session and evaluation type matching in `getSubjectMarkForStudent` and `subjectsWithSubmissions`.
+   - Immediate re-enrichment of student cohort on award approval with `loadData(true)`.
 
 ---
 
-## Verification & Build Details
-- **Build Verification**:
-  - `npm run build` -> Exit Code 0 (zero breaking errors).
-- **Regression Checks**:
-  - `npm run security:check` -> Exit Code 0 (Security regression checks passed).
-  - `npm run admission:check` -> Exit Code 0 (Admission regression checks passed).
-  - `npm run seo:check` -> Exit Code 0 (SEO checks passed).
-- **Security Rules Deployment**:
-  - `npm run deploy:rules` -> Exit Code 0 (`released rules firestore.rules to cloud.firestore`).
+## Verification & Build Results
+
+1. **Security Regression Check**:
+   - `npm run security:check`: Passed (`Exit Code 0`).
+2. **Admission Regression Check**:
+   - `npm run admission:check`: Passed (`Exit Code 0`).
+3. **SEO Regression Check**:
+   - `npm run seo:check`: Passed (`Exit Code 0`).
+4. **Production Build**:
+   - `npm run build`: Production build completed successfully with `Exit Code 0` and zero breaking errors.
 
 ---
 
-## Instructions for User
+## Instructions for the User
 
-### Inspect the Commit
-To view the commit history and changes made locally:
+### How to Inspect the Commit
+To review the local commit and inspect the diff:
 ```bash
+git log -1 --stat
 git show HEAD
-# or
-git log -n 1 --stat
 ```
 
-### Amending or Re-committing (Optional)
-If you wish to adjust the commit message or add more files before pushing:
+### How to Amend or Re-commit (Optional)
+If you wish to edit the commit message or make additional modifications before finalizing:
 ```bash
 git reset --soft HEAD~1
-git commit -m "fix(practicals): grant full operational module parity to standard admins and protect superadmin permissions"
+# Make any desired edits...
+git add .
+git commit -m "fix(practicals): resolve approved practical awards not displaying in web grid and consolidated print"
 ```
 
-### Manual Push to Remote (Required)
-As per project safety policies, the assistant is strictly prohibited from pushing directly to remote repositories. Please push the changes when ready:
+### Mandatory Git Push Policy
+Per project safety rules, the assistant does NOT execute `git push`. When you are satisfied with the changes, please manually push them to GitHub:
 ```bash
 git push origin main
 ```

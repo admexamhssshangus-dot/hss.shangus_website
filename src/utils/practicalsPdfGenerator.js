@@ -228,56 +228,74 @@ export function getStudentCentreNo(st, fallbackCentre = '') {
   return fallbackCentre;
 }
 
+export function cleanRegistrationNumber(val) {
+  if (!val) return '';
+  const s = String(val).trim();
+  if (/^(N\/A|—|-|null|undefined)$/i.test(s)) return '';
+  return s.replace(/[\s\-_/]/g, '').toUpperCase();
+}
+
 export function findStudentMarkRecord(subDoc, student) {
   if (!subDoc || !subDoc.records || !Array.isArray(subDoc.records) || !student) return null;
 
-  // STRICT SESSION ISOLATION: A practical submission for 2024-25 must NEVER map to a 2025-26 student!
-  const subSess = String(subDoc.sessionText || subDoc.SessionText || subDoc.session || subDoc.Session || '').toLowerCase();
-  const stSess = String(student.Session || student.session || (student._source === 'masterRegisters' ? '2024-25 (Oct-Nov)' : '2025-26')).toLowerCase();
-
-  // If student is in current 2025-26 session, reject historical 2024-25 / 2023-24 submissions
-  if (stSess.includes('2025') && !stSess.includes('2024-25')) {
-    if (subSess.includes('2024') || subSess.includes('2023')) return null;
-  }
-  // If student is from historical 2024-25 session, reject 2025-26 submissions
-  if (stSess.includes('2024') && (subSess.includes('2025-26') || subSess.includes('2026'))) {
-    return null;
+  // Session sanity check: only reject if both have explicit, conflicting non-compatible historical sessions
+  const subSess = normalizePracticalSession(subDoc.sessionText || subDoc.SessionText || subDoc.session || subDoc.Session || subDoc.yearSuffix || '');
+  const stSess = normalizePracticalSession(student.Session || student.session || '');
+  if (subSess && stSess && subSess !== 'all' && stSess !== 'all') {
+    if (subSess === '2023-24' && stSess === '2025-26') return null;
+    if (subSess === '2025-26' && stSess === '2023-24') return null;
   }
 
-  const stBoardReg = String(
+  const stBoardReg = cleanRegistrationNumber(
     student['Board Reg. No.'] || student['Board Registration Number'] || student.boardRegNo ||
-    student['Board Registration No. (Class 11th)'] || student['Board Registration No. (Class 10th)'] || ''
+    student['Board Registration No. (Class 11th)'] || student['Board Registration No. (Class 10th)'] || student.regNo || ''
+  );
+  const stExam = String(
+    student['Exam R.No. (Current)'] || student.examRollNo || student['Exam Roll No'] ||
+    student['Exam Roll No.'] || student['Exam Roll Number'] || student['Board Roll'] || ''
   ).trim().toUpperCase();
-  const stExam = String(student['Exam R.No. (Current)'] || student.examRollNo || student['Exam Roll No'] || student['Exam Roll No.'] || '').trim().toUpperCase();
   const stClassRoll = String(
-    student['Class R.No.'] || student['Class Roll No'] || student['Class Roll No.'] || student.classRollNo || student.rollNo || ''
+    student['Class R.No.'] || student['Class Roll No'] || student['Class Roll No.'] ||
+    student.classRollNo || student.rollNo || student.RollNo || student.roll || ''
   ).trim();
-  const stName = String(
+  const stForm = String(student.admissionNo || student.formNo || student['Admission Form No.'] || student['Form No.'] || '').trim();
+  const stName = toTitleCase(
     student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || student.name || ''
+  ).trim().toLowerCase();
+  const stFather = toTitleCase(
+    student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || student.fatherName || student.parentage || ''
   ).trim().toLowerCase();
 
   return subDoc.records.find(r => {
-    const rBoardReg = String(r.boardRegNo || r['Board Reg. No.'] || r.regNo || r['Registration No.'] || '').trim().toUpperCase();
-    const rExam     = String(r.examRollNo || '').trim().toUpperCase();
-    const rClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.sNo || '').trim();
-    const rName = String(r.name || r.studentName || '').trim().toLowerCase();
+    const rBoardReg = cleanRegistrationNumber(r.boardRegNo || r['Board Reg. No.'] || r.regNo || r['Registration No.'] || '');
+    const rExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
+    const rClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.rollNo || r.roll || r.sNo || '').trim();
+    const rForm = String(r.formNo || r.admissionNo || r['Form No.'] || '').trim();
+    const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
+    const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || '').trim().toLowerCase();
 
     // 1. Board Registration No (Global unique key)
-    if (stBoardReg && rBoardReg && stBoardReg === rBoardReg) return true;
+    if (stBoardReg && rBoardReg && stBoardReg === rBoardReg && stBoardReg.length >= 5) return true;
 
     // 2. Exam Roll No (Session-unique key)
-    if (stExam && rExam && stExam === rExam) return true;
+    if (stExam && rExam && stExam !== '—' && stExam !== 'NA' && stExam !== 'N/A' && stExam === rExam) return true;
 
-    // 3. Class Roll No + Name verification
-    if (stClassRoll && rClassRoll && stClassRoll === rClassRoll) {
-      if (stName && rName) {
-        return stName === rName || stName.includes(rName) || rName.includes(stName);
+    // 3. Admission Form No
+    if (stForm && rForm && stForm === rForm) return true;
+
+    // 4. Class Roll No + Name verification
+    if (stClassRoll && rClassRoll && stClassRoll !== '—' && stClassRoll !== '-' && !/^\d{8,}$/.test(stClassRoll) && !/^\d{8,}$/.test(rClassRoll) && stClassRoll === rClassRoll) {
+      if (!stName || !rName || stName === rName || stName.includes(rName) || rName.includes(stName)) {
+        return true;
       }
-      if (student._source === 'masterRegisters' || stSess.includes('2024')) return true;
     }
 
-    // 4. Exact full name match
-    if (stName && rName && stName.length > 4 && stName === rName) return true;
+    // 5. Exact full name + father match
+    if (stName && rName && stName.length > 3 && (stName === rName || stName.replace(/\s+/g, '') === rName.replace(/\s+/g, ''))) {
+      if (!stFather || !rFather || stFather === rFather || stFather.includes(rFather) || rFather.includes(stFather)) {
+        return true;
+      }
+    }
 
     return false;
   });
@@ -290,8 +308,8 @@ export function findStudentMarkRecord(subDoc, student) {
 export function hasSubjectPracticalSubmission(subCode, submissions, className = '', evaluationType = '', isExternal = false, session = '') {
   if (!submissions || !Array.isArray(submissions) || submissions.length === 0) return false;
   const clsTarget = String(className || '').replace(/[^0-9]/g, '');
-  const targetType = String(evaluationType || (isExternal ? 'external' : 'internal')).toLowerCase();
-  const targetSess = session ? normalizePracticalSession(session) : '';
+  const targetNorm = String(evaluationType || (isExternal ? 'external' : 'internal')).toLowerCase().includes('ext') ? 'external' : 'internal';
+  const targetSess = session && session !== 'all' ? normalizePracticalSession(session) : '';
 
   return submissions.some(s => {
     if (!s || s.isDeleted || s.status === 'deleted') return false;
@@ -300,16 +318,12 @@ export function hasSubjectPracticalSubmission(subCode, submissions, className = 
 
     if (targetSess) {
       const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
-      if (subSess && subSess !== targetSess) return false;
+      if (subSess && subSess !== 'all' && subSess !== targetSess) return false;
     }
 
-    const sType = String(s.practicalType || s.PracticalType || s.evaluationType || 'internal').toLowerCase();
-    if (targetType) {
-      if (sType !== targetType && !sType.includes(targetType) && !targetType.includes(sType)) {
-        const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
-        if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
-      }
-    }
+    const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
+    const sNorm = sType.includes('ext') ? 'external' : 'internal';
+    if (sNorm !== targetNorm) return false;
 
     const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
     const isCode = codeStr === subCode || codeStr.includes(subCode) || (subCode === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')));
@@ -1011,24 +1025,17 @@ export function printConsolidatedAwardRoll({
     const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
     if (!matchClass) return false;
 
-    // Strict session check
-    if (session) {
+    // Session check (only enforce if session filter provided and not 'all')
+    if (session && session !== 'all') {
       const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
       const targetSess = normalizePracticalSession(session);
-      if (subSess && targetSess && subSess !== targetSess) return false;
+      if (subSess && targetSess && subSess !== 'all' && targetSess !== 'all' && subSess !== targetSess) return false;
     }
 
-    const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-    if (evaluationType || practicalType) {
-      const target = String(evaluationType || practicalType).toLowerCase();
-      if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
-        const targetNorm = target.includes('ext') ? 'external' : 'internal';
-        if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
-      }
-    } else {
-      const targetType = isExternal ? 'external' : 'internal';
-      if (sType !== targetType && !sType.includes(targetType)) return false;
-    }
+    const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
+    const targetNorm = (String(evaluationType || practicalType || (isExternal ? 'external' : 'internal'))).toLowerCase().includes('ext') ? 'external' : 'internal';
+    const sNorm = sType.includes('ext') ? 'external' : 'internal';
+    if (sNorm !== targetNorm) return false;
     return true;
   };
 

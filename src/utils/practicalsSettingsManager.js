@@ -1112,12 +1112,14 @@ export function normalizePracticalSession(sess) {
   if (!sess) return '2025-26';
   const str = String(sess).toLowerCase().trim();
 
+  if (str === 'all') return 'all';
+
   // 1. Current / Live 2025-26 Session
   if (
     str.includes('2025-26') ||
     str.includes('2025–26') ||
     str.includes('2025-2026') ||
-    str === '2026' ||
+    str.includes('2026') ||
     str.includes('current') ||
     str.includes('live')
   ) {
@@ -1129,12 +1131,18 @@ export function normalizePracticalSession(sess) {
     str.includes('2024-25') ||
     str.includes('2024–25') ||
     str.includes('2024-2025') ||
-    str === '2025' ||
+    str.includes('2024') ||
+    str.includes('2025') ||
     str.includes('oct') ||
     str.includes('nov') ||
     str.includes('previous')
   ) {
     return '2024-25 (Oct-Nov)';
+  }
+
+  // 3. Historical 2023-24 Session
+  if (str.includes('2023-24') || str.includes('2023')) {
+    return '2023-24';
   }
 
   return sess;

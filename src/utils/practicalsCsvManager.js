@@ -395,15 +395,16 @@ export function exportConsolidatedAwardsToExcel({
     const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
     if (!matchClass) return false;
 
-    if (session) {
+    if (session && session !== 'all') {
       const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
       const targetSess = normalizePracticalSession(session);
-      if (subSess && targetSess && subSess !== targetSess) return false;
+      if (subSess && targetSess && subSess !== 'all' && targetSess !== 'all' && subSess !== targetSess) return false;
     }
 
-    const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-    const targetType = isExternal ? 'external' : 'internal';
-    if (sType !== targetType) return false;
+    const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
+    const targetNorm = (String(evaluationType || practicalType || (isExternal ? 'external' : 'internal'))).toLowerCase().includes('ext') ? 'external' : 'internal';
+    const sNorm = sType.includes('ext') ? 'external' : 'internal';
+    if (sNorm !== targetNorm) return false;
     return true;
   };
 
@@ -665,23 +666,16 @@ export async function exportConsolidatedAwardsToDocx({
     const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
     if (!matchClass) return false;
 
-    if (session) {
+    if (session && session !== 'all') {
       const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
       const targetSess = normalizePracticalSession(session);
-      if (subSess && targetSess && subSess !== targetSess) return false;
+      if (subSess && targetSess && subSess !== 'all' && targetSess !== 'all' && subSess !== targetSess) return false;
     }
 
-    const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-    if (evaluationType || practicalType) {
-      const target = String(evaluationType || practicalType).toLowerCase();
-      if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
-        const targetNorm = target.includes('ext') ? 'external' : 'internal';
-        if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
-      }
-    } else {
-      const targetType = isExternal ? 'external' : 'internal';
-      if (sType !== targetType && !sType.includes(targetType)) return false;
-    }
+    const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
+    const targetNorm = (String(evaluationType || practicalType || (isExternal ? 'external' : 'internal'))).toLowerCase().includes('ext') ? 'external' : 'internal';
+    const sNorm = sType.includes('ext') ? 'external' : 'internal';
+    if (sNorm !== targetNorm) return false;
     return true;
   };
 

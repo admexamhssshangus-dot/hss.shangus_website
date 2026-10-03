@@ -364,12 +364,14 @@ export function normalizePracticalSession(sess) {
   if (!sess) return '2025-26';
   const str = String(sess).toLowerCase().trim();
 
+  if (str === 'all') return 'all';
+
   // 1. Current / Live 2025-26 Session
   if (
     str.includes('2025-26') ||
     str.includes('2025–26') ||
     str.includes('2025-2026') ||
-    str === '2026' ||
+    str.includes('2026') ||
     str.includes('current') ||
     str.includes('live')
   ) {
@@ -381,12 +383,18 @@ export function normalizePracticalSession(sess) {
     str.includes('2024-25') ||
     str.includes('2024–25') ||
     str.includes('2024-2025') ||
-    str === '2025' ||
+    str.includes('2024') ||
+    str.includes('2025') ||
     str.includes('oct') ||
     str.includes('nov') ||
     str.includes('previous')
   ) {
     return '2024-25 (Oct-Nov)';
+  }
+
+  // 3. Historical 2023-24 Session
+  if (str.includes('2023-24') || str.includes('2023')) {
+    return '2023-24';
   }
 
   return sess;
@@ -397,11 +405,15 @@ export const isSessionMatch = (rawSess, targetFilter) => {
   const sNorm = normalizePracticalSession(rawSess);
   const tNorm = normalizePracticalSession(targetFilter);
 
+  if (tNorm === 'all' || sNorm === 'all') return true;
   if (tNorm === '2025-26') {
     return sNorm === '2025-26';
   }
   if (tNorm === '2024-25 (Oct-Nov)' || tNorm === '2024-25') {
     return sNorm === '2024-25 (Oct-Nov)';
+  }
+  if (tNorm === '2023-24') {
+    return sNorm === '2023-24';
   }
 
   const s = String(sNorm).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1247,10 +1259,17 @@ function AdminPracticals() {
           delete pendingData.rejectedAt;
           delete pendingData.rejectedBy;
 
+          const canonicalSession = normalizePracticalSession(
+            pendingData.sessionCanonical || pendingData.sessionText || pendingData.session || pendingData.Session || pendingData.yearSuffix || '2025-26'
+          );
+
           const canonicalRecord = sanitizeForFirestore({
             ...pendingData,
             id: targetDocId,
             docId: targetDocId,
+            session: canonicalSession,
+            sessionText: canonicalSession,
+            sessionCanonical: canonicalSession,
             status: 'approved',
             isDraft: false,
             isPendingApproval: false,
@@ -1276,6 +1295,9 @@ function AdminPracticals() {
             const filtered = prev.filter(s => s.id !== targetDocId);
             return [canonicalRecord, ...filtered];
           });
+
+          // 7. Re-enrich student roster and synchronize state from database
+          await loadData(true);
 
           logAdminActivity({
             actionType: 'approve',
@@ -2001,6 +2023,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
   const subjectsWithSubmissions = useMemo(() => {
     const clsTarget = String(cls || '').replace(/[^0-9]/g, '');
     const targetType = String(localPrintOpts.practicalType || 'internal').toLowerCase();
+    const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
     const targetSess = normalizePracticalSession(localPrintOpts.sessionText || selectedSession);
     const set = new Set();
     (submissions || []).forEach(s => {
@@ -2010,14 +2033,13 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
 
       if (targetSess && targetSess !== 'all') {
         const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
-        if (subSess && subSess !== targetSess) return;
+        if (subSess && subSess !== 'all' && !isSessionMatch(subSess, targetSess)) return;
       }
 
-      const sType = String(s.practicalType || s.PracticalType || s.evaluationType || 'internal').toLowerCase();
-      if (sType !== targetType && !sType.includes(targetType) && !targetType.includes(sType)) {
-        const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
-        if (sType !== targetNorm && !sType.includes(targetNorm)) return;
-      }
+      const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
+      const sNorm = sType.includes('ext') ? 'external' : 'internal';
+      if (sNorm !== targetNorm) return;
+
       const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
       activeCodesList.forEach(code => {
         if (codeStr === code || codeStr.includes(code) || (code === 'BI' && (codeStr.includes('BO') || codeStr.includes('ZO')))) {
@@ -2094,6 +2116,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
   // Helper to find student record mark for a subject code
   const getSubjectMarkForStudent = (st, subCode, effectiveSess) => {
     const targetType = String(localPrintOpts.practicalType || 'internal').toLowerCase();
+    const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
     const stSess = normalizePracticalSession(getStudentSession(st));
     const querySess = normalizePracticalSession(effectiveSess);
 
@@ -2112,11 +2135,12 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
       const matchClass = isClassMatch(s.className || s.Class || s.class, cls);
       if (!matchClass) return false;
 
-      const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-      if (sType !== targetType) return false;
+      const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
+      const sNorm = sType.includes('ext') ? 'external' : 'internal';
+      if (sNorm !== targetNorm) return false;
 
-      const subSess = normalizePracticalSession(s.sessionText || s.session || '');
-      if (subSess !== querySess) return false;
+      const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
+      if (querySess && querySess !== 'all' && subSess && !isSessionMatch(subSess, querySess)) return false;
 
       const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
       return codeStr === subCode || codeStr.includes(subCode) || (NAMES[subCode] && codeStr.includes(NAMES[subCode].toUpperCase()));
@@ -2126,37 +2150,44 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
 
     const stBoardReg = cleanRegistrationNumber(
       st['Board Reg. No.'] || st['Board Registration Number'] || st.boardRegNo ||
-      st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || ''
+      st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.regNo || ''
     ).toUpperCase();
-    const stExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '').trim().toUpperCase();
+    const stExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim().toUpperCase();
     const stClassRoll = String(
       st['Class R.No.'] || st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || st.RollNo || st.roll_no || ''
     ).trim();
+    const stForm = String(st.admissionNo || st.formNo || st['Admission Form No.'] || st['Form No.'] || '').trim();
     const stName = toTitleCase(
       st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || ''
     ).trim().toLowerCase();
     const stFather = toTitleCase(
-      st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || ''
+      st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || st.parentage || ''
     ).trim().toLowerCase();
 
     const rec = subDoc.records.find(r => {
       const rBoardReg = cleanRegistrationNumber(r.boardRegNo || r['Board Reg. No.'] || r.regNo || '').toUpperCase();
-      const rExam = String(r.examRollNo || '').trim().toUpperCase();
-      const rClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.sNo || r.rollNo || '').trim();
+      const rExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
+      const rClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.rollNo || r.roll || r.sNo || '').trim();
+      const rForm = String(r.formNo || r.admissionNo || r['Form No.'] || '').trim();
       const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
       const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || '').trim().toLowerCase();
 
-      // Primary Match 1: 16-digit Board Registration Number (Exact)
-      if (stBoardReg && rBoardReg && stBoardReg === rBoardReg && stBoardReg.length >= 8) return true;
+      // Primary Match 1: Board Registration Number (Exact)
+      if (stBoardReg && rBoardReg && stBoardReg === rBoardReg && stBoardReg.length >= 5) return true;
 
       // Primary Match 2: Exam Roll No (Exact match when valid and not placeholder)
       if (stExam && rExam && stExam !== '—' && stExam !== 'NA' && stExam !== 'N/A' && stExam === rExam) return true;
 
-      // Match 3: Class Roll No (Exact match when valid, same session and class)
-      if (stSess === querySess && stClassRoll && rClassRoll && stClassRoll !== '—' && stClassRoll !== '-' && !/^\d{8,}$/.test(stClassRoll) && !/^\d{8,}$/.test(rClassRoll) && stClassRoll === rClassRoll) return true;
+      // Match 3: Admission Form No
+      if (stForm && rForm && stForm === rForm) return true;
 
-      // Match 4: Student Full Name + Father Name (when length > 3)
-      if (stSess === querySess && stName && rName && stName.length > 3 && stName === rName) {
+      // Match 4: Class Roll No (Exact match when valid, not placeholder)
+      if (stClassRoll && rClassRoll && stClassRoll !== '—' && stClassRoll !== '-' && !/^\d{8,}$/.test(stClassRoll) && !/^\d{8,}$/.test(rClassRoll) && stClassRoll === rClassRoll) {
+        if (!stName || !rName || stName === rName || stName.includes(rName) || rName.includes(stName)) return true;
+      }
+
+      // Match 5: Student Full Name + Father Name (when length > 3)
+      if (stName && rName && stName.length > 3 && (stName === rName || stName.replace(/\s+/g, '') === rName.replace(/\s+/g, ''))) {
         if (!stFather || !rFather || stFather === rFather || stFather.includes(rFather) || rFather.includes(stFather)) {
           return true;
         }
@@ -2168,7 +2199,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
     if (!rec) return null;
 
     const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim();
-    if (rawMark.toUpperCase() === 'AB' || rawMark.toUpperCase() === 'A') return 'AB';
+    if (rawMark.toUpperCase() === 'AB' || rawMark.toUpperCase() === 'A' || rawMark.toUpperCase() === 'ABSENT') return 'AB';
     const num = parseInt(rawMark, 10);
     return !isNaN(num) ? num : null;
   };
