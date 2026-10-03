@@ -24,7 +24,7 @@ import {
 } from 'docx';
 import { findStudentMarkRecord, resolveAwardRollTitles, isStudentEnrolledInPracticalSubject, getAbbreviatedSubjects, hasSubjectPracticalSubmission } from './practicalsPdfGenerator';
 import { isStudentExamDropped } from './studentApprovalStatus';
-import { getSubjectDisplayName } from './practicalsSettingsManager';
+import { getSubjectDisplayName, normalizePracticalSession } from './practicalsSettingsManager';
 
 export const CSV_COLUMNS = [
   'Class',
@@ -383,11 +383,29 @@ export function exportConsolidatedAwardsToExcel({
 
   const isSingleSub = selectedSubjectCodes && Array.isArray(selectedSubjectCodes) && selectedSubjectCodes.length === 1;
   const subsWithMarks = candidateSubs.filter(sub => {
-    return hasSubjectPracticalSubmission(sub.code, submissions, className, evaluationType, isExternal);
+    return hasSubjectPracticalSubmission(sub.code, submissions, className, evaluationType, isExternal, session);
   });
   const activeSubs = isSingleSub
     ? candidateSubs
     : (subsWithMarks.length > 0 ? subsWithMarks : candidateSubs);
+
+  // Helper to check submission evaluation type & session match strictly
+  const isSubDocMatch = (s) => {
+    if (!s || s.isDeleted || s.status === 'deleted') return false;
+    const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+    if (!matchClass) return false;
+
+    if (session) {
+      const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
+      const targetSess = normalizePracticalSession(session);
+      if (subSess && targetSess && subSess !== targetSess) return false;
+    }
+
+    const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+    const targetType = isExternal ? 'external' : 'internal';
+    if (sType !== targetType) return false;
+    return true;
+  };
 
   // ──────── SHEET 1: FORWARDING COVER LETTER ────────
   const gistCounts = activeSubs.map((sub, idx) => {
@@ -401,8 +419,7 @@ export function exportConsolidatedAwardsToExcel({
         if (!hasSub && submissions && submissions.length > 0) {
           const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || '').trim();
           const subDoc = submissions.find(s => {
-            const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-            if (!matchClass) return false;
+            if (!isSubDocMatch(s)) return false;
             const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
             return codeStr === sub.code || codeStr.includes(sub.code);
           });
@@ -417,14 +434,14 @@ export function exportConsolidatedAwardsToExcel({
 
       if (count === 0 && submissions && submissions.length > 0) {
         const subDoc = submissions.find(s => {
-          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-          if (!matchClass) return false;
+          if (!isSubDocMatch(s)) return false;
           const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
           return codeStr === sub.code || codeStr.includes(sub.code);
         });
         if (subDoc && subDoc.records) count = subDoc.records.length;
       }
     }
+
     return { sno: idx + 1, name: sub.name, code: sub.code, count };
   }).filter(g => g.count > 0);
 
@@ -488,8 +505,8 @@ export function exportConsolidatedAwardsToExcel({
       const isEnrolled = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
       if (sub.code === 'BI') {
-        const boDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('BO'));
-        const zoDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('ZO'));
+        const boDoc = submissions.find(s => isSubDocMatch(s) && String(s.subjectCode || s.subject || '').toUpperCase().includes('BO'));
+        const zoDoc = submissions.find(s => isSubDocMatch(s) && String(s.subjectCode || s.subject || '').toUpperCase().includes('ZO'));
         const boRec = findStudentMarkRecord(boDoc, st);
         const zoRec = findStudentMarkRecord(zoDoc, st);
         const boVal = parseInt(boRec?.totalMarks ?? boRec?.practicalMarks ?? '', 10);
@@ -502,11 +519,7 @@ export function exportConsolidatedAwardsToExcel({
       }
 
       const subDoc = submissions.find(s => {
-        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-        if (!matchClass) return false;
-        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-        const targetType = isExternal ? 'external' : 'internal';
-        if (sType !== targetType) return false;
+        if (!isSubDocMatch(s)) return false;
         const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
         return codeStr === sub.code || codeStr.includes(sub.code);
       });
@@ -640,11 +653,37 @@ export async function exportConsolidatedAwardsToDocx({
 
   const isSingleSub = selectedSubjectCodes && Array.isArray(selectedSubjectCodes) && selectedSubjectCodes.length === 1;
   const subsWithMarks = candidateSubs.filter(sub => {
-    return hasSubjectPracticalSubmission(sub.code, submissions, className, evaluationType, isExternal);
+    return hasSubjectPracticalSubmission(sub.code, submissions, className, evaluationType, isExternal, session);
   });
   const activeSubs = isSingleSub
     ? candidateSubs
     : (subsWithMarks.length > 0 ? subsWithMarks : candidateSubs);
+
+  // Helper to check submission evaluation type & session match strictly
+  const isSubDocMatch = (s) => {
+    if (!s || s.isDeleted || s.status === 'deleted') return false;
+    const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+    if (!matchClass) return false;
+
+    if (session) {
+      const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
+      const targetSess = normalizePracticalSession(session);
+      if (subSess && targetSess && subSess !== targetSess) return false;
+    }
+
+    const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+    if (evaluationType || practicalType) {
+      const target = String(evaluationType || practicalType).toLowerCase();
+      if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
+        const targetNorm = target.includes('ext') ? 'external' : 'internal';
+        if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
+      }
+    } else {
+      const targetType = isExternal ? 'external' : 'internal';
+      if (sType !== targetType && !sType.includes(targetType)) return false;
+    }
+    return true;
+  };
 
   // Calculate Gist for Page 1 Cover Letter
   const gistList = activeSubs.map((sub, idx) => {
@@ -658,8 +697,7 @@ export async function exportConsolidatedAwardsToDocx({
         if (!hasSub && submissions && submissions.length > 0) {
           const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
           const subDoc = submissions.find(s => {
-            const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-            if (!matchClass) return false;
+            if (!isSubDocMatch(s)) return false;
             const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
             return codeStr === sub.code || codeStr.includes(sub.code);
           });
@@ -674,14 +712,14 @@ export async function exportConsolidatedAwardsToDocx({
 
       if (count === 0 && submissions && submissions.length > 0) {
         const subDoc = submissions.find(s => {
-          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-          if (!matchClass) return false;
+          if (!isSubDocMatch(s)) return false;
           const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
           return codeStr === sub.code || codeStr.includes(sub.code);
         });
         if (subDoc && subDoc.records) count = subDoc.records.length;
       }
     }
+
     return { sno: idx + 1, code: sub.code, name: sub.name, count };
   }).filter(g => g.count > 0);
 
@@ -843,23 +881,6 @@ export async function exportConsolidatedAwardsToDocx({
       let markText = isEnrolled ? '—' : 'x';
       let markColor = isEnrolled ? '1E40AF' : '94A3B8';
       let isBold = isEnrolled;
-
-      const isSubDocMatch = (s) => {
-        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-        if (!matchClass) return false;
-        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-        if (evaluationType || practicalType) {
-          const target = String(evaluationType || practicalType).toLowerCase();
-          if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
-            const targetNorm = target.includes('ext') ? 'external' : 'internal';
-            if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
-          }
-        } else {
-          const targetType = isExternal ? 'external' : 'internal';
-          if (sType !== targetType && !sType.includes(targetType)) return false;
-        }
-        return true;
-      };
 
       if (sub.code === 'BI') {
         const boDoc = submissions.find(s => isSubDocMatch(s) && String(s.subjectCode || s.subject || '').toUpperCase().includes('BO'));

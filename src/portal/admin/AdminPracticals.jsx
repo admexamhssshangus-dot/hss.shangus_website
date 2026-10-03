@@ -5,7 +5,7 @@ import {
   Settings, ClipboardCheck, Printer, RefreshCw, CheckCircle2, AlertCircle,
   Award, AlertTriangle, X, Sliders, Users, Mail, Phone, MessageCircle, Edit2, Edit3, Check, Search,
   Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield, ShieldAlert,
-  ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers, Plus, Minus, RotateCcw, Sparkles,
+  ChevronDown, ChevronUp, ChevronRight, BookOpen, SlidersHorizontal, Filter, Layers, Plus, Minus, RotateCcw, Sparkles,
   History, Archive
 } from 'lucide-react';
 import { db, auth } from '../../services/firebase';
@@ -1590,10 +1590,10 @@ function AdminPracticals() {
                   }`}
                 >
                   <Users size={13} className="shrink-0" />
-                  <span className="sm:hidden">Faculty ({submissions.length})</span>
-                  <span className="hidden sm:inline">Faculty & Submissions ({submissions.length})</span>
+                  <span className="sm:hidden">Faculty ({submissions.length + (pendingApprovals?.length || 0)})</span>
+                  <span className="hidden sm:inline">Faculty & Submissions ({submissions.length + (pendingApprovals?.length || 0)})</span>
                   {pendingApprovals.length > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 text-[9px] font-black rounded-full bg-amber-500 text-white animate-pulse">
+                    <span className="ml-1 px-1.5 py-0.2 text-[9px] font-black rounded-full bg-amber-500 text-white animate-pulse" title={`${pendingApprovals.length} pending approval`}>
                       {pendingApprovals.length}
                     </span>
                   )}
@@ -1985,14 +1985,22 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
     setSelectedSubCodes(getDefaultCheckedCodes());
   }, [getDefaultCheckedCodes]);
 
-  // Set of subject codes that actually have live submitted awards with student marks
+  // Set of subject codes that actually have live submitted awards with student marks strictly matching current class & session
   const subjectsWithSubmissions = useMemo(() => {
     const clsTarget = String(cls || '').replace(/[^0-9]/g, '');
     const targetType = String(localPrintOpts.practicalType || 'internal').toLowerCase();
+    const targetSess = normalizePracticalSession(localPrintOpts.sessionText || selectedSession);
     const set = new Set();
     (submissions || []).forEach(s => {
+      if (!s || s.isDeleted || s.status === 'deleted') return;
       const sCls = String(s.className || s.Class || s.class || '').replace(/[^0-9]/g, '');
       if (clsTarget && sCls && sCls !== clsTarget) return;
+
+      if (targetSess && targetSess !== 'all') {
+        const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
+        if (subSess && subSess !== targetSess) return;
+      }
+
       const sType = String(s.practicalType || s.PracticalType || s.evaluationType || 'internal').toLowerCase();
       if (sType !== targetType && !sType.includes(targetType) && !targetType.includes(sType)) {
         const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
@@ -2011,7 +2019,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings, onOpen
       });
     });
     return set;
-  }, [cls, localPrintOpts.practicalType, submissions, activeCodesList]);
+  }, [cls, localPrintOpts.practicalType, localPrintOpts.sessionText, selectedSession, submissions, activeCodesList]);
 
   // Total students enrolled in this class and session regardless of approval status (dropped students excluded)
   const totalClassStudents = useMemo(() => {
@@ -4488,9 +4496,11 @@ function FacultySubmissionsView({
   const [phoneInputVal, setPhoneInputVal] = useState('');
   const [savingPhoneId, setSavingPhoneId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('grouped'); // 'grouped' | 'documents'
+  const [viewMode, setViewMode] = useState('combined'); // 'combined' | 'documents'
   const [filterClass, setFilterClass] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'pending' | 'approved'
+  const [expandedFacultyIds, setExpandedFacultyIds] = useState(new Set());
 
   // Version Bin State
   const [binModalDoc, setBinModalDoc] = useState(null);
@@ -4548,9 +4558,52 @@ function FacultySubmissionsView({
     return new Set(list.map(e => String(e).toLowerCase().trim()));
   }, [settings?.excludedTeacherEmails]);
 
-  // Filter and unify faculty members (excluding pure admin accounts with 0 submissions and excluded teachers)
+  // Unified list of all submissions: approved canonical awards + pending approval queue
+  const allDocs = useMemo(() => {
+    const pendingWithMeta = (pendingApprovals || []).map(p => ({
+      ...p,
+      isPending: true,
+      statusBadge: p.status === 'rejected' ? 'rejected' : 'pending_approval'
+    }));
+    const approvedWithMeta = (submissions || []).map(s => ({
+      ...s,
+      isPending: false,
+      statusBadge: 'approved'
+    }));
+    return [...pendingWithMeta, ...approvedWithMeta];
+  }, [submissions, pendingApprovals]);
+
+  // Robust matching helper to associate submissions with teachers by Email OR normalized Name
+  const normalizeCleanName = useCallback((val) => {
+    return String(val || '')
+      .toLowerCase()
+      .replace(/^(dr|mr|mrs|ms|prof|dr\.|mr\.|mrs\.|ms\.|prof\.)\s+/i, '')
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }, []);
+
+  const isDocMatchingTeacher = useCallback((docItem, t) => {
+    if (!docItem || !t) return false;
+    const dEmail = String(docItem.teacherEmail || docItem.submittedByEmail || docItem.Email || docItem.email || '').toLowerCase().trim();
+    const tEmail = String(t.email || t.id || '').toLowerCase().trim();
+    if (dEmail && tEmail && dEmail === tEmail) return true;
+
+    const dName = normalizeCleanName(docItem.teacherName || docItem.submittedByName || docItem.submittedBy || docItem['Teacher Name'] || docItem.author);
+    const tName = normalizeCleanName(t.name || t.displayName);
+    if (dName && tName) {
+      if (dName === tName) return true;
+      if (dName.length >= 4 && tName.length >= 4) {
+        if (dName.includes(tName) || tName.includes(dName)) return true;
+      }
+    }
+    return false;
+  }, [normalizeCleanName]);
+
+  // Filter and unify faculty members with their submissions (including pending approvals)
   const facultyMembers = useMemo(() => {
-    const mapByEmail = new Map();
+    const mapByTeacher = new Map();
+    const matchedDocIds = new Set();
 
     teachers.forEach(t => {
       const tEmail = String(t.email || '').toLowerCase().trim();
@@ -4559,53 +4612,62 @@ function FacultySubmissionsView({
       const r = String(t.role || '').toLowerCase().trim();
       const isPureAdmin = (r === 'admin' || r === 'administrator' || r === 'principal' || r === 'superadmin');
 
-      const teacherSubs = submissions.filter(s => {
-        const em = String(s.teacherEmail || s.Email || s.email || '').toLowerCase().trim();
-        return em && em === tEmail;
+      const teacherSubs = allDocs.filter(d => {
+        if (isDocMatchingTeacher(d, t)) {
+          matchedDocIds.add(d.id);
+          return true;
+        }
+        return false;
       });
 
       // Exclude pure admin accounts that do not have any practical submissions
       if (isPureAdmin && teacherSubs.length === 0) return;
 
-      if (tEmail && !mapByEmail.has(tEmail)) {
-        mapByEmail.set(tEmail, {
-          ...t,
-          role: isPureAdmin ? 'Examiner' : (t.role || 'Teacher'),
-          submissionsList: teacherSubs
-        });
-      } else if (tEmail && mapByEmail.has(tEmail)) {
-        const prev = mapByEmail.get(tEmail);
-        mapByEmail.set(tEmail, {
-          ...prev,
-          ...t,
-          role: prev.role === 'teacher' ? 'Teacher' : (t.role || prev.role || 'Teacher'),
-          phone: prev.phone || t.phone || prev.mobile || t.mobile,
-          mobile: prev.mobile || t.mobile || prev.phone || t.phone,
-          submissionsList: [...prev.submissionsList, ...teacherSubs]
-        });
-      }
+      const key = tEmail || `teacher_${t.name || t.displayName || Math.random()}`;
+      mapByTeacher.set(key, {
+        ...t,
+        id: t.id || key,
+        role: isPureAdmin ? 'Examiner' : (t.role || 'Teacher'),
+        submissionsList: teacherSubs,
+        pendingCount: teacherSubs.filter(s => s.isPending).length,
+        approvedCount: teacherSubs.filter(s => !s.isPending).length
+      });
     });
 
-    // Also include any teacher who submitted in submissions collection but wasn't in teachers
-    submissions.forEach(s => {
-      const sEmail = String(s.teacherEmail || s.Email || s.email || '').toLowerCase().trim();
-      if (excludedSet.has(sEmail)) return;
+    // Also include any teacher or evaluator from submissions who wasn't in teachers
+    allDocs.forEach(d => {
+      if (matchedDocIds.has(d.id)) return;
+      const dEmail = String(d.teacherEmail || d.submittedByEmail || d.Email || d.email || '').toLowerCase().trim();
+      if (dEmail && excludedSet.has(dEmail)) return;
 
-      const sName = s.teacherName || s['Teacher Name'] || 'Faculty Member';
-      if (sEmail && !mapByEmail.has(sEmail)) {
-        mapByEmail.set(sEmail, {
-          id: sEmail,
-          email: sEmail,
+      const sName = d.teacherName || d.submittedByName || d.submittedBy || d['Teacher Name'] || 'Other Evaluator';
+      const key = dEmail || `evaluator_${sName.toLowerCase().replace(/\s+/g, '_')}`;
+
+      if (!mapByTeacher.has(key)) {
+        mapByTeacher.set(key, {
+          id: key,
+          email: dEmail || '—',
           name: sName,
           displayName: sName,
-          role: 'Teacher',
-          submissionsList: [s]
+          role: 'Teacher / Evaluator',
+          submissionsList: [d],
+          pendingCount: d.isPending ? 1 : 0,
+          approvedCount: d.isPending ? 0 : 1,
+          isExternalEvaluator: true
         });
+      } else {
+        const prev = mapByTeacher.get(key);
+        if (!prev.submissionsList.some(x => x.id === d.id)) {
+          prev.submissionsList.push(d);
+          if (d.isPending) prev.pendingCount = (prev.pendingCount || 0) + 1;
+          else prev.approvedCount = (prev.approvedCount || 0) + 1;
+        }
       }
     });
 
-    let list = Array.from(mapByEmail.values());
+    let list = Array.from(mapByTeacher.values());
 
+    // Search query filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(t => {
@@ -4614,33 +4676,91 @@ function FacultySubmissionsView({
         const phone = String(t.phone || t.mobile || t.phoneNumber || t.whatsapp || '');
         const role = String(t.role || '').toLowerCase();
         const subsMatch = (t.submissionsList || []).some(s => {
-          const subj = String(s.subjectName || s.subjectCode || s.subject || '').toLowerCase();
+          const subj = String(s.subjectName || s.subjectCode || s.subject || s.Subject || '').toLowerCase();
           const cls = String(s.className || s.Class || '').toLowerCase();
-          return subj.includes(q) || cls.includes(q);
+          const id = String(s.id || '').toLowerCase();
+          return subj.includes(q) || cls.includes(q) || id.includes(q);
         });
         return name.includes(q) || email.includes(q) || phone.includes(q) || role.includes(q) || subsMatch;
       });
     }
 
-    return list;
-  }, [teachers, submissions, searchQuery, excludedSet]);
+    // Class filter
+    if (filterClass !== 'all') {
+      list = list.filter(t => {
+        return (t.submissionsList || []).some(s => {
+          const cls = String(s.className || s.Class || s.id || '').toLowerCase();
+          return cls.includes(filterClass.toLowerCase());
+        });
+      });
+    }
 
-  // Raw documents filtering for the audit mode
+    // Subject filter
+    if (filterSubject !== 'all') {
+      list = list.filter(t => {
+        return (t.submissionsList || []).some(s => {
+          const subj = String(s.subjectCode || s.subject || s.Subject || s.subjectName || '').toUpperCase();
+          return subj === filterSubject.toUpperCase() || subj.includes(filterSubject.toUpperCase());
+        });
+      });
+    }
+
+    // Status filter
+    if (filterStatus === 'pending') {
+      list = list.filter(t => (t.pendingCount || 0) > 0);
+    } else if (filterStatus === 'approved') {
+      list = list.filter(t => (t.approvedCount || 0) > 0);
+    }
+
+    // Sort: teachers with pending submissions first, then by submissions count descending, then by name
+    list.sort((a, b) => {
+      const aPend = a.pendingCount || 0;
+      const bPend = b.pendingCount || 0;
+      if (aPend !== bPend) return bPend - aPend;
+      const aSubs = (a.submissionsList || []).length;
+      const bSubs = (b.submissionsList || []).length;
+      if (aSubs !== bSubs) return bSubs - aSubs;
+      return String(a.name || a.displayName || '').localeCompare(String(b.name || b.displayName || ''));
+    });
+
+    return list;
+  }, [teachers, allDocs, searchQuery, excludedSet, isDocMatchingTeacher, filterClass, filterSubject, filterStatus]);
+
+  // Master Document Audit Log list (now includes BOTH approved and pending documents!)
   const filteredDocs = useMemo(() => {
-    return submissions.filter(s => {
+    return allDocs.filter(s => {
       const cls = String(s.className || s.Class || s.id || '').toLowerCase();
       const subj = String(s.subjectName || s.Subject || s.subjectCode || s.subject || '').toUpperCase();
       if (filterClass !== 'all' && !cls.includes(filterClass.toLowerCase())) return false;
       if (filterSubject !== 'all' && !subj.includes(filterSubject.toUpperCase())) return false;
+      if (filterStatus === 'pending' && !s.isPending) return false;
+      if (filterStatus === 'approved' && s.isPending) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const id = String(s.id || '').toLowerCase();
-        const teacher = String(s.teacherName || s['Teacher Name'] || s.teacherEmail || '').toLowerCase();
+        const teacher = String(s.teacherName || s.submittedByName || s.submittedBy || s['Teacher Name'] || s.teacherEmail || '').toLowerCase();
         return id.includes(q) || teacher.includes(q) || subj.toLowerCase().includes(q) || cls.includes(q);
       }
       return true;
     });
-  }, [submissions, filterClass, filterSubject, searchQuery]);
+  }, [allDocs, filterClass, filterSubject, filterStatus, searchQuery]);
+
+  const toggleExpandFaculty = (id) => {
+    setExpandedFacultyIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleExpandAll = () => {
+    if (expandedFacultyIds.size === facultyMembers.length) {
+      setExpandedFacultyIds(new Set());
+    } else {
+      setExpandedFacultyIds(new Set(facultyMembers.map(f => f.id)));
+    }
+  };
 
   const startEditPhone = (t) => {
     setEditingPhoneId(t.id || t.email);
@@ -4664,7 +4784,7 @@ function FacultySubmissionsView({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs p-3 sm:p-4 space-y-3">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs p-3 sm:p-4 space-y-4">
       {/* PENDING AWARD APPROVALS TRAY */}
       {pendingApprovals && pendingApprovals.length > 0 && (
         <div className="rounded-2xl border-2 border-amber-300 dark:border-amber-700/60 bg-amber-50/40 dark:bg-amber-950/20 p-3 sm:p-4 space-y-3 shadow-xs animate-fadeIn">
@@ -4720,7 +4840,7 @@ function FacultySubmissionsView({
 
                     <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
                       <div>
-                        Submitted by: <strong className="text-slate-900 dark:text-white">{pendingDoc.submittedBy || 'Faculty'}</strong>
+                        Submitted by: <strong className="text-slate-900 dark:text-white">{pendingDoc.submittedBy || pendingDoc.submittedByName || 'Faculty'}</strong>
                       </div>
                       {pendingDoc.teacherRegisteredSubject && pendingDoc.isCrossSubject && (
                         <div className="text-[10px] text-purple-700 dark:text-purple-300 font-semibold">
@@ -4785,46 +4905,107 @@ function FacultySubmissionsView({
         </div>
       )}
 
-      {/* Top Header Strip with Controls & View Mode Toggle */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
-        <div>
-          <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <Users size={16} className="text-indigo-500" /> Faculty & Submissions Management ({facultyMembers.length} Faculty • {submissions.length} Total Submissions)
-          </h3>
-          <p className="text-[11px] font-semibold text-slate-500">
-            Grouped Internal & External practical awards per teacher. Save mobile numbers to Firebase for instant WhatsApp chats.
-          </p>
+      {/* STAT SUMMARY BANNER */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-xs font-black text-indigo-700 dark:text-indigo-300 shadow-2xs border border-indigo-200/60 dark:border-indigo-800/60 flex items-center gap-1.5">
+            <Users size={13} /> {facultyMembers.length} Evaluators
+          </span>
+          <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-xs font-black text-slate-700 dark:text-slate-300 shadow-2xs border border-slate-200 dark:border-slate-800 flex items-center gap-1.5">
+            <FileSpreadsheet size={13} className="text-emerald-500" /> {allDocs.length} Total Practical Documents
+          </span>
+          <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-xs font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
+            <CheckCircle2 size={13} /> {submissions.length} Approved & Live
+          </span>
+          {pendingApprovals.length > 0 && (
+            <span className="px-2.5 py-1 rounded-xl bg-amber-500 text-white text-xs font-black shadow-xs flex items-center gap-1.5 animate-pulse">
+              <AlertTriangle size={13} /> {pendingApprovals.length} Pending Approval
+            </span>
+          )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-          {/* View Mode Segmented Pill */}
-          <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => setViewMode('grouped')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'grouped'
-                  ? 'bg-indigo-600 text-white shadow-2xs font-black'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              👥 Grouped Faculty View
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('documents')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'documents'
-                  ? 'bg-indigo-600 text-white shadow-2xs font-black'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              📄 Document Audit Log ({submissions.length})
-            </button>
-          </div>
+        {viewMode === 'combined' && facultyMembers.length > 0 && (
+          <button
+            type="button"
+            onClick={toggleExpandAll}
+            className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800 text-xs font-bold cursor-pointer flex items-center gap-1 transition-all shadow-2xs shrink-0"
+          >
+            {expandedFacultyIds.size === facultyMembers.length ? (
+              <>
+                <ChevronUp size={13} /> Collapse All Drawers
+              </>
+            ) : (
+              <>
+                <ChevronDown size={13} /> Expand All Drawers ({facultyMembers.length})
+              </>
+            )}
+          </button>
+        )}
+      </div>
 
-          {/* Quick Search */}
-          <div className="relative w-full sm:w-60">
+      {/* TOOLBAR CONTROLS: VIEW MODE, FILTERS & SEARCH */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+        {/* View Mode Segmented Pill */}
+        <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <button
+            type="button"
+            onClick={() => setViewMode('combined')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              viewMode === 'combined'
+                ? 'bg-indigo-600 text-white shadow-2xs font-black'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Users size={13} />
+            <span>Combined Faculty Roster ({facultyMembers.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('documents')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              viewMode === 'documents'
+                ? 'bg-indigo-600 text-white shadow-2xs font-black'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <FileText size={13} />
+            <span>Master Document Audit ({allDocs.length})</span>
+          </button>
+        </div>
+
+        {/* Filters Tray: Class, Subject, Status & Search */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <select
+            value={filterClass}
+            onChange={e => setFilterClass(e.target.value)}
+            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+          >
+            <option value="all">All Classes</option>
+            <option value="10th">Class 10th</option>
+            <option value="11th">Class 11th</option>
+            <option value="12th">Class 12th</option>
+          </select>
+
+          <select
+            value={filterSubject}
+            onChange={e => setFilterSubject(e.target.value)}
+            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs max-w-[150px]"
+          >
+            <option value="all">All Subjects</option>
+            {CODES.map(c => <option key={c} value={c}>{getSubjectDisplayName(c, filterClass)} ({c})</option>)}
+          </select>
+
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending Approval Only</option>
+            <option value="approved">Approved Only</option>
+          </select>
+
+          <div className="relative w-full sm:w-56">
             <input
               type="text"
               placeholder="Search faculty, subject, email..."
@@ -4833,21 +5014,31 @@ function FacultySubmissionsView({
               className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
             />
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* VIEW 1: GROUPED FACULTY & TWO-SUBMISSIONS IN ONE ROW */}
-      {viewMode === 'grouped' && (
+      {/* VIEW 1: COMBINED FACULTY ROSTER (WITH EXPANDABLE DOCUMENT AUDIT DRAWER PER TEACHER) */}
+      {viewMode === 'combined' && (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-500">
               <tr>
                 <th className="py-2.5 px-3 text-center w-10">#</th>
                 <th className="py-2.5 px-3">Faculty / Evaluator</th>
-                <th className="py-2.5 px-3">Mobile / WhatsApp Number</th>
+                <th className="py-2.5 px-3">Mobile / WhatsApp</th>
                 <th className="py-2.5 px-3">Role</th>
                 <th className="py-2.5 px-3">Practical Submissions (Internal & External)</th>
+                <th className="py-2.5 px-3 text-center">Audit Drawer</th>
                 <th className="py-2.5 px-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -4855,6 +5046,7 @@ function FacultySubmissionsView({
               {facultyMembers.map((t, idx) => {
                 const phone = String(t.phone || t.mobile || t.phoneNumber || t.whatsapp || '').trim();
                 const isEditingThis = editingPhoneId === (t.id || t.email);
+                const isExpanded = expandedFacultyIds.has(t.id);
 
                 // Group this teacher's submissions by (Class + Subject)
                 const groupedMap = {};
@@ -4877,190 +5069,364 @@ function FacultySubmissionsView({
                 const subjectGroups = Object.values(groupedMap);
 
                 return (
-                  <tr key={`tch_${t.id || t.email || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
-                    <td className="py-2.5 px-3">
-                      <div className="font-bold text-slate-900 dark:text-slate-100 text-xs">
-                        {toTitleCase(t.name || t.displayName || 'Faculty Member')}
-                      </div>
-                      <div className="font-mono text-slate-500 text-[10.5px]">
-                        {t.email || '—'}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3">
-                      {isEditingThis ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="tel"
-                            maxLength={10}
-                            placeholder="10-digit mobile"
-                            value={phoneInputVal}
-                            onChange={e => setPhoneInputVal(e.target.value.replace(/\D/g, ''))}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') savePhone(t);
-                              if (e.key === 'Escape') cancelEditPhone();
-                            }}
-                            autoFocus
-                            className="w-28 px-2 py-0.5 rounded-lg border border-indigo-400 bg-white dark:bg-slate-950 font-mono text-xs font-bold outline-none shadow-2xs"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => savePhone(t)}
-                            disabled={savingPhoneId === (t.id || t.email)}
-                            className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-2xs"
-                            title="Save mobile to Firebase"
-                          >
-                            <Check size={11} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelEditPhone}
-                            className="p-1 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 text-slate-600 cursor-pointer"
-                            title="Cancel"
-                          >
-                            <X size={11} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          {phone ? (
-                            <span className="font-mono text-slate-800 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1">
-                              <span className="text-slate-400 text-[10px]">+91</span> {phone}
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-slate-400 italic">No mobile</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => startEditPhone(t)}
-                            className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                            title="Edit & Save mobile to Firebase"
-                          >
-                            <Edit2 size={11} />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
-                        {t.role || 'Teacher'}
-                      </span>
-                    </td>
-                    {/* COMBINED TWO-SUBMISSIONS IN ONE ROW */}
-                    <td className="py-2.5 px-3">
-                      {subjectGroups.length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
-                          {subjectGroups.map((g, gIdx) => {
-                            const intCount = g.internal ? (Array.isArray(g.internal.records) ? g.internal.records.length : Object.keys(g.internal).filter(k => k.match(/^\d+\//)).length) : 0;
-                            const extCount = g.external ? (Array.isArray(g.external.records) ? g.external.records.length : Object.keys(g.external).filter(k => k.match(/^\d+\//)).length) : 0;
-
-                            return (
-                              <div key={gIdx} className="flex items-center gap-2 flex-wrap bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
-                                <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
-                                  {g.cls} • {g.name} ({g.code}):
+                  <React.Fragment key={`tch_${t.id || t.email || idx}_${idx}`}>
+                    <tr className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${t.pendingCount > 0 ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''}`}>
+                      <td className="py-3 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <div className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+                              <span>{toTitleCase(t.name || t.displayName || 'Faculty Member')}</span>
+                              {t.pendingCount > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[9px] font-extrabold uppercase animate-pulse">
+                                  {t.pendingCount} Pending
                                 </span>
-
-                                {/* Internal Submission Button */}
-                                {g.internal ? (
-                                  <div className="inline-flex items-center gap-1">
-                                    <button
-                                      onClick={() => setSelSub(g.internal)}
-                                      className="px-2.5 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-mono font-bold text-[11px] cursor-pointer border border-indigo-200 dark:border-indigo-800 inline-flex items-center gap-1 shadow-2xs"
-                                      title="Inspect Internal Practical Awards"
-                                    >
-                                      <Eye size={10} /> Internal ({intCount})
-                                    </button>
-                                    <button
-                                      onClick={() => handleOpenVersionBin(g.internal)}
-                                      className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 cursor-pointer"
-                                      title="Inspect Historical Versions in Bin"
-                                    >
-                                      <History size={10} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteSubmission(g.internal.id, g.internal)}
-                                      className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer"
-                                      title="Delete Internal Submission"
-                                    >
-                                      <Trash2 size={10} />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="text-[10px] text-slate-400 italic">No Internal</span>
-                                )}
-
-                                <span className="text-slate-300 dark:text-slate-700">•</span>
-
-                                {/* External Submission Button */}
-                                {g.external ? (
-                                  <div className="inline-flex items-center gap-1">
-                                    <button
-                                      onClick={() => setSelSub(g.external)}
-                                      className="px-2.5 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-mono font-bold text-[11px] cursor-pointer border border-amber-200 dark:border-amber-800 inline-flex items-center gap-1 shadow-2xs"
-                                      title="Inspect External Practical Awards"
-                                    >
-                                      <Eye size={10} /> External ({extCount})
-                                    </button>
-                                    <button
-                                      onClick={() => handleOpenVersionBin(g.external)}
-                                      className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 cursor-pointer"
-                                      title="Inspect Historical Versions in Bin"
-                                    >
-                                      <History size={10} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteSubmission(g.external.id, g.external)}
-                                      className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer"
-                                      title="Delete External Submission"
-                                    >
-                                      <Trash2 size={10} />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="text-[10px] text-slate-400 italic">No External</span>
-                                )}
-                              </div>
-                            );
-                          })}
+                              )}
+                            </div>
+                            <div className="font-mono text-slate-500 text-[10.5px]">
+                              {t.email || '—'}
+                            </div>
+                          </div>
                         </div>
-                      ) : (
-                        <span className="font-mono text-slate-400 text-[11px] italic">0 submissions (Pending)</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
-                      <button
-                        onClick={() => handleEmailShare(t)}
-                        className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                        title="Send email notice"
-                      >
-                        <Mail size={11} /> Email
-                      </button>
-                      <button
-                        onClick={() => handleWhatsAppShare(t)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs transition-all ${
-                          phone
-                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                        }`}
-                        title={phone ? `Open WhatsApp chat with ${phone}` : 'Add mobile and open WhatsApp'}
-                      >
-                        <MessageCircle size={11} /> WhatsApp
-                      </button>
-                      <button
-                        onClick={() => handleExcludeTeacher && handleExcludeTeacher(t)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                        title="Remove/Hide from Practicals Portal"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="py-3 px-3">
+                        {isEditingThis ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="tel"
+                              maxLength={10}
+                              placeholder="10-digit mobile"
+                              value={phoneInputVal}
+                              onChange={e => setPhoneInputVal(e.target.value.replace(/\D/g, ''))}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') savePhone(t);
+                                if (e.key === 'Escape') cancelEditPhone();
+                              }}
+                              autoFocus
+                              className="w-28 px-2 py-0.5 rounded-lg border border-indigo-400 bg-white dark:bg-slate-950 font-mono text-xs font-bold outline-none shadow-2xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => savePhone(t)}
+                              disabled={savingPhoneId === (t.id || t.email)}
+                              className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-2xs"
+                              title="Save mobile to Firebase"
+                            >
+                              <Check size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditPhone}
+                              className="p-1 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 text-slate-600 cursor-pointer"
+                              title="Cancel"
+                            >
+                              <X size={11} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            {phone ? (
+                              <span className="font-mono text-slate-800 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1">
+                                <span className="text-slate-400 text-[10px]">+91</span> {phone}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">No mobile</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => startEditPhone(t)}
+                              className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="Edit & Save mobile to Firebase"
+                            >
+                              <Edit2 size={11} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
+                          {t.role || 'Teacher'}
+                        </span>
+                      </td>
+
+                      {/* Practical Submissions Summary Badges */}
+                      <td className="py-3 px-3">
+                        {subjectGroups.length > 0 ? (
+                          <div className="flex flex-col gap-1.5">
+                            {subjectGroups.map((g, gIdx) => {
+                              const intCount = g.internal ? (Array.isArray(g.internal.records) ? g.internal.records.length : Object.keys(g.internal).filter(k => k.match(/^\d+\//)).length) : 0;
+                              const extCount = g.external ? (Array.isArray(g.external.records) ? g.external.records.length : Object.keys(g.external).filter(k => k.match(/^\d+\//)).length) : 0;
+                              const isIntPending = g.internal?.isPending;
+                              const isExtPending = g.external?.isPending;
+
+                              return (
+                                <div key={gIdx} className="flex items-center gap-2 flex-wrap bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
+                                  <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
+                                    {g.cls} • {g.name} ({g.code}):
+                                  </span>
+
+                                  {/* Internal Submission Badge */}
+                                  {g.internal ? (
+                                    <div className="inline-flex items-center gap-1">
+                                      <button
+                                        onClick={() => setSelSub(g.internal)}
+                                        className={`px-2.5 py-0.5 rounded-lg font-mono font-bold text-[11px] cursor-pointer border inline-flex items-center gap-1 shadow-2xs ${
+                                          isIntPending
+                                            ? 'bg-amber-500 text-white border-amber-600 animate-pulse'
+                                            : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                                        }`}
+                                        title={isIntPending ? 'Pending Approval — Click to Inspect' : 'Inspect Internal Practical Awards'}
+                                      >
+                                        <Eye size={10} /> {isIntPending ? '⚡ Pending: ' : ''}Internal ({intCount})
+                                      </button>
+                                      <button
+                                        onClick={() => handleOpenVersionBin(g.internal)}
+                                        className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 cursor-pointer"
+                                        title="Inspect Historical Versions in Bin"
+                                      >
+                                        <History size={10} />
+                                      </button>
+                                      {isIntPending && onApproveSubmission && (
+                                        <button
+                                          onClick={() => onApproveSubmission(g.internal)}
+                                          className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 cursor-pointer"
+                                          title="Approve this submission"
+                                        >
+                                          <CheckCircle2 size={11} />
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => handleDeleteSubmission(g.internal.id, g.internal)}
+                                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer"
+                                        title="Move to Recycle Bin"
+                                      >
+                                        <Trash2 size={10} />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 italic">No Internal</span>
+                                  )}
+
+                                  <span className="text-slate-300 dark:text-slate-700">•</span>
+
+                                  {/* External Submission Badge */}
+                                  {g.external ? (
+                                    <div className="inline-flex items-center gap-1">
+                                      <button
+                                        onClick={() => setSelSub(g.external)}
+                                        className={`px-2.5 py-0.5 rounded-lg font-mono font-bold text-[11px] cursor-pointer border inline-flex items-center gap-1 shadow-2xs ${
+                                          isExtPending
+                                            ? 'bg-amber-500 text-white border-amber-600 animate-pulse'
+                                            : 'bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                                        }`}
+                                        title={isExtPending ? 'Pending Approval — Click to Inspect' : 'Inspect External Practical Awards'}
+                                      >
+                                        <Eye size={10} /> {isExtPending ? '⚡ Pending: ' : ''}External ({extCount})
+                                      </button>
+                                      <button
+                                        onClick={() => handleOpenVersionBin(g.external)}
+                                        className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 cursor-pointer"
+                                        title="Inspect Historical Versions in Bin"
+                                      >
+                                        <History size={10} />
+                                      </button>
+                                      {isExtPending && onApproveSubmission && (
+                                        <button
+                                          onClick={() => onApproveSubmission(g.external)}
+                                          className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 cursor-pointer"
+                                          title="Approve this submission"
+                                        >
+                                          <CheckCircle2 size={11} />
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => handleDeleteSubmission(g.external.id, g.external)}
+                                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer"
+                                        title="Move to Recycle Bin"
+                                      >
+                                        <Trash2 size={10} />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 italic">No External</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="font-mono text-slate-400 text-[11px] italic">0 submissions (Pending)</span>
+                        )}
+                      </td>
+
+                      {/* Expandable Audit Drawer Toggle */}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandFaculty(t.id)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 border transition-all ${
+                            isExpanded
+                              ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                              : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          }`}
+                          title="Expand/Collapse Document Audit Drawer for this teacher"
+                        >
+                          <FileText size={11} />
+                          <span>{t.submissionsList.length} docs</span>
+                          {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                        </button>
+                      </td>
+
+                      {/* Teacher Actions: Email, WhatsApp, Exclude */}
+                      <td className="py-3 px-3 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          onClick={() => handleEmailShare(t)}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                          title="Send email notice"
+                        >
+                          <Mail size={11} /> Email
+                        </button>
+                        <button
+                          onClick={() => handleWhatsAppShare(t)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs transition-all ${
+                            phone
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                          }`}
+                          title={phone ? `Open WhatsApp chat with ${phone}` : 'Add mobile and open WhatsApp'}
+                        >
+                          <MessageCircle size={11} /> WhatsApp
+                        </button>
+                        <button
+                          onClick={() => handleExcludeTeacher && handleExcludeTeacher(t)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                          title="Remove/Hide from Practicals Portal"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </td>
+                    </tr>
+
+                    {/* EXPANDABLE INLINE DOCUMENT AUDIT DRAWER FOR THIS FACULTY MEMBER */}
+                    {isExpanded && (
+                      <tr className="bg-slate-50/70 dark:bg-slate-900/60">
+                        <td colSpan={7} className="p-3 sm:p-4 border-b border-indigo-100 dark:border-indigo-950/60">
+                          <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 space-y-3 shadow-xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2">
+                              <span className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                                <FileSpreadsheet size={13} className="text-indigo-500" />
+                                Submissions by {toTitleCase(t.name || t.displayName)} ({t.submissionsList.length} total)
+                              </span>
+                              <span className="text-[10.5px] font-semibold text-slate-400">
+                                {t.approvedCount || 0} Live Integrated • {t.pendingCount || 0} Pending
+                              </span>
+                            </div>
+
+                            {t.submissionsList.length === 0 ? (
+                              <div className="py-4 text-center text-slate-400 text-xs italic">
+                                No practical submissions recorded for this faculty member yet.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="border-b border-slate-100 dark:border-slate-800 text-[9.5px] uppercase font-black text-slate-400">
+                                      <th className="py-2 px-2.5">Document ID</th>
+                                      <th className="py-2 px-2.5">Class & Subject</th>
+                                      <th className="py-2 px-2.5">Session & Type</th>
+                                      <th className="py-2 px-2.5 text-center">Records</th>
+                                      <th className="py-2 px-2.5 text-center">Status</th>
+                                      <th className="py-2 px-2.5 text-right">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
+                                    {t.submissionsList.map((doc, dIdx) => {
+                                      const recCount = Array.isArray(doc.records) ? doc.records.length : Object.keys(doc).filter(k => k.match(/^\d+\//)).length;
+                                      const sessStr = normalizePracticalSession(doc.sessionText || doc.session || doc.Session || doc.yearSuffix || '2025-26');
+                                      return (
+                                        <tr key={`doc_${doc.id}_${dIdx}`} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${doc.isPending ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''}`}>
+                                          <td className="py-2 px-2.5 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">{doc.id}</td>
+                                          <td className="py-2 px-2.5 font-bold text-slate-900 dark:text-slate-100">
+                                            {formatClassDisplay(doc.className || doc.Class, doc)} • {doc.subjectName || doc.Subject || getSubjectDisplayName(doc.subjectCode, doc.className || doc.Class) || doc.subjectCode}
+                                          </td>
+                                          <td className="py-2 px-2.5">
+                                            <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                              {sessStr} • {toTitleCase(doc.practicalType || 'Internal')}
+                                            </span>
+                                          </td>
+                                          <td className="py-2 px-2.5 text-center font-mono font-bold text-emerald-600">{recCount}</td>
+                                          <td className="py-2 px-2.5 text-center">
+                                            {doc.isPending ? (
+                                              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9.5px] font-black uppercase tracking-wider animate-pulse">
+                                                Pending Approval
+                                              </span>
+                                            ) : (
+                                              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px] font-bold uppercase tracking-wider">
+                                                Approved
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="py-2 px-2.5 text-right space-x-1.5 whitespace-nowrap">
+                                            <button
+                                              onClick={() => setSelSub(doc)}
+                                              className="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 text-[10.5px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                            >
+                                              <Eye size={11} /> View Awards
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenVersionBin(doc)}
+                                              className="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 text-[10.5px] font-bold cursor-pointer inline-flex items-center gap-1 border border-amber-200 dark:border-amber-800 shadow-2xs"
+                                              title="View previous versions in Bin"
+                                            >
+                                              <History size={11} /> Bin
+                                            </button>
+                                            {doc.isPending && onApproveSubmission && (
+                                              <button
+                                                type="button"
+                                                onClick={() => onApproveSubmission(doc)}
+                                                className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10.5px] font-black cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                                title="Approve & integrate into live database"
+                                              >
+                                                <CheckCircle2 size={11} /> Approve
+                                              </button>
+                                            )}
+                                            {doc.isPending && onRejectSubmission && (
+                                              <button
+                                                type="button"
+                                                onClick={() => onRejectSubmission(doc)}
+                                                className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-[10.5px] font-bold cursor-pointer inline-flex items-center gap-1 border border-rose-200 dark:border-rose-900 shadow-2xs"
+                                                title="Request revision"
+                                              >
+                                                Reject
+                                              </button>
+                                            )}
+                                            <button
+                                              onClick={() => handleDeleteSubmission(doc.id, doc)}
+                                              className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-[10.5px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                              title="Move to Practicals Recycle Bin"
+                                            >
+                                              <Trash2 size={11} /> Delete
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
               {facultyMembers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
-                    No faculty members found matching search query.
+                  <td colSpan={7} className="py-8 text-center text-slate-400 font-bold">
+                    No faculty members found matching selected filters.
                   </td>
                 </tr>
               )}
@@ -5069,30 +5435,9 @@ function FacultySubmissionsView({
         </div>
       )}
 
-      {/* VIEW 2: FLAT AUDIT DOCUMENT LOG */}
+      {/* VIEW 2: MASTER DOCUMENT AUDIT LOG (ALL SUBMISSIONS INCLUDING PENDING) */}
       {viewMode === 'documents' && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <select
-              value={filterClass}
-              onChange={e => setFilterClass(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
-            >
-              <option value="all">All Classes</option>
-              <option value="10th">Class 10th</option>
-              <option value="11th">Class 11th</option>
-              <option value="12th">Class 12th</option>
-            </select>
-            <select
-              value={filterSubject}
-              onChange={e => setFilterSubject(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
-            >
-              <option value="all">All Subjects</option>
-              {CODES.map(c => <option key={c} value={c}>{getSubjectDisplayName(c, filterClass)} ({c})</option>)}
-            </select>
-          </div>
-
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-500">
@@ -5103,6 +5448,7 @@ function FacultySubmissionsView({
                   <th className="py-2.5 px-3">Session & Type</th>
                   <th className="py-2.5 px-3">Submitted By</th>
                   <th className="py-2.5 px-3 text-center">Records</th>
+                  <th className="py-2.5 px-3 text-center">Status</th>
                   <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -5111,7 +5457,12 @@ function FacultySubmissionsView({
                   const recCount = Array.isArray(s.records) ? s.records.length : Object.keys(s).filter(k => k.match(/^\d+\//)).length;
                   const sessStr = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '2025-26');
                   return (
-                    <tr key={`pract_row_${s.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <tr
+                      key={`pract_row_${s.id || idx}_${idx}`}
+                      className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${
+                        s.isPending ? 'bg-amber-50/30 dark:bg-amber-950/20' : ''
+                      }`}
+                    >
                       <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
                       <td className="py-2.5 px-3 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">{s.id}</td>
                       <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">
@@ -5123,10 +5474,21 @@ function FacultySubmissionsView({
                         </span>
                       </td>
                       <td className="py-2.5 px-3">
-                        <div className="font-bold text-slate-800 dark:text-slate-200">{s.teacherName || s['Teacher Name'] || 'Teacher'}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{s.teacherEmail || s.Email || '-'}</div>
+                        <div className="font-bold text-slate-800 dark:text-slate-200">{s.teacherName || s.submittedByName || s.submittedBy || s['Teacher Name'] || 'Teacher'}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{s.teacherEmail || s.submittedByEmail || s.Email || '-'}</div>
                       </td>
                       <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-600">{recCount}</td>
+                      <td className="py-2.5 px-3 text-center">
+                        {s.isPending ? (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9.5px] font-black uppercase tracking-wider animate-pulse">
+                            Pending Approval
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px] font-bold uppercase tracking-wider">
+                            Approved
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
                         <button
                           onClick={() => setSelSub(s)}
@@ -5142,9 +5504,30 @@ function FacultySubmissionsView({
                         >
                           <History size={12} /> Bin
                         </button>
+                        {s.isPending && onApproveSubmission && (
+                          <button
+                            type="button"
+                            onClick={() => onApproveSubmission(s)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                            title="Approve & integrate into live database"
+                          >
+                            <CheckCircle2 size={12} /> Approve
+                          </button>
+                        )}
+                        {s.isPending && onRejectSubmission && (
+                          <button
+                            type="button"
+                            onClick={() => onRejectSubmission(s)}
+                            className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 border border-rose-200 dark:border-rose-900 shadow-2xs"
+                            title="Request revision"
+                          >
+                            Reject
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDeleteSubmission(s.id, s)}
                           className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                          title="Move to Practicals Recycle Bin"
                         >
                           <Trash2 size={12} /> Delete
                         </button>
@@ -5154,7 +5537,7 @@ function FacultySubmissionsView({
                 })}
                 {filteredDocs.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400 font-bold">
+                    <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
                       No submissions found matching selected filters.
                     </td>
                   </tr>
@@ -5164,6 +5547,7 @@ function FacultySubmissionsView({
           </div>
         </div>
       )}
+
 
       {/* VERSION BIN MODAL (LAST 3 VERSIONS) */}
       {binModalDoc && (
