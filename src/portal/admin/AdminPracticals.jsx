@@ -29,7 +29,9 @@ import {
   printFailList,
   PRACTICAL_SUBJECT_DEFS,
   getCurrentOfficialExamRoll,
-  isValidExamRollForClass
+  isValidExamRollForClass,
+  getStudentExamRoll,
+  getRecordExamRoll
 } from '../../utils/practicalsPdfGenerator';
 import {
   generatePracticalsExcelTemplate,
@@ -540,16 +542,23 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
     ''
   ).trim();
 
-  let examRoll = getCurrentOfficialExamRoll(st);
-  if (!examRoll) {
+  let examRoll = getCurrentOfficialExamRoll(st, resolvedClass) || getStudentExamRoll(st);
+  if (!examRoll || /^(undefined|null|—|-|#N\/A|N\/A|NA)$/i.test(examRoll)) {
     examRoll = String(
       st['Exam R.No. (Current)'] ||
+      st.currExamRollNo ||
       st.examRollNo ||
       st['Exam Roll No'] ||
       st['Exam Roll No.'] ||
+      st.boardRollNo ||
+      st['Board Roll No'] ||
+      st['Board Roll No.'] ||
       st.examRoll ||
       ''
     ).trim();
+  }
+  if (/^(undefined|null|—|-|#N\/A|N\/A|NA)$/i.test(examRoll)) {
+    examRoll = '';
   }
 
   const boardReg = cleanRegistrationNumber(
@@ -586,6 +595,9 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
     'Form No.': formNo,
     'Class Roll No': classRoll || '—',
     'Exam R.No. (Current)': examRoll || '—',
+    examRollNo: examRoll || '—',
+    currExamRollNo: examRoll || '',
+    boardRollNo: examRoll || '',
     'Board Registration Number': boardReg || '—',
     "Student's Name (as per school records)": studentName,
     "Father's/Guardian's Name (as per school records)": fatherName,
@@ -959,9 +971,9 @@ function AdminPracticals() {
           const finalSubs = (isLiveAdmission && stSubs) ? stSubs : (stSubs || existingSubs || '');
 
           const finalRoll = getRollNo(st) || getRollNo(existing) || '—';
-          const stOfficialExam = getCurrentOfficialExamRoll(st, canonicalCls);
-          const existingOfficialExam = getCurrentOfficialExamRoll(existing, canonicalCls);
-          const finalExam = stOfficialExam || existingOfficialExam || (isValidExamRollForClass(exam, canonicalCls) ? exam : (existing['Exam R.No. (Current)'] || existing.examRollNo || '—'));
+          const stOfficialExam = getCurrentOfficialExamRoll(st, canonicalCls) || getStudentExamRoll(st);
+          const existingOfficialExam = getCurrentOfficialExamRoll(existing, canonicalCls) || getStudentExamRoll(existing);
+          const finalExam = stOfficialExam || existingOfficialExam || (isValidExamRollForClass(exam, canonicalCls) ? exam : (existing['Exam R.No. (Current)'] || existing.examRollNo || existing.currExamRollNo || existing.boardRollNo || '—'));
           const finalReg = (reg && reg !== '—' && reg !== 'N/A') ? reg : (existing['Board Registration Number'] || existing.regNo || '—');
 
           // Session priority: prefer '2025-26' if present in either existing or new record
@@ -998,6 +1010,8 @@ function AdminPracticals() {
             classRollNo: finalRoll,
             'Exam R.No. (Current)': finalExam,
             examRollNo: finalExam,
+            currExamRollNo: finalExam !== '—' ? finalExam : (existing.currExamRollNo || st.currExamRollNo || ''),
+            boardRollNo: finalExam !== '—' ? finalExam : (existing.boardRollNo || st.boardRollNo || ''),
             'Board Registration Number': finalReg,
             boardRegNo: finalReg,
             isExamDropped: isDropped,
@@ -1014,6 +1028,13 @@ function AdminPracticals() {
           st.stream = initialStream;
           st['Stream for Class 11th'] = canonicalCls.includes('11') ? initialStream : (isSecondary ? 'General' : (st['Stream for Class 11th'] || initialStream));
           st['Stream for Class 12th'] = canonicalCls.includes('12') ? initialStream : (isSecondary ? 'General' : (st['Stream for Class 12th'] || initialStream));
+          const examCandidate = exam || getCurrentOfficialExamRoll(st, canonicalCls) || getStudentExamRoll(st);
+          st['Exam R.No. (Current)'] = examCandidate || '—';
+          st.examRollNo = examCandidate || '—';
+          if (examCandidate && examCandidate !== '—') {
+            st.currExamRollNo = examCandidate;
+            st.boardRollNo = examCandidate;
+          }
           const newId = `st_${cls}_${sess}_${reg || exam || form || roll || name}_${Math.random()}`;
           studentsMap.set(newId, st);
           if (reg && reg !== '—' && reg !== 'N/A') indexByReg.set(`reg_${reg}_cls_${cls}_sess_${sess}`, newId);
@@ -3524,9 +3545,9 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
               const streamRaw = isSecondaryCls ? 'General' : (getStudentStreamStr(st, cls) || 'Science');
               const streamDisplay = toTitleCase(streamRaw);
               const streamLower = streamRaw.toLowerCase();
-              const rawExam = getCurrentOfficialExamRoll(st, cls) || String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim();
+              const rawExam = getCurrentOfficialExamRoll(st, cls) || getStudentExamRoll(st) || String(st['Exam R.No. (Current)'] || st.examRollNo || st.currExamRollNo || st.boardRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim();
               // Always show official current exam roll if available (board issues rolls well before the exam)
-              const examRoll = (rawExam && rawExam !== '—' && rawExam !== 'NA' && rawExam !== 'N/A') ? rawExam : '—';
+              const examRoll = (rawExam && !/^(undefined|null|—|-|#N\/A|N\/A|NA)$/i.test(rawExam)) ? rawExam : '—';
               
               const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
               const cleanReg = cleanRegistrationNumber(rawReg);

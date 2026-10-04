@@ -1033,7 +1033,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301004012",
+    "currExamRollNo": "301004012",
+    "Exam R.No. (Current)": "301004012"
   },
   {
     "fNo": "250034",
@@ -1241,7 +1244,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301004064",
+    "currExamRollNo": "301004064",
+    "Exam R.No. (Current)": "301004064"
   },
   {
     "fNo": "250040",
@@ -1275,7 +1281,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004004",
+    "currExamRollNo": "301004004",
+    "Exam R.No. (Current)": "301004004"
   },
   {
     "fNo": "250041",
@@ -1309,7 +1318,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004017",
+    "currExamRollNo": "301004017",
+    "Exam R.No. (Current)": "301004017"
   },
   {
     "fNo": "250042",
@@ -1343,7 +1355,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301003051",
+    "currExamRollNo": "301003051",
+    "Exam R.No. (Current)": "301003051"
   },
   {
     "fNo": "250043",
@@ -1355,7 +1370,7 @@
     "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1jPZJbvbjQfeSqEWfoFjMkBWKSt7-k-q1/view?usp=drivesdk",
-    "examRollNo": "201000231",
+    "examRollNo": "301004099",
     "dob": "2009-10-27",
     "subjects": [
       {
@@ -1378,7 +1393,9 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "currExamRollNo": "301004099",
+    "Exam R.No. (Current)": "301004099"
   },
   {
     "fNo": "250044",
@@ -1412,7 +1429,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003039",
+    "currExamRollNo": "301003039",
+    "Exam R.No. (Current)": "301003039"
   },
   {
     "fNo": "250045",
@@ -1446,7 +1466,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003078",
+    "currExamRollNo": "301003078",
+    "Exam R.No. (Current)": "301003078"
   },
   {
     "fNo": "250046",
@@ -1480,7 +1503,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004033",
+    "currExamRollNo": "301004033",
+    "Exam R.No. (Current)": "301004033"
   },
   {
     "fNo": "250047",
@@ -1514,7 +1540,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003005",
+    "currExamRollNo": "301003005",
+    "Exam R.No. (Current)": "301003005"
   },
   {
     "fNo": "250048",
@@ -1548,7 +1577,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004021",
+    "currExamRollNo": "301004021",
+    "Exam R.No. (Current)": "301004021"
   },
   {
     "fNo": "250049",
@@ -1582,7 +1614,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004006",
+    "currExamRollNo": "301004006",
+    "Exam R.No. (Current)": "301004006"
   },
   {
     "fNo": "250050",
@@ -1616,7 +1651,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003034",
+    "currExamRollNo": "301003034",
+    "Exam R.No. (Current)": "301003034"
   },
   {
     "fNo": "250051",
@@ -1650,7 +1688,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004074",
+    "currExamRollNo": "301004074",
+    "Exam R.No. (Current)": "301004074"
   },
   {
     "fNo": "250052",
@@ -1684,7 +1725,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004015",
+    "currExamRollNo": "301004015",
+    "Exam R.No. (Current)": "301004015"
   },
   {
     "fNo": "250053",
@@ -1718,7 +1762,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003046",
+    "currExamRollNo": "301003046",
+    "Exam R.No. (Current)": "301003046"
   },
   {
     "fNo": "250054",
@@ -1752,7 +1799,10 @@
         "code": "ITE",
         "name": "IT & ITeS"
       }
-    ]
+    ],
+    "examRollNo": "301004079",
+    "currExamRollNo": "301004079",
+    "Exam R.No. (Current)": "301004079"
   },
   {
     "fNo": "250055",
@@ -1786,7 +1836,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003047",
+    "currExamRollNo": "301003047",
+    "Exam R.No. (Current)": "301003047"
   },
   {
     "fNo": "250056",
@@ -1820,7 +1873,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004050",
+    "currExamRollNo": "301004050",
+    "Exam R.No. (Current)": "301004050"
   },
   {
     "fNo": "250057",
@@ -1854,7 +1910,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004080",
+    "currExamRollNo": "301004080",
+    "Exam R.No. (Current)": "301004080"
   },
   {
     "fNo": "250058",
@@ -1888,7 +1947,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003052",
+    "currExamRollNo": "301003052",
+    "Exam R.No. (Current)": "301003052"
   },
   {
     "fNo": "250059",
@@ -1922,7 +1984,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004066",
+    "currExamRollNo": "301004066",
+    "Exam R.No. (Current)": "301004066"
   },
   {
     "fNo": "250060",
@@ -1956,7 +2021,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003013",
+    "currExamRollNo": "301003013",
+    "Exam R.No. (Current)": "301003013"
   },
   {
     "fNo": "250061",
@@ -1990,7 +2058,10 @@
         "code": "PS",
         "name": "Political Science"
       }
-    ]
+    ],
+    "examRollNo": "301004040",
+    "currExamRollNo": "301004040",
+    "Exam R.No. (Current)": "301004040"
   },
   {
     "fNo": "250062",
@@ -2024,7 +2095,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004056",
+    "currExamRollNo": "301004056",
+    "Exam R.No. (Current)": "301004056"
   },
   {
     "fNo": "250063",
@@ -2126,7 +2200,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003059",
+    "currExamRollNo": "301003059",
+    "Exam R.No. (Current)": "301003059"
   },
   {
     "fNo": "250066",
@@ -2171,7 +2248,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003007",
+    "currExamRollNo": "301003007",
+    "Exam R.No. (Current)": "301003007"
   },
   {
     "fNo": "250068",
@@ -2205,7 +2285,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004070",
+    "currExamRollNo": "301004070",
+    "Exam R.No. (Current)": "301004070"
   },
   {
     "fNo": "250069",
@@ -2239,7 +2322,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004073",
+    "currExamRollNo": "301004073",
+    "Exam R.No. (Current)": "301004073"
   },
   {
     "fNo": "250070",
@@ -2273,7 +2359,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003015",
+    "currExamRollNo": "301003015",
+    "Exam R.No. (Current)": "301003015"
   },
   {
     "fNo": "250071",
@@ -2341,7 +2430,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003080",
+    "currExamRollNo": "301003080",
+    "Exam R.No. (Current)": "301003080"
   },
   {
     "fNo": "250073",
@@ -2375,7 +2467,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003062",
+    "currExamRollNo": "301003062",
+    "Exam R.No. (Current)": "301003062"
   },
   {
     "fNo": "250074",
@@ -2409,7 +2504,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003063",
+    "currExamRollNo": "301003063",
+    "Exam R.No. (Current)": "301003063"
   },
   {
     "fNo": "250075",
@@ -2477,7 +2575,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003057",
+    "currExamRollNo": "301003057",
+    "Exam R.No. (Current)": "301003057"
   },
   {
     "fNo": "250077",
@@ -2545,7 +2646,10 @@
         "code": "BI",
         "name": "Biology (Botany & Zoology)"
       }
-    ]
+    ],
+    "examRollNo": "301004094",
+    "currExamRollNo": "301004094",
+    "Exam R.No. (Current)": "301004094"
   },
   {
     "fNo": "250079",
@@ -2579,7 +2683,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003048",
+    "currExamRollNo": "301003048",
+    "Exam R.No. (Current)": "301003048"
   },
   {
     "fNo": "250080",
@@ -2613,7 +2720,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003030",
+    "currExamRollNo": "301003030",
+    "Exam R.No. (Current)": "301003030"
   },
   {
     "fNo": "250081",
@@ -2647,7 +2757,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003001",
+    "currExamRollNo": "301003001",
+    "Exam R.No. (Current)": "301003001"
   },
   {
     "fNo": "250082",
@@ -2681,7 +2794,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003003",
+    "currExamRollNo": "301003003",
+    "Exam R.No. (Current)": "301003003"
   },
   {
     "fNo": "250083",
@@ -2749,7 +2865,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003032",
+    "currExamRollNo": "301003032",
+    "Exam R.No. (Current)": "301003032"
   },
   {
     "fNo": "250085",
@@ -2817,7 +2936,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004010",
+    "currExamRollNo": "301004010",
+    "Exam R.No. (Current)": "301004010"
   },
   {
     "fNo": "250087",
@@ -2851,7 +2973,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003014",
+    "currExamRollNo": "301003014",
+    "Exam R.No. (Current)": "301003014"
   },
   {
     "fNo": "250088",
@@ -2885,7 +3010,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003008",
+    "currExamRollNo": "301003008",
+    "Exam R.No. (Current)": "301003008"
   },
   {
     "fNo": "250089",
@@ -2919,7 +3047,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003012",
+    "currExamRollNo": "301003012",
+    "Exam R.No. (Current)": "301003012"
   },
   {
     "fNo": "250090",
@@ -2953,7 +3084,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003060",
+    "currExamRollNo": "301003060",
+    "Exam R.No. (Current)": "301003060"
   },
   {
     "fNo": "250091",
@@ -2987,7 +3121,10 @@
         "code": "PS",
         "name": "Political Science"
       }
-    ]
+    ],
+    "examRollNo": "301004023",
+    "currExamRollNo": "301004023",
+    "Exam R.No. (Current)": "301004023"
   },
   {
     "fNo": "250092",
@@ -3021,7 +3158,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004014",
+    "currExamRollNo": "301004014",
+    "Exam R.No. (Current)": "301004014"
   },
   {
     "fNo": "250093",
@@ -3055,7 +3195,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004058",
+    "currExamRollNo": "301004058",
+    "Exam R.No. (Current)": "301004058"
   },
   {
     "fNo": "250094",
@@ -3089,7 +3232,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004027",
+    "currExamRollNo": "301004027",
+    "Exam R.No. (Current)": "301004027"
   },
   {
     "fNo": "250095",
@@ -3123,7 +3269,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003063",
+    "currExamRollNo": "301003063",
+    "Exam R.No. (Current)": "301003063"
   },
   {
     "fNo": "250096",
@@ -3157,7 +3306,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003058",
+    "currExamRollNo": "301003058",
+    "Exam R.No. (Current)": "301003058"
   },
   {
     "fNo": "250097",
@@ -3191,7 +3343,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301003082",
+    "currExamRollNo": "301003082",
+    "Exam R.No. (Current)": "301003082"
   },
   {
     "fNo": "250098",
@@ -3225,7 +3380,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004025",
+    "currExamRollNo": "301004025",
+    "Exam R.No. (Current)": "301004025"
   },
   {
     "fNo": "250099",
@@ -3259,7 +3417,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003086",
+    "currExamRollNo": "301003086",
+    "Exam R.No. (Current)": "301003086"
   },
   {
     "fNo": "250100",
@@ -3293,7 +3454,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004024",
+    "currExamRollNo": "301004024",
+    "Exam R.No. (Current)": "301004024"
   },
   {
     "fNo": "250101",
@@ -3338,7 +3502,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004090",
+    "currExamRollNo": "301004090",
+    "Exam R.No. (Current)": "301004090"
   },
   {
     "fNo": "250103",
@@ -3372,7 +3539,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004048",
+    "currExamRollNo": "301004048",
+    "Exam R.No. (Current)": "301004048"
   },
   {
     "fNo": "250104",
@@ -3406,7 +3576,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003088",
+    "currExamRollNo": "301003088",
+    "Exam R.No. (Current)": "301003088"
   },
   {
     "fNo": "250105",
@@ -3440,7 +3613,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003069",
+    "currExamRollNo": "301003069",
+    "Exam R.No. (Current)": "301003069"
   },
   {
     "fNo": "250106",
@@ -3474,7 +3650,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003088",
+    "currExamRollNo": "301003088",
+    "Exam R.No. (Current)": "301003088"
   },
   {
     "fNo": "250107",
@@ -3508,7 +3687,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003079",
+    "currExamRollNo": "301003079",
+    "Exam R.No. (Current)": "301003079"
   },
   {
     "fNo": "250108",
@@ -3542,7 +3724,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004078",
+    "currExamRollNo": "301004078",
+    "Exam R.No. (Current)": "301004078"
   },
   {
     "fNo": "250109",
@@ -3610,7 +3795,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003085",
+    "currExamRollNo": "301003085",
+    "Exam R.No. (Current)": "301003085"
   },
   {
     "fNo": "250111",
@@ -3622,7 +3810,7 @@
     "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/10Ak9ffed_YO5nJ4chGTSmalhYdBSgdEd/view?usp=drivesdk",
-    "examRollNo": "201000227",
+    "examRollNo": "301004053",
     "dob": "2009-09-24",
     "subjects": [
       {
@@ -3645,7 +3833,9 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "currExamRollNo": "301004053",
+    "Exam R.No. (Current)": "301004053"
   },
   {
     "fNo": "250112",
@@ -3679,7 +3869,10 @@
         "code": "ITE",
         "name": "IT & ITeS"
       }
-    ]
+    ],
+    "examRollNo": "301003066",
+    "currExamRollNo": "301003066",
+    "Exam R.No. (Current)": "301003066"
   },
   {
     "fNo": "250113",
@@ -3713,7 +3906,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004011",
+    "currExamRollNo": "301004011",
+    "Exam R.No. (Current)": "301004011"
   },
   {
     "fNo": "250114",
@@ -3758,7 +3954,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003012",
+    "currExamRollNo": "301003012",
+    "Exam R.No. (Current)": "301003012"
   },
   {
     "fNo": "250116",
@@ -3826,7 +4025,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004035",
+    "currExamRollNo": "301004035",
+    "Exam R.No. (Current)": "301004035"
   },
   {
     "fNo": "250118",
@@ -3860,7 +4062,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003087",
+    "currExamRollNo": "301003087",
+    "Exam R.No. (Current)": "301003087"
   },
   {
     "fNo": "250119",
@@ -3894,7 +4099,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003020",
+    "currExamRollNo": "301003020",
+    "Exam R.No. (Current)": "301003020"
   },
   {
     "fNo": "250120",
@@ -3928,7 +4136,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003029",
+    "currExamRollNo": "301003029",
+    "Exam R.No. (Current)": "301003029"
   },
   {
     "fNo": "250121",
@@ -3962,7 +4173,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004041",
+    "currExamRollNo": "301004041",
+    "Exam R.No. (Current)": "301004041"
   },
   {
     "fNo": "250122",
@@ -3996,7 +4210,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004016",
+    "currExamRollNo": "301004016",
+    "Exam R.No. (Current)": "301004016"
   },
   {
     "fNo": "250123",
@@ -4030,7 +4247,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003022",
+    "currExamRollNo": "301003022",
+    "Exam R.No. (Current)": "301003022"
   },
   {
     "fNo": "250124",
@@ -4064,7 +4284,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003074",
+    "currExamRollNo": "301003074",
+    "Exam R.No. (Current)": "301003074"
   },
   {
     "fNo": "250125",
@@ -4098,7 +4321,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301003027",
+    "currExamRollNo": "301003027",
+    "Exam R.No. (Current)": "301003027"
   },
   {
     "fNo": "250126",
@@ -4132,7 +4358,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003041",
+    "currExamRollNo": "301003041",
+    "Exam R.No. (Current)": "301003041"
   },
   {
     "fNo": "250127",
@@ -4166,7 +4395,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004076",
+    "currExamRollNo": "301004076",
+    "Exam R.No. (Current)": "301004076"
   },
   {
     "fNo": "250128",
@@ -4222,7 +4454,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003004",
+    "currExamRollNo": "301003004",
+    "Exam R.No. (Current)": "301003004"
   },
   {
     "fNo": "250131",
@@ -4290,7 +4525,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003049",
+    "currExamRollNo": "301003049",
+    "Exam R.No. (Current)": "301003049"
   },
   {
     "fNo": "250133",
@@ -4324,7 +4562,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003073",
+    "currExamRollNo": "301003073",
+    "Exam R.No. (Current)": "301003073"
   },
   {
     "fNo": "250134",
@@ -4392,7 +4633,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004044",
+    "currExamRollNo": "301004044",
+    "Exam R.No. (Current)": "301004044"
   },
   {
     "fNo": "250136",
@@ -4426,7 +4670,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004005",
+    "currExamRollNo": "301004005",
+    "Exam R.No. (Current)": "301004005"
   },
   {
     "fNo": "250137",
@@ -4460,7 +4707,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003000",
+    "currExamRollNo": "301003000",
+    "Exam R.No. (Current)": "301003000"
   },
   {
     "fNo": "250138",
@@ -4494,7 +4744,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003036",
+    "currExamRollNo": "301003036",
+    "Exam R.No. (Current)": "301003036"
   },
   {
     "fNo": "250139",
@@ -4528,7 +4781,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003044",
+    "currExamRollNo": "301003044",
+    "Exam R.No. (Current)": "301003044"
   },
   {
     "fNo": "250140",
@@ -4562,7 +4818,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003068",
+    "currExamRollNo": "301003068",
+    "Exam R.No. (Current)": "301003068"
   },
   {
     "fNo": "250141",
@@ -4596,7 +4855,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003061",
+    "currExamRollNo": "301003061",
+    "Exam R.No. (Current)": "301003061"
   },
   {
     "fNo": "250142",
@@ -4630,7 +4892,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004051",
+    "currExamRollNo": "301004051",
+    "Exam R.No. (Current)": "301004051"
   },
   {
     "fNo": "250143",
@@ -4698,7 +4963,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004003",
+    "currExamRollNo": "301004003",
+    "Exam R.No. (Current)": "301004003"
   },
   {
     "fNo": "250145",
@@ -4732,7 +5000,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004075",
+    "currExamRollNo": "301004075",
+    "Exam R.No. (Current)": "301004075"
   },
   {
     "fNo": "250146",
@@ -4800,7 +5071,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004057",
+    "currExamRollNo": "301004057",
+    "Exam R.No. (Current)": "301004057"
   },
   {
     "fNo": "250148",
@@ -4902,7 +5176,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003095",
+    "currExamRollNo": "301003095",
+    "Exam R.No. (Current)": "301003095"
   },
   {
     "fNo": "250151",
@@ -4936,7 +5213,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301003056",
+    "currExamRollNo": "301003056",
+    "Exam R.No. (Current)": "301003056"
   },
   {
     "fNo": "250152",
@@ -5004,7 +5284,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004067",
+    "currExamRollNo": "301004067",
+    "Exam R.No. (Current)": "301004067"
   },
   {
     "fNo": "250154",
@@ -5208,7 +5491,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003002",
+    "currExamRollNo": "301003002",
+    "Exam R.No. (Current)": "301003002"
   },
   {
     "fNo": "250160",
@@ -5495,7 +5781,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301003025",
+    "currExamRollNo": "301003025",
+    "Exam R.No. (Current)": "301003025"
   },
   {
     "fNo": "250169",
@@ -6060,7 +6349,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003070",
+    "currExamRollNo": "301003070",
+    "Exam R.No. (Current)": "301003070"
   },
   {
     "fNo": "250189",
@@ -6252,7 +6544,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003064",
+    "currExamRollNo": "301003064",
+    "Exam R.No. (Current)": "301003064"
   },
   {
     "fNo": "250196",
@@ -6264,7 +6559,7 @@
     "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1QArigYb03k2D5Ekdl2b37DOBv-b7Wvcd/view?usp=drivesdk",
-    "examRollNo": "201000230",
+    "examRollNo": "301004101",
     "dob": "2009-10-21",
     "subjects": [
       {
@@ -6287,7 +6582,9 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "currExamRollNo": "301004101",
+    "Exam R.No. (Current)": "301004101"
   },
   {
     "fNo": "250197",
@@ -6355,7 +6652,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301004062",
+    "currExamRollNo": "301004062",
+    "Exam R.No. (Current)": "301004062"
   },
   {
     "fNo": "250199",
@@ -6389,7 +6689,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301003037",
+    "currExamRollNo": "301003037",
+    "Exam R.No. (Current)": "301003037"
   },
   {
     "fNo": "250200",
@@ -6423,7 +6726,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003006",
+    "currExamRollNo": "301003006",
+    "Exam R.No. (Current)": "301003006"
   },
   {
     "fNo": "250201",
@@ -6570,7 +6876,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003088",
+    "currExamRollNo": "301003088",
+    "Exam R.No. (Current)": "301003088"
   },
   {
     "fNo": "250206",
@@ -6604,7 +6913,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004072",
+    "currExamRollNo": "301004072",
+    "Exam R.No. (Current)": "301004072"
   },
   {
     "fNo": "250207",
@@ -6706,7 +7018,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004028",
+    "currExamRollNo": "301004028",
+    "Exam R.No. (Current)": "301004028"
   },
   {
     "fNo": "250210",
@@ -6876,7 +7191,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003071",
+    "currExamRollNo": "301003071",
+    "Exam R.No. (Current)": "301003071"
   },
   {
     "fNo": "250215",
@@ -7216,7 +7534,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004036",
+    "currExamRollNo": "301004036",
+    "Exam R.No. (Current)": "301004036"
   },
   {
     "fNo": "250225",
@@ -7386,7 +7707,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301003072",
+    "currExamRollNo": "301003072",
+    "Exam R.No. (Current)": "301003072"
   },
   {
     "fNo": "250230",
@@ -7488,7 +7812,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004049",
+    "currExamRollNo": "301004049",
+    "Exam R.No. (Current)": "301004049"
   },
   {
     "fNo": "250233",
@@ -7556,7 +7883,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004037",
+    "currExamRollNo": "301004037",
+    "Exam R.No. (Current)": "301004037"
   },
   {
     "fNo": "250235",
@@ -7658,7 +7988,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004039",
+    "currExamRollNo": "301004039",
+    "Exam R.No. (Current)": "301004039"
   },
   {
     "fNo": "250238",
@@ -7896,7 +8229,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004077",
+    "currExamRollNo": "301004077",
+    "Exam R.No. (Current)": "301004077"
   },
   {
     "fNo": "250245",
@@ -8201,7 +8537,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004042",
+    "currExamRollNo": "301004042",
+    "Exam R.No. (Current)": "301004042"
   },
   {
     "fNo": "250256",
@@ -8337,7 +8676,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003038",
+    "currExamRollNo": "301003038",
+    "Exam R.No. (Current)": "301003038"
   },
   {
     "fNo": "250260",
@@ -8405,7 +8747,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004047",
+    "currExamRollNo": "301004047",
+    "Exam R.No. (Current)": "301004047"
   },
   {
     "fNo": "250262",
@@ -8473,7 +8818,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003028",
+    "currExamRollNo": "301003028",
+    "Exam R.No. (Current)": "301003028"
   },
   {
     "fNo": "250264",
@@ -8575,7 +8923,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004055",
+    "currExamRollNo": "301004055",
+    "Exam R.No. (Current)": "301004055"
   },
   {
     "fNo": "250267",
@@ -8654,7 +9005,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004013",
+    "currExamRollNo": "301004013",
+    "Exam R.No. (Current)": "301004013"
   },
   {
     "fNo": "250270",
@@ -8699,7 +9053,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003041",
+    "currExamRollNo": "301003041",
+    "Exam R.No. (Current)": "301003041"
   },
   {
     "fNo": "250272",
@@ -8733,7 +9090,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003040",
+    "currExamRollNo": "301003040",
+    "Exam R.No. (Current)": "301003040"
   },
   {
     "fNo": "250273",
@@ -8767,7 +9127,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004097",
+    "currExamRollNo": "301004097",
+    "Exam R.No. (Current)": "301004097"
   },
   {
     "fNo": "250274",
@@ -8949,7 +9312,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003033",
+    "currExamRollNo": "301003033",
+    "Exam R.No. (Current)": "301003033"
   },
   {
     "fNo": "250280",
@@ -8994,7 +9360,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003043",
+    "currExamRollNo": "301003043",
+    "Exam R.No. (Current)": "301003043"
   },
   {
     "fNo": "250282",
@@ -9240,7 +9609,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003081",
+    "currExamRollNo": "301003081",
+    "Exam R.No. (Current)": "301003081"
   },
   {
     "fNo": "250289",
@@ -9274,7 +9646,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004032",
+    "currExamRollNo": "301004032",
+    "Exam R.No. (Current)": "301004032"
   },
   {
     "fNo": "250290",
@@ -9308,7 +9683,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003055",
+    "currExamRollNo": "301003055",
+    "Exam R.No. (Current)": "301003055"
   },
   {
     "fNo": "250291",
@@ -9342,7 +9720,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003097",
+    "currExamRollNo": "301003097",
+    "Exam R.No. (Current)": "301003097"
   },
   {
     "fNo": "250292",
@@ -9376,7 +9757,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003053",
+    "currExamRollNo": "301003053",
+    "Exam R.No. (Current)": "301003053"
   },
   {
     "fNo": "250293",
@@ -9455,7 +9839,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004082",
+    "currExamRollNo": "301004082",
+    "Exam R.No. (Current)": "301004082"
   },
   {
     "fNo": "250296",
@@ -9561,7 +9948,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003054",
+    "currExamRollNo": "301003054",
+    "Exam R.No. (Current)": "301003054"
   },
   {
     "fNo": "250299",
@@ -9595,7 +9985,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301004062",
+    "currExamRollNo": "301004062",
+    "Exam R.No. (Current)": "301004062"
   },
   {
     "fNo": "250300",
@@ -9697,7 +10090,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003099",
+    "currExamRollNo": "301003099",
+    "Exam R.No. (Current)": "301003099"
   },
   {
     "fNo": "250303",
@@ -9731,7 +10127,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003016",
+    "currExamRollNo": "301003016",
+    "Exam R.No. (Current)": "301003016"
   },
   {
     "fNo": "250304",
@@ -9765,7 +10164,10 @@
         "code": "BI",
         "name": "Biology (Botany & Zoology)"
       }
-    ]
+    ],
+    "examRollNo": "301003067",
+    "currExamRollNo": "301003067",
+    "Exam R.No. (Current)": "301003067"
   },
   {
     "fNo": "250305",
@@ -9799,7 +10201,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301003009",
+    "currExamRollNo": "301003009",
+    "Exam R.No. (Current)": "301003009"
   },
   {
     "fNo": "250306",
@@ -9980,7 +10385,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003089",
+    "currExamRollNo": "301003089",
+    "Exam R.No. (Current)": "301003089"
   },
   {
     "fNo": "250312",
@@ -10014,7 +10422,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004061",
+    "currExamRollNo": "301004061",
+    "Exam R.No. (Current)": "301004061"
   },
   {
     "fNo": "250313",
@@ -10048,7 +10459,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003050",
+    "currExamRollNo": "301003050",
+    "Exam R.No. (Current)": "301003050"
   },
   {
     "fNo": "250314",
@@ -10082,7 +10496,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003065",
+    "currExamRollNo": "301003065",
+    "Exam R.No. (Current)": "301003065"
   },
   {
     "fNo": "250315",
@@ -10116,7 +10533,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004068",
+    "currExamRollNo": "301004068",
+    "Exam R.No. (Current)": "301004068"
   },
   {
     "fNo": "250316",
@@ -10150,7 +10570,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004069",
+    "currExamRollNo": "301004069",
+    "Exam R.No. (Current)": "301004069"
   },
   {
     "fNo": "250317",
@@ -10263,7 +10686,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004060",
+    "currExamRollNo": "301004060",
+    "Exam R.No. (Current)": "301004060"
   },
   {
     "fNo": "250321",
@@ -10297,7 +10723,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004059",
+    "currExamRollNo": "301004059",
+    "Exam R.No. (Current)": "301004059"
   },
   {
     "fNo": "250322",
@@ -10331,7 +10760,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004061",
+    "currExamRollNo": "301004061",
+    "Exam R.No. (Current)": "301004061"
   },
   {
     "fNo": "250323",
@@ -10365,7 +10797,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004000",
+    "currExamRollNo": "301004000",
+    "Exam R.No. (Current)": "301004000"
   },
   {
     "fNo": "250324",
@@ -10399,7 +10834,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004063",
+    "currExamRollNo": "301004063",
+    "Exam R.No. (Current)": "301004063"
   },
   {
     "fNo": "250325",
@@ -10546,7 +10984,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004001",
+    "currExamRollNo": "301004001",
+    "Exam R.No. (Current)": "301004001"
   },
   {
     "fNo": "250330",
@@ -10591,7 +11032,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003045",
+    "currExamRollNo": "301003045",
+    "Exam R.No. (Current)": "301003045"
   },
   {
     "fNo": "250332",
@@ -10625,7 +11069,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003046",
+    "currExamRollNo": "301003046",
+    "Exam R.No. (Current)": "301003046"
   },
   {
     "fNo": "250333",
@@ -10659,7 +11106,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003091",
+    "currExamRollNo": "301003091",
+    "Exam R.No. (Current)": "301003091"
   },
   {
     "fNo": "250334",
@@ -10693,7 +11143,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004002",
+    "currExamRollNo": "301004002",
+    "Exam R.No. (Current)": "301004002"
   },
   {
     "fNo": "250335",
@@ -10946,7 +11399,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301004064",
+    "currExamRollNo": "301004064",
+    "Exam R.No. (Current)": "301004064"
   },
   {
     "fNo": "250343",
@@ -11150,7 +11606,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004065",
+    "currExamRollNo": "301004065",
+    "Exam R.No. (Current)": "301004065"
   },
   {
     "fNo": "250349",
@@ -11422,7 +11881,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004007",
+    "currExamRollNo": "301004007",
+    "Exam R.No. (Current)": "301004007"
   },
   {
     "fNo": "250357",
@@ -11490,7 +11952,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004022",
+    "currExamRollNo": "301004022",
+    "Exam R.No. (Current)": "301004022"
   },
   {
     "fNo": "250359",
@@ -11524,7 +11989,10 @@
         "code": "BI",
         "name": "Biology (Botany & Zoology)"
       }
-    ]
+    ],
+    "examRollNo": "301003067",
+    "currExamRollNo": "301003067",
+    "Exam R.No. (Current)": "301003067"
   },
   {
     "fNo": "250360",
@@ -11558,7 +12026,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003077",
+    "currExamRollNo": "301003077",
+    "Exam R.No. (Current)": "301003077"
   },
   {
     "fNo": "250361",
@@ -11641,7 +12112,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003017",
+    "currExamRollNo": "301003017",
+    "Exam R.No. (Current)": "301003017"
   },
   {
     "fNo": "250364",
@@ -11709,7 +12183,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003080",
+    "currExamRollNo": "301003080",
+    "Exam R.No. (Current)": "301003080"
   },
   {
     "fNo": "250366",
@@ -11754,7 +12231,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003077",
+    "currExamRollNo": "301003077",
+    "Exam R.No. (Current)": "301003077"
   },
   {
     "fNo": "250368",
@@ -11788,7 +12268,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004003",
+    "currExamRollNo": "301004003",
+    "Exam R.No. (Current)": "301004003"
   },
   {
     "fNo": "250369",
@@ -11856,7 +12339,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004009",
+    "currExamRollNo": "301004009",
+    "Exam R.No. (Current)": "301004009"
   },
   {
     "fNo": "250371",
@@ -11890,7 +12376,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004020",
+    "currExamRollNo": "301004020",
+    "Exam R.No. (Current)": "301004020"
   },
   {
     "fNo": "250372",
@@ -11958,7 +12447,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004071",
+    "currExamRollNo": "301004071",
+    "Exam R.No. (Current)": "301004071"
   },
   {
     "fNo": "250374",
@@ -12072,7 +12564,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301003011",
+    "currExamRollNo": "301003011",
+    "Exam R.No. (Current)": "301003011"
   },
   {
     "fNo": "250378",
@@ -12106,7 +12601,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004008",
+    "currExamRollNo": "301004008",
+    "Exam R.No. (Current)": "301004008"
   },
   {
     "fNo": "250379",
@@ -12212,7 +12710,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003017",
+    "currExamRollNo": "301003017",
+    "Exam R.No. (Current)": "301003017"
   },
   {
     "fNo": "250382",
@@ -12246,7 +12747,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004046",
+    "currExamRollNo": "301004046",
+    "Exam R.No. (Current)": "301004046"
   },
   {
     "fNo": "250383",
@@ -12314,7 +12818,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003075",
+    "currExamRollNo": "301003075",
+    "Exam R.No. (Current)": "301003075"
   },
   {
     "fNo": "250385",
@@ -12348,7 +12855,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004018",
+    "currExamRollNo": "301004018",
+    "Exam R.No. (Current)": "301004018"
   },
   {
     "fNo": "250386",
@@ -12371,7 +12881,10 @@
     "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/11ifx0yHX-Agmjy_zM5PhPXm2OPrxDOlo/view?usp=drivesdk",
-    "dob": "2007-06-10"
+    "dob": "2007-06-10",
+    "examRollNo": "301003010",
+    "currExamRollNo": "301003010",
+    "Exam R.No. (Current)": "301003010"
   },
   {
     "fNo": "250388",
@@ -12416,7 +12929,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004011",
+    "currExamRollNo": "301004011",
+    "Exam R.No. (Current)": "301004011"
   },
   {
     "fNo": "250390",
@@ -12737,7 +13253,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004030",
+    "currExamRollNo": "301004030",
+    "Exam R.No. (Current)": "301004030"
   },
   {
     "fNo": "250400",
@@ -12839,7 +13358,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004015",
+    "currExamRollNo": "301004015",
+    "Exam R.No. (Current)": "301004015"
   },
   {
     "fNo": "250403",
@@ -12907,7 +13429,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003076",
+    "currExamRollNo": "301003076",
+    "Exam R.No. (Current)": "301003076"
   },
   {
     "fNo": "250405",
@@ -12941,7 +13466,10 @@
         "code": "ITE",
         "name": "IT & ITeS"
       }
-    ]
+    ],
+    "examRollNo": "301004079",
+    "currExamRollNo": "301004079",
+    "Exam R.No. (Current)": "301004079"
   },
   {
     "fNo": "250406",
@@ -13043,7 +13571,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003019",
+    "currExamRollNo": "301003019",
+    "Exam R.No. (Current)": "301003019"
   },
   {
     "fNo": "250409",
@@ -13077,7 +13608,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004019",
+    "currExamRollNo": "301004019",
+    "Exam R.No. (Current)": "301004019"
   },
   {
     "fNo": "250410",
@@ -13179,7 +13713,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003021",
+    "currExamRollNo": "301003021",
+    "Exam R.No. (Current)": "301003021"
   },
   {
     "fNo": "250413",
@@ -13428,7 +13965,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004076",
+    "currExamRollNo": "301004076",
+    "Exam R.No. (Current)": "301004076"
   },
   {
     "fNo": "250421",
@@ -13496,7 +14036,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004031",
+    "currExamRollNo": "301004031",
+    "Exam R.No. (Current)": "301004031"
   },
   {
     "fNo": "250423",
@@ -13632,7 +14175,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003083",
+    "currExamRollNo": "301003083",
+    "Exam R.No. (Current)": "301003083"
   },
   {
     "fNo": "250427",
@@ -13704,7 +14250,10 @@
         "code": "BI",
         "name": "Biology (Botany & Zoology)"
       }
-    ]
+    ],
+    "examRollNo": "301003096",
+    "currExamRollNo": "301003096",
+    "Exam R.No. (Current)": "301003096"
   },
   {
     "fNo": "250429",
@@ -13772,7 +14321,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003014",
+    "currExamRollNo": "301003014",
+    "Exam R.No. (Current)": "301003014"
   },
   {
     "fNo": "250431",
@@ -13840,7 +14392,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004034",
+    "currExamRollNo": "301004034",
+    "Exam R.No. (Current)": "301004034"
   },
   {
     "fNo": "250433",
@@ -13942,7 +14497,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004026",
+    "currExamRollNo": "301004026",
+    "Exam R.No. (Current)": "301004026"
   },
   {
     "fNo": "250436",
@@ -14088,7 +14646,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004087",
+    "currExamRollNo": "301004087",
+    "Exam R.No. (Current)": "301004087"
   },
   {
     "fNo": "250443",
@@ -14156,7 +14717,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003084",
+    "currExamRollNo": "301003084",
+    "Exam R.No. (Current)": "301003084"
   },
   {
     "fNo": "250445",
@@ -14179,7 +14743,10 @@
     "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1n-plsQgPgZ7rBRgLQCeXWyUwgKpZtzq0/view?usp=drivesdk",
-    "dob": "2007-10-24"
+    "dob": "2007-10-24",
+    "examRollNo": "301004029",
+    "currExamRollNo": "301004029",
+    "Exam R.No. (Current)": "301004029"
   },
   {
     "fNo": "250447",
@@ -14213,7 +14780,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004083",
+    "currExamRollNo": "301004083",
+    "Exam R.No. (Current)": "301004083"
   },
   {
     "fNo": "250448",
@@ -14281,7 +14851,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003018",
+    "currExamRollNo": "301003018",
+    "Exam R.No. (Current)": "301003018"
   },
   {
     "fNo": "250450",
@@ -14349,7 +14922,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003031",
+    "currExamRollNo": "301003031",
+    "Exam R.No. (Current)": "301003031"
   },
   {
     "fNo": "250452",
@@ -14496,7 +15072,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301004084",
+    "currExamRollNo": "301004084",
+    "Exam R.No. (Current)": "301004084"
   },
   {
     "fNo": "250457",
@@ -14530,7 +15109,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004085",
+    "currExamRollNo": "301004085",
+    "Exam R.No. (Current)": "301004085"
   },
   {
     "fNo": "250458",
@@ -14564,7 +15146,10 @@
         "code": "BI",
         "name": "Biology (Botany & Zoology)"
       }
-    ]
+    ],
+    "examRollNo": "301004086",
+    "currExamRollNo": "301004086",
+    "Exam R.No. (Current)": "301004086"
   },
   {
     "fNo": "250459",
@@ -14670,7 +15255,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004035",
+    "currExamRollNo": "301004035",
+    "Exam R.No. (Current)": "301004035"
   },
   {
     "fNo": "250462",
@@ -14749,7 +15337,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003026",
+    "currExamRollNo": "301003026",
+    "Exam R.No. (Current)": "301003026"
   },
   {
     "fNo": "250465",
@@ -14783,7 +15374,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004088",
+    "currExamRollNo": "301004088",
+    "Exam R.No. (Current)": "301004088"
   },
   {
     "fNo": "250466",
@@ -14817,7 +15411,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003024",
+    "currExamRollNo": "301003024",
+    "Exam R.No. (Current)": "301003024"
   },
   {
     "fNo": "250467",
@@ -14998,7 +15595,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004038",
+    "currExamRollNo": "301004038",
+    "Exam R.No. (Current)": "301004038"
   },
   {
     "fNo": "250473",
@@ -15044,7 +15644,10 @@
     "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1Dt84ioq0eKQ_ewSx4RpUw1AvKUgrZwbF/view?usp=drivesdk",
-    "dob": "2008-09-22"
+    "dob": "2008-09-22",
+    "examRollNo": "301003023",
+    "currExamRollNo": "301003023",
+    "Exam R.No. (Current)": "301003023"
   },
   {
     "fNo": "250475",
@@ -15215,7 +15818,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003022",
+    "currExamRollNo": "301003022",
+    "Exam R.No. (Current)": "301003022"
   },
   {
     "fNo": "250480",
@@ -15283,7 +15889,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004054",
+    "currExamRollNo": "301004054",
+    "Exam R.No. (Current)": "301004054"
   },
   {
     "fNo": "250482",
@@ -15363,7 +15972,7 @@
     "stream": "",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1EH5Lbz0shPo4P04pHHOVFsHrl9ZcSQsu/view?usp=drivesdk",
-    "examRollNo": "201000229",
+    "examRollNo": "301004097",
     "dob": "2009-10-15",
     "subjects": [
       {
@@ -15386,7 +15995,9 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "currExamRollNo": "301004097",
+    "Exam R.No. (Current)": "301004097"
   },
   {
     "fNo": "250485",
@@ -15499,7 +16110,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004089",
+    "currExamRollNo": "301004089",
+    "Exam R.No. (Current)": "301004089"
   },
   {
     "fNo": "250489",
@@ -15650,7 +16264,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003090",
+    "currExamRollNo": "301003090",
+    "Exam R.No. (Current)": "301003090"
   },
   {
     "fNo": "250494",
@@ -15695,7 +16312,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004091",
+    "currExamRollNo": "301004091",
+    "Exam R.No. (Current)": "301004091"
   },
   {
     "fNo": "250496",
@@ -16023,7 +16643,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004043",
+    "currExamRollNo": "301004043",
+    "Exam R.No. (Current)": "301004043"
   },
   {
     "fNo": "250508",
@@ -16091,7 +16714,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004092",
+    "currExamRollNo": "301004092",
+    "Exam R.No. (Current)": "301004092"
   },
   {
     "fNo": "250510",
@@ -16103,7 +16729,7 @@
     "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://lh3.googleusercontent.com/d/1J0rZC5KUHAP6ig9ZHJvAE5AVIdmGKDdx=s360",
-    "examRollNo": "201000224",
+    "examRollNo": "301004100",
     "dob": "2010-09-30",
     "subjects": [
       {
@@ -16126,7 +16752,9 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "currExamRollNo": "301004100",
+    "Exam R.No. (Current)": "301004100"
   },
   {
     "fNo": "250511",
@@ -16160,7 +16788,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003093",
+    "currExamRollNo": "301003093",
+    "Exam R.No. (Current)": "301003093"
   },
   {
     "fNo": "250512",
@@ -16194,7 +16825,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301003092",
+    "currExamRollNo": "301003092",
+    "Exam R.No. (Current)": "301003092"
   },
   {
     "fNo": "250513",
@@ -16228,7 +16862,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003094",
+    "currExamRollNo": "301003094",
+    "Exam R.No. (Current)": "301003094"
   },
   {
     "fNo": "250514",
@@ -16670,7 +17307,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003029",
+    "currExamRollNo": "301003029",
+    "Exam R.No. (Current)": "301003029"
   },
   {
     "fNo": "250527",
@@ -16704,7 +17344,10 @@
         "code": "ITE",
         "name": "IT and ITES"
       }
-    ]
+    ],
+    "examRollNo": "301004081",
+    "currExamRollNo": "301004081",
+    "Exam R.No. (Current)": "301004081"
   },
   {
     "fNo": "250528",
@@ -16810,7 +17453,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004093",
+    "currExamRollNo": "301004093",
+    "Exam R.No. (Current)": "301004093"
   },
   {
     "fNo": "250531",
@@ -16844,7 +17490,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004045",
+    "currExamRollNo": "301004045",
+    "Exam R.No. (Current)": "301004045"
   },
   {
     "fNo": "250532",
@@ -16912,7 +17561,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004096",
+    "currExamRollNo": "301004096",
+    "Exam R.No. (Current)": "301004096"
   },
   {
     "fNo": "250534",
@@ -16946,7 +17598,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004045",
+    "currExamRollNo": "301004045",
+    "Exam R.No. (Current)": "301004045"
   },
   {
     "fNo": "250535",
@@ -17270,7 +17925,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003035",
+    "currExamRollNo": "301003035",
+    "Exam R.No. (Current)": "301003035"
   },
   {
     "fNo": "250547",
@@ -17373,7 +18031,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301003098",
+    "currExamRollNo": "301003098",
+    "Exam R.No. (Current)": "301003098"
   },
   {
     "fNo": "250550",
@@ -17513,7 +18174,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004051",
+    "currExamRollNo": "301004051",
+    "Exam R.No. (Current)": "301004051"
   },
   {
     "fNo": "250554",
@@ -17796,7 +18460,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301003097",
+    "currExamRollNo": "301003097",
+    "Exam R.No. (Current)": "301003097"
   },
   {
     "fNo": "250563",
@@ -17841,7 +18508,10 @@
         "code": "ES",
         "name": "Environmental Science"
       }
-    ]
+    ],
+    "examRollNo": "301004102",
+    "currExamRollNo": "301004102",
+    "Exam R.No. (Current)": "301004102"
   },
   {
     "fNo": "250565",
@@ -17897,7 +18567,10 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "examRollNo": "301004095",
+    "currExamRollNo": "301004095",
+    "Exam R.No. (Current)": "301004095"
   },
   {
     "fNo": "250568",
@@ -17931,7 +18604,10 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "examRollNo": "301004052",
+    "currExamRollNo": "301004052",
+    "Exam R.No. (Current)": "301004052"
   },
   {
     "fNo": "250569",
@@ -17988,7 +18664,7 @@
     "stream": "",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1BrhhGnv0hxpg09Btvk54ScjcTFetfCuI/view?usp=drivesdk",
-    "examRollNo": "201000228",
+    "examRollNo": "301004096",
     "dob": "2009-10-08",
     "subjects": [
       {
@@ -18011,7 +18687,9 @@
         "code": "PD",
         "name": "Physical Education"
       }
-    ]
+    ],
+    "currExamRollNo": "301004096",
+    "Exam R.No. (Current)": "301004096"
   },
   {
     "fNo": "250572",
@@ -18023,7 +18701,7 @@
     "stream": "",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1zAzknHdCshcgt1hWwO_XpcngKHnnyAup/view?usp=drivesdk",
-    "examRollNo": "201000226",
+    "examRollNo": "301004098",
     "dob": "2009-10-15",
     "subjects": [
       {
@@ -18046,7 +18724,9 @@
         "code": "HTC",
         "name": "Healthcare"
       }
-    ]
+    ],
+    "currExamRollNo": "301004098",
+    "Exam R.No. (Current)": "301004098"
   },
   {
     "fNo": "250573",

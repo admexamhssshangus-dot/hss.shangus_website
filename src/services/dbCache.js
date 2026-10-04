@@ -924,7 +924,9 @@ export function updateCachedItem(collectionName, itemId, updatedFields) {
       updatedList = [...current];
       updatedList[idx] = { ...updatedList[idx], ...updatedFields };
     } else {
-      updatedList = [{ id: itemId, ...updatedFields }, ...current];
+      // If the item is not found in cache, do NOT prepend a partial update payload as a new admission record.
+      // An update payload is an edit on an existing record, not a new application.
+      return current;
     }
   }
 

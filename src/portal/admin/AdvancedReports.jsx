@@ -798,12 +798,7 @@ export async function updateStudentDocument(student, updates) {
     cleanCid(student._docId),
     cleanCid(student.docId),
     cleanCid(student.id),
-    cleanCid(exactDocId).replace(/^active_/, ''),
-    cleanCid(exactDocId).replace(/^hist_/, ''),
-    cleanCid(rawId).replace(/^active_/, ''),
-    cleanCid(rawId).replace(/^hist_/, ''),
     formNo ? `adm_${formNo}` : '',
-    formNo ? `active_${formNo}` : '',
     formNo
   ].filter(Boolean)));
 
@@ -818,6 +813,7 @@ export async function updateStudentDocument(student, updates) {
   );
 
   let updated = false;
+  let successfulDocId = null;
 
   // For nested chunk master register records, use transactional applyRecordPatch to prevent creating duplicate docs
   if (isMasterRegister || student._parentDocId || student.parentDocId || String(student.id || '').includes('chunk_')) {
@@ -843,13 +839,10 @@ export async function updateStudentDocument(student, updates) {
         try {
           await withTimeout(updateDoc(doc(db, coll, sanitized), updates));
           updated = true;
+          successfulDocId = sanitized;
           break;
         } catch (e) {
-          try {
-            await withTimeout(setDoc(doc(db, coll, sanitized), updates, { merge: true }));
-            updated = true;
-            break;
-          } catch (err2) {}
+          // Document does not exist under this candidate ID. Never call setDoc here as it creates phantom docs.
         }
       }
       if (updated) break;
@@ -863,8 +856,9 @@ export async function updateStudentDocument(student, updates) {
           const qSnap = await withTimeout(getDocs(query(collection(db, coll), where(field, '==', formNo))));
           if (qSnap && !qSnap.empty) {
             for (const dSnap of qSnap.docs) {
-              await withTimeout(setDoc(doc(db, coll, dSnap.id), updates, { merge: true }));
+              await withTimeout(updateDoc(doc(db, coll, dSnap.id), updates));
               updated = true;
+              successfulDocId = dSnap.id;
             }
             break;
           }
@@ -874,13 +868,11 @@ export async function updateStudentDocument(student, updates) {
     }
   }
 
-  // Update ONLY single item in cache (no full refetch)
-  idCandidates.forEach(cid => {
-    const sanitized = cleanCid(cid);
-    if (sanitized) {
-      updateCachedItem('admissions', sanitized, updates);
-      updateCachedItem('masterRegisters', sanitized, updates);
-    }
+  // Update ONLY the actual targeted/matched item in cache (never speculative candidate IDs)
+  const targetDocIds = Array.from(new Set([successfulDocId, cleanCid(exactDocId), cleanCid(student.id)].filter(Boolean)));
+  targetDocIds.forEach(targetId => {
+    updateCachedItem('admissions', targetId, updates);
+    if (isMasterRegister) updateCachedItem('masterRegisters', targetId, updates);
   });
 
   // Automatically synchronize centralized student photo when registration number or photo updates

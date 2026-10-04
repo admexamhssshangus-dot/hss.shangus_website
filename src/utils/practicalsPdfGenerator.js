@@ -173,14 +173,15 @@ export const PRACTICAL_SUBJECT_DEFS = [
 export function getStudentExamRoll(st) {
   if (!st) return '';
   const rollKeys = [
-    'Exam R.No. (Current)', 'examRollNo', 'Exam Roll No.', 'Exam Roll No', 'Exam Roll',
-    'Board Roll', 'Board Roll No', 'Board Roll No.', 'boardRoll', 'boardRollNo',
-    'examRoll', 'currentExamRoll'
+    'Exam R.No. (Current)', 'Exam R. No. (Current)', 'currExamRollNo', 'currExamRoll',
+    'boardRollNo', 'boardRoll', 'Board Roll', 'Board Roll No', 'Board Roll No.',
+    'Board Roll Number', 'examRollNo', 'Exam Roll No.', 'Exam Roll No', 'Exam Roll',
+    'Exam Roll Number', 'examRoll', 'currentExamRoll', 'Exam R.No.', 'Exam R. No.'
   ];
   for (const k of rollKeys) {
     if (st[k] !== undefined && st[k] !== null) {
       const v = String(st[k]).trim();
-      if (v && !/^(N\/A|—|-|null|undefined)$/i.test(v)) return v;
+      if (v && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(v)) return v;
     }
   }
   return '';
@@ -349,7 +350,18 @@ export function getStudentCentreNo(st, fallbackCentre = '', targetClass = '') {
  * Extracts a clean, non-placeholder Exam Roll Number from a record or student object.
  */
 export function getRecordExamRoll(r, targetClass = '') {
-  return getCurrentOfficialExamRoll(r, targetClass);
+  if (!r) return '';
+  const cls = String(targetClass || r.Class || r.class || r.className || r['Admission sought for class'] || '').trim();
+  const official = getCurrentOfficialExamRoll(r, cls);
+  if (official) return official;
+
+  const general = getStudentExamRoll(r);
+  if (general) {
+    if (cls && isValidExamRollForClass(general, cls)) return general;
+    if (!cls && /^\d{6,}$/.test(general)) return general;
+    if (!/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(general)) return general;
+  }
+  return '';
 }
 
 /**
@@ -1364,7 +1376,7 @@ export function printConsolidatedAwardRoll({
 
   // Build rows for each student
   students.forEach((st, idx) => {
-    const rawExamRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
+    const rawExamRoll = String(getRecordExamRoll(st, className) || getStudentExamRoll(st) || st['Exam R.No. (Current)'] || st.examRollNo || '').trim();
     const displayExamRoll = (rawExamRoll && rawExamRoll !== '—' && rawExamRoll !== 'N/A' && rawExamRoll !== 'NA') ? rawExamRoll : '—';
     let rowHashTotal = 0;
 
@@ -1915,7 +1927,8 @@ export function printAttendanceSheet({
 
       subStudents.forEach((st, idx) => {
         const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
-        const examRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '—';
+        const rawExam = getRecordExamRoll(st, className) || getStudentExamRoll(st);
+        const examRoll = (rawExam && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExam).trim())) ? String(rawExam).trim() : '—';
         const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
         const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
         const regNo = String(rawReg).trim();
@@ -1990,7 +2003,8 @@ export function printAttendanceSheet({
 
   printStudents.forEach((st, idx) => {
     const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
-    const examRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '—';
+    const rawExam = getRecordExamRoll(st, className) || getStudentExamRoll(st);
+    const examRoll = (rawExam && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExam).trim())) ? String(rawExam).trim() : '—';
     const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
     const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
     const regNo = String(rawReg).trim();
@@ -2148,7 +2162,8 @@ export function printMarksRecordAwardRoll({
 
     subStudents.forEach((st, idx) => {
       const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
-      const examRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '—';
+      const rawExam = getRecordExamRoll(st, className) || getStudentExamRoll(st);
+      const examRoll = (rawExam && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExam).trim())) ? String(rawExam).trim() : '—';
       const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
       const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
       const regNo = String(rawReg).trim();
@@ -2267,9 +2282,9 @@ export function printAllIndividualAwardRolls({
       const markRec = findStudentMarkRecord(subDoc, st);
       if (isEnrolled || markRec) {
         const rawMark = markRec ? String(markRec.totalMarks ?? markRec.practicalMarks ?? '').trim() : '';
-        const rawExamRoll = getRecordExamRoll(st);
+        const rawExamRoll = getRecordExamRoll(st, className) || getStudentExamRoll(st);
         const displayExamRoll = rawExamRoll || '—';
-        const cNo = getStudentCentreNo(st, centreNo);
+        const cNo = getStudentCentreNo(st, centreNo, className);
 
         subjectStudents.push({
           sno: subjectStudents.length + 1,
@@ -2600,7 +2615,7 @@ export function printFailList({
   let failRecords = [];
 
   students.forEach((st) => {
-    const rawExamRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || st['Board Roll'] || '';
+    const rawExamRoll = getRecordExamRoll(st, className) || getStudentExamRoll(st);
     const examRoll = (rawExamRoll && !/^(N\/A|—|-|null|undefined)$/i.test(String(rawExamRoll).trim())) ? String(rawExamRoll).trim() : '—';
     const classRoll = String(st['Class R.No.'] || st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || st.roll || '—').trim();
     const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
@@ -2880,6 +2895,7 @@ export function printHistoricalSubmission(item) {
     ? `Annual Private / Bi-Annual (${ySuffix})`
     : (ySuffix.toLowerCase().includes('annual') ? ySuffix : (ySuffix ? `Annual Regular ${ySuffix}` : 'Annual Regular 2025-26'));
 
+  const histClass = item.className || item.class || '11th';
   const formattedRecords = records.map(st => {
     const rawP = st.practicalMarks !== undefined && st.practicalMarks !== null ? String(st.practicalMarks).trim() : '';
     const rawV = st.vivaMarks !== undefined && st.vivaMarks !== null ? String(st.vivaMarks).trim() : '';
@@ -2891,7 +2907,7 @@ export function printHistoricalSubmission(item) {
       name: String(st.name || st.studentName || '').trim(),
       formNo: String(st.formNo || st.form || '').trim(),
       regNo: String(st.regNo || st.boardRegNo || '').trim(),
-      examRollNo: String(st.examRollNo || st.rollNo || '').trim(),
+      examRollNo: String(getRecordExamRoll(st, histClass) || getStudentExamRoll(st) || st.examRollNo || st.rollNo || '').trim(),
       practicalMarks: isAbsent ? 'AB' : (rawP || '—'),
       vivaMarks: isAbsent ? '—' : (rawV || '—'),
       totalMarks: isAbsent ? 'AB' : (rawTot || rawP || '—'),
