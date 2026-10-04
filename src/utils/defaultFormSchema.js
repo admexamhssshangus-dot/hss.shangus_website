@@ -157,14 +157,14 @@ export const DEFAULT_SUBJECTS_CONFIG = {
   },
   "9th": {
     "General": {
-      "compulsory": ["English", "Mathematics", "Science", "Social Science"],
+      "compulsory": ["English", "Mathematics", "Science", "Social Studies"],
       "group1": ["Urdu", "Arabic", "Hindi", "Kashmiri"],
       "group2": ["Healthcare", "IT and ITES"]
     }
   },
   "10th": {
     "General": {
-      "compulsory": ["English", "Mathematics", "Science", "Social Science"],
+      "compulsory": ["English", "Mathematics", "Science", "Social Studies"],
       "group1": ["Urdu", "Arabic", "Hindi", "Kashmiri"],
       "group2": ["Healthcare", "IT and ITES"]
     }

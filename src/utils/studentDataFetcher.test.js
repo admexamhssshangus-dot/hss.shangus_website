@@ -6,7 +6,7 @@ describe('getStudentStream', () => {
       rollNo: '101',
       name: 'Class 10 Student',
       Class: '10th',
-      subjects: ['General English', 'Mathematics', 'Science', 'Social Science', 'Urdu']
+      subjects: ['General English', 'Mathematics', 'Science', 'Social Studies', 'Urdu']
     };
     expect(getStudentStream(student10th)).toBe('General');
   });

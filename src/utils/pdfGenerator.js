@@ -12,8 +12,9 @@ import { recordApplicationPrint } from '../services/printTrackerService';
 import { saveGeneratedDocToHistory } from '../services/docHistoryService';
 
 const SUBJECT_CANONICAL_SYNONYMS = {
-  'social studies': 'Social Science',
-  'social science': 'Social Science',
+  'social studies': 'Social Studies',
+  'social science': 'Social Studies',
+  'sst': 'Social Studies',
   'gen english': 'General English',
   'general english': 'General English',
   'it & ites': 'IT and ITES',
@@ -33,7 +34,7 @@ function getCompulsorySubjects(targetClass = '11th', stream = 'Science') {
   const cls = String(targetClass || '');
   const strm = String(stream || '');
   if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
-    return ["English", "Mathematics", "Science", "Social Science"];
+    return ["English", "Mathematics", "Science", "Social Studies"];
   }
   if (strm === 'Humanities' || strm === 'Arts') {
     return ["General English"];

@@ -309,7 +309,7 @@ function extractRawSubjectsString(rec, targetClass = '') {
   // Secondary Class Intelligence:
   if (isSecondary) {
     if (!extracted || ['science', 'arts', 'commerce', 'humanities', 'medical', 'general'].includes(extracted.toLowerCase())) {
-      extracted = 'English, Mathematics, Science, Social Science, Urdu';
+      extracted = 'English, Mathematics, Science, Social Studies, Urdu';
     } else {
       const hasLang = /\b(urdu|ur|hindi|hn)\b/i.test(extracted);
       if (!hasLang) {

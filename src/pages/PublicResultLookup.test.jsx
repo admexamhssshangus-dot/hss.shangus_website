@@ -382,7 +382,7 @@ describe('Score Normalization and Flexible Biology Display', () => {
         { code: 'EN', name: 'General English' },
         { code: 'MA', name: 'Mathematics' },
         { code: 'SC', name: 'Science' },
-        { code: 'SS', name: 'Social Science' },
+        { code: 'SS', name: 'Social Studies' },
         { code: 'UR', name: 'Urdu' },
         { code: 'ITE', name: 'IT & ITeS' }
       ]
@@ -411,7 +411,7 @@ describe('Score Normalization and Flexible Biology Display', () => {
         { code: 'MA', name: 'Mathematics' },
         { code: 'UR', name: 'Urdu' },
         { code: 'SC', name: 'Science' },
-        { code: 'SS', name: 'Social Science' }
+        { code: 'SS', name: 'Social Studies' }
       ]
     };
 
@@ -858,9 +858,9 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(muzamil.className).toBe('12th');
     expect(muzamil.stream).toBe('Science');
 
-    // Must NOT have Class 10th Science or Social Science
+    // Must NOT have Class 10th Science or Social Studies
     expect(isSubjectCompatibleWithStream('SC', 'Science', 'Science', '12th')).toBe(false);
-    expect(isSubjectCompatibleWithStream('SS', 'Social Science', 'Science', '12th')).toBe(false);
+    expect(isSubjectCompatibleWithStream('SS', 'Social Studies', 'Science', '12th')).toBe(false);
 
     const rawDocs = [
       {

@@ -47,7 +47,7 @@ export const SECONDARY_7_SUBJECTS = [
   { code: 'EN', name: 'English', defaultMax: 50 },
   { code: 'MA', name: 'Mathematics', defaultMax: 50 },
   { code: 'SC', name: 'Science', defaultMax: 50 },
-  { code: 'SS', name: 'Social Science', defaultMax: 50 },
+  { code: 'SS', name: 'Social Studies', defaultMax: 50 },
   { code: 'UR', name: 'Urdu', defaultMax: 50 },
   { code: 'HTC', name: 'Healthcare', defaultMax: 50 },
   { code: 'ITE', name: 'IT and ITES', defaultMax: 50 },
@@ -728,7 +728,7 @@ export function extractRawSubjectsString(rec, targetClass = '') {
   // Secondary Class Intelligence:
   if (isSecondary) {
     if (!extracted || ['science', 'arts', 'commerce', 'humanities', 'medical', 'general'].includes(extracted.toLowerCase())) {
-      extracted = 'English, Mathematics, Science, Social Science, Urdu';
+      extracted = 'English, Mathematics, Science, Social Studies, Urdu';
     } else {
       const hasLang = /\b(urdu|ur|hindi|hn)\b/i.test(extracted);
       if (!hasLang) {

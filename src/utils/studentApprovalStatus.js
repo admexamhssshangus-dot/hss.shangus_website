@@ -74,7 +74,7 @@ export function resolveStudentAdmissionStatus(student) {
 
   if (rawStatus.includes('withdraw')) return 'Withdrawn';
   if (rawStatus.includes('reject') || rawStatus.includes('rejt') || rawStatus.includes('cancel')) return 'Rejected';
-  if (rawStatus.includes('drop') || isStudentExamDropped(student)) return 'Dropped';
+  if (rawStatus.includes('drop')) return 'Dropped';
   if (rawStatus.includes('draft') || rawStatus.includes('dft')) return 'Draft';
 
   if (
@@ -104,6 +104,49 @@ export function isStudentExamDropped(student) {
   if (!student || typeof student !== 'object') return false;
   const raw = student.raw || student._rawStudent || student;
 
+  // Official Institutional Dropped Records for Session 2025-26:
+  const rollVal = getAssignedClassRollNumber(student);
+  const clsName = String(student.className || student.class || student.Class || raw.className || raw.class || raw.Class || '').toLowerCase();
+  const regVal = String(student.boardRegNo || student.regNo || raw.boardRegNo || raw.regNo || '').trim();
+  const formVal = String(student.formNo || student['Form No.'] || raw.formNo || raw['Form No.'] || '').trim();
+  const sName = String(student.name || student.studentName || raw.name || raw.studentName || student["Student's Name"] || raw["Student's Name"] || '').toLowerCase();
+
+  // 1. Class 10th: STRICT INVARIANT — ONLY Roll 46 Suhaib Yousuf (Form 251297, Reg 2501000000610046) is dropped.
+  // All other 59 enrolled examinees (Rolls 1 to 45 and 47 to 60) remain strictly active, healing any accidental drop flags.
+  if (clsName.includes('10')) {
+    const isSuhaibYousuf = (
+      rollVal === '46' ||
+      formVal === '251297' ||
+      regVal.includes('2501000000610046') ||
+      (sName.includes('suhaib') && sName.includes('yousuf'))
+    );
+    return isSuhaibYousuf;
+  }
+
+  // 2. Class 11th: Official Institutional Dropped Records (Rolls 72 Seher Un Nisa & 186 Wanhar Ahmad Malik)
+  if (
+    regVal.includes('2401010000200017') ||
+    regVal.includes('2401010005700067') ||
+    formVal === '250459' ||
+    formVal === '250558'
+  ) {
+    return true;
+  }
+
+  // Wanhar Ahmad Malik (Class 11th Roll 186) - distinguish from Roll 188 Hashim Khurshid
+  if (regVal.includes('2401000000610032')) {
+    if (rollVal === '186' || sName.includes('wanhar')) {
+      return true;
+    }
+  }
+
+  if (clsName.includes('11') && (rollVal === '72' || rollVal === '186')) {
+    if (sName.includes('seher') || sName.includes('wanhar') || !sName) {
+      return true;
+    }
+  }
+
+  // 3. Generic drop status flags (for non-10th records or unclassified documents)
   if (student.isExamDropped === true || raw.isExamDropped === true) return true;
   if (student.examDropped === true || raw.examDropped === true) return true;
   if (student.isDropped === true || raw.isDropped === true) return true;
@@ -140,37 +183,6 @@ export function isStudentExamDropped(student) {
     statusStr.includes('discharge')
   ) {
     return true;
-  }
-
-  // Official Institutional Dropped Records for Session 2025-26 (Class 11th Rolls 72 & 186)
-  const rollVal = getAssignedClassRollNumber(student);
-  const clsName = String(student.className || student.class || student.Class || raw.className || raw.class || raw.Class || '').toLowerCase();
-  const regVal = String(student.boardRegNo || student.regNo || raw.boardRegNo || raw.regNo || '').trim();
-  const formVal = String(student.formNo || student['Form No.'] || raw.formNo || raw['Form No.'] || '').trim();
-
-  // Registration & Form Number strict matching (Seher Un Nisa & Wanhar Ahmad Malik)
-  if (
-    regVal.includes('2401010000200017') ||
-    regVal.includes('2401010005700067') ||
-    formVal === '250459' ||
-    formVal === '250558'
-  ) {
-    return true;
-  }
-
-  // Wanhar Ahmad Malik (Class 11th Roll 186) - distinguish from Roll 188 Hashim Khurshid
-  if (regVal.includes('2401000000610032')) {
-    const sName = String(student.name || student.studentName || raw.name || raw.studentName || '').toLowerCase();
-    if (rollVal === '186' || sName.includes('wanhar')) {
-      return true;
-    }
-  }
-
-  if (clsName.includes('11') && (rollVal === '72' || rollVal === '186')) {
-    const sName = String(student.name || student.studentName || raw.name || raw.studentName || '').toLowerCase();
-    if (sName.includes('seher') || sName.includes('wanhar') || !sName) {
-      return true;
-    }
   }
 
   return false;

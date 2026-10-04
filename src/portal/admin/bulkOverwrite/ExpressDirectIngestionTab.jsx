@@ -22,7 +22,7 @@ const QUICK_SUBJECTS_BY_STREAM = {
   'Non-Medical': ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Environmental Science'],
   Arts: ['General English', 'Political Science', 'History', 'Education', 'Sociology', 'Urdu', 'Economics'],
   Commerce: ['General English', 'Accountancy', 'Business Studies', 'Economics', 'Mathematics'],
-  General: ['English', 'Mathematics', 'Science', 'Social Science', 'Urdu']
+  General: ['English', 'Mathematics', 'Science', 'Social Studies', 'Urdu']
 };
 
 export default function ExpressDirectIngestionTab({

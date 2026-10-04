@@ -91,7 +91,7 @@ export const SUBJECT_CONFIG_DEFS = [
 
   // ─── 7. CLASS 9TH & 10TH GENERAL / CORE SUBJECTS ──────────────────────
   { code: 'SC',   name: 'Science',                         stream: 'Class 9th & 10th',         isLab: true },
-  { code: 'SS',   name: 'Social Science',                  stream: 'Class 9th & 10th',         isLab: false },
+  { code: 'SS',   name: 'Social Studies',                  stream: 'Class 9th & 10th',         isLab: false },
   { code: 'AD',   name: 'Art and Drawing (Class 10th)',    stream: 'Class 10th',               isLab: true }
 ];
 
@@ -1030,7 +1030,7 @@ export const SECONDARY_CURRICULUM_SUBJECTS = [
   'English',
   'Mathematics',
   'Science',
-  'Social Science',
+  'Social Studies',
   'Urdu',
   'Healthcare',
   'IT and ITES'

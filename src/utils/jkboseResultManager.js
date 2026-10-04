@@ -88,7 +88,7 @@ export const JKBOSE_SUBJECT_CODES = [
   { code: 'BW', name: 'Beauty & Wellness', category: 'Vocational' },
   { code: 'SC', name: 'Science', category: 'General' },
   { code: 'SCI', name: 'Science', category: 'General' },
-  { code: 'SS', name: 'Social Science', category: 'General' },
+  { code: 'SS', name: 'Social Studies', category: 'General' },
   { code: 'SST', name: 'Social Studies', category: 'General' },
   { code: 'URD', name: 'Urdu', category: 'Language' },
   { code: 'HND', name: 'Hindi', category: 'Language' }

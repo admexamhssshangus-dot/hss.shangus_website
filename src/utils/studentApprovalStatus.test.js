@@ -89,15 +89,20 @@ describe('studentApprovalStatus unit & cohort invariant tests', () => {
   });
 
   describe('Verified Institutional Catalog Cohort Invariants (Session 2025-26)', () => {
-    test('Class 10th has exactly 60 enrolled students with valid assigned rolls, all approved', () => {
+    test('Class 10th has exactly 60 enrolled students with valid assigned rolls, exactly 1 dropped (Suhaib Yousuf), leaving 59 active examinees', () => {
       const class10Enrolled = verifiedCatalog.filter(st => {
         const cls = String(st.className || st.class || '').toLowerCase();
         return cls.includes('10') && Boolean(getAssignedClassRollNumber(st));
       });
       expect(class10Enrolled.length).toBe(60);
 
+      const dropped10 = class10Enrolled.filter(st => isStudentExamDropped(st));
+      expect(dropped10.length).toBe(1);
+      expect(getAssignedClassRollNumber(dropped10[0])).toBe('46');
+      expect(dropped10[0].name).toBe('Suhaib Yousuf');
+
       const approved10 = class10Enrolled.filter(st => checkStudentApprovalState(st).isApproved);
-      expect(approved10.length).toBe(60);
+      expect(approved10.length).toBe(59);
 
       const rolls = class10Enrolled.map(st => parseInt(getAssignedClassRollNumber(st), 10)).filter(Boolean);
       expect(rolls.length).toBe(60);

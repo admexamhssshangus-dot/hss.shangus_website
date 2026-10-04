@@ -70,7 +70,7 @@ export const CANONICAL_SUBJECT_ORDER = Object.freeze([
   'IT and ITES',
   'General Science',
   'Science',
-  'Social Science',
+  'Social Studies',
 ]);
 
 /**
@@ -160,7 +160,7 @@ export function extractStudentSubjects(student) {
       else if (stream.includes('non-med') || stream.includes('math')) collected.push('Physics', 'Chemistry', 'Mathematics');
       else if (stream.includes('art') || stream.includes('human')) collected.push('Political Science', 'History', 'Urdu');
     } else if (cls === '9th' || cls === '10th') {
-      collected.push('English', 'Mathematics', 'Science', 'Social Science', 'Urdu');
+      collected.push('English', 'Mathematics', 'Science', 'Social Studies', 'Urdu');
     }
   }
 
@@ -186,6 +186,11 @@ export function normalizeSubjectName(name) {
   const clean = name.trim();
   if (!clean || /^(?:-|—|–|none|nil|na|n\/a|null|undefined)$/i.test(clean)) return '';
   const lower = clean.toLowerCase();
+
+  // Social Studies Consolidation (For Class 10th & 9th: Always "Social Studies", never "Social Science")
+  if (/^(?:soc(?:ial)?\.?\s*st(?:ud(?:ies)?)?|soc(?:ial)?\.?\s*sc(?:i(?:ence)?)?|sst|s\.s\.?t\.?|ss)$/i.test(lower) || lower.includes('social science') || lower.includes('social studies')) {
+    return 'Social Studies';
+  }
 
   if (/^(?:gen(?:eral)?\.?\s*eng(?:lish)?|eng\b)/i.test(lower)) {
     if (lower.includes('10th') || lower.includes('9th') || lower === 'english') return 'English';
@@ -394,14 +399,15 @@ export function buildJkboseSubjectRollData(students = [], options = {}) {
 
     if (!classWiseData[normClass]) return;
 
-    const isApproved = isStudentAdmissionApproved(student);
     const isDropped = checkIsStudentDropped(student, options.dropOverrides) || isStudentExamDropped(student);
+    const isApproved = isStudentAdmissionApproved(student);
 
     classWiseData[normClass].kpis.totalEnrolled += 1;
 
-    if (!isApproved) return;
-
-    classWiseData[normClass].kpis.totalApproved += 1;
+    // Skip rejected or withdrawn applicants
+    const rawStatus = String(student.status || student.Status || student.admissionStatus || student['Admission Status'] || '').toLowerCase();
+    const isRejectedOrWithdrawn = rawStatus.includes('reject') || rawStatus.includes('cancel') || rawStatus.includes('withdraw');
+    if (isRejectedOrWithdrawn) return;
 
     if (isDropped) {
       classWiseData[normClass].kpis.totalDropped += 1;
@@ -409,6 +415,9 @@ export function buildJkboseSubjectRollData(students = [], options = {}) {
       return;
     }
 
+    if (!isApproved) return;
+
+    classWiseData[normClass].kpis.totalApproved += 1;
     classWiseData[normClass].kpis.activeExaminees += 1;
     classWiseData[normClass].examinees.push(student);
   });

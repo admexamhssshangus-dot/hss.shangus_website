@@ -63,7 +63,7 @@ const STANDARD_STREAM_SUBJECTS = {
     { code: 'MA', name: 'Mathematics', defaultMax: 50 },
     { code: 'UR', name: 'Urdu', defaultMax: 50 },
     { code: 'SC', name: 'Science', defaultMax: 50 },
-    { code: 'SS', name: 'Social Science', defaultMax: 50 },
+    { code: 'SS', name: 'Social Studies', defaultMax: 50 },
     { code: 'ITE', name: 'IT & ITeS', defaultMax: 50 },
   ],
 };
@@ -1727,7 +1727,7 @@ export default function PublicResultLookup() {
                       { code: 'EN', name: 'General English' },
                       { code: 'MA', name: 'Mathematics' },
                       { code: 'SC', name: 'Science' },
-                      { code: 'SS', name: 'Social Science' },
+                      { code: 'SS', name: 'Social Studies' },
                       { code: 'UR', name: 'Urdu' }
                     ];
                   }

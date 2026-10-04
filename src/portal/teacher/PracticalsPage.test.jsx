@@ -374,7 +374,7 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
       };
 
       const raw = extractRawSubjectsString(student9th, '9th');
-      expect(raw).toBe('English, Mathematics, Science, Social Science, Urdu');
+      expect(raw).toBe('English, Mathematics, Science, Social Studies, Urdu');
 
       const abbr = getAbbreviatedSubjects(student9th, '9th');
       expect(abbr).toBe('EN, MA, SC, SS, UR');

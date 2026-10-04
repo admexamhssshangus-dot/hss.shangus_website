@@ -201,14 +201,41 @@ export default function JkboseSubjectRollReturnView({
     return { approved, dropped, active, subjectsCount };
   }, [returnData, selectedClass]);
 
+  // Dynamic drawer counts for tab badges
+  const drawerCounts = useMemo(() => {
+    let all = 0;
+    let active = 0;
+    let dropped = 0;
+    (dataset || []).forEach((s) => {
+      const normClass = normalizeExamineeClass(getStudentClass(s) || s.appliedClass || s.class || s.enrolledClass || '');
+      if (selectedClass !== 'all' && normClass !== selectedClass) return;
+
+      const hasRoll = Boolean(getAssignedClassRollNumber(s));
+      const isApproved = isStudentAdmissionApproved(s);
+      const isDropped = checkIsStudentDropped(s) || isStudentExamDropped(s);
+
+      if (!isApproved && !hasRoll && !isDropped) return;
+
+      all++;
+      if (isDropped) dropped++;
+      else active++;
+    });
+    return { all, active, dropped };
+  }, [dataset, selectedClass]);
+
   // Filter students for the Drawer
   const drawerStudents = useMemo(() => {
     return dataset.filter((s) => {
       const normClass = normalizeExamineeClass(getStudentClass(s) || s.appliedClass || s.class || s.enrolledClass || '');
       if (selectedClass !== 'all' && normClass !== selectedClass) return false;
-      if (!isStudentAdmissionApproved(s)) return false;
 
-      const isDropped = checkIsStudentDropped(s);
+      const hasRoll = Boolean(getAssignedClassRollNumber(s));
+      const isApproved = isStudentAdmissionApproved(s);
+      const isDropped = checkIsStudentDropped(s) || isStudentExamDropped(s);
+
+      // Must be an admitted/roll-assigned or approved student, or already marked as dropped
+      if (!isApproved && !hasRoll && !isDropped) return false;
+
       if (drawerFilter === 'active' && isDropped) return false;
       if (drawerFilter === 'dropped' && !isDropped) return false;
 
@@ -795,6 +822,35 @@ export default function JkboseSubjectRollReturnView({
                 <div className="flex items-center gap-2 shrink-0">
                   <select
                     value={selectedSession}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  {/* Dedicated Class Selector Bar for Dropper Manager Window */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar">
+                    {[
+                      { id: '10th', label: 'Class 10th (SSE)' },
+                      { id: '11th', label: 'Class 11th (HSE-I)' },
+                      { id: '12th', label: 'Class 12th (HSE-II)' },
+                      { id: 'all', label: 'All Classes' },
+                    ].map((c) => {
+                      const isSel = selectedClass === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setSelectedClass(c.id)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                            isSel
+                              ? 'bg-indigo-600 text-white shadow-2xs'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200/60 dark:border-slate-700'
+                          }`}
+                        >
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <select
+                    value={selectedSession}
                     onChange={(e) => {
                       const newSes = e.target.value;
                       setSelectedSession(newSes);
@@ -810,9 +866,9 @@ export default function JkboseSubjectRollReturnView({
 
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
                     {[
-                      { id: 'all', label: 'All' },
-                      { id: 'active', label: 'Active' },
-                      { id: 'dropped', label: 'Dropped' },
+                      { id: 'all', label: `All (${drawerCounts.all})` },
+                      { id: 'active', label: `Active (${drawerCounts.active})` },
+                      { id: 'dropped', label: `Dropped (${drawerCounts.dropped})` },
                     ].map((f) => (
                       <button
                         key={f.id}
@@ -820,7 +876,7 @@ export default function JkboseSubjectRollReturnView({
                         onClick={() => setDrawerFilter(f.id)}
                         className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                           drawerFilter === f.id
-                            ? 'bg-amber-600 text-white shadow-2xs'
+                            ? 'bg-amber-600 text-white shadow-2xs font-black'
                             : 'text-slate-600 dark:text-slate-300'
                         }`}
                       >
@@ -868,14 +924,18 @@ export default function JkboseSubjectRollReturnView({
             <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
               {drawerStudents.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 italic text-xs">
-                  No matching examinees found in {selectedClass === 'all' ? 'any class' : `Class ${selectedClass}`}.
+                  No matching examinees found in {selectedClass === 'all' ? 'any class' : (selectedClass.toLowerCase().startsWith('class') ? selectedClass : `Class ${selectedClass}`)}.
                 </div>
               ) : (
                 drawerStudents.map((st) => {
                   const sId = st.id || st._id;
-                  const isDropped = isStudentExamDropped(st);
+                  const isDropped = checkIsStudentDropped(st) || isStudentExamDropped(st);
                   const isSaving = savingStudentId === sId;
                   const rollNo = extractExamineeRollNumber(st, rollType);
+                  const regNo = st.registrationNo || st.boardRegNo || st.regNo || st['Board Registration Number'] || '';
+                  const formNo = st.formNo || st['Form No.'] || st['Form No'] || '';
+                  const stClass = getStudentClass(st) || st.appliedClass || st.class || 'N/A';
+                  const stStream = getStudentStream(st) || st.stream || 'General';
                   const isSelected = selectedStudentIds.has(sId);
 
                   return (
@@ -883,7 +943,7 @@ export default function JkboseSubjectRollReturnView({
                       key={sId}
                       className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
                         isDropped
-                          ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/60'
+                          ? 'bg-rose-50/50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-900/80 shadow-2xs'
                           : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-indigo-300'
                       }`}
                     >
@@ -900,51 +960,74 @@ export default function JkboseSubjectRollReturnView({
                           className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                         />
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span className="text-xs font-black text-slate-900 dark:text-white truncate">
                               {getStudentDisplayName(st)}
                             </span>
+                            {isDropped ? (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider bg-rose-600 text-white shadow-2xs flex items-center gap-1">
+                                <AlertTriangle size={10} />
+                                <span>🚫 DROPPED FROM EXAM</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-2xs flex items-center gap-1">
+                                <Check size={10} />
+                                <span>✅ ACTIVE IN EXAM</span>
+                              </span>
+                            )}
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                               Roll: {rollNo || 'Pending'}
                             </span>
                           </div>
-                          <div className="text-[10.5px] text-slate-500 truncate flex items-center gap-2 mt-0.5">
-                            <span>F: {getStudentFatherName(st)}</span>
+                          <div className="text-[10.5px] text-slate-500 truncate flex flex-wrap items-center gap-2 mt-1">
+                            <span>Parentage: <strong className="font-semibold text-slate-700 dark:text-slate-300">{getStudentFatherName(st)}</strong></span>
                             <span>•</span>
-                            <span>Class: {getStudentClass(st) || st.appliedClass || st.class || 'N/A'}</span>
-                            <span>•</span>
-                            <span>{getStudentStream(st) || st.stream || 'General'}</span>
+                            <span>Class: <strong className="font-semibold text-slate-700 dark:text-slate-300">{stClass}</strong> ({stStream})</span>
+                            {regNo && (
+                              <>
+                                <span>•</span>
+                                <span>Reg: <span className="font-mono">{regNo}</span></span>
+                              </>
+                            )}
+                            {formNo && (
+                              <>
+                                <span>•</span>
+                                <span>Form #{formNo}</span>
+                              </>
+                            )}
                           </div>
-                          {isDropped && st.examDroppedReason && (
-                            <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold mt-1 flex items-center gap-1">
-                              <AlertTriangle size={11} />
-                              <span>Reason: {st.examDroppedReason}</span>
+                          {isDropped && (
+                            <div className="text-[10px] text-rose-700 dark:text-rose-400 font-semibold mt-1 flex items-center gap-1">
+                              <AlertTriangle size={11} className="shrink-0" />
+                              <span>Reason: {st.examDroppedReason || 'Administrative exclusion from JKBOSE returns'}</span>
                             </div>
                           )}
                         </div>
                       </div>
 
                       {/* Action Toggle */}
-                      <div>
+                      <div className="shrink-0">
                         {isDropped ? (
                           <button
                             type="button"
                             disabled={isSaving}
                             onClick={() => handleToggleExamDropped(st, false)}
-                            className="px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                            title="Restore this examinee back to the active JKBOSE examination statement"
                           >
                             <UserCheck size={13} />
-                            <span>Restore</span>
+                            <span>Restore to Exam</span>
                           </button>
                         ) : (
                           <button
                             type="button"
                             disabled={isSaving}
                             onClick={() => setPendingDropStudent(st)}
-                            className="px-2.5 py-1 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-700 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                            title="Mark this examinee as dropped from JKBOSE return statement"
                           >
                             <UserX size={13} />
-                            <span>Drop</span>
+                            <span>Mark Dropped</span>
                           </button>
                         )}
                       </div>

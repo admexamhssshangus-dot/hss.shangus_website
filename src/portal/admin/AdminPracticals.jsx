@@ -46,7 +46,7 @@ import {
   VALID_SUBJECT_CODES
 } from '../../utils/practicalsCsvManager';
 import { toTitleCase } from '../../utils/textFormatting';
-import { isStudentExamDropped } from '../../utils/studentApprovalStatus';
+import { isStudentExamDropped, getAssignedClassRollNumber } from '../../utils/studentApprovalStatus';
 import { checkIsStudentDropped, fetchExamineeDropOverrides } from '../../services/examineeDropService';
 import {
   SUBJECT_CONFIG_DEFS,
@@ -2354,6 +2354,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
   // Total students enrolled in this class and session regardless of approval status (dropped students excluded)
   const totalClassStudents = useMemo(() => {
     try {
+      const seenRolls = new Set();
       return (students || []).filter(st => {
         if (!st) return false;
         const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
@@ -2369,6 +2370,14 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
           const matchesSess = isSessionMatch(sess, selectedSession);
           if (!matchesSess) return false;
         }
+
+        const roll = getAssignedClassRollNumber(st) || st.rollNo || st.classRollNo;
+        if (roll && String(roll).trim() && !/^(?:0|n\/?a|na|none|nil|null|undefined|—|-)$/i.test(String(roll).trim())) {
+          const normRoll = String(roll).trim();
+          if (seenRolls.has(normRoll)) return false;
+          seenRolls.add(normRoll);
+        }
+
         return true;
       });
     } catch (err) {
@@ -2389,6 +2398,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
   const droppedCount = useMemo(() => {
     try {
+      const seenDropped = new Set();
       return (students || []).filter(st => {
         if (!st) return false;
         const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
@@ -2397,7 +2407,12 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
           const sess = getStudentSession(st);
           if (!isSessionMatch(sess, selectedSession)) return false;
         }
-        return isStudentExamDropped(st) || checkIsStudentDropped(st);
+        const isDropped = isStudentExamDropped(st) || checkIsStudentDropped(st);
+        if (!isDropped) return false;
+        const roll = getAssignedClassRollNumber(st) || st.rollNo || st.classRollNo || st.id || st.docId;
+        if (seenDropped.has(roll)) return false;
+        seenDropped.add(roll);
+        return true;
       }).length;
     } catch {
       return 0;

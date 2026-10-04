@@ -1577,7 +1577,7 @@ export default function DynamicFormField({
               const prevCls = cls10 ? '10th' : cls11 ? '11th' : cls12 ? '12th' : cls9 ? '9th' : '8th';
               let prevCompulsory = [];
               if (prevCls === '10th' || prevCls === '9th' || prevCls === '8th') {
-                prevCompulsory = ["English", "Mathematics", "Science", "Social Science"];
+                prevCompulsory = ["English", "Mathematics", "Science", "Social Studies"];
               } else if (prevCls === '11th' || prevCls === '12th') {
                 const prevStream = (formData && (formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'])) || strm;
                 if (prevStream === 'Humanities' || prevStream === 'Arts') {
@@ -1615,7 +1615,7 @@ export default function DynamicFormField({
             } else {
               // Exact available school subjects matching the Academics page
               if (cls9 || cls10 || cls8) {
-                groupA = ["English", "Mathematics", "Science", "Social Science"];
+                groupA = ["English", "Mathematics", "Science", "Social Studies"];
                 groupB = ["Urdu", "Arabic", "Hindi", "Kashmiri"];
                 groupC = ["Healthcare", "IT and ITES"];
               } else if (cls11 || cls12) {

@@ -50,7 +50,7 @@ export const SECONDARY_SUBJECTS_LIST = [
   'English',
   'Mathematics',
   'Science',
-  'Social Science',
+  'Social Studies',
   'Urdu',
   'Healthcare',
   'IT and ITES'

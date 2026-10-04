@@ -18,8 +18,9 @@ import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso
 import { DEFAULT_FORM_STRUCTURE } from '../../utils/defaultFormSchema';
 
 export const SUBJECT_CANONICAL_SYNONYMS = {
-  'social studies': 'Social Science',
-  'social science': 'Social Science',
+  'social studies': 'Social Studies',
+  'social science': 'Social Studies',
+  'sst': 'Social Studies',
   'gen english': 'General English',
   'general english': 'General English',
   'it & ites': 'IT and ITES',
@@ -76,7 +77,7 @@ export function getCompulsorySubjects(targetClass = '11th', stream = 'Science', 
   const cls = String(targetClass || '');
   const strm = String(stream || '');
   if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
-    return ["English", "Mathematics", "Science", "Social Science"];
+    return ["English", "Mathematics", "Science", "Social Studies"];
   }
   if (strm === 'Humanities' || strm === 'Arts') {
     return ["General English"];
@@ -929,7 +930,7 @@ export default function AdmissionForm() {
       }
       if (fieldName === 'Subjects Studied in Class 10th') {
         // Synchronize reappear subjects: keep only subjects that remain studied (compulsory + optional)
-        const comp10 = ["English", "Mathematics", "Science", "Social Science"];
+        const comp10 = ["English", "Mathematics", "Science", "Social Studies"];
         const studiedArr = (typeof value === 'string' ? value.split(', ') : (value || [])).map(s => s.trim()).filter(Boolean);
         const allStudied10 = [...new Set([...comp10, ...studiedArr])];
         const currentReappear = String(next['Subjects to Reappear (Class 10th)'] || '').split(', ').map(s => s.trim()).filter(Boolean);

@@ -78,7 +78,7 @@ export const STANDARD_15_GAZETTE_SUBJECTS = [
  * 1. General English (EN)
  * 2. Mathematics (MA)
  * 3. Science (SC)
- * 4. Social Science (SS)
+ * 4. Social Studies (SS)
  * 5. Urdu (UR)
  * 6. Healthcare (HTC)
  * 7. IT & ITeS (ITE)
@@ -87,7 +87,7 @@ export const STANDARD_7_CLASS_10TH_SUBJECTS = [
   { code: 'EN', name: 'General English', defaultMax: 50 },
   { code: 'MA', name: 'Mathematics', defaultMax: 50 },
   { code: 'SC', name: 'Science', defaultMax: 50 },
-  { code: 'SS', name: 'Social Science', defaultMax: 50 },
+  { code: 'SS', name: 'Social Studies', defaultMax: 50 },
   { code: 'UR', name: 'Urdu', defaultMax: 50 },
   { code: 'HTC', name: 'Healthcare', defaultMax: 50 },
   { code: 'ITE', name: 'IT & ITeS', defaultMax: 50 },

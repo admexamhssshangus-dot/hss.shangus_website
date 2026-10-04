@@ -122,7 +122,7 @@ export const PRACTICAL_SUBJECT_DEFS = [
   { code: 'ZO', name: 'Zoology', keywords: ['zoology', 'zo', 'biology'] },
   { code: 'BI', name: 'Biology (Botany & Zoology)', keywords: ['biology', 'bi', 'botany', 'zoology'] },
   { code: 'SC', name: 'Science', keywords: ['science', 'sc', 'sci'] },
-  { code: 'SS', name: 'Social Science', keywords: ['social science', 'social', 'ss', 'sst'] },
+  { code: 'SS', name: 'Social Studies', keywords: ['social studies', 'social science', 'social', 'ss', 'sst'] },
   { code: 'AD', name: 'Art and Drawing', keywords: ['art and drawing', 'art & drawing', 'ad', 'drawing'] },
   { code: 'BT', name: 'Biotechnology', keywords: ['biotechnology', 'biotech', 'bt'] },
   { code: 'MB', name: 'Microbiology', keywords: ['microbiology', 'micro', 'mb'] },
@@ -1643,7 +1643,7 @@ function resolveStudentSubjectsRaw(st, className = '') {
   }
 
   // Secondary Fallback
-  if (is10 || is9) return 'English, Mathematics, Science, Social Science, Urdu';
+  if (is10 || is9) return 'English, Mathematics, Science, Social Studies, Urdu';
 
   // Stream-based fallback
   const stStream = resolveStudentStream(st, className).toLowerCase();

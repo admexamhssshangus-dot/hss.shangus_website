@@ -118,7 +118,7 @@ const DEFAULT_SENTUP_SUBJECT_DIRECTORY = [
   { id: 'bs', code: 'BS / BST', name: 'Business Studies' },
   { id: 'ep', code: 'EP', name: 'Entrepreneurship' },
   { id: 'sci', code: 'SCI', name: 'General Science (Secondary)' },
-  { id: 'sst', code: 'S.ST', name: 'Social Science (Secondary)' }
+  { id: 'sst', code: 'S.ST', name: 'Social Studies (Secondary)' }
 ];
 
 // Draggable Table Column Header Component

@@ -22,10 +22,10 @@ test('subject dropdown locks compulsory subjects and saves elective selection', 
   const onChange = jest.fn();
   const { container } = render(<DynamicFormField config={config} onChange={onChange} />);
   expect(container.querySelector('details')).not.toHaveAttribute('open');
-  expect(container.querySelector('.subject-compulsory')).toHaveTextContent('Compulsory: English, Mathematics, Science, Social Science');
+  expect(container.querySelector('.subject-compulsory')).toHaveTextContent('Compulsory: English, Mathematics, Science, Social Studies');
   expect(screen.queryByLabelText('English (required)')).not.toBeInTheDocument();
   fireEvent.click(screen.getByLabelText('Urdu'));
-  expect(onChange).toHaveBeenCalledWith(config.fieldName, 'English, Mathematics, Science, Social Science, Urdu');
+  expect(onChange).toHaveBeenCalledWith(config.fieldName, 'English, Mathematics, Science, Social Studies, Urdu');
 });
 
 test('reappear subjects are selectable, not compulsory, and Escape closes dropdown', () => {

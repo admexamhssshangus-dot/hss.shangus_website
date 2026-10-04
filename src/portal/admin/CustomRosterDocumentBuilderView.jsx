@@ -934,7 +934,7 @@ export function expandSubjectName(subj) {
   if (clean === 'vs' || clean.includes('vedic')) return 'Vedic Studies';
   if (clean === 'bu' || clean.includes('buddhist')) return 'Buddhist Studies';
   if (clean === 'pa' || clean === 'pub ad' || clean.includes('public administration')) return 'Public Administration';
-  if (clean === 'sst' || clean.includes('social science') || clean.includes('social studies')) return 'Social Science';
+  if (clean === 'sst' || clean.includes('social science') || clean.includes('social studies')) return 'Social Studies';
 
   // Commerce
   if (clean === 'ay' || clean === 'acc' || clean === 'ac' || clean.includes('accountancy') || clean.includes('accounting')) return 'Accountancy';
@@ -1175,7 +1175,7 @@ export function extractSubjects(st, useAbbr = true) {
       lang,
       'Mathematics',
       'Science',
-      'Social Science'
+      'Social Studies'
     ];
 
     // 4. If student has opted for a 6th / Vocational subject, append it (Result = 6 subjects)

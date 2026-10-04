@@ -88,6 +88,43 @@ const INITIAL_KNOWN_DROPS = {
     className: '11th',
     classRollNo: '186',
     updatedAt: '2026-09-30T10:00:00.000Z'
+  },
+  // Class 10th: Roll 46 Suhaib Yousuf (Form 251297, Reg 2501000000610046) - ONLY dropped student in Class 10th
+  'name_10th_suhaibyousuf': {
+    isExamDropped: true,
+    examStatus: 'dropped',
+    examDroppedReason: 'Administrative exclusion',
+    studentName: 'Suhaib Yousuf',
+    className: '10th',
+    classRollNo: '46',
+    updatedAt: '2026-10-04T10:00:00.000Z'
+  },
+  'roll_10th_46': {
+    isExamDropped: true,
+    examStatus: 'dropped',
+    examDroppedReason: 'Administrative exclusion',
+    studentName: 'Suhaib Yousuf',
+    className: '10th',
+    classRollNo: '46',
+    updatedAt: '2026-10-04T10:00:00.000Z'
+  },
+  'form_251297': {
+    isExamDropped: true,
+    examStatus: 'dropped',
+    examDroppedReason: 'Administrative exclusion',
+    studentName: 'Suhaib Yousuf',
+    className: '10th',
+    classRollNo: '46',
+    updatedAt: '2026-10-04T10:00:00.000Z'
+  },
+  'reg_2501000000610046': {
+    isExamDropped: true,
+    examStatus: 'dropped',
+    examDroppedReason: 'Administrative exclusion',
+    studentName: 'Suhaib Yousuf',
+    className: '10th',
+    classRollNo: '46',
+    updatedAt: '2026-10-04T10:00:00.000Z'
   }
 };
 
@@ -148,13 +185,25 @@ export async function fetchExamineeDropOverrides() {
     result.set(k, v);
   });
 
-  // 2. Preload local storage cache
+  // 2. Preload local storage cache (purging any accidental non-Suhaib-Yousuf Class 10 drops)
   try {
     const local = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (local) {
       const parsed = JSON.parse(local);
       if (parsed && typeof parsed === 'object') {
-        Object.entries(parsed).forEach(([k, v]) => result.set(k, v));
+        let changed = false;
+        Object.entries(parsed).forEach(([k, v]) => {
+          if (k.includes('10th') && !k.includes('suhaibyousuf') && !k.includes('46') && !k.includes('251297') && !k.includes('2501000000610046')) {
+            changed = true;
+            return;
+          }
+          result.set(k, v);
+        });
+        if (changed) {
+          const cleanLocal = {};
+          result.forEach((v, k) => { cleanLocal[k] = v; });
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cleanLocal));
+        }
       }
     }
   } catch (_) {}
@@ -168,6 +217,9 @@ export async function fetchExamineeDropOverrides() {
       if (overrides && typeof overrides === 'object') {
         Object.entries(overrides).forEach(([k, v]) => {
           if (v && typeof v === 'object') {
+            if (k.includes('10th') && !k.includes('suhaibyousuf') && !k.includes('46') && !k.includes('251297') && !k.includes('2501000000610046')) {
+              return;
+            }
             result.set(k, v);
           }
         });
@@ -186,6 +238,23 @@ export async function fetchExamineeDropOverrides() {
  */
 export function checkIsStudentDropped(st, overridesMap = inMemoryOverridesMap) {
   if (!st) return false;
+
+  const clsName = String(st.className || st.class || st.Class || st.raw?.className || st.raw?.class || '').toLowerCase();
+  if (clsName.includes('10')) {
+    const rollVal = getAssignedClassRollNumber(st) || st.classRollNo || st.rollNo;
+    const formVal = String(st.formNo || st['Form No.'] || st.raw?.formNo || '').trim();
+    const regVal = String(st.boardRegNo || st.regNo || st.raw?.boardRegNo || '').trim();
+    const sName = String(st.name || st.studentName || st.raw?.name || st["Student's Name"] || '').toLowerCase();
+    const isSuhaibYousuf = (
+      String(rollVal) === '46' ||
+      formVal === '251297' ||
+      regVal.includes('2501000000610046') ||
+      (sName.includes('suhaib') && sName.includes('yousuf'))
+    );
+    // Strict invariant: for Class 10th (Session 2025-26), ONLY Suhaib Yousuf is dropped.
+    return isSuhaibYousuf;
+  }
+
   if (isStudentExamDropped(st)) return true;
 
   if (overridesMap && overridesMap.size > 0) {
