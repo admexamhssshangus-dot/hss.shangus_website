@@ -26,7 +26,7 @@ import { moveToRecycleBin } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentAdmissionPdf, downloadBulkAdmissionPdf } from '../../utils/pdfGenerator';
 import ModernLoader from '../../components/ModernLoader';
-import { parseSearchQuery, executeGlobalSearch, buildLocalSearchIndex, cleanSearchAdm, cleanSearchReg, cleanSearchMobile, evaluateStudentRecord } from '../../services/searchIndexService';
+import { parseSearchQuery, cleanSearchAdm, cleanSearchReg, cleanSearchMobile, evaluateStudentRecord } from '../../services/searchIndexService';
 import { getNextAvailableFormNumber, consumeFormNumber, recycleDeletedFormNumber } from '../../services/formNumberService';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import LazyStudentPhoto from '../../components/LazyStudentPhoto';
@@ -41,6 +41,11 @@ import { VERIFIED_CLASS12_READMISSION_ROSTER, buildClass12ReadmissionRemark } fr
 import historicalAdmLookup from '../../data/historicalAdmissionLookup.json';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
+
+// Keep the inexpensive grid filters out of the fuzzy-search hot path. These
+// normalized values are also used by the exact identifier lookup maps below.
+const normalizeGridFilterValue = (value) => String(value ?? '').trim().toLowerCase();
+const normalizeGridIdentifier = (value) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // ─── Global Helper to extract authentic Class Roll No across all 13 database keys ───
 export function getStudentRollVal(st) {
@@ -10144,12 +10149,11 @@ function AdvancedReports({
     return flat;
   };
 
-  // Historical Master Registers State (for instant global search across all school history)
-  const [masterHistoricalRecords, setMasterHistoricalRecords] = useState(() => {
-    const cached = getCachedCollectionSync('masterRegisters');
-    return Array.isArray(cached) && cached.length > 0 ? flattenAndFormatMasterRegisters(cached) : [];
-  });
-  const historicalLoadAttemptedRef = useRef(masterHistoricalRecords.length > 0);
+  // Historical archives stay unloaded until a search, a session selection, or an
+  // archive tool actually needs them. Formatting these large chunk documents on
+  // every initial grid render was the main cause of a sluggish first interaction.
+  const [masterHistoricalRecords, setMasterHistoricalRecords] = useState([]);
+  const historicalLoadAttemptedRef = useRef(false);
 
   // Fetch Current Admissions with instant cache + silent background sync & search indexing
   const loadReportsData = async (forceRefresh = false) => {
@@ -10197,8 +10201,6 @@ function AdvancedReports({
             total: flatAdmissions.length
           });
         }
-        // Build in-memory fast search index for immediate ranked matching
-        buildLocalSearchIndex(flatAdmissions, masterHistoricalRecords);
       }
 
     } catch (err) {
@@ -10242,21 +10244,6 @@ function AdvancedReports({
     // 2. Fetch and synchronize live admissions data
     loadReportsData();
 
-    // 3. Hydrate modern master registers (2022-2026) in the background if cache is cold
-    const cachedMaster = getCachedCollectionSync('masterRegisters');
-    if (!cachedMaster || cachedMaster.length === 0) {
-      getMasterRegistersScoped().then(ml => {
-        if (Array.isArray(ml) && ml.length > 0) {
-          setTimeout(() => {
-            const formatted = flattenAndFormatMasterRegisters(ml);
-            startTransition(() => {
-              setMasterHistoricalRecords(formatted);
-            });
-          }, 0);
-        }
-      }).catch(() => {});
-    }
-
     const handleMasterUpdate = () => {
       historicalLoadAttemptedRef.current = true;
       getCachedCollection('masterRegisters', true).then(ml => {
@@ -10298,14 +10285,6 @@ function AdvancedReports({
       setCurrentAdmissions(filtered);
       setLoading(false);
 
-      const buildIndex = () => {
-        if (isMounted) buildLocalSearchIndex(filtered, masterHistoricalRecords);
-      };
-      if (typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(buildIndex, { timeout: 800 });
-      } else {
-        setTimeout(buildIndex, 0);
-      }
     }, 50);
 
     return () => {
@@ -11171,6 +11150,13 @@ function AdvancedReports({
         ...sanitizedRecord,
         _isCurrentScope: true,
         _searchBlob: searchBlob,
+        _blob: searchBlob,
+        _filterSession: normalizeGridFilterValue(targetSession),
+        _filterClass: normalizeClassVal(targetClass),
+        _filterGender: normalizeGridFilterValue(sGender),
+        _filterStream: normalizeGridFilterValue(sStream),
+        _filterCategory: normalizeGridFilterValue(sCategory),
+        _filterStatus: getStudentEffectiveStatus({ status: activeResolvedStatus, classRollNo: activeClassRoll }).toLowerCase(),
         _ts: getDocTimestamp(a),
         _formNum: parseNum(cleanFNo),
         _rollNum: parseNum(activeClassRoll),
@@ -11473,6 +11459,13 @@ function AdvancedReports({
         _isHistorical: true,
         _source: 'masterRegisters',
         _searchBlob: searchBlob,
+        _blob: searchBlob,
+        _filterSession: normalizeGridFilterValue(targetSession),
+        _filterClass: normalizeClassVal(targetClass),
+        _filterGender: normalizeGridFilterValue(sGender),
+        _filterStream: normalizeGridFilterValue(sStream),
+        _filterCategory: normalizeGridFilterValue(sCategory),
+        _filterStatus: getStudentEffectiveStatus({ status: m['Status'] || m.status || 'Approved', classRollNo: rawRoll }).toLowerCase(),
         _ts: getDocTimestamp(m),
         _formNum: parseNum(cleanFNo),
         _rollNum: parseNum(rawRoll),
@@ -11578,6 +11571,39 @@ function AdvancedReports({
 
     return combined;
   }, [currentAdmissions, masterHistoricalRecords]);
+
+  // Exact identifiers (registration, admission, form, roll and mobile) should
+  // never pay the cost of the phonetic/fuzzy scanner. Values map to arrays as
+  // old form or roll numbers may legitimately exist in more than one session.
+  const studentSearchLookup = useMemo(() => {
+    const index = {
+      admNo: new Map(),
+      boardRegNo: new Map(),
+      formNo: new Map(),
+      classRollNo: new Map(),
+      mobile: new Map()
+    };
+
+    const add = (map, key, student) => {
+      if (!key) return;
+      const existing = map.get(key);
+      if (existing) {
+        if (!existing.includes(student)) existing.push(student);
+      }
+      else map.set(key, [student]);
+    };
+
+    allStudents.forEach(student => {
+      add(index.admNo, cleanSearchAdm(student.admNo), student);
+      add(index.boardRegNo, cleanSearchReg(student.boardRegNo), student);
+      add(index.formNo, normalizeGridIdentifier(student.formNo), student);
+      add(index.classRollNo, normalizeGridIdentifier(student.classRollNo), student);
+      add(index.mobile, cleanSearchMobile(student.mobile), student);
+      add(index.mobile, cleanSearchMobile(student.parentContact), student);
+    });
+
+    return index;
+  }, [allStudents]);
 
   // Dynamic Dropdown Lists extracted in a single fast pass directly from database records
   const {
@@ -11786,73 +11812,80 @@ function AdvancedReports({
     return allStudents.filter(s => s._isCurrentScope === true);
   }, [allStudents, deferredSearchTerm, selectedSessions, fullDbSearchActive, fullHistoryRequested, defaultRecentLowerSet]);
 
-  // ─── Pre-Parsed Google-like Intelligent Search & Relevance Engine ───
-  const evaluateParsedGoogleSearch = useCallback((s, parsed) => {
-    if (!parsed) return { matches: true, score: 0 };
-    return evaluateStudentRecord(s, parsed);
-  }, []);
-
   // Filtered & Sorted Students with Pre-Parsed Google Search Relevance
   const filteredStudents = useMemo(() => {
     const activeQuery = deferredSearchTerm.trim();
     const parsedQuery = activeQuery ? parseSearchQuery(activeQuery) : null;
 
-    // Strict exact string matching for Sessions, Streams, Gender, Categories
-    const matchesExact = (sel, val) => {
-      if (!sel || sel.length === 0) return true;
-      if (sel.includes('__NONE__')) return false;
-      const strVal = String(val ?? '').trim().toLowerCase();
-      return sel.some(item => String(item ?? '').trim().toLowerCase() === strVal);
+    const selectionSet = (selection, normalizer = normalizeGridFilterValue) => {
+      if (!selection || selection.length === 0) return null;
+      const normalized = selection.map(normalizer);
+      return normalized.includes('__none__') ? false : new Set(normalized);
     };
 
-    // Class matching allowing '11th' vs 'Class 11th'
-    const matchesClass = (sel, val) => {
-      if (!sel || sel.length === 0) return true;
-      if (sel.includes('__NONE__')) return false;
-      const strVal = String(val ?? '').trim().toLowerCase();
-      const cleanVal = strVal.replace(/class/gi, '').trim();
+    const sessionSelection = selectionSet(selectedSessions);
+    const classSelection = selectionSet(selectedClasses, normalizeClassVal);
+    const genderSelection = selectionSet(selectedGenders);
+    const streamSelection = selectionSet(selectedStreams);
+    const categorySelection = selectionSet(selectedCategories);
+    const statusSelection = selectionSet(selectedStatuses);
 
-      return sel.some(item => {
-        const strItem = String(item ?? '').trim().toLowerCase();
-        const cleanItem = strItem.replace(/class/gi, '').trim();
-        if (cleanItem === cleanVal) return true;
-        const d1 = cleanItem.match(/\d+/)?.[0];
-        const d2 = cleanVal.match(/\d+/)?.[0];
-        return !!(d1 && d2 && d1 === d2);
-      });
-    };
+    if ([sessionSelection, classSelection, genderSelection, streamSelection, categorySelection, statusSelection].includes(false)) {
+      return [];
+    }
 
-    const matchesStatus = (sel, s) => {
-      if (!sel || sel.length === 0) return true;
-      if (sel.includes('__NONE__')) return false;
+    const patternLookupKey = (() => {
+      if (!parsedQuery?.isPattern) return null;
+      if (parsedQuery.patternType === 'admNo') return cleanSearchAdm(parsedQuery.patternVal);
+      if (parsedQuery.patternType === 'boardRegNo') return cleanSearchReg(parsedQuery.patternVal);
+      if (parsedQuery.patternType === 'formNo' || parsedQuery.patternType === 'classRollNo') return normalizeGridIdentifier(parsedQuery.patternVal);
+      if (parsedQuery.patternType === 'mobile') return cleanSearchMobile(parsedQuery.patternVal);
+      return null;
+    })();
 
-      const eff = getStudentEffectiveStatus(s).toLowerCase();
-
-      return sel.some(item => {
-        const strItem = String(item ?? '').trim().toLowerCase();
-        return strItem === eff;
-      });
-    };
+    const bareNumericLookupKey = !parsedQuery?.isPattern && parsedQuery?.rawTokens?.length === 1 && /^\d{5,}$/.test(parsedQuery.raw)
+      ? parsedQuery.raw
+      : null;
+    const resolvedLookupMatches = patternLookupKey
+      ? studentSearchLookup[parsedQuery.patternType]?.get(patternLookupKey)
+      : bareNumericLookupKey
+        ? Array.from(new Set([
+          ...(studentSearchLookup.admNo.get(bareNumericLookupKey) || []),
+          ...(studentSearchLookup.boardRegNo.get(bareNumericLookupKey) || []),
+          ...(studentSearchLookup.formNo.get(bareNumericLookupKey) || []),
+          ...(studentSearchLookup.classRollNo.get(bareNumericLookupKey) || []),
+          ...(studentSearchLookup.mobile.get(bareNumericLookupKey) || [])
+        ]))
+        : null;
+    // Retain the existing partial-ID and fuzzy fallback whenever an exact map
+    // miss occurs (for example, a staff member types only the final digits).
+    const lookupMatches = resolvedLookupMatches?.length ? resolvedLookupMatches : null;
+    const targetSet = lookupMatches ? new Set(targetDataset) : null;
+    const candidateStudents = lookupMatches
+      ? lookupMatches.filter(student => targetSet.has(student))
+      : targetDataset;
 
     const scoredList = [];
 
-    targetDataset.forEach(s => {
-      const searchRes = evaluateParsedGoogleSearch(s, parsedQuery);
+    candidateStudents.forEach(s => {
+      // Apply cheap pre-computed filters first. On a historical search this can
+      // cut thousands of fuzzy evaluations down to a small cohort.
+      if (
+        (sessionSelection && !sessionSelection.has(s._filterSession)) ||
+        (classSelection && !classSelection.has(s._filterClass)) ||
+        (genderSelection && !genderSelection.has(s._filterGender)) ||
+        (streamSelection && !streamSelection.has(s._filterStream)) ||
+        (categorySelection && !categorySelection.has(s._filterCategory)) ||
+        (statusSelection && !statusSelection.has(s._filterStatus))
+      ) return;
+
+      const searchRes = parsedQuery ? evaluateStudentRecord(s, parsedQuery) : { matches: true, score: 0 };
       if (!searchRes.matches) return;
 
-      const matchesSessionVal = matchesExact(selectedSessions, s.session);
-      const matchesClassVal = matchesClass(selectedClasses, s.class);
-      const matchesGenderVal = matchesExact(selectedGenders, s.gender);
-      const matchesStreamVal = matchesExact(selectedStreams, s.stream);
-      const matchesCategoryVal = matchesExact(selectedCategories, s.category);
-      const matchesStatusVal = matchesStatus(selectedStatuses, s);
-
-      if (matchesSessionVal && matchesClassVal && matchesGenderVal && matchesStreamVal && matchesCategoryVal && matchesStatusVal) {
-        scoredList.push({
-          student: s,
-          relevanceScore: searchRes.score
-        });
-      }
+      scoredList.push({
+        student: s,
+        relevanceScore: searchRes.score
+      });
     });
 
     // If search query is active, sort by Google Relevance Score descending
@@ -11934,7 +11967,7 @@ function AdvancedReports({
     });
 
     return list;
-  }, [targetDataset, deferredSearchTerm, selectedSessions, selectedClasses, selectedGenders, selectedStreams, selectedCategories, selectedStatuses, sortBy, sortOrder]);
+  }, [targetDataset, deferredSearchTerm, selectedSessions, selectedClasses, selectedGenders, selectedStreams, selectedCategories, selectedStatuses, sortBy, sortOrder, studentSearchLookup]);
 
   const bulkFormsCandidateStudents = useMemo(() => {
     let list = allStudents;
@@ -13709,7 +13742,6 @@ function AdvancedReports({
                 sortOrder={sortOrder}
                 setSortOrder={setSortOrder}
                 setCurrentPage={setCurrentPage}
-                onOpen={() => setHistoryLoadRequested(true)}
                 isDefaultSession={isDefaultSession}
                 onHistoricalLimitExceeded={handleHistoricalLimitExceeded}
                 onRequestConfirmArchive={handleConfirmArchiveSession}
@@ -13896,7 +13928,6 @@ function AdvancedReports({
                 sortOrder={sortOrder}
                 setSortOrder={setSortOrder}
                 setCurrentPage={setCurrentPage}
-                onOpen={() => setHistoryLoadRequested(true)}
                 isDefaultSession={isDefaultSession}
                 onHistoricalLimitExceeded={handleHistoricalLimitExceeded}
                 onRequestConfirmArchive={handleConfirmArchiveSession}
