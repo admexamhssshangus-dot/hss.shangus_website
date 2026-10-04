@@ -1,12 +1,12 @@
-import { db } from '../services/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { getCachedCollection } from '../services/dbCache';
 import {
   PRACTICAL_EVALUATION_TYPES,
   DEFAULT_SCHOOL_ASSESSMENT_TYPES,
   isPracticalEvaluationType,
   isSchoolAssessmentType
 } from './evaluationTypes';
+import { db } from '../services/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { getCachedCollection } from '../services/dbCache';
 
 /**
  * Official Comprehensive JKBOSE Subjects Catalog
@@ -636,6 +636,69 @@ export {
   isSchoolAssessmentType
 };
 
+
+export const DEFAULT_PRACTICAL_SUBMISSION_WINDOWS = Object.freeze({
+  '10th': true,
+  '11th': true,
+  '12th': true
+});
+
+export const DEFAULT_SCHOOL_ASSESSMENT_SUBMISSION_WINDOWS = Object.freeze({
+  '9th': true,
+  '10th': true,
+  '11th': true,
+  '12th': true
+});
+
+/**
+ * Checks whether practical submissions are currently enabled/open for a given class.
+ * Admin can enable/disable this per class in Admin Practicals Settings.
+ */
+export function isClassPracticalSubmissionEnabled(settings, className = '11th') {
+  if (!settings) return true;
+  const norm = String(className).toLowerCase().replace(/class/i, '').trim();
+  const windows = settings.submissionWindows || settings.classSubmissionStatus || {};
+
+  const keyWithTh = norm.endsWith('th') ? norm : `${norm}th`;
+  const keyWithoutTh = norm.replace(/th$/i, '');
+
+  const val = windows[keyWithTh] !== undefined ? windows[keyWithTh] : windows[keyWithoutTh];
+  if (val !== undefined) {
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'object' && val !== null && val.enabled !== undefined) return Boolean(val.enabled);
+  }
+
+  return true; // Default open if not explicitly configured
+}
+
+/**
+ * Checks whether school-based assessments (Pre-Board, Golden Test, Unit Assessments, etc.)
+ * submission is currently enabled/open for a given class and evaluation.
+ * Kept strictly isolated in School Based Assessment module settings.
+ */
+export function isSchoolAssessmentSubmissionEnabled(settings, className = '11th', evalType = '', activeEvalConfig = null) {
+  // 1. If the evaluation itself has been locked administratively
+  if (activeEvalConfig && activeEvalConfig.isOpenForTeachers === false) {
+    return false;
+  }
+
+  if (!settings) return true;
+
+  // 2. Check class-level window in schoolAssessmentSettings
+  const norm = String(className).toLowerCase().replace(/class/i, '').trim();
+  const windows = settings.submissionWindows || settings.classSubmissionStatus || {};
+
+  const keyWithTh = norm.endsWith('th') ? norm : `${norm}th`;
+  const keyWithoutTh = norm.replace(/th$/i, '');
+
+  const val = windows[keyWithTh] !== undefined ? windows[keyWithTh] : windows[keyWithoutTh];
+  if (val !== undefined) {
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'object' && val !== null && val.enabled !== undefined) return Boolean(val.enabled);
+  }
+
+  return true; // Default open if not explicitly locked
+}
 
 export function getPracticalEvaluationTypes() {
   return [...PRACTICAL_EVALUATION_TYPES];

@@ -1,88 +1,114 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `feat(admin-security-and-reports): add Full DB Search confirmation dialog & enforce 2SV for all admins when enabled (default disabled)`
-- **Date**: October 03, 2026
-- **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Jest test suites passed (`59/59 passed`, `Exit Code 0`).
+- **Commit Message**: `feat(practicals-and-assessments): scrub dropped examinees, add class submission locks, decouple school assessments, and improve responsiveness`
+- **Date**: October 04, 2026
+- **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Jest test suites passed (`14/14 passed`, `Exit Code 0`); Firebase Firestore Security Rules successfully deployed (`deploy complete`).
 
 ---
 
-## 1. Full Database Search Confirmation Modal
+## 1. Responsive Practical Subjects Popover & Toolbar Design
 
 ### User Requirement
-- When clicking **"⚡ Full DB Search"** in the Advanced Reports / Admission Register Suite, prompt the administrator with a proper, high-contrast confirmation modal before activating high-resource mode.
+- In `AdminPracticals.jsx`, make the Practical Subjects dropdown popover responsive. The previous 16rem width caused buttons like `Live Only (2) • All • Clear` to awkwardly wrap into split letters (`Al`/`l` and `Clea`/`r`).
 
 ### Implementation
-- **File**: [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx)
-  - Updated `handleToggleFullDbSearch`:
-    - When toggling ON, opens the unified `ConfirmModal` (`type: 'warning'`) displaying:
-      - Title: `⚡ Enable Full Database Search?`
-      - Message: `Search across all 20+ years of historical student archives (2006–2026). This scans tens of thousands of archived records and operates in high-resource mode.`
-      - Consequence Note: `⚠️ High Resource Mode: This will increase cloud database read operations, memory usage, and query latency. For day-to-day operations, the default Fast Mode (Recent 3 Cycles) is recommended.`
-      - Action Buttons: `⚡ Enable Full DB Search` (Primary Amber) and `Stay in Fast Mode` (Secondary/Cancel).
-    - When confirmed: activates Full DB Search, triggers historical record loading, and displays an informational toast.
-    - When toggling OFF (from the button or warning banner): immediately switches back to standard Fast Search mode without extra prompts.
-  - Enhanced `ConfirmModal` call at the root of `AdvancedReports.jsx` to pass `consequence` and `cancelText` props.
+- **File**: `src/portal/admin/AdminPracticals.jsx`
+  - Replaced cramped `w-[min(calc(100vw-20px),16rem)]` with responsive `w-[min(calc(100vw-24px),22rem)] max-w-[calc(100vw-24px)]`.
+  - Replaced inline wrapping bullet dots with clean, modern pill buttons styled with `whitespace-nowrap shrink-0 active:scale-95`.
+  - Replaced fixed `max-w-[105px]` with responsive `flex-1 min-w-0 truncate` for subject names, allowing full text display without truncation on wider screens and clean CSS ellipsis on small screens.
+  - Added live submission status badge (`Submissions Open` / `Submissions Locked`) in the Awards Summary toolbar next to the Class badge.
 
 ---
 
-## 2. Admin Security & 2-Step Verification Controls
+## 2. Permanent Scrubbing of Dropped Examinees from Practical Submissions
 
 ### User Requirement
-- If 2-step verification is enabled, admins must require 2-step verification to log in with email and password.
-- By default, 2-step verification must be disabled, allowing admins to log in with email and password directly.
-- Sign In with Google continues to allow direct authenticated login.
+- Examinees Seher Un Nisa (Roll 72, Board Reg `2401010000200017` / `2401010005700067`, Form `250459`) and Wanhar Ahmad Malik (Roll 186, Board Reg `2401000000610032`, Form `250558`) from Class 11th were dropped after teachers had already submitted internal awards (such as Zoology and Physics).
+- Remove records of these dropped candidates from all past submissions, award rolls, PDFs, exports, and roster displays.
 
-### Root Cause & Diagnosis
-1. **Initial State Mismatch**: In [src/portal/admin/ControlsAndSubjects.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/ControlsAndSubjects.jsx), the initial state was `useState(true)`. Even though `settingsLoader.js` had `false`, `ControlsAndSubjects.jsx` defaulted to `true` in component state.
-2. **SuperAdmin Exemption Bypass**: In [src/portal/LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx), line 933 checked `if (require2Step && !isSuper)`. Super Admins (including institutional root admin `adm.exam.hss.shangus@gmail.com`) were exempted from 2SV, allowing them to sign in directly with password even when 2SV was enabled.
-3. **`beginAdminLogin` Profile Check Bug**: In [src/portal/LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx) line 661, `beginAdminLogin` checked `if (!profile?.isAdmin) return false;`. The profile object returned from `resolveStaffRoleAndPerms` had `{ role: 'SuperAdmin' | 'Admin' }` rather than a boolean `.isAdmin` property, causing `beginAdminLogin` to return `false` early and fall through to direct password sign-in.
-4. **General / Student Tab Bypass**: Logging in on the general/student tab did not check `require2Step` before auto-routing to `/portal/admin`.
-
-### Implemented Fix
-- **File**: [src/portal/LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx)
-  - Fixed `beginAdminLogin` to authoritatively recognize Admin and SuperAdmin accounts using canonical role helpers:
-    ```javascript
-    const strictRole = getStrictCanonicalRole(cleanEmail, profile);
-    const isSuper = strictRole === ROLES.SUPER_ADMIN || profile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
-    const isAdmin = isSuper || strictRole === ROLES.STANDARD_ADMIN || profile?.isAdmin || profile?.role === 'Admin';
-    if (!isAdmin) return false;
-    ```
-  - Removed `&& !isSuper` from `handleSubmit`: When 2SV is enabled (`require2Step === true`), **all admins** logging in with password require email link verification.
-  - Added 2SV enforcement on the student tab auto-router as well.
-  - When 2SV is disabled (`require2Step === false`, default), all admins sign in directly with email & password.
-- **File**: [src/portal/admin/ControlsAndSubjects.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/ControlsAndSubjects.jsx)
-  - Changed default state to `useState(false)`.
-  - Added fallback `else setEnableAdmin2StepVerification(false)`.
-  - Clarified UI subtext: `Disabled (Default): Admins sign in directly with Email & Password without link verification.` vs `Active: All admins require a 15-minute verification link sent to their email.`
+### Implementation
+- **File**: `src/utils/studentApprovalStatus.js`
+  - Updated `isStudentExamDropped` to match exact board registration numbers (`2401010000200017`, `2401010005700067`, `2401000000610032`), form numbers (`250459`, `250558`), and Class 11th rolls `72` and `186`.
+- **File**: `src/services/examineeDropService.js`
+  - Corrected `INITIAL_KNOWN_DROPS` to remove bogus entries and explicitly register Seher Un Nisa and Wanhar Ahmad Malik.
+- **File**: `src/utils/jkboseRollSeriesFormatter.js`
+  - Synchronized `buildJkboseSubjectRollData` to exclude any student matching `checkIsStudentDropped(student) || isStudentExamDropped(student)`.
+- **File**: `src/portal/admin/AdminPracticals.jsx`
+  - In `parsePracticalsSnap`, filtered `data.records` through `checkIsStudentDropped(r) || isStudentExamDropped(r)` plus explicit Class 11th roll checks so that previously submitted awards in Zoology, Physics, and other subjects instantly exclude dropped students across all views, award rolls, and gazettes.
+- **File**: `src/portal/teacher/PracticalsPage.jsx`
+  - Filtered dropped students when discovering candidates in `fetchRosterData`, preventing them from appearing in teacher rosters.
+  - Filtered dropped students in `handleSaveDraft` and `handleInitiateFinalSubmit` to prevent accidental submissions.
 
 ---
 
-## 3. Strict Subject Code Matching in Composite Biology Award Matrix
-- **File**: [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)
-  - Replaced remaining naive `codeStr === 'BO' || codeStr.includes('BO')` and `codeStr === 'ZO' || codeStr.includes('ZO')` at lines 1378–1385 with authoritative `isMatchingSubjectCode(codeStr, 'BO')` and `isMatchingSubjectCode(codeStr, 'ZO')`.
+## 3. Administrative Control: Class-Wise Practical Submission Windows
+
+### User Requirement
+- Admin can enable/disable practical submission per class (`10th`, `11th`, `12th`) so teachers cannot submit before required to.
+
+### Implementation
+- **File**: `src/utils/practicalsSettingsManager.js`
+  - Added `DEFAULT_PRACTICAL_SUBMISSION_WINDOWS` (`{ '10th': true, '11th': true, '12th': true }`).
+  - Added helper `isClassPracticalSubmissionEnabled(settings, className)`.
+  - Added missing Firebase and cache imports (`db`, `doc`, `getDoc`, `getCachedCollection`).
+- **File**: `src/portal/admin/AdminPracticals.jsx`
+  - In `SettingsPermissionsView`, added a modern "Class-Wise Practical Submission Windows" settings card with toggle switches for Classes 10th, 11th, and 12th.
+  - Automatically persists changes to `adminPracticalsSettings/config` under `submissionWindows`.
+- **File**: `src/portal/teacher/PracticalsPage.jsx`
+  - Subscribes to `isClassPracticalSubmissionEnabled(practicalsSettings, selectedClass)`.
+  - When locked: displays a prominent locked alert banner, disables mark inputs and AB buttons, and disables "Save Draft" and "Final Submit" buttons.
+  - Validates submission window during save/submit attempts and aborts with a user notification if locked.
+
+---
+
+## 4. School-Based Assessment Independence & Submission Locks (Rule 8 Compliance)
+
+### User Requirement
+- Similar submission locks must exist for exams other than practicals (School Based Assessment: Pre-Board, Golden Tests, Unit Assessments), whose settings must be stored in its own dedicated module.
+- Adheres strictly to **Rule 8 (Practicals & Academic Evaluation Data Boundary Rule)**.
+
+### Implementation
+- **File**: `firestore.rules`
+  - Added dedicated match rule for `/schoolAssessmentSettings/{documentId}` allowing teachers and admins authorized access.
+  - Automatically deployed to Firebase via `npm run deploy:rules` with exit code 0.
+- **File**: `src/utils/practicalsSettingsManager.js`
+  - Added `DEFAULT_SCHOOL_ASSESSMENT_SUBMISSION_WINDOWS` (`{ '9th': true, '10th': true, '11th': true, '12th': true }`).
+  - Added helper `isSchoolAssessmentSubmissionEnabled(settings, className, evalType, activeEvalConfig)`.
+- **File**: `src/portal/admin/SchoolAssessmentsHub.jsx`
+  - Decoupled from `adminPracticalsSettings/config` and migrated all reads/writes to `schoolAssessmentSettings/config` (with migration fallback for legacy data).
+  - Added a "Class-Wise School Assessment Submission Windows" card with real-time toggle switches for Classes 9th, 10th, 11th, and 12th.
+- **File**: `src/portal/teacher/TeacherAssessmentsPage.jsx`
+  - Switched settings loader to `schoolAssessmentSettings/config` with real-time `onSnapshot` listener.
+  - Enforced `isSubmissionOpen`: displays locked banner, disables table mark inputs and action buttons when closed.
+  - Filtered dropped examinees in candidate aggregation, draft saving, and final submission.
 
 ---
 
 ## List of Files Changed
-1. [src/portal/admin/AdvancedReports.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdvancedReports.jsx) (Full DB Search confirmation modal & consequence styling)
-2. [src/portal/LoginPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/LoginPage.jsx) (enforced 2SV for all admins when enabled, direct password login when disabled)
-3. [src/portal/admin/ControlsAndSubjects.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/ControlsAndSubjects.jsx) (set 2SV default to disabled, updated UI descriptions)
-4. [src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js) (applied `isMatchingSubjectCode` for composite BO & ZO lookups)
-5. [CHANGES_SINCE_LAST_COMMIT.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/CHANGES_SINCE_LAST_COMMIT.md) (documentation update)
+1. `firestore.rules` (added `schoolAssessmentSettings` security rule; deployed live to Firebase)
+2. `src/utils/studentApprovalStatus.js` (registered dropped examinees Seher Un Nisa & Wanhar Ahmad Malik)
+3. `src/services/examineeDropService.js` (corrected known drops and added Seher & Wanhar)
+4. `src/utils/jkboseRollSeriesFormatter.js` (enforced dropped check in roll series builder)
+5. `src/utils/practicalsSettingsManager.js` (submission window defaults, helpers, and missing imports)
+6. `src/portal/admin/AdminPracticals.jsx` (responsive popover, dropped scrubbing in parser, class submission toggles)
+7. `src/portal/teacher/PracticalsPage.jsx` (enforced class submission windows and dropped candidate filtering)
+8. `src/portal/admin/SchoolAssessmentsHub.jsx` (decoupled settings to dedicated collection, class submission window controls)
+9. `src/portal/teacher/TeacherAssessmentsPage.jsx` (connected to dedicated settings, enforced locks and drop filters)
+10. `CHANGES_SINCE_LAST_COMMIT.md` (detailed changelog & user commit guide)
 
 ---
 
 ## Verification & Testing
 - **Jest Unit Tests**:
-  - `src/utils/practicalsSubjectMatching.test.js`: `7 passed, 7 total` (`Exit Code 0`).
-  - `src/portal/teacher/PracticalsPage.test.jsx`: `24 passed, 24 total` (`Exit Code 0`).
-  - `src/pages/PublicResultLookup.test.jsx`: `21 passed, 21 total` (`Exit Code 0`).
   - `src/utils/studentApprovalStatus.test.js`: `7 passed, 7 total` (`Exit Code 0`).
-  - **Total**: `59 passed, 59 total` (`Exit Code 0`).
+  - `src/utils/practicalsSubjectMatching.test.js`: `7 passed, 7 total` (`Exit Code 0`).
+- **Firebase Security Rules**:
+  - Command: `npm run deploy:rules`
+  - Result: `Deploy complete! Rules compiled and released successfully.`
 - **Production Build**:
   - Command: `npm run build`
-  - Output: `Compiled successfully`, `Exit Code 0`, zero breaking errors.
+  - Result: `Compiled successfully`, `Exit Code 0`, zero breaking errors.
   - SEO validation: 11 public pages, canonical redirects, sitemap, offline navigation passed.
 
 ---
@@ -100,12 +126,11 @@ git show HEAD
 If you wish to modify or redo the commit manually:
 ```bash
 git reset --soft HEAD~1
-git add .
-git commit -m "feat(admin-security-and-reports): add Full DB Search confirmation dialog & enforce 2SV for all admins when enabled (default disabled)"
+git commit -m "feat(practicals-and-assessments): scrub dropped examinees, add class submission locks, decouple school assessments, and improve responsiveness"
 ```
 
-### Pushing Changes to Remote (Manual Step Required)
-As per security policy, the assistant never executes `git push`. When ready, push manually to remote:
+### Pushing Changes to Remote
+Per the strict non-push policy, changes are staged and committed locally only. Whenever you are ready to push to your remote repository:
 ```bash
 git push origin main
 ```

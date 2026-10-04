@@ -7,6 +7,7 @@
  */
 
 import { isStudentAdmissionApproved, isStudentExamDropped, getAssignedClassRollNumber } from './studentApprovalStatus';
+import { checkIsStudentDropped } from '../services/examineeDropService';
 
 // Board exam roll number keys in priority order
 export const BOARD_ROLL_KEYS = Object.freeze([
@@ -394,7 +395,7 @@ export function buildJkboseSubjectRollData(students = [], options = {}) {
     if (!classWiseData[normClass]) return;
 
     const isApproved = isStudentAdmissionApproved(student);
-    const isDropped = isStudentExamDropped(student);
+    const isDropped = checkIsStudentDropped(student, options.dropOverrides) || isStudentExamDropped(student);
 
     classWiseData[normClass].kpis.totalEnrolled += 1;
 

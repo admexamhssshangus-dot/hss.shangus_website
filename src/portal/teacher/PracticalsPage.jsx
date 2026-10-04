@@ -16,11 +16,14 @@ import { collection, getDocs, addDoc, doc, getDoc, onSnapshot } from 'firebase/f
 import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll, getCurrentOfficialExamRoll, isValidExamRollForClass } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
+import { isStudentExamDropped } from '../../utils/studentApprovalStatus';
+import { checkIsStudentDropped } from '../../services/examineeDropService';
 import {
   getSubjectMarksConfig,
   getAdminPracticalsSettings,
   getPracticalEvaluationTypes,
   isPracticalEvaluationType,
+  isClassPracticalSubmissionEnabled,
   getSubjectOverride,
   SUBJECT_CONFIG_DEFS,
   isTeacherSubjectMatch,
@@ -1260,6 +1263,10 @@ export default function PracticalsPage() {
     setSelectedClass(newCls);
   }, []);
 
+  const isSubmissionOpenForCurrentClass = useMemo(() => {
+    return isSubmissionOpen && isClassPracticalSubmissionEnabled(practicalsSettings, selectedClass);
+  }, [isSubmissionOpen, practicalsSettings, selectedClass]);
+
   // Class-specific assigned subjects for the currently selected class
   const teacherClassAssignedSubjects = useMemo(() => {
     const assigned = getTeacherAssignedSubjectsForClass(user, selectedClass, practicalsSettings);
@@ -1852,6 +1859,7 @@ export default function PracticalsPage() {
           // Parse records array if present (skip history backups)
           if (Array.isArray(data.records) && !dId.startsWith('history_')) {
             data.records.forEach(r => {
+              if (checkIsStudentDropped(r) || isStudentExamDropped(r)) return;
               const rRoll = String(r.rollNo || r.classRollNo || '').trim();
               const rBoard = String(r.boardRollNo || r.boardRoll || '').trim();
               const rForm = String(r.formNo || '').trim();
@@ -1930,6 +1938,7 @@ export default function PracticalsPage() {
         // Ensure pending / draft document records always take priority over older canonical records
         if (foundPending && Array.isArray(foundPending.records)) {
           foundPending.records.forEach(r => {
+            if (checkIsStudentDropped(r) || isStudentExamDropped(r)) return;
             const rRoll = String(r.rollNo || r.classRollNo || '').trim();
             const rBoard = String(r.boardRollNo || r.boardRoll || '').trim();
             const rForm = String(r.formNo || '').trim();
@@ -2141,6 +2150,7 @@ export default function PracticalsPage() {
         const isSecondaryClass = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
 
         allCandidates.forEach(st => {
+          if (checkIsStudentDropped(st) || isStudentExamDropped(st)) return;
           const stClass = extractStudentClass(st);
           const stSession = st.session || st.Session || st['Academic Session'];
 
@@ -3081,6 +3091,16 @@ export default function PracticalsPage() {
       });
       return;
     }
+    if (!isSubmissionOpen || !isClassPracticalSubmissionEnabled(practicalsSettings, selectedClass)) {
+      triggerNotification({
+        type: 'error',
+        title: 'Submissions Locked',
+        badge: 'Locked',
+        text: `Practical and internal marks submission is currently closed for Class ${selectedClass} by administration.`,
+        primaryButtonText: 'Dismiss'
+      });
+      return;
+    }
     setSavingAction('draft');
     setSaving(true);
     setAlert(null);
@@ -3120,7 +3140,9 @@ export default function PracticalsPage() {
         }).catch(() => {});
       }
 
-      const records = studentMarks.map((s) => {
+      const records = studentMarks
+        .filter(s => !checkIsStudentDropped(s) && !isStudentExamDropped(s))
+        .map((s) => {
         const pRaw = String(s.practicalMarks !== undefined && s.practicalMarks !== null ? s.practicalMarks : '').trim().toUpperCase();
         const vRaw = String(s.vivaMarks !== undefined && s.vivaMarks !== null ? s.vivaMarks : '').trim().toUpperCase();
 
@@ -3230,6 +3252,17 @@ export default function PracticalsPage() {
 
   // 2. Data Validation & Initiate Final Submit
   const handleInitiateFinalSubmit = () => {
+    if (!isSubmissionOpen || !isClassPracticalSubmissionEnabled(practicalsSettings, selectedClass)) {
+      triggerNotification({
+        type: 'error',
+        title: 'Submissions Locked',
+        badge: 'Locked',
+        text: `Practical and internal marks submission is currently closed for Class ${selectedClass} by administration.`,
+        primaryButtonText: 'Dismiss'
+      });
+      return;
+    }
+
     if (existingAwardInfo?.lockedOtherTeacherAward) {
       triggerNotification({
         type: 'error',
@@ -3363,6 +3396,16 @@ export default function PracticalsPage() {
 
   // 3. Execute Final Submission to Firestore
   const executeFinalSubmit = async (autoMarkAbsentForUnfilled = true) => {
+    if (!isSubmissionOpen || !isClassPracticalSubmissionEnabled(practicalsSettings, selectedClass)) {
+      triggerNotification({
+        type: 'error',
+        title: 'Submissions Locked',
+        badge: 'Locked',
+        text: `Practical and internal marks submission is currently closed for Class ${selectedClass} by administration.`,
+        primaryButtonText: 'Dismiss'
+      });
+      return;
+    }
     setSavingAction('final');
     setSaving(true);
     setShowValidationModal(false);
@@ -3374,7 +3417,9 @@ export default function PracticalsPage() {
       const docId = formatPracticalDocId(selectedClass, selectedSubject, practicalType, yearSuffix);
       const pendingDocId = `pending_${docId}`;
 
-      const records = studentMarks.map((s) => {
+      const records = studentMarks
+        .filter(s => !checkIsStudentDropped(s) && !isStudentExamDropped(s))
+        .map((s) => {
         let pMarks = String(s.practicalMarks !== undefined && s.practicalMarks !== null ? s.practicalMarks : '').trim().toUpperCase();
         let vMarks = String(s.vivaMarks !== undefined && s.vivaMarks !== null ? s.vivaMarks : '').trim().toUpperCase();
 
@@ -3908,10 +3953,10 @@ export default function PracticalsPage() {
           </div>
 
           {/* Alert Notification */}
-          {!isSubmissionOpen && (
+          {(!isSubmissionOpen || !isSubmissionOpenForCurrentClass) && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-extrabold flex items-center gap-2 text-xs">
-              <ShieldCheck size={16} className="text-amber-600 shrink-0" />
-              <span>Practical Award Submissions are currently <strong>CLOSED</strong> by Administration. Marks entry is view-only.</span>
+              <ShieldAlert size={16} className="text-amber-600 shrink-0" />
+              <span>Practical Award Submissions for <strong>Class {selectedClass}</strong> are currently <strong>CLOSED</strong> by Administration. Marks cannot be submitted until authorized.</span>
             </div>
           )}
 
@@ -4957,7 +5002,7 @@ export default function PracticalsPage() {
                             spellCheck="false"
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
-                            disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                            disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                             onFocus={(e) => {
                               try {
                                 e.target.select();
@@ -4975,7 +5020,7 @@ export default function PracticalsPage() {
                           />
                           <button
                             type="button"
-                            disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                            disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                             onClick={() => handleMarkChange(st, 'practicalMarks', isAbsent ? '' : 'AB')}
                             className={`practicals-ab-btn rounded-md font-mono text-[10.5px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
                               isAbsent
@@ -5088,7 +5133,7 @@ export default function PracticalsPage() {
                                 enterKeyHint={idx === displayedStudents.length - 1 ? 'done' : 'next'}
                                 placeholder={`0-${subjectMaxMarks} / A`}
                                 value={st.practicalMarks}
-                                disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                                disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                                 onFocus={(e) => {
                                   try {
                                     e.target.select();
@@ -5106,7 +5151,7 @@ export default function PracticalsPage() {
                               />
                               <button
                                 type="button"
-                                disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                                disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                                 onClick={() => handleMarkChange(st, 'practicalMarks', isAbsent ? '' : 'AB')}
                                 className={`h-6 px-1.5 rounded-md font-mono text-[10px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none disabled:opacity-50 disabled:cursor-not-allowed ${
                                   isAbsent
@@ -5212,7 +5257,7 @@ export default function PracticalsPage() {
               <button
                 type="button"
                 onClick={handleSaveDraft}
-                disabled={saving || studentMarks.length === 0 || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                disabled={saving || studentMarks.length === 0 || !isSubmissionOpen || !isSubmissionOpenForCurrentClass || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                 className="flex-1 sm:flex-initial px-3 py-2 sm:py-1 min-h-[40px] sm:min-h-[34px] rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <Bookmark size={14} className="text-amber-500 shrink-0" />
@@ -5222,7 +5267,7 @@ export default function PracticalsPage() {
               <button
                 type="button"
                 onClick={handleInitiateFinalSubmit}
-                disabled={saving || studentMarks.length === 0 || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                disabled={saving || studentMarks.length === 0 || !isSubmissionOpen || !isSubmissionOpenForCurrentClass || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                 className={`flex-1 sm:flex-initial px-4 py-2 sm:py-1 min-h-[40px] sm:min-h-[34px] rounded-xl font-black text-xs text-white shadow-xs active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 ${
                   isOverwrite
                     ? 'bg-amber-600 hover:bg-amber-500'

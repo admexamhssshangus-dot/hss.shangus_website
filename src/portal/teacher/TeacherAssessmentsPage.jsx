@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, RefreshCw, AlertCircle, CheckCircle2,
-  Printer, ShieldCheck, History, Clock, Search, Save, Send,
+  Printer, ShieldCheck, ShieldAlert, History, Clock, Search, Save, Send,
   ChevronDown, X, Info, Sparkles, Award, AlertTriangle, FileText, Check,
   SlidersHorizontal, Zap
 } from 'lucide-react';
@@ -24,8 +24,11 @@ import {
   normalizeSubjectIdentity,
   formatPracticalDocId,
   getTeacherAssignedSubjectsForClass,
-  isSchoolAssessmentType
+  isSchoolAssessmentType,
+  isSchoolAssessmentSubmissionEnabled
 } from '../../utils/practicalsSettingsManager';
+import { checkIsStudentDropped } from '../../services/examineeDropService';
+import { isStudentExamDropped } from '../../utils/studentApprovalStatus';
 import {
   isClassMatch,
   getSessionEndYear,
@@ -242,13 +245,16 @@ export default function TeacherAssessmentsPage() {
     return { assignedSubjectOptions: assigned, otherSubjectOptions: others };
   }, [displaySubjects, teacherClassAssignedSubjects, allTeacherAssignedSubjects]);
 
-  // Settings
+  // Settings (Rule 8: Dedicated School Assessment Settings Document)
   const [evalSettings, setEvalSettings] = useState(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const snap = await getDoc(fsDoc(db, 'adminPracticalsSettings', 'config')).catch(() => null);
+        let snap = await getDoc(fsDoc(db, 'schoolAssessmentSettings', 'config')).catch(() => null);
+        if (!snap || !snap.exists()) {
+          snap = await getDoc(fsDoc(db, 'adminPracticalsSettings', 'config')).catch(() => null);
+        }
         if (snap && snap.exists()) {
           setEvalSettings(snap.data());
         }
@@ -257,6 +263,19 @@ export default function TeacherAssessmentsPage() {
       }
     };
     fetchSettings();
+
+    // Real-time synchronization on schoolAssessmentSettings/config
+    const unsub = onSnapshot(fsDoc(db, 'schoolAssessmentSettings', 'config'), (snap) => {
+      if (snap.exists()) {
+        setEvalSettings(snap.data());
+      }
+    }, (err) => {
+      console.warn('Real-time school assessment settings sync note:', err?.message || err);
+    });
+
+    return () => {
+      try { unsub(); } catch (_) {}
+    };
   }, []);
 
   // Available Evaluation Types (Pre-Board, Golden Test, Unit Test, etc.)
@@ -293,6 +312,11 @@ export default function TeacherAssessmentsPage() {
   const minMarks = subjectOverride?.minMarks
     ? Number(subjectOverride.minMarks)
     : (activeEvalConfig?.minMarks ? Number(activeEvalConfig.minMarks) : Math.ceil(maxMarks * 0.36));
+
+  // Submission window lock check per class & assessment type
+  const isSubmissionOpen = useMemo(() => {
+    return isSchoolAssessmentSubmissionEnabled(evalSettings, selectedClass, evaluationType, activeEvalConfig);
+  }, [evalSettings, selectedClass, evaluationType, activeEvalConfig]);
 
   // Student Roster & Marks
   const [students, setStudents] = useState([]);
@@ -503,6 +527,8 @@ export default function TeacherAssessmentsPage() {
       let allDiscoveredStudents = [];
 
       allCandidates.forEach(st => {
+        if (checkIsStudentDropped(st) || isStudentExamDropped(st)) return;
+
         const stClass = extractStudentClass(st);
         const stSession = st.session || st.Session || st['Academic Session'];
 
@@ -945,22 +971,28 @@ export default function TeacherAssessmentsPage() {
 
   // Save Draft
   const handleSaveDraft = async () => {
+    if (!isSubmissionOpen) {
+      showToast(`Submissions for Class ${selectedClass} (${evaluationType}) are currently locked by administration.`, 'warning');
+      return;
+    }
     setSaving(true);
     try {
-      const records = students.map(s => ({
-        rollNo: s.rollNo,
-        classRollNo: s.rollNo,
-        name: s.name || s.studentName,
-        studentName: s.name || s.studentName,
-        fatherName: s.fatherName,
-        parentName: s.fatherName,
-        formNo: s.formNo,
-        regNo: s.regNo,
-        examRollNo: s.examRollNo,
-        marks: s.isAbsent ? 'AB' : s.marks,
-        practicalMarks: s.isAbsent ? 'AB' : s.marks,
-        isAbsent: s.isAbsent
-      }));
+      const records = students
+        .filter(s => !checkIsStudentDropped(s) && !isStudentExamDropped(s))
+        .map(s => ({
+          rollNo: s.rollNo,
+          classRollNo: s.rollNo,
+          name: s.name || s.studentName,
+          studentName: s.name || s.studentName,
+          fatherName: s.fatherName,
+          parentName: s.fatherName,
+          formNo: s.formNo,
+          regNo: s.regNo,
+          examRollNo: s.examRollNo,
+          marks: s.isAbsent ? 'AB' : s.marks,
+          practicalMarks: s.isAbsent ? 'AB' : s.marks,
+          isAbsent: s.isAbsent
+        }));
 
       const payload = sanitizeForFirestore({
         id: pendingDocId,
@@ -1003,6 +1035,10 @@ export default function TeacherAssessmentsPage() {
 
   // Submit for Admin Approval
   const handleSubmitForApproval = () => {
+    if (!isSubmissionOpen) {
+      showToast(`Submissions for Class ${selectedClass} (${evaluationType}) are currently locked by administration.`, 'warning');
+      return;
+    }
     const unrecorded = students.filter(s => s.marks === '' && !s.isAbsent);
     if (unrecorded.length > 0) {
       setConfirmModal({
@@ -1037,12 +1073,18 @@ export default function TeacherAssessmentsPage() {
   };
 
   const executeFinalSubmission = async (markBlankAsAbsent) => {
+    if (!isSubmissionOpen) {
+      showToast(`Submissions for Class ${selectedClass} (${evaluationType}) are currently locked by administration.`, 'warning');
+      return;
+    }
     setSaving(true);
     try {
-      const records = students.map(s => {
-        const isBlank = s.marks === '' && !s.isAbsent;
-        const marks = isBlank && markBlankAsAbsent ? 'AB' : s.marks;
-        const isAb = s.isAbsent || marks === 'AB';
+      const records = students
+        .filter(s => !checkIsStudentDropped(s) && !isStudentExamDropped(s))
+        .map(s => {
+          const isBlank = s.marks === '' && !s.isAbsent;
+          const marks = isBlank && markBlankAsAbsent ? 'AB' : s.marks;
+          const isAb = s.isAbsent || marks === 'AB';
         return {
           rollNo: s.rollNo,
           classRollNo: s.rollNo,
@@ -1293,6 +1335,16 @@ export default function TeacherAssessmentsPage() {
             </div>
           </div>
         </div>
+
+        {/* Submission Closed Alert Banner */}
+        {!isSubmissionOpen && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-extrabold flex items-center gap-2 text-xs">
+            <ShieldAlert size={16} className="text-amber-600 shrink-0" />
+            <span>
+              School Assessment Submissions for <strong>Class {selectedClass} • {evaluationType}</strong> are currently <strong>LOCKED</strong> by Administration. Marks entry is view-only.
+            </span>
+          </div>
+        )}
 
         {/* Master Control Card & Toolbar (Parity with Practicals Portal) */}
         <div className="rounded-xl p-3 border shadow-2xs space-y-2.5" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
@@ -1925,12 +1977,13 @@ export default function TeacherAssessmentsPage() {
                                 enterKeyHint={idx === displayedStudents.length - 1 ? 'done' : 'next'}
                                 placeholder={`0-${maxMarks} / A`}
                                 value={st.marks}
+                                disabled={!isSubmissionOpen || saving}
                                 onFocus={(e) => {
                                   try { e.target.select(); } catch (_) {}
                                 }}
                                 onChange={(e) => handleMarksChange(st, e.target.value)}
                                 onKeyDown={(e) => handleInputKeyDown(e, idx, 'desktop')}
-                                className={`w-20 px-2 py-0 rounded-md border text-[11px] font-black h-7 focus:outline-hidden focus:ring-1 focus:ring-teal-500 uppercase text-center leading-none ${
+                                className={`w-20 px-2 py-0 rounded-md border text-[11px] font-black h-7 focus:outline-hidden focus:ring-1 focus:ring-teal-500 uppercase text-center leading-none disabled:opacity-50 disabled:cursor-not-allowed ${
                                   isAbsent
                                     ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
                                     : st.marks !== '' && st.marks !== undefined
@@ -1940,8 +1993,9 @@ export default function TeacherAssessmentsPage() {
                               />
                               <button
                                 type="button"
+                                disabled={!isSubmissionOpen || saving}
                                 onClick={() => handleToggleAbsent(st)}
-                                className={`h-7 px-2 rounded-md font-mono text-[10px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
+                                className={`h-7 px-2 rounded-md font-mono text-[10px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none disabled:opacity-50 disabled:cursor-not-allowed ${
                                   isAbsent
                                     ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
@@ -1992,8 +2046,8 @@ export default function TeacherAssessmentsPage() {
                 <button
                   type="button"
                   onClick={handleSaveDraft}
-                  disabled={saving}
-                  className="px-3.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs active:scale-95"
+                  disabled={saving || !isSubmissionOpen}
+                  className="px-3.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Save size={13} />
                   <span>Save Draft</span>
@@ -2002,8 +2056,8 @@ export default function TeacherAssessmentsPage() {
                 <button
                   type="button"
                   onClick={handleSubmitForApproval}
-                  disabled={saving}
-                  className="px-4 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                  disabled={saving || !isSubmissionOpen}
+                  className="px-4 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send size={13} />
                   <span>Submit for Admin Approval</span>

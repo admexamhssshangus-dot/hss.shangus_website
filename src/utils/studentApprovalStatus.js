@@ -145,6 +145,27 @@ export function isStudentExamDropped(student) {
   // Official Institutional Dropped Records for Session 2025-26 (Class 11th Rolls 72 & 186)
   const rollVal = getAssignedClassRollNumber(student);
   const clsName = String(student.className || student.class || student.Class || raw.className || raw.class || raw.Class || '').toLowerCase();
+  const regVal = String(student.boardRegNo || student.regNo || raw.boardRegNo || raw.regNo || '').trim();
+  const formVal = String(student.formNo || student['Form No.'] || raw.formNo || raw['Form No.'] || '').trim();
+
+  // Registration & Form Number strict matching (Seher Un Nisa & Wanhar Ahmad Malik)
+  if (
+    regVal.includes('2401010000200017') ||
+    regVal.includes('2401010005700067') ||
+    formVal === '250459' ||
+    formVal === '250558'
+  ) {
+    return true;
+  }
+
+  // Wanhar Ahmad Malik (Class 11th Roll 186) - distinguish from Roll 188 Hashim Khurshid
+  if (regVal.includes('2401000000610032')) {
+    const sName = String(student.name || student.studentName || raw.name || raw.studentName || '').toLowerCase();
+    if (rollVal === '186' || sName.includes('wanhar')) {
+      return true;
+    }
+  }
+
   if (clsName.includes('11') && (rollVal === '72' || rollVal === '186')) {
     const sName = String(student.name || student.studentName || raw.name || raw.studentName || '').toLowerCase();
     if (sName.includes('seher') || sName.includes('wanhar') || !sName) {

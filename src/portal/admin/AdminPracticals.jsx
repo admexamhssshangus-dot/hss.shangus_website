@@ -44,9 +44,12 @@ import {
 } from '../../utils/practicalsCsvManager';
 import { toTitleCase } from '../../utils/textFormatting';
 import { isStudentExamDropped } from '../../utils/studentApprovalStatus';
+import { checkIsStudentDropped } from '../../services/examineeDropService';
 import {
   SUBJECT_CONFIG_DEFS,
   DEFAULT_PRACTICAL_MARKS_CONFIG,
+  DEFAULT_PRACTICAL_SUBMISSION_WINDOWS,
+  isClassPracticalSubmissionEnabled,
   getSubjectMarksConfig,
   getActiveSchoolEvaluations,
   isPracticalEvaluationType,
@@ -580,6 +583,20 @@ export const parsePracticalsSnap = (snap) => {
         if (!r || typeof r !== 'object') return false;
         const name = String(r.name || r.studentName || '').toLowerCase().trim();
         if (!name || name.includes('studentname') || name.includes('fathername')) return false;
+
+        // Permanently filter out dropped examinees (e.g. Seher Un Nisa, Wanhar Ahmad Malik)
+        if (checkIsStudentDropped(r) || isStudentExamDropped(r)) return false;
+
+        const rollStr = String(r.rollNo || r.classRollNo || r.examRoll || '').trim();
+        const regStr = String(r.regNo || r.boardRegNo || r.registrationNo || '').trim();
+        const formStr = String(r.formNo || r.form || '').trim();
+        const targetClass = String(data.className || data.class || '').trim();
+
+        if (targetClass === '11th' || targetClass === '11') {
+          if (rollStr === '72' || regStr.includes('2401010000200017') || regStr.includes('2401010005700067') || formStr === '250459' || name.includes('seher')) return false;
+          if (rollStr === '186' || (regStr.includes('2401000000610032') && name.includes('wanhar')) || formStr === '250558' || name.includes('wanhar')) return false;
+        }
+
         return true;
       });
       const canonicalSession = normalizePracticalSession(data.sessionCanonical || data.yearSuffix || data.sessionText || data.session || '');
@@ -2512,11 +2529,22 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
         {/* UNIFIED SINGLE-ROW TOOLBAR (ALL CONTROLS GROUPED ON SAME ROW) */}
         <div className="space-y-2 pb-1.5 border-b border-slate-100 dark:border-slate-800/80 relative z-30">
           <div className="flex items-center justify-between gap-1.5 sm:gap-2 flex-wrap">
-            {/* Left: Class Badge */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            {/* Left: Class Badge & Submission Status */}
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
               <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight">
                 Class {cls}
               </h2>
+              {isClassPracticalSubmissionEnabled(settings, cls) ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1 shrink-0" title="Practical marks submission is enabled for this class">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Open
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-800 flex items-center gap-1 shrink-0" title="Practical marks submission is locked for this class">
+                  <ShieldAlert size={10} />
+                  Locked
+                </span>
+              )}
               <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] sm:text-[10.5px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                 <strong className="text-indigo-600 dark:text-indigo-400">{selectedStudentsList.length}</strong>/{cSts.length} <span className="hidden xs:inline">Sts</span>
                 {droppedCount > 0 && (
@@ -2576,42 +2604,55 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                 </button>
 
                 {showSubjectsDropdown && (
-                  <div className="absolute right-0 mt-1.5 w-[min(calc(100vw-20px),16rem)] max-h-[70vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-500">
-                      <span className="flex items-center gap-1"><BookOpen size={11} /> Practical Subjects</span>
-                      <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold">
+                  <div className="absolute right-0 mt-1.5 w-[min(calc(100vw-24px),22rem)] max-w-[calc(100vw-24px)] max-h-[72vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        <BookOpen size={12} className="text-indigo-600 dark:text-indigo-400" />
+                        <span>Practical Subjects</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                           type="button"
                           onClick={() => {
                             const liveCodes = activeCodesList.filter(c => subjectsWithSubmissions.has(c));
                             setSelectedSubCodes(liveCodes.length > 0 ? liveCodes : activeCodesList);
                           }}
-                          className="hover:underline cursor-pointer text-emerald-600 dark:text-emerald-400"
+                          className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
                           title="Select only subjects with active submitted awards"
                         >
                           Live Only ({subjectsWithSubmissions.size})
                         </button>
-                        <span>•</span>
-                        <button type="button" onClick={() => setSelectedSubCodes(activeCodesList)} className="hover:underline cursor-pointer">All</button>
-                        <span>•</span>
-                        <button type="button" onClick={() => setSelectedSubCodes([])} className="hover:underline cursor-pointer">Clear</button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSubCodes(activeCodesList)}
+                          className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                        >
+                          All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSubCodes([])}
+                          className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                        >
+                          Clear
+                        </button>
                       </div>
                     </div>
 
-                    <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5 divide-y divide-slate-50 dark:divide-slate-800/40">
+                    <div className="max-h-60 overflow-y-auto space-y-0.5 pr-0.5 divide-y divide-slate-50 dark:divide-slate-800/40">
                       {activeCodesList.map((code, idx) => {
                         const isChecked = selectedSubCodes.includes(code);
                         const hasLive = subjectsWithSubmissions.has(code);
                         return (
                           <label
                             key={code}
-                            className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors text-xs select-none ${
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors text-xs select-none gap-2 ${
                               isChecked
-                                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 text-slate-900 dark:text-white font-bold'
-                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-500'
+                                ? 'bg-indigo-50/80 dark:bg-indigo-950/50 text-slate-900 dark:text-white font-bold'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-400'
                             }`}
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
@@ -2620,15 +2661,15 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                               />
                               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 w-4 text-right shrink-0">{idx + 1}.</span>
                               <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10.5px] w-7 shrink-0">{code}</span>
-                              <span className="text-[11px] truncate max-w-[105px]">{getSubjectDisplayName(code, cls)}</span>
+                              <span className="text-[11.5px] truncate flex-1 min-w-0" title={getSubjectDisplayName(code, cls)}>{getSubjectDisplayName(code, cls)}</span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               {hasLive ? (
-                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 whitespace-nowrap">
                                   Live
                                 </span>
                               ) : (
-                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-semibold bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-semibold bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 whitespace-nowrap">
                                   Empty
                                 </span>
                               )}
@@ -6048,6 +6089,133 @@ function ConfirmationModal({
 }
 
 // ─────────────────────────────────────────────────────────────
+// CLASS-WISE PRACTICAL SUBMISSION WINDOWS CARD
+// ─────────────────────────────────────────────────────────────
+function ClassPracticalSubmissionWindowsCard({ settings, setSettings, saveSettingsDoc, saving }) {
+  const currentWindows = {
+    '10th': isClassPracticalSubmissionEnabled(settings, '10th'),
+    '11th': isClassPracticalSubmissionEnabled(settings, '11th'),
+    '12th': isClassPracticalSubmissionEnabled(settings, '12th')
+  };
+
+  const handleToggleClass = async (targetCls) => {
+    const nextVal = !currentWindows[targetCls];
+    const updatedWindows = {
+      ...(settings.submissionWindows || DEFAULT_PRACTICAL_SUBMISSION_WINDOWS),
+      [targetCls]: nextVal
+    };
+    const updatedSettings = {
+      ...settings,
+      submissionWindows: updatedWindows,
+      updatedAt: new Date().toISOString()
+    };
+    setSettings(updatedSettings);
+    await saveSettingsDoc(`Class ${targetCls} Practical Submission Window`, updatedSettings);
+  };
+
+  const classes = [
+    { key: '10th', label: 'Class 10th (Secondary)', badge: 'Matriculation', desc: 'Internal Practical Assessment & Lab Work' },
+    { key: '11th', label: 'Class 11th (Higher Secondary Part I)', badge: 'Higher Secondary', desc: 'Internal Assessment & Laboratory Evaluation' },
+    { key: '12th', label: 'Class 12th (Higher Secondary Part II)', badge: 'Board Return', desc: 'Internal Assessment & External Practical Records' },
+  ];
+
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5 animate-in fade-in duration-200">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs">
+            <SlidersHorizontal size={20} strokeWidth={2.5} />
+          </div>
+          <div>
+            <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-tight">
+              Class-Wise Practical Submission Windows
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Enable or disable teacher practical and internal marks submission per class in real-time.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {classes.map(c => {
+          const isEnabled = currentWindows[c.key];
+          return (
+            <div
+              key={c.key}
+              className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${
+                isEnabled
+                  ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60'
+                  : 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/60'
+              }`}
+            >
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    {c.badge}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 ${
+                      isEnabled
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300'
+                        : 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300'
+                    }`}
+                  >
+                    {isEnabled ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Open
+                      </>
+                    ) : (
+                      <>
+                        <ShieldAlert size={10} />
+                        Locked
+                      </>
+                    )}
+                  </span>
+                </div>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">{c.label}</h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">{c.desc}</p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {isEnabled ? 'Submissions Allowed' : 'Submissions Blocked'}
+                </span>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => handleToggleClass(c.key)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                  role="switch"
+                  aria-checked={isEnabled}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+        <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+        <p className="leading-relaxed text-[11px] sm:text-xs">
+          <strong>Enforcement Guarantee:</strong> When practical submission is disabled for a class, teachers in the Teacher Portal cannot enter or submit marks for that class before required to. Institutional practical data remains strictly isolated from school-based assessment tests.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // SUBJECT MARKS & EVALUATION CRITERIA SETTINGS CARD
 // ─────────────────────────────────────────────────────────────
 function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, saving }) {
@@ -6517,6 +6685,24 @@ function SettingsPermissionsView({
 
           <button
             type="button"
+            onClick={() => setActiveSettingsTab('windows')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSettingsTab === 'windows'
+                ? 'bg-indigo-600 text-white shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60'
+            }`}
+          >
+            <SlidersHorizontal size={13} />
+            <span>Submission Windows</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeSettingsTab === 'windows' ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+            }`}>
+              10th, 11th, 12th
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveSettingsTab('permissions')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               activeSettingsTab === 'permissions'
@@ -6558,7 +6744,17 @@ function SettingsPermissionsView({
         />
       )}
 
-      {/* VIEW 2: DEDICATED TEACHER PERMISSIONS MANAGEMENT */}
+      {/* VIEW 2: CLASS-WISE PRACTICAL SUBMISSION WINDOWS */}
+      {activeSettingsTab === 'windows' && (
+        <ClassPracticalSubmissionWindowsCard
+          settings={settings}
+          setSettings={setSettings}
+          saveSettingsDoc={saveSettingsDoc}
+          saving={saving}
+        />
+      )}
+
+      {/* VIEW 3: DEDICATED TEACHER PERMISSIONS MANAGEMENT */}
       {activeSettingsTab === 'permissions' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* Grant Permission Form Card (lg:col-span-5) */}

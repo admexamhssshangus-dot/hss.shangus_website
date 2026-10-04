@@ -14,25 +14,70 @@ import { getAssignedClassRollNumber, isStudentExamDropped } from '../utils/stude
 const SETTINGS_DOC = 'examineeDropOverrides';
 const LOCAL_STORAGE_KEY = 'hss_examinee_drop_overrides_v1';
 
-// Seed initial drop list so known exclusions (such as Wanhar Ahmad Malik, Class 10th Roll 22)
-// are immediately active even before a fresh Firestore sync.
+// Seed initial drop list so known exclusions (Class 11th Roll 72 Seher Un Nisa & Roll 186 Wanhar Ahmad Malik)
+// are immediately active even before a fresh Firestore sync. Class 10th and 12th have 0 initial drops.
 const INITIAL_KNOWN_DROPS = {
-  'name_10th_wanharahmadmalik': {
+  'name_11th_seherunnisa': {
     isExamDropped: true,
     examStatus: 'dropped',
     examDroppedReason: 'Administrative exclusion',
-    studentName: 'Wanhar Ahmad Malik',
-    className: '10th',
-    classRollNo: '22',
+    studentName: 'Seher Un Nisa',
+    className: '11th',
+    classRollNo: '72',
     updatedAt: '2026-09-30T10:00:00.000Z'
   },
-  'roll_10th_22': {
+  'roll_11th_72': {
+    isExamDropped: true,
+    examStatus: 'dropped',
+    examDroppedReason: 'Administrative exclusion',
+    studentName: 'Seher Un Nisa',
+    className: '11th',
+    classRollNo: '72',
+    updatedAt: '2026-09-30T10:00:00.000Z'
+  },
+  'reg_2401010005700067': {
+    isExamDropped: true,
+    examStatus: 'dropped',
+    examDroppedReason: 'Administrative exclusion',
+    studentName: 'Seher Un Nisa',
+    className: '11th',
+    classRollNo: '72',
+    updatedAt: '2026-09-30T10:00:00.000Z'
+  },
+  'reg_2401010000200017': {
+    isExamDropped: true,
+    examStatus: 'dropped',
+    examDroppedReason: 'Administrative exclusion',
+    studentName: 'Seher Un Nisa',
+    className: '11th',
+    classRollNo: '72',
+    updatedAt: '2026-09-30T10:00:00.000Z'
+  },
+  'form_250459': {
+    isExamDropped: true,
+    examStatus: 'dropped',
+    examDroppedReason: 'Administrative exclusion',
+    studentName: 'Seher Un Nisa',
+    className: '11th',
+    classRollNo: '72',
+    updatedAt: '2026-09-30T10:00:00.000Z'
+  },
+  'name_11th_wanharahmadmalik': {
     isExamDropped: true,
     examStatus: 'dropped',
     examDroppedReason: 'Administrative exclusion',
     studentName: 'Wanhar Ahmad Malik',
-    className: '10th',
-    classRollNo: '22',
+    className: '11th',
+    classRollNo: '186',
+    updatedAt: '2026-09-30T10:00:00.000Z'
+  },
+  'roll_11th_186': {
+    isExamDropped: true,
+    examStatus: 'dropped',
+    examDroppedReason: 'Administrative exclusion',
+    studentName: 'Wanhar Ahmad Malik',
+    className: '11th',
+    classRollNo: '186',
     updatedAt: '2026-09-30T10:00:00.000Z'
   },
   'form_250558': {
@@ -40,8 +85,8 @@ const INITIAL_KNOWN_DROPS = {
     examStatus: 'dropped',
     examDroppedReason: 'Administrative exclusion',
     studentName: 'Wanhar Ahmad Malik',
-    className: '10th',
-    classRollNo: '22',
+    className: '11th',
+    classRollNo: '186',
     updatedAt: '2026-09-30T10:00:00.000Z'
   }
 };

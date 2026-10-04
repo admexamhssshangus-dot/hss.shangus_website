@@ -69,6 +69,12 @@ const AVAILABLE_STATUSES = [
 
 export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazette }) {
   const [evaluations, setEvaluations] = useState([]);
+  const [submissionWindows, setSubmissionWindows] = useState({
+    '9th': true,
+    '10th': true,
+    '11th': true,
+    '12th': true
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [alertMsg, setAlertMsg] = useState(null);
@@ -133,18 +139,33 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
     setOverridePassInput('');
   };
 
-  // Load configuration from Firestore
+  // Load configuration from Firestore dedicated schoolAssessmentSettings collection (Rule 8 Data Boundary)
   const loadEvaluations = useCallback(async () => {
     setLoading(true);
     try {
-      const snap = await getDoc(doc(db, 'adminPracticalsSettings', 'config')).catch(() => null);
+      // 1. Primary: dedicated schoolAssessmentSettings/config document
+      let snap = await getDoc(doc(db, 'schoolAssessmentSettings', 'config')).catch(() => null);
+      // 2. Migration fallback: check legacy adminPracticalsSettings/config if not yet initialized
+      if (!snap || !snap.exists()) {
+        snap = await getDoc(doc(db, 'adminPracticalsSettings', 'config')).catch(() => null);
+      }
       if (snap && snap.exists()) {
         const data = snap.data();
         if (Array.isArray(data.customEvaluations) && data.customEvaluations.length > 0) {
           setEvaluations(data.customEvaluations);
-          setLoading(false);
-          return;
+        } else {
+          setEvaluations(DEFAULT_SCHOOL_EVALUATIONS);
         }
+        if (data.submissionWindows && typeof data.submissionWindows === 'object') {
+          setSubmissionWindows({
+            '9th': data.submissionWindows['9th'] !== false,
+            '10th': data.submissionWindows['10th'] !== false,
+            '11th': data.submissionWindows['11th'] !== false,
+            '12th': data.submissionWindows['12th'] !== false,
+          });
+        }
+        setLoading(false);
+        return;
       }
       setEvaluations(DEFAULT_SCHOOL_EVALUATIONS);
     } catch (err) {
@@ -159,21 +180,24 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
     loadEvaluations();
   }, [loadEvaluations]);
 
-  // Persist evaluations list to Firestore
-  const saveEvaluationsToFirestore = async (newList) => {
+  // Persist evaluations list & class submission windows to dedicated schoolAssessmentSettings in Firestore
+  const saveEvaluationsToFirestore = async (newList, newWindows = submissionWindows) => {
     setSaving(true);
     setAlertMsg(null);
     try {
-      await setDoc(doc(db, 'adminPracticalsSettings', 'config'), {
+      await setDoc(doc(db, 'schoolAssessmentSettings', 'config'), {
         customEvaluations: newList,
+        submissionWindows: newWindows,
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
       try {
+        invalidateCache('schoolAssessmentSettings');
         invalidateCache('adminPracticalsSettings');
       } catch (_) {}
 
       setEvaluations(newList);
+      setSubmissionWindows(newWindows);
       setAlertMsg({ type: 'success', text: 'School assessment settings saved live to database.' });
     } catch (err) {
       console.error('Failed to save assessment settings:', err);
@@ -181,6 +205,14 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleToggleClassSubmission = async (cls) => {
+    const nextVal = !submissionWindows[cls];
+    const newWindows = { ...submissionWindows, [cls]: nextVal };
+    setSubmissionWindows(newWindows);
+    await saveEvaluationsToFirestore(evaluations, newWindows);
+    showToast(`Class ${cls} school exam submissions are now ${nextVal ? 'OPEN' : 'LOCKED'}.`, nextVal ? 'success' : 'info');
   };
 
   const handleOpenAddModal = (preset = null) => {
@@ -430,6 +462,80 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
           >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
           </button>
+        </div>
+      </div>
+
+      {/* Class-Wise School Examination Submission Windows (Dedicated Module Settings) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 sm:p-3.5 shadow-xs space-y-2">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+              <Lock size={13} />
+            </div>
+            <div>
+              <h3 className="text-xs font-black text-slate-900 dark:text-white leading-tight">
+                Class-Wise School Assessment Submission Windows
+              </h3>
+              <p className="text-[10.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                Enable or lock school exam submissions (Pre-Board, Unit Tests, Golden Tests) per class. Teachers cannot submit marks for locked classes.
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 shrink-0">
+            Dedicated SBA Config
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          {['9th', '10th', '11th', '12th'].map((cls) => {
+            const isOpen = submissionWindows[cls] !== false;
+            return (
+              <div
+                key={cls}
+                className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+                  isOpen
+                    ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-300/80 dark:border-emerald-800/60'
+                    : 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-300/80 dark:border-rose-800/60'
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-black text-slate-900 dark:text-white">Class {cls}</span>
+                    <span
+                      className={`text-[9.5px] font-black px-1.5 py-0.2 rounded leading-tight ${
+                        isOpen
+                          ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-rose-500/20 text-rose-800 dark:text-rose-300'
+                      }`}
+                    >
+                      {isOpen ? 'Open' : 'Locked'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate block">
+                    {isOpen ? 'Submissions allowed' : 'Submissions blocked'}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleClassSubmission(cls)}
+                  disabled={saving}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isOpen ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                  role="switch"
+                  aria-checked={isOpen}
+                  title={`Toggle Class ${cls} Submission Window`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isOpen ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
