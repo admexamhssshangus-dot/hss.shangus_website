@@ -47,7 +47,7 @@ import {
 } from '../../utils/practicalsCsvManager';
 import { toTitleCase } from '../../utils/textFormatting';
 import { isStudentExamDropped } from '../../utils/studentApprovalStatus';
-import { checkIsStudentDropped } from '../../services/examineeDropService';
+import { checkIsStudentDropped, fetchExamineeDropOverrides } from '../../services/examineeDropService';
 import {
   SUBJECT_CONFIG_DEFS,
   DEFAULT_PRACTICAL_MARKS_CONFIG,
@@ -871,6 +871,10 @@ function AdminPracticals() {
         getCachedCollection('masterRegisters', force, 30 * 60 * 1000).catch(err => {
           console.warn('masterRegisters fetch note:', err?.message || err);
           return [];
+        }),
+        fetchExamineeDropOverrides().catch(err => {
+          console.warn('fetchExamineeDropOverrides note:', err?.message || err);
+          return new Map();
         })
       ]);
 
@@ -987,7 +991,9 @@ function AdminPracticals() {
             st.examDropped ||
             existing.examDropped ||
             isStudentExamDropped(st) ||
-            isStudentExamDropped(existing)
+            isStudentExamDropped(existing) ||
+            checkIsStudentDropped(st) ||
+            checkIsStudentDropped(existing)
           );
 
           const merged = {
@@ -1035,6 +1041,14 @@ function AdminPracticals() {
             st.currExamRollNo = examCandidate;
             st.boardRollNo = examCandidate;
           }
+          const isDropped = Boolean(
+            st.isExamDropped ||
+            st.examDropped ||
+            isStudentExamDropped(st) ||
+            checkIsStudentDropped(st)
+          );
+          st.isExamDropped = isDropped;
+          st.examStatus = isDropped ? 'dropped' : (st.examStatus || 'active');
           const newId = `st_${cls}_${sess}_${reg || exam || form || roll || name}_${Math.random()}`;
           studentsMap.set(newId, st);
           if (reg && reg !== '—' && reg !== 'N/A') indexByReg.set(`reg_${reg}_cls_${cls}_sess_${sess}`, newId);
@@ -1092,10 +1106,14 @@ function AdminPracticals() {
       // 2. Ingest Active Student Admissions (Current Live Intake 2025-26 & Registered Students)
       (admissionsData || []).forEach(st => {
         const approval = checkStudentApprovalState(st);
-        if (!approval.isApproved) return;
+        const isDropped = checkIsStudentDropped(st) || Boolean(approval.isDropped);
+        // Ingest both approved students and dropped examinees so dropped counts reflect accurately in UI and returns
+        if (!approval.isApproved && !isDropped) return;
         const sess = getStudentSession(st) || '2025-26';
         addOrMergeStudent({
           ...st,
+          isExamDropped: isDropped,
+          examStatus: isDropped ? 'dropped' : (st.examStatus || 'active'),
           session: sess,
           Session: sess,
           _source: 'admissions'
@@ -1148,9 +1166,12 @@ function AdminPracticals() {
           if (Array.isArray(verifiedList) && verifiedList.length > 0) {
             verifiedList.forEach(st => {
               const approval = checkStudentApprovalState(st);
-              if (!approval.isApproved) return;
+              const isDropped = checkIsStudentDropped(st) || Boolean(approval.isDropped);
+              if (!approval.isApproved && !isDropped) return;
               addOrMergeStudent({
                 ...st,
+                isExamDropped: isDropped,
+                examStatus: isDropped ? 'dropped' : (st.examStatus || 'active'),
                 class: st.className || st.class,
                 Class: st.className || st.Class,
                 session: st.session || '2025-26',
@@ -2338,7 +2359,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
         const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
         if (!classMatch) return false;
 
-        if (isStudentExamDropped(st)) return false;
+        if (isStudentExamDropped(st) || checkIsStudentDropped(st)) return false;
 
         const { isApproved, isRejected, isDropped } = checkStudentApprovalState(st) || {};
         if (isRejected || isDropped || !isApproved) return false;
@@ -2376,7 +2397,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
           const sess = getStudentSession(st);
           if (!isSessionMatch(sess, selectedSession)) return false;
         }
-        return isStudentExamDropped(st);
+        return isStudentExamDropped(st) || checkIsStudentDropped(st);
       }).length;
     } catch {
       return 0;
@@ -2386,7 +2407,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
   const cSts = useMemo(() => {
     try {
       return totalClassStudents.filter(st => {
-        if (!st || isStudentExamDropped(st)) return false;
+        if (!st || isStudentExamDropped(st) || checkIsStudentDropped(st)) return false;
         const { isApproved } = checkStudentApprovalState(st) || {};
         if (selectedStatusFilter === 'approved' && !isApproved) return false;
         if (selectedStatusFilter === 'pending' && isApproved) return false;
@@ -2622,7 +2643,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
       const rawList = (selectedStudentsList && selectedStudentsList.length > 0) ? selectedStudentsList : sortedStudents;
       return (rawList || []).filter(st => {
         if (!st) return false;
-        if (isStudentExamDropped(st)) return false;
+        if (isStudentExamDropped(st) || checkIsStudentDropped(st)) return false;
         const approval = checkStudentApprovalState(st);
         return Boolean(approval?.isApproved);
       });

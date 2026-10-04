@@ -2,7 +2,7 @@
 
 ## Commit Summary
 
-- **Commit Message**: `fix(practicals-and-admissions): restore Class 10th examinee, fix exam roll propagation, and eliminate phantom doc creation`
+- **Commit Message**: `fix(practicals): ingest dropped examinees from admissions and display dropped count badge in class roster pill`
 - **Date**: October 04, 2026
 - **Status**: Production build verified (Exit Code 0), unit tests passed locally.
 
@@ -10,42 +10,26 @@
 
 ## Detailed Summary of Changes
 
-### 1. Restored Class 10th Examinee Status (Suhaib Yousuf)
-- **Root Cause**: Student Suhaib Yousuf (Class 10th, Roll 46, Form 251297, Reg `2501000000610046`) was previously marked with `isExamDropped: true` and `examStatus: "dropped"` (reason: `"Shortage of attendance"`), causing the Class 10th roster to display `59/59 (1 dropped)` instead of 60 active examinees.
-- **Resolution**:
-  - Restored `admissions/251297` in Cloud Firestore to `isExamDropped: false`, `examStatus: "active"`, and cleared `examDroppedReason`, `examDroppedAt`, and `examDroppedBy`.
-  - Cleaned all corresponding override keys from `systemSettings/examineeDropOverrides` (`id_251297`, `form_251297`, `roll_10th_46`, `roll_2025-26_10th_46`, `name_10th_suhaibyousuf`, `name_2025-26_10th_suhaibyousuf`, `name_roll_suhaibyousuf_46`).
-  - Class 10th now displays the full active roster of 60 students with zero dropped students.
-
-### 2. Elimination of Phantom / Duplicate Documents on Record Edit
-- **File**: `src/portal/admin/AdvancedReports.jsx` (`updateStudentDocument`)
-  - Identified and removed speculative `setDoc({ merge: true })` inside candidate ID loops. Previously, if `updateDoc` failed on a candidate ID, the fallback loop speculatively wrote new documents (such as `250495` and `active_250495`), creating unwanted phantom copies in Firestore.
-  - Sanitized target ID resolution to only attempt `updateDoc` on authentic existing document IDs (`primaryDocId`, `adm_${formNo}`).
-  - Deleted existing phantom documents (`admissions/250495` and `admissions/active_250495`) from Firestore, leaving only the authentic document (`admissions/adm_250495`).
-- **File**: `src/services/dbCache.js`
-  - In `updateCachedItem`, guarded against prepending partial documents to cache arrays when the item is not found, returning unmodified cache state instead of generating synthetic phantom records.
-
-### 3. End-to-End Exam Roll Number Resolution in Practicals & PDF Generators
-- **File**: `src/utils/practicalsPdfGenerator.js`
-  - Expanded `getStudentExamRoll` and `getRecordExamRoll` to resolve all schema aliases: `currExamRollNo`, `currExamRoll`, `boardRollNo`, `boardRoll`, `Exam R. No. (Current)`, `Exam Roll Number`, `examRollNo`, `exam_roll_no`.
-  - Added class-specific prefix validation and fallback through `getCurrentOfficialExamRoll(st, resolvedClass)`.
-  - Updated all award rolls and attendance sheet generators (`printMarksRecordAwardRoll`, `printAttendanceSheet`, `printConsolidatedAwardRoll`, `printAllIndividualAwardRolls`, `printFailList`, `exportConsolidatedAwardsToWord`) to display authentic Board Exam Roll Numbers instead of dashes (`—`).
-  - Fixed `histClass` resolution in `printHistoricalSubmission` to resolve undeclared variable build errors.
+### 1. Ingest Dropped Examinees from Admissions & Display `({droppedCount} dropped)` Badge
 - **File**: `src/portal/admin/AdminPracticals.jsx`
-  - Updated student record normalization (`normalizeStudentFields`) and table row rendering to pass `resolvedClass` to `getCurrentOfficialExamRoll(st, resolvedClass)` so `currExamRollNo`, `boardRollNo`, and `examRollNo` are uniformly available in both the UI table and export payloads.
-- **File**: `src/data/verifiedStudentsCatalog.json`
-  - Enriched Class 12th records with official 2025-26 Board Exam Rolls (`301003...` and `301004...`) from master register chunk 116–120 for offline resilience and fast initial rendering.
+- **Root Cause**:
+  - In `loadData()`, admissions ingestion previously skipped all records where `checkStudentApprovalState(st).isApproved` was not true (`if (!approval.isApproved) return;`).
+  - Because dropped students have `approval.isApproved === false` and `approval.isDropped === true`, dropped examinees from `admissions` (such as Suhaib Yousuf in Class 10th) were excluded from `studentsMap` altogether.
+  - As a result, in `AwardsSummaryView`, `droppedCount` evaluated to `0`, causing the class header badge to display only `59/59 • 5 Subs` without the red `(1 dropped)` badge (unlike Class 11th which showed `196/196 (2 dropped) • 13 Subs` because Class 11th was ingested via historical master registers).
+- **Resolution**:
+  - Imported `fetchExamineeDropOverrides` and `checkIsStudentDropped` from `src/services/examineeDropService`.
+  - Added `fetchExamineeDropOverrides()` to `loadData()`'s initial `Promise.all` so persistent drop overrides from `systemSettings/examineeDropOverrides` are loaded upfront.
+  - Updated `admissions` and `verifiedCatalog` ingestion in `loadData()` to retain dropped examinees (`if (!approval.isApproved && !isDropped) return;`).
+  - Updated `addOrMergeStudent` to propagate `isExamDropped: true` and `examStatus: 'dropped'` when `checkIsStudentDropped(st)` is true.
+  - In `AwardsSummaryView`, updated `totalClassStudents`, `cSts`, and `getSafeListToPrint` to exclude dropped examinees using `checkIsStudentDropped(st)`, and updated `droppedCount` to accurately count dropped students (`checkIsStudentDropped(st)`).
+  - The class header pill now displays `59/59 (1 dropped) • 5 Subs` for Class 10th, properly matching Class 11th's `196/196 (2 dropped) • 13 Subs`.
 
 ---
 
 ## Files Changed
 
-1. `src/portal/admin/AdvancedReports.jsx`
-2. `src/services/dbCache.js`
-3. `src/utils/practicalsPdfGenerator.js`
-4. `src/portal/admin/AdminPracticals.jsx`
-5. `src/data/verifiedStudentsCatalog.json`
-6. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `src/portal/admin/AdminPracticals.jsx`
+2. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ---
 
@@ -53,10 +37,9 @@
 
 - `npm run build` — Passed with exit code 0; production assets generated cleanly.
 - Unit tests (`src/utils/practicalsSubjectMatching.test.js`, `src/utils/studentApprovalStatus.test.js`) — 14/14 tests passed.
-- Cloud Firestore live data verified:
-  - `admissions/251297`: `isExamDropped: false`, `examStatus: "active"`.
-  - `systemSettings/examineeDropOverrides`: 0 dropped overrides remaining.
-  - Phantom documents `admissions/250495` and `admissions/active_250495`: confirmed 404 (deleted). Authentic `admissions/adm_250495`: verified intact.
+- Live Cloud Firestore state:
+  - `admissions/251297` (Suhaib Yousuf): `isExamDropped: true`, `examStatus: "dropped"`, `examDroppedReason: "Shortage of attendance"`.
+  - `systemSettings/examineeDropOverrides`: contains 7 active drop override keys for Suhaib Yousuf.
 
 ---
 
@@ -73,7 +56,7 @@ git show HEAD
 
 ```bash
 git reset --soft HEAD~1
-git commit -m "fix(practicals-and-admissions): restore Class 10th examinee, fix exam roll propagation, and eliminate phantom doc creation"
+git commit -m "fix(practicals): ingest dropped examinees from admissions and display dropped count badge in class roster pill"
 ```
 
 ### Push Manually
