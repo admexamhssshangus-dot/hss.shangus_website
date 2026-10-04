@@ -92,12 +92,21 @@ export function normalizeClassVal(cls) {
   return str;
 }
 
-// ─── Global Helper to normalize session strings to canonical format ('2025-26', '2024-25 (Mar-Apr)', '2026 APR/BIAN') ───
+// ─── Global Helper to normalize session strings to canonical format ('2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2026 APR/BIAN') ───
 export function normalizeSessionVal(sess) {
   if (!sess) return '';
   const str = String(sess).trim();
   // Preserve specific session qualifiers like (Oct-Nov), (Mar-Apr), APR/BIAN
-  if (/oct|nov|mar|apr|bian|bi-annual|revised/i.test(str)) {
+  if (/oct|nov/i.test(str)) {
+    return '2024-25 (Oct-Nov)';
+  }
+  if (/mar|apr/i.test(str)) {
+    if (str.includes('2024') || str.includes('24-25') || str.includes('24/25')) {
+      return '2024-25 (Mar-Apr)';
+    }
+    return str;
+  }
+  if (/bian|bi-annual|private/i.test(str)) {
     return str;
   }
   const match = str.match(/(\d{4})\s*[-/]\s*(\d{2,4})/);
@@ -105,7 +114,14 @@ export function normalizeSessionVal(sess) {
     const yr1 = match[1];
     let yr2 = match[2];
     if (yr2.length === 4) yr2 = yr2.slice(2);
-    return `${yr1}-${yr2}`;
+    const combined = `${yr1}-${yr2}`;
+    if (combined === '2024-25' || combined === '2024–25') {
+      return '2024-25 (Oct-Nov)';
+    }
+    return combined;
+  }
+  if (str === '2024-25' || str === '2024–25') {
+    return '2024-25 (Oct-Nov)';
   }
   return str;
 }
@@ -899,7 +915,7 @@ export function getDynamicRecentSessionCohort(sessions = []) {
   if (!Array.isArray(sessions) || sessions.length === 0) {
     const fallbackList = ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2026 APR/BIAN', '2025 APR/BIAN'];
     const fallbackLowerSet = new Set(fallbackList.map(s => s.toLowerCase()));
-    ['2024-25', '2025', '2026', '2025 bian', '2026 bian'].forEach(s => fallbackLowerSet.add(s));
+    ['2025', '2026', '2025 bian', '2026 bian'].forEach(s => fallbackLowerSet.add(s));
     return {
       latestRegularSessions: ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)'],
       matchingBianSessions: ['2026 APR/BIAN', '2025 APR/BIAN'],
@@ -931,7 +947,7 @@ export function getDynamicRecentSessionCohort(sessions = []) {
 
   sessions.forEach(sess => {
     const s = String(sess || '').trim();
-    if (!s || s === '—' || s === 'ALL' || s === '__NONE__') return;
+    if (!s || s === '—' || s === 'ALL' || s === '__NONE__' || s === '2024-25' || s === '2024–25') return;
     if (isBianSession(s)) {
       bianList.push(s);
     } else {
@@ -942,8 +958,8 @@ export function getDynamicRecentSessionCohort(sessions = []) {
   // Sort regular sessions descending by chronological weight
   regularList.sort((a, b) => parseRegularSessionScore(b) - parseRegularSessionScore(a));
 
-  // Deduplicate regular sessions
-  const uniqueRegular = Array.from(new Set(regularList));
+  // Deduplicate regular sessions (excluding bare '2024-25')
+  const uniqueRegular = Array.from(new Set(regularList)).filter(s => s !== '2024-25' && s !== '2024–25');
 
   // Take top 3 regular sessions
   let latestRegularSessions = uniqueRegular.slice(0, 3);

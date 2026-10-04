@@ -1,84 +1,63 @@
 # Changes Summary Since Last Commit
 
 ## Commit Summary
-- **Commit Message**: `fix(practicals): resolve Class 10th stream as General across exports and eliminate intermittent reload crashes`
+- **Commit Message**: `fix(reports-and-modals): refine session normalization for 2024-25 Oct-Nov & add compact ConfirmModal layout`
 - **Date**: October 04, 2026
 - **Status**: Production Build Passed (`Exit Code 0`), verified locally; Automated Jest test suites passed (`19/19 passed`, `Exit Code 0`); Zero breaking errors.
 
 ---
 
-## 1. Class 10th Stream Resolution (Fixed "Humanities" on Export)
-
-### Problem Description
-- When exporting Class 10th Blank Teacher Rosters (`Roster 10th EN internal Annual Regular 2026.xlsx`) or Consolidated Award Sheets, Column M (`Stream`) displayed `Humanities` for every Class 10th student.
-- In secondary schooling (Classes 9th and 10th), there are no academic streams (Science, Humanities, Commerce exist only in Higher Secondary Classes 11th and 12th).
-- **Root Cause**:
-  - In `src/portal/admin/AdminPracticals.jsx`, `normalizeStudentFields` invoked `getStudentStreamStr(st)` without passing the resolved class. The function checked subject names before checking class. Because all Class 10th students study Urdu (`UR`), the regex `/\b(political|history|education|sociology|urdu|...)\b/i` matched `urdu` and classified all Class 10th candidates as `Humanities`.
-  - In `src/utils/studentDataFetcher.js`, `getStudentStream(s)` checked subjects before checking class.
-  - In `src/utils/practicalsCsvManager.js`, `exportCurrentRosterToExcel` and `exportConsolidatedAwardsToExcel` fell back to `st.stream || st.Stream` without verifying if the class was secondary.
-
-### Solution & Implementation
-- **File**: `src/utils/studentDataFetcher.js`
-  - In `getStudentStream(s)`, placed the secondary check at the very top: if the resolved class matches `9` or `10`, immediately return `'General'` before evaluating stream keys or studied subjects.
-- **File**: `src/portal/admin/AdminPracticals.jsx`
-  - In `getStudentStreamStr(st, cls)`: resolved class from all student properties (`Class`, `class`, `className`, `Admission sought for class`, etc.). If `9th` or `10th`, immediately return `'General'`.
-  - In `normalizeStudentFields`: passed resolved `cls` into `getStudentStreamStr(st, cls)` and defaulted secondary classes to `'General'`.
-  - In `addOrMergeStudent`: ensured merged objects for secondary classes enforce `Stream: 'General'`.
-- **File**: `src/utils/practicalsCsvManager.js`
-  - In `exportCurrentRosterToExcel`: added `const isSecondary = String(className || '').replace(/[^0-9]/g, '') === '10' || String(className || '').replace(/[^0-9]/g, '') === '9';` and set `stream = isSecondary ? 'General' : ...`.
-  - In `exportConsolidatedAwardsToExcel`: enforced `stream = isSecondary ? 'General' : ...` so all rows in consolidated exports have `General`.
-- **File**: `src/utils/studentDataFetcher.test.js`
-  - Added automated Jest unit tests confirming Class 10th and 9th return `'General'` regardless of subject combination (e.g. Urdu, Mathematics, Science).
+## 1. Advanced Reports Session Normalization Refinement
+- **File**: `src/portal/admin/AdvancedReports.jsx`
+  - In `normalizeSessionVal(sess)`:
+    - Automatically maps sessions with `oct|nov` to canonical `'2024-25 (Oct-Nov)'`.
+    - Correctly recognizes `mar|apr` for 2024 to `'2024-25 (Mar-Apr)'`.
+    - Handles raw `'2024-25'` or `'2024–25'` mapping cleanly to avoid duplicate session keys.
+  - In `getDynamicRecentSessionCohort(sessions)`:
+    - Filters out bare `'2024-25'` and `'2024–25'` from regular session lists to ensure deduplicated representation alongside specific Oct-Nov and Mar-Apr cohorts.
 
 ---
 
-## 2. Eradication of Intermittent Page Crashes ("Reload Section" Error)
+## 2. Compact Confirmation Modal Layout
+- **File**: `src/portal/components/ConfirmModal.jsx`
+  - Added support for `compact` boolean prop.
+  - When `compact` is active:
+    - Uses ultra-compact padding (`p-3.5 sm:p-4`), smaller icon containers (`w-8 h-8 rounded-xl`), and tighter action buttons (`min-h-[34px]`).
+    - Scales down font sizes appropriately while maintaining full accessibility and contrast.
 
-### Problem Description
-- When navigating or switching subtabs in Practical Awards (`subtab=class10`, etc.), users occasionally encountered an intermittent crash where `ModuleErrorBoundary.jsx` caught an uncaught runtime exception and rendered the fallback card: `"Unable to Display Section... [Reload Section]"`.
-- **Root Cause**:
-  - In `AdminPracticals.jsx`, `AwardsSummaryView` performed array mappings and property accesses (e.g., `s.records`, `subDoc.records`, `settings.evaluationMarksConfig`, `settings.permissions`, `stats.totalStudents`) without defensive null guards when switching classes or when session storage or query params loaded asynchronously.
-  - In `getSubjectMarkForStudent`, null/undefined nested records or non-array inputs caused runtime TypeError exceptions that bubbled up to `ModuleErrorBoundary`.
+---
 
-### Solution & Implementation
-- **File**: `src/portal/admin/AdminPracticals.jsx`
-  - Added robust null and undefined safety across all calculations in `AwardsSummaryView`:
-    - `activeCodesList` is guarded with `Array.isArray(...)`.
-    - `getSubjectMarkForStudent` is protected against null records and non-object entries.
-    - `subjectsWithSubmissions`, `totalClassStudents`, `filteredStudents`, `stats`, and `settings` have defensive fallback defaults.
-    - Added an internal `AwardsSectionErrorBoundary` around the tab views so that any transient data error in child tables renders a localized error recovery banner rather than crashing the entire module.
-- **File**: `src/utils/practicalsPdfGenerator.js`
-  - Added defensive guards on students array and mark lookups.
+## 3. Verified Practicals Export & Stability Fixes (from commit `f3d5123d`)
+- **Class 10th Stream Resolution**:
+  - Class 10th and Class 9th students are strictly assigned stream `'General'` across all exports (`Roster 10th EN internal Annual Regular 2026.xlsx`, consolidated Excel sheets, and Word documents), fixing the previous erroneous `'Humanities'` default caused by Urdu subject matches.
+- **Intermittent Reload / Crash Eradication**:
+  - Null guards and safe array wrappers added across `AwardsSummaryView`, `getSubjectMarkForStudent`, and `totalClassStudents` in `AdminPracticals.jsx`.
+  - Localized `AwardsSectionErrorBoundary` prevents transient render issues from triggering full page "Reload Section" fallback screens.
 
 ---
 
 ## List of Files Changed
-1. `src/utils/studentDataFetcher.js`: Secondary classes (9th/10th) strictly return stream `'General'`.
-2. `src/utils/practicalsCsvManager.js`: Enforced `'General'` stream on Excel exports for Class 10th and 9th.
-3. `src/portal/admin/AdminPracticals.jsx`: Fixed stream classification in normalization, added comprehensive null-guards, and added localized error boundaries to prevent reload crashes.
-4. `src/utils/practicalsPdfGenerator.js`: Added defensive null checks for student records.
-5. `src/utils/studentDataFetcher.test.js`: Added unit tests for stream resolution.
-6. `CHANGES_SINCE_LAST_COMMIT.md`: Updated memory file.
+1. `src/portal/admin/AdvancedReports.jsx`: Canonical session normalization and deduplication.
+2. `src/portal/components/ConfirmModal.jsx`: Added compact layout option.
+3. `CHANGES_SINCE_LAST_COMMIT.md`: Updated change tracking log.
 
 ---
 
 ## Verification & Testing
 - **Jest Unit Tests**:
-  - `src/utils/studentDataFetcher.test.js`: `5 passed, 5 total` (`Exit Code 0`).
-  - `src/utils/studentApprovalStatus.test.js`: `7 passed, 7 total` (`Exit Code 0`).
-  - `src/utils/practicalsSubjectMatching.test.js`: `7 passed, 7 total` (`Exit Code 0`).
-  - `src/portal/teacher/PracticalsPage.test.jsx`: `passed`.
+  - `src/utils/studentDataFetcher.test.js`: `5/5 passed` (`Exit Code 0`).
+  - `src/utils/studentApprovalStatus.test.js`: `7/7 passed` (`Exit Code 0`).
+  - `src/utils/practicalsSubjectMatching.test.js`: `7/7 passed` (`Exit Code 0`).
 - **Production Build**:
-  - Command: `npm run build`
-  - Result: `Compiled successfully`, `Exit Code 0`, zero breaking errors.
-  - Output files and SEO regression check: 11 public pages, canonical redirects, sitemap, offline navigation passed.
+  - `npm run build`: `Compiled successfully`, `Exit Code 0`, zero breaking errors.
+  - SEO check: 11 static pages generated, sitemap and canonical routes validated.
 
 ---
 
 ## Instructions for User
 
 ### Reviewing the Local Commit
-To review the local commit once made:
+To review the local commit:
 ```bash
 git log -1 --stat
 git show HEAD
@@ -88,7 +67,7 @@ git show HEAD
 If you wish to modify or redo the commit manually:
 ```bash
 git reset --soft HEAD~1
-git commit -m "fix(practicals): resolve Class 10th stream as General across exports and eliminate intermittent reload crashes"
+git commit -m "fix(reports-and-modals): refine session normalization for 2024-25 Oct-Nov & add compact ConfirmModal layout"
 ```
 
 ### Pushing Changes to Remote
