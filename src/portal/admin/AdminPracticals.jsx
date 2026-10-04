@@ -12,6 +12,7 @@ import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
+import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
@@ -207,8 +208,21 @@ export function getStudentSubjectsStr(st, cls) {
 
 export function getStudentStreamStr(st, cls = '') {
   if (!st) return 'Science';
-  const c = String(cls || st.Class || st.class || '').toLowerCase();
-  if (c.includes('9') || c.includes('10')) return 'General';
+  const c = String(
+    cls ||
+    st.Class ||
+    st.class ||
+    st.className ||
+    st['Admission sought for class'] ||
+    st['Class for which Admission Sought'] ||
+    st['Class for Admission'] ||
+    st['Class Enrolled'] ||
+    st.admittedClass ||
+    st.admissionClass ||
+    st.targetClass ||
+    ''
+  ).toLowerCase();
+  if (c.includes('9') || c.includes('10') || c.includes('ix') || c.includes('x')) return 'General';
 
   // 1. Explicit Stream property
   const explicit = String(
@@ -470,12 +484,38 @@ export const checkStudentApprovalState = (st) => {
   return { isApproved, isRejected, isPending, isDropped, hasRoll };
 };
 
+const extractCleanClassFallback = (st) => {
+  const c = String(
+    st?.Class ||
+    st?.class ||
+    st?.className ||
+    st?.['Admission sought for class'] ||
+    st?.['Class for Admission'] ||
+    st?.['Class for which Admission Sought'] ||
+    st?.['Class Enrolled'] ||
+    st?.admittedClass ||
+    ''
+  ).trim();
+  if (c.includes('12') || c.includes('XII') || c.toLowerCase().includes('twelve')) return '12th';
+  if (c.includes('11') || c.includes('XI') || c.toLowerCase().includes('eleven')) return '11th';
+  if (c.includes('10') || c.includes('X') || c.toLowerCase().includes('ten')) return '10th';
+  if (c.includes('9') || c.includes('IX') || c.toLowerCase().includes('nine')) return '9th';
+
+  const exam = String(st?.['Exam R.No. (Current)'] || st?.examRollNo || st?.['Exam Roll No'] || st?.['Exam Roll No.'] || st?.['Class Roll No'] || '').trim();
+  if (/^3\d{7,8}/.test(exam)) return '12th';
+  if (/^2\d{7,8}/.test(exam)) return '11th';
+  if (/^1\d{7,8}/.test(exam)) return '10th';
+  return '11th';
+};
+
 const normalizeStudentFields = (st, source = 'masterRegisters') => {
   const sNo = st['S. No.'] || st['S.No.'] || st['S.No'] || st['sNo'] || st['Serial No'] || '';
   const formNo = st['Form No.'] || st['Form No'] || st['formNo'] || st['Application No'] || '';
   const studentName = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '';
   const fatherName = st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '';
-  const stream = getStudentStreamStr(st) || 'Humanities';
+  const resolvedClass = extractCleanClassFallback(st);
+  const isSecondary = resolvedClass.includes('10') || resolvedClass.includes('9');
+  const stream = isSecondary ? 'General' : (getStudentStreamStr(st, resolvedClass) || 'Science');
   const subjects10 = st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th'] || '';
   const subjects11 = st['Subjects to be taken in Class 11th'] || st['Subjects'] || st['Subs'] || '';
   const subjects12 = st['Subjects to be taken in Class 12th'] || st['Subjects'] || st['Subs'] || '';
@@ -540,6 +580,8 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
   return {
     ...st,
     _source: source,
+    Class: resolvedClass,
+    class: resolvedClass,
     'S. No.': sNo,
     'Form No.': formNo,
     'Class Roll No': classRoll || '—',
@@ -548,8 +590,9 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
     "Student's Name (as per school records)": studentName,
     "Father's/Guardian's Name (as per school records)": fatherName,
     'Stream': stream,
-    'Stream for Class 11th': stream,
-    'Stream for Class 12th': stream,
+    'stream': stream,
+    'Stream for Class 11th': isSecondary ? 'General' : stream,
+    'Stream for Class 12th': isSecondary ? 'General' : stream,
     'Subjects to be taken in Class 10th': subjects10,
     'Subjects to be taken in Class 11th': subjects11,
     'Subjects to be taken in Class 12th': subjects12,
@@ -866,6 +909,7 @@ function AdminPracticals() {
 
       const addOrMergeStudent = (rawSt, source) => {
         const st = normalizeStudentFields(rawSt, source);
+        const isLiveAdmission = source === 'admissions' || source === 'live';
         const name = cleanStr(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name);
         const father = cleanStr(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName);
         const reg = cleanRegistrationNumber(st['Board Registration Number'] || st.regNo || '');
@@ -903,11 +947,12 @@ function AdminPracticals() {
         if (existingId && studentsMap.has(existingId)) {
           const existing = studentsMap.get(existingId);
 
-          const isLiveAdmission = source === 'admissions' || st._source === 'admissions';
-
+          const isSecondary = canonicalCls.includes('10') || canonicalCls.includes('9');
           const stStream = getStudentStreamStr(st, canonicalCls);
           const existingStream = getStudentStreamStr(existing, canonicalCls);
-          const finalStream = (isLiveAdmission && stStream) ? stStream : (existingStream || stStream || 'Science');
+          const finalStream = isSecondary
+            ? 'General'
+            : ((isLiveAdmission && stStream) ? stStream : (existingStream || stStream || 'Science'));
 
           const stSubs = getStudentSubjectsStr(st, canonicalCls);
           const existingSubs = getStudentSubjectsStr(existing, canonicalCls);
@@ -961,6 +1006,14 @@ function AdminPracticals() {
           };
           studentsMap.set(existingId, merged);
         } else {
+          const isSecondary = canonicalCls.includes('10') || canonicalCls.includes('9');
+          const initialStream = isSecondary ? 'General' : (getStudentStreamStr(st, canonicalCls) || 'Science');
+          st.Class = canonicalCls;
+          st.class = canonicalCls;
+          st.Stream = initialStream;
+          st.stream = initialStream;
+          st['Stream for Class 11th'] = canonicalCls.includes('11') ? initialStream : (isSecondary ? 'General' : (st['Stream for Class 11th'] || initialStream));
+          st['Stream for Class 12th'] = canonicalCls.includes('12') ? initialStream : (isSecondary ? 'General' : (st['Stream for Class 12th'] || initialStream));
           const newId = `st_${cls}_${sess}_${reg || exam || form || roll || name}_${Math.random()}`;
           studentsMap.set(newId, st);
           if (reg && reg !== '—' && reg !== 'N/A') indexByReg.set(`reg_${reg}_cls_${cls}_sess_${sess}`, newId);
@@ -1133,10 +1186,21 @@ function AdminPracticals() {
         return /^(same\s*as|general\s*english|science|medical|non-medical|arts|humanities|commerce|—|-|null|undefined)$/i.test(s);
       };
 
-      // Enrich Class 12th (and 10th) records using previous class data if stream/subjects are missing
+      // Enrich Class 12th records using previous class data if stream/subjects are missing
       const enrichedStudents = allStudentList.map(st => {
         const cls = String(st.Class || st.class || '');
-        if (cls.includes('12') || cls.includes('XII') || cls.includes('10') || cls.includes('X')) {
+        const isSecondary = cls.includes('10') || cls.includes('X') || cls.includes('9') || cls.includes('IX');
+        if (isSecondary) {
+          return {
+            ...st,
+            Stream: 'General',
+            stream: 'General',
+            'Stream for Class 11th': 'General',
+            'Stream for Class 12th': 'General'
+          };
+        }
+
+        if (cls.includes('12') || cls.includes('XII')) {
           const reg = extractReg(st);
           const name = cleanStr(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name);
           const father = cleanStr(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName);
@@ -1221,7 +1285,7 @@ function AdminPracticals() {
       icon: Trash2,
       onConfirm: async () => {
         setGeneralConfirmModal(p => ({ ...p, isOpen: false }));
-        const currentEx = Array.isArray(settings.excludedTeacherEmails) ? settings.excludedTeacherEmails : DEFAULT_EXCLUDED_TEACHERS;
+        const currentEx = Array.isArray(settings?.excludedTeacherEmails) ? settings.excludedTeacherEmails : DEFAULT_EXCLUDED_TEACHERS;
         const updated = Array.from(new Set([...currentEx, tEmail]));
         const newSettings = { ...settings, excludedTeacherEmails: updated };
         await saveSettingsDoc('Faculty Exclusions', newSettings);
@@ -1589,14 +1653,14 @@ function AdminPracticals() {
     e.preventDefault();
     if (!grantEmail.trim()) { showAlert('error', 'Teacher email required.'); return; }
     const np = { email: grantEmail.trim().toLowerCase(), className: grantClass, subject: grantSubject, grantedAt: new Date().toLocaleDateString() };
-    const upd = [...(settings.permissions || []), np];
+    const upd = [...(settings?.permissions || []), np];
     const newSt = { ...settings, permissions: upd };
     await saveSettingsDoc('Permissions', newSt);
     setGrantEmail('');
   };
 
   const revokePerm = (idx) => {
-    const p = (settings.permissions || [])[idx];
+    const p = (settings?.permissions || [])[idx];
     if (!p) return;
     setGeneralConfirmModal({
       isOpen: true,
@@ -1609,7 +1673,7 @@ function AdminPracticals() {
       icon: ShieldAlert,
       onConfirm: async () => {
         setGeneralConfirmModal(p => ({ ...p, isOpen: false }));
-        const upd = [...(settings.permissions || [])];
+        const upd = [...(settings?.permissions || [])];
         upd.splice(idx, 1);
         const newSt = { ...settings, permissions: upd };
         await saveSettingsDoc('Permission Revoked', newSt);
@@ -1617,7 +1681,7 @@ function AdminPracticals() {
     });
   };
 
-  const getPD = (cls) => settings.printDetails?.[cls] || {};
+  const getPD = (cls) => settings?.printDetails?.[cls] || {};
 
   const handleSaveTeacherPhone = async (teacher, newPhone) => {
     if (!teacher) return false;
@@ -1907,81 +1971,83 @@ function AdminPracticals() {
         )}
 
         {/* Content Area */}
-        <div className="min-h-[500px] space-y-3">
-          {tab === 'class10' && (
-            <AwardsSummaryView
-              cls="10th"
-              students={students}
-              submissions={submissions}
-              pendingApprovals={pendingApprovals}
-              getPD={getPD}
-              settings={settings}
-              onOpenImportModal={() => setShowImportModal(true)}
-            />
-          )}
+        <ModuleErrorBoundary resetKey={tab} sectionName={`Practicals (${tab})`}>
+          <div className="min-h-[500px] space-y-3">
+            {tab === 'class10' && (
+              <AwardsSummaryView
+                cls="10th"
+                students={students}
+                submissions={submissions}
+                pendingApprovals={pendingApprovals}
+                getPD={getPD}
+                settings={settings}
+                onOpenImportModal={() => setShowImportModal(true)}
+              />
+            )}
 
-          {tab === 'class11' && (
-            <AwardsSummaryView
-              cls="11th"
-              students={students}
-              submissions={submissions}
-              pendingApprovals={pendingApprovals}
-              getPD={getPD}
-              settings={settings}
-              onOpenImportModal={() => setShowImportModal(true)}
-            />
-          )}
+            {tab === 'class11' && (
+              <AwardsSummaryView
+                cls="11th"
+                students={students}
+                submissions={submissions}
+                pendingApprovals={pendingApprovals}
+                getPD={getPD}
+                settings={settings}
+                onOpenImportModal={() => setShowImportModal(true)}
+              />
+            )}
 
-          {tab === 'class12' && (
-            <AwardsSummaryView
-              cls="12th"
-              students={students}
-              submissions={submissions}
-              pendingApprovals={pendingApprovals}
-              getPD={getPD}
-              settings={settings}
-              onOpenImportModal={() => setShowImportModal(true)}
-            />
-          )}
+            {tab === 'class12' && (
+              <AwardsSummaryView
+                cls="12th"
+                students={students}
+                submissions={submissions}
+                pendingApprovals={pendingApprovals}
+                getPD={getPD}
+                settings={settings}
+                onOpenImportModal={() => setShowImportModal(true)}
+              />
+            )}
 
-          {(tab === 'faculty_submissions' || tab === 'submissions' || tab === 'teachers') && (
-            <FacultySubmissionsView
-              teachers={teachers}
-              submissions={submissions}
-              setSubmissions={setSubmissions}
-              pendingApprovals={pendingApprovals}
-              onApproveSubmission={handleApproveSubmission}
-              onRejectSubmission={(pendingDoc) => setRejectReasonModal({ isOpen: true, pendingDoc, reason: '' })}
-              sendEmail={sendEmail}
-              emailSt={emailSt}
-              handleWhatsAppShare={handleWhatsAppShare}
-              handleEmailShare={handleEmailShare}
-              handleSaveTeacherPhone={handleSaveTeacherPhone}
-              setSelSub={setSelSub}
-              handleDeleteSubmission={handleDeleteSubmission}
-              settings={settings}
-              handleExcludeTeacher={handleExcludeTeacher}
-            />
-          )}
+            {(tab === 'faculty_submissions' || tab === 'submissions' || tab === 'teachers') && (
+              <FacultySubmissionsView
+                teachers={teachers}
+                submissions={submissions}
+                setSubmissions={setSubmissions}
+                pendingApprovals={pendingApprovals}
+                onApproveSubmission={handleApproveSubmission}
+                onRejectSubmission={(pendingDoc) => setRejectReasonModal({ isOpen: true, pendingDoc, reason: '' })}
+                sendEmail={sendEmail}
+                emailSt={emailSt}
+                handleWhatsAppShare={handleWhatsAppShare}
+                handleEmailShare={handleEmailShare}
+                handleSaveTeacherPhone={handleSaveTeacherPhone}
+                setSelSub={setSelSub}
+                handleDeleteSubmission={handleDeleteSubmission}
+                settings={settings}
+                handleExcludeTeacher={handleExcludeTeacher}
+              />
+            )}
 
-          {tab === 'settings' && (
-            <SettingsPermissionsView
-              settings={settings}
-              setSettings={setSettings}
-              saveSettingsDoc={saveSettingsDoc}
-              saving={saving}
-              grantEmail={grantEmail}
-              setGrantEmail={setGrantEmail}
-              grantClass={grantClass}
-              setGrantClass={setGrantClass}
-              grantSubject={grantSubject}
-              setGrantSubject={setGrantSubject}
-              grantPerm={grantPerm}
-              revokePerm={revokePerm}
-              teachers={teachers}
-            />
-          )}
-        </div>
+            {tab === 'settings' && (
+              <SettingsPermissionsView
+                settings={settings}
+                setSettings={setSettings}
+                saveSettingsDoc={saveSettingsDoc}
+                saving={saving}
+                grantEmail={grantEmail}
+                setGrantEmail={setGrantEmail}
+                grantClass={grantClass}
+                setGrantClass={setGrantClass}
+                grantSubject={grantSubject}
+                setGrantSubject={setGrantSubject}
+                grantPerm={grantPerm}
+                revokePerm={revokePerm}
+                teachers={teachers}
+              />
+            )}
+          </div>
+        </ModuleErrorBoundary>
 
         {/* Selected Submission Records Modal */}
         {selSub && (
@@ -1989,7 +2055,7 @@ function AdminPracticals() {
             selSub={selSub}
             submissions={submissions}
             onClose={() => setSelSub(null)}
-            absentMarker={settings.absentMarker}
+            absentMarker={settings?.absentMarker || 'AB'}
             allStudents={students}
             onApprove={handleApproveSubmission}
             onReject={(doc) => setRejectReasonModal({ isOpen: true, pendingDoc: doc, reason: '' })}
@@ -2127,21 +2193,21 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
   }, []);
 
   const [localPrintOpts, setLocalPrintOpts] = useState(() => {
-    const pd = getPD(cls);
+    const pd = (typeof getPD === 'function' ? getPD(cls) : null) || {};
     return {
       sessionText: pd.sessionText || 'Annual Regular 2026',
       instName: pd.instName || 'Govt. Higher Secondary School Shangus',
       inchargeName: pd.inchargeName || (cls === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar'),
       inchargeCpis: pd.inchargeCpis || (cls === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017'),
       inchargeMobile: pd.inchargeMobile || (cls === '12th' ? '9596165142' : '7006537425'),
-      practicalType: settings.currentPracticalType || 'internal',
-      absentMarker: settings.absentMarker || 'AB'
+      practicalType: settings?.currentPracticalType || 'internal',
+      absentMarker: settings?.absentMarker || 'AB'
     };
   });
 
   // Keep localPrintOpts synchronized when settings or class change
   useEffect(() => {
-    const pd = getPD(cls);
+    const pd = (typeof getPD === 'function' ? getPD(cls) : null) || {};
     setLocalPrintOpts(prev => ({
       ...prev,
       sessionText: pd.sessionText || prev.sessionText,
@@ -2149,8 +2215,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
       inchargeName: pd.inchargeName || (cls === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar'),
       inchargeCpis: pd.inchargeCpis || (cls === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017'),
       inchargeMobile: pd.inchargeMobile || (cls === '12th' ? '9596165142' : '7006537425'),
-      practicalType: settings.currentPracticalType || prev.practicalType,
-      absentMarker: settings.absentMarker || prev.absentMarker
+      practicalType: settings?.currentPracticalType || prev.practicalType,
+      absentMarker: settings?.absentMarker || prev.absentMarker
     }));
   }, [settings, cls, getPD]);
 
@@ -2167,10 +2233,13 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
   // Helper to compute default checked subjects based on Evaluation Type & Non-Practical Settings
   const getDefaultCheckedCodes = useCallback(() => {
-    const isExternal = localPrintOpts.practicalType === 'external';
+    const isExternal = localPrintOpts?.practicalType === 'external';
 
     // 1. External practicals (only Laboratory Science subjects have external practicals)
     if (isExternal) {
+      if (String(cls || '').includes('10')) {
+        return ['SC'];
+      }
       return bioMode === 'separate' ? ['PH', 'CH', 'BO', 'ZO'] : ['PH', 'CH', 'BI'];
     }
 
@@ -2178,15 +2247,15 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
     const is10 = String(cls || '').includes('10');
     const is12 = String(cls || '').includes('12');
     const nonPracticalConfig = String(
-      (is10 ? settings.nonPractical10 : is12 ? settings.nonPractical12 : settings.nonPractical11) || settings.nonPractical || 'HTC,ITE'
+      (is10 ? settings?.nonPractical10 : is12 ? settings?.nonPractical12 : settings?.nonPractical11) || settings?.nonPractical || 'HTC,ITE'
     ).toUpperCase();
 
     const excludedCodes = new Set(
       nonPracticalConfig.split(/[\s,+/]+/).map(s => s.trim()).filter(Boolean)
     );
 
-    return activeCodesList.filter(code => !excludedCodes.has(code));
-  }, [cls, localPrintOpts.practicalType, bioMode, settings.nonPractical10, settings.nonPractical11, settings.nonPractical12, settings.nonPractical, activeCodesList]);
+    return (activeCodesList || []).filter(code => !excludedCodes.has(code));
+  }, [cls, localPrintOpts?.practicalType, bioMode, settings?.nonPractical10, settings?.nonPractical11, settings?.nonPractical12, settings?.nonPractical, activeCodesList]);
 
   const [selectedSubCodes, setSelectedSubCodes] = useState(() => getDefaultCheckedCodes());
 
@@ -2194,216 +2263,267 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
     setSelectedSubCodes(getDefaultCheckedCodes());
   }, [getDefaultCheckedCodes]);
 
+  // Compute active subjects safely prior to any student total/sort calculations
+  const activeSubjects = useMemo(() => {
+    return (activeCodesList || []).filter(c => (selectedSubCodes || []).includes(c));
+  }, [activeCodesList, selectedSubCodes]);
+
   // Set of subject codes that actually have live submitted awards with student marks strictly matching current class & session
   const subjectsWithSubmissions = useMemo(() => {
-    const clsTarget = String(cls || '').replace(/[^0-9]/g, '');
-    const targetType = String(localPrintOpts.practicalType || 'internal').toLowerCase();
-    const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
-    const targetSess = normalizePracticalSession(localPrintOpts.sessionText || selectedSession);
-    const set = new Set();
-    (submissions || []).forEach(s => {
-      if (!s || s.isDeleted || s.status === 'deleted') return;
-      const sCls = String(s.className || s.Class || s.class || '').replace(/[^0-9]/g, '');
-      if (clsTarget && sCls && sCls !== clsTarget) return;
+    try {
+      const clsTarget = String(cls || '').replace(/[^0-9]/g, '');
+      const targetType = String(localPrintOpts?.practicalType || 'internal').toLowerCase();
+      const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
+      const targetSess = normalizePracticalSession(localPrintOpts?.sessionText || selectedSession);
+      const set = new Set();
+      (submissions || []).forEach(s => {
+        if (!s || s.isDeleted || s.status === 'deleted') return;
+        const sCls = String(s.className || s.Class || s.class || '').replace(/[^0-9]/g, '');
+        if (clsTarget && sCls && sCls !== clsTarget) return;
 
-      if (targetSess && targetSess !== 'all') {
-        const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
-        if (subSess && subSess !== 'all' && !isSessionMatch(subSess, targetSess)) return;
-      }
-
-      const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
-      const sNorm = sType.includes('ext') ? 'external' : 'internal';
-      if (sNorm !== targetNorm) return;
-
-      const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
-      activeCodesList.forEach(code => {
-        if (isMatchingSubjectCode(codeStr, code)) {
-          if (Array.isArray(s.records) && s.records.some(r => {
-            const m = String(r.totalMarks ?? r.practicalMarks ?? '').trim();
-            return m !== '' && m !== '—' && m !== '-';
-          })) {
-            set.add(code);
-          }
+        if (targetSess && targetSess !== 'all') {
+          const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
+          if (subSess && subSess !== 'all' && !isSessionMatch(subSess, targetSess)) return;
         }
+
+        const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
+        const sNorm = sType.includes('ext') ? 'external' : 'internal';
+        if (sNorm !== targetNorm) return;
+
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+        (activeCodesList || []).forEach(code => {
+          if (isMatchingSubjectCode(codeStr, code)) {
+            if (Array.isArray(s.records) && s.records.some(r => {
+              const m = String(r?.totalMarks ?? r?.practicalMarks ?? '').trim();
+              return m !== '' && m !== '—' && m !== '-';
+            })) {
+              set.add(code);
+            }
+          }
+        });
       });
-    });
-    return set;
-  }, [cls, localPrintOpts.practicalType, localPrintOpts.sessionText, selectedSession, submissions, activeCodesList]);
+      return set;
+    } catch (err) {
+      console.warn('Error computing subjectsWithSubmissions:', err);
+      return new Set();
+    }
+  }, [cls, localPrintOpts?.practicalType, localPrintOpts?.sessionText, selectedSession, submissions, activeCodesList]);
 
   // Total students enrolled in this class and session regardless of approval status (dropped students excluded)
   const totalClassStudents = useMemo(() => {
-    return students.filter(st => {
-      const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
-      if (!classMatch) return false;
+    try {
+      return (students || []).filter(st => {
+        if (!st) return false;
+        const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
+        if (!classMatch) return false;
 
-      if (isStudentExamDropped(st)) return false;
+        if (isStudentExamDropped(st)) return false;
 
-      const { isApproved, isRejected, isDropped } = checkStudentApprovalState(st);
-      if (isRejected || isDropped || !isApproved) return false;
+        const { isApproved, isRejected, isDropped } = checkStudentApprovalState(st) || {};
+        if (isRejected || isDropped || !isApproved) return false;
 
-      if (selectedSession !== 'all') {
-        const sess = getStudentSession(st);
-        const matchesSess = isSessionMatch(sess, selectedSession);
-        if (!matchesSess) return false;
-      }
-      return true;
-    });
+        if (selectedSession !== 'all') {
+          const sess = getStudentSession(st);
+          const matchesSess = isSessionMatch(sess, selectedSession);
+          if (!matchesSess) return false;
+        }
+        return true;
+      });
+    } catch (err) {
+      console.warn('Error computing totalClassStudents:', err);
+      return [];
+    }
   }, [students, cls, selectedSession]);
 
   const approvedCount = useMemo(() => {
-    return totalClassStudents.filter(st => checkStudentApprovalState(st).isApproved).length;
+    try {
+      return totalClassStudents.filter(st => Boolean(checkStudentApprovalState(st)?.isApproved)).length;
+    } catch {
+      return 0;
+    }
   }, [totalClassStudents]);
 
-  const pendingCount = totalClassStudents.length - approvedCount;
+  const pendingCount = Math.max(0, totalClassStudents.length - approvedCount);
 
   const droppedCount = useMemo(() => {
-    return students.filter(st => {
-      const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
-      if (!classMatch) return false;
-      if (selectedSession !== 'all') {
-        const sess = getStudentSession(st);
-        if (!isSessionMatch(sess, selectedSession)) return false;
-      }
-      return isStudentExamDropped(st);
-    }).length;
+    try {
+      return (students || []).filter(st => {
+        if (!st) return false;
+        const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
+        if (!classMatch) return false;
+        if (selectedSession !== 'all') {
+          const sess = getStudentSession(st);
+          if (!isSessionMatch(sess, selectedSession)) return false;
+        }
+        return isStudentExamDropped(st);
+      }).length;
+    } catch {
+      return 0;
+    }
   }, [students, cls, selectedSession]);
 
   const cSts = useMemo(() => {
-    return totalClassStudents.filter(st => {
-      if (isStudentExamDropped(st)) return false;
-      const { isApproved } = checkStudentApprovalState(st);
-      if (selectedStatusFilter === 'approved' && !isApproved) return false;
-      if (selectedStatusFilter === 'pending' && isApproved) return false;
-      return true;
-    });
+    try {
+      return totalClassStudents.filter(st => {
+        if (!st || isStudentExamDropped(st)) return false;
+        const { isApproved } = checkStudentApprovalState(st) || {};
+        if (selectedStatusFilter === 'approved' && !isApproved) return false;
+        if (selectedStatusFilter === 'pending' && isApproved) return false;
+        return true;
+      });
+    } catch {
+      return [];
+    }
   }, [totalClassStudents, selectedStatusFilter]);
 
   useEffect(() => {
-    if (cSts.length > 0) {
-      const initialRolls = new Set(cSts.map((st, i) => getRollNo(st) || st['Board Registration Number'] || st.examRollNo || `20100${2000 + i}`));
-      setSelectedRolls(initialRolls);
-    } else {
+    try {
+      if (cSts && cSts.length > 0) {
+        const initialRolls = new Set(cSts.map((st, i) => getRollNo(st) || st?.['Board Registration Number'] || st?.examRollNo || `20100${2000 + i}`));
+        setSelectedRolls(initialRolls);
+      } else {
+        setSelectedRolls(new Set());
+      }
+    } catch {
       setSelectedRolls(new Set());
     }
-  }, [cSts.length, selectedSession, selectedStatusFilter]);
+  }, [cSts?.length, selectedSession, selectedStatusFilter]);
 
-  const filteredStudents = cSts.filter(st => {
-    if (!searchTerm.trim()) return true;
-    const term = searchTerm.toLowerCase();
-    const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').toLowerCase();
-    const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').toLowerCase();
-    const mother = String(st["Mother's Name (as per school records)"] || st["Mother's Name"] || st.motherName || st.mother || '').toLowerCase();
-    const roll = String(getRollNo(st) || '').toLowerCase();
-    const exam = String(getCurrentOfficialExamRoll(st, cls) || st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '').toLowerCase();
-    const reg = String(st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '').toLowerCase();
-    const stream = String(st.stream || st.Stream || '').toLowerCase();
-    return name.includes(term) || father.includes(term) || mother.includes(term) || roll.includes(term) || exam.includes(term) || reg.includes(term) || stream.includes(term);
-  });
+  const filteredStudents = useMemo(() => {
+    try {
+      return (cSts || []).filter(st => {
+        if (!st) return false;
+        if (!searchTerm?.trim()) return true;
+        const term = searchTerm.toLowerCase();
+        const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').toLowerCase();
+        const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').toLowerCase();
+        const mother = String(st["Mother's Name (as per school records)"] || st["Mother's Name"] || st.motherName || st.mother || '').toLowerCase();
+        const roll = String(getRollNo(st) || '').toLowerCase();
+        const exam = String(getCurrentOfficialExamRoll(st, cls) || st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '').toLowerCase();
+        const reg = String(st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '').toLowerCase();
+        const stream = String(st.stream || st.Stream || '').toLowerCase();
+        return name.includes(term) || father.includes(term) || mother.includes(term) || roll.includes(term) || exam.includes(term) || reg.includes(term) || stream.includes(term);
+      });
+    } catch {
+      return [];
+    }
+  }, [cSts, searchTerm, cls]);
 
   // Helper to find student record mark for a subject code
   const getSubjectMarkForStudent = (st, subCode, effectiveSess) => {
-    const targetType = String(localPrintOpts.practicalType || 'internal').toLowerCase();
-    const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
-    const stSess = normalizePracticalSession(getStudentSession(st));
-    const querySess = normalizePracticalSession(effectiveSess);
+    try {
+      if (!st || !subCode) return null;
+      const targetType = String(localPrintOpts?.practicalType || 'internal').toLowerCase();
+      const targetNorm = targetType.includes('ext') ? 'external' : 'internal';
+      const querySess = normalizePracticalSession(effectiveSess);
 
-    // If subCode is BI and we are in combined mode, sum BO and ZO
-    if (subCode === 'BI') {
-      const boMark = getSubjectMarkForStudent(st, 'BO', effectiveSess);
-      const zoMark = getSubjectMarkForStudent(st, 'ZO', effectiveSess);
-      if (boMark === null && zoMark === null) return null;
-      if (boMark === 'AB' && zoMark === 'AB') return 'AB';
-      const boVal = typeof boMark === 'number' ? boMark : 0;
-      const zoVal = typeof zoMark === 'number' ? zoMark : 0;
-      return boVal + zoVal;
-    }
-
-    const subDoc = submissions.find(s => {
-      const matchClass = isClassMatch(s.className || s.Class || s.class, cls);
-      if (!matchClass) return false;
-
-      const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
-      const sNorm = sType.includes('ext') ? 'external' : 'internal';
-      if (sNorm !== targetNorm) return false;
-
-      const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
-      if (querySess && querySess !== 'all' && subSess && !isSessionMatch(subSess, querySess)) return false;
-
-      const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
-      return isMatchingSubjectCode(codeStr, subCode);
-    });
-
-    if (!subDoc || !subDoc.records) return null;
-
-    const stBoardReg = cleanRegistrationNumber(
-      st['Board Reg. No.'] || st['Board Registration Number'] || st.boardRegNo ||
-      st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.regNo || ''
-    ).toUpperCase();
-    const stExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim().toUpperCase();
-    const stClassRoll = String(
-      st['Class R.No.'] || st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || st.RollNo || st.roll_no || ''
-    ).trim();
-    const stForm = String(st.admissionNo || st.formNo || st['Admission Form No.'] || st['Form No.'] || '').trim();
-    const stName = toTitleCase(
-      st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || ''
-    ).trim().toLowerCase();
-    const stFather = toTitleCase(
-      st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || st.parentage || ''
-    ).trim().toLowerCase();
-
-    const rec = subDoc.records.find(r => {
-      const rBoardReg = cleanRegistrationNumber(r.boardRegNo || r['Board Reg. No.'] || r.regNo || '').toUpperCase();
-      const rExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
-      const rClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.rollNo || r.roll || r.sNo || '').trim();
-      const rForm = String(r.formNo || r.admissionNo || r['Form No.'] || '').trim();
-      const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
-      const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || '').trim().toLowerCase();
-
-      // Primary Match 1: Board Registration Number (Exact)
-      if (stBoardReg && rBoardReg && stBoardReg === rBoardReg && stBoardReg.length >= 5) return true;
-
-      // Primary Match 2: Exam Roll No (Exact match when valid and not placeholder)
-      if (stExam && rExam && stExam !== '—' && stExam !== 'NA' && stExam !== 'N/A' && stExam === rExam) return true;
-
-      // Match 3: Admission Form No
-      if (stForm && rForm && stForm === rForm) return true;
-
-      // Match 4: Class Roll No (Exact match when valid, not placeholder)
-      if (stClassRoll && rClassRoll && stClassRoll !== '—' && stClassRoll !== '-' && !/^\d{8,}$/.test(stClassRoll) && !/^\d{8,}$/.test(rClassRoll) && stClassRoll === rClassRoll) {
-        if (!stName || !rName || stName === rName || stName.includes(rName) || rName.includes(stName)) return true;
+      // If subCode is BI and we are in combined mode, sum BO and ZO
+      if (subCode === 'BI') {
+        const boMark = getSubjectMarkForStudent(st, 'BO', effectiveSess);
+        const zoMark = getSubjectMarkForStudent(st, 'ZO', effectiveSess);
+        if (boMark === null && zoMark === null) return null;
+        if (boMark === 'AB' && zoMark === 'AB') return 'AB';
+        const boVal = typeof boMark === 'number' ? boMark : 0;
+        const zoVal = typeof zoMark === 'number' ? zoMark : 0;
+        return boVal + zoVal;
       }
 
-      // Match 5: Student Full Name + Father Name (when length > 3)
-      if (stName && rName && stName.length > 3 && (stName === rName || stName.replace(/\s+/g, '') === rName.replace(/\s+/g, ''))) {
-        if (!stFather || !rFather || stFather === rFather || stFather.includes(rFather) || rFather.includes(stFather)) {
-          return true;
+      const subDoc = (submissions || []).find(s => {
+        if (!s) return false;
+        const matchClass = isClassMatch(s.className || s.Class || s.class, cls);
+        if (!matchClass) return false;
+
+        const sType = String(s.practicalType || s.PracticalType || s.evaluationType || s.evalType || 'internal').toLowerCase();
+        const sNorm = sType.includes('ext') ? 'external' : 'internal';
+        if (sNorm !== targetNorm) return false;
+
+        const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
+        if (querySess && querySess !== 'all' && subSess && !isSessionMatch(subSess, querySess)) return false;
+
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+        return isMatchingSubjectCode(codeStr, subCode);
+      });
+
+      if (!subDoc || !Array.isArray(subDoc.records)) return null;
+
+      const stBoardReg = cleanRegistrationNumber(
+        st['Board Reg. No.'] || st['Board Registration Number'] || st.boardRegNo ||
+        st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.regNo || ''
+      ).toUpperCase();
+      const stExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim().toUpperCase();
+      const stClassRoll = String(
+        st['Class R.No.'] || st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || st.RollNo || st.roll_no || ''
+      ).trim();
+      const stForm = String(st.admissionNo || st.formNo || st['Admission Form No.'] || st['Form No.'] || '').trim();
+      const stName = toTitleCase(
+        st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || ''
+      ).trim().toLowerCase();
+      const stFather = toTitleCase(
+        st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || st.parentage || ''
+      ).trim().toLowerCase();
+
+      const rec = subDoc.records.find(r => {
+        if (!r) return false;
+        const rBoardReg = cleanRegistrationNumber(r.boardRegNo || r['Board Reg. No.'] || r.regNo || '').toUpperCase();
+        const rExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
+        const rClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.rollNo || r.roll || r.sNo || '').trim();
+        const rForm = String(r.formNo || r.admissionNo || r['Form No.'] || '').trim();
+        const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
+        const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || '').trim().toLowerCase();
+
+        // Primary Match 1: Board Registration Number (Exact)
+        if (stBoardReg && rBoardReg && stBoardReg === rBoardReg && stBoardReg.length >= 5) return true;
+
+        // Primary Match 2: Exam Roll No (Exact match when valid and not placeholder)
+        if (stExam && rExam && stExam !== '—' && stExam !== 'NA' && stExam !== 'N/A' && stExam === rExam) return true;
+
+        // Match 3: Admission Form No
+        if (stForm && rForm && stForm === rForm) return true;
+
+        // Match 4: Class Roll No (Exact match when valid, not placeholder)
+        if (stClassRoll && rClassRoll && stClassRoll !== '—' && stClassRoll !== '-' && !/^\d{8,}$/.test(stClassRoll) && !/^\d{8,}$/.test(rClassRoll) && stClassRoll === rClassRoll) {
+          if (!stName || !rName || stName === rName || stName.includes(rName) || rName.includes(stName)) return true;
         }
-      }
 
-      return false;
-    });
+        // Match 5: Student Full Name + Father Name (when length > 3)
+        if (stName && rName && stName.length > 3 && (stName === rName || stName.replace(/\s+/g, '') === rName.replace(/\s+/g, ''))) {
+          if (!stFather || !rFather || stFather === rFather || stFather.includes(rFather) || rFather.includes(stFather)) {
+            return true;
+          }
+        }
 
-    if (!rec) return null;
+        return false;
+      });
 
-    const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim();
-    if (rawMark.toUpperCase() === 'AB' || rawMark.toUpperCase() === 'A' || rawMark.toUpperCase() === 'ABSENT') return 'AB';
-    const num = parseInt(rawMark, 10);
-    return !isNaN(num) ? num : null;
+      if (!rec) return null;
+
+      const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim();
+      if (rawMark.toUpperCase() === 'AB' || rawMark.toUpperCase() === 'A' || rawMark.toUpperCase() === 'ABSENT') return 'AB';
+      const num = parseInt(rawMark, 10);
+      return !isNaN(num) ? num : null;
+    } catch (err) {
+      console.warn('Error reading subject mark:', err);
+      return null;
+    }
   };
 
   const getStudentHashTotal = (st) => {
-    const stSess = normalizePracticalSession(getStudentSession(st));
-    const effectiveSess = selectedSession !== 'all' ? selectedSession : (stSess || '2025-26');
-    let total = 0;
+    try {
+      const stSess = normalizePracticalSession(getStudentSession(st));
+      const effectiveSess = selectedSession !== 'all' ? selectedSession : (stSess || '2025-26');
+      let total = 0;
 
-    activeSubjects.forEach(subCode => {
-      const mark = getSubjectMarkForStudent(st, subCode, effectiveSess);
-      if (typeof mark === 'number') {
-        total += mark;
-      }
-    });
+      (activeSubjects || []).forEach(subCode => {
+        const mark = getSubjectMarkForStudent(st, subCode, effectiveSess);
+        if (typeof mark === 'number') {
+          total += mark;
+        }
+      });
 
-    return total > 0 ? total : '—';
+      return total > 0 ? total : '—';
+    } catch {
+      return '—';
+    }
   };
 
   const handleSort = (field) => {
@@ -2417,51 +2537,56 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
   const sortedStudents = useMemo(() => {
     return [...filteredStudents].sort((a, b) => {
-      let aVal = '';
-      let bVal = '';
+      try {
+        let aVal = '';
+        let bVal = '';
 
-      if (sortField === 'roll') {
-        const aRoll = getRollNo(a);
-        const bRoll = getRollNo(b);
-        const aR = parseInt(aRoll, 10);
-        const bR = parseInt(bRoll, 10);
-        const aHas = Boolean(aRoll && aRoll !== '—' && aRoll !== '-' && !isNaN(aR) && aR > 0);
-        const bHas = Boolean(bRoll && bRoll !== '—' && bRoll !== '-' && !isNaN(bR) && bR > 0);
+        if (sortField === 'roll') {
+          const aRoll = getRollNo(a);
+          const bRoll = getRollNo(b);
+          const aR = parseInt(aRoll, 10);
+          const bR = parseInt(bRoll, 10);
+          const aHas = Boolean(aRoll && aRoll !== '—' && aRoll !== '-' && !isNaN(aR) && aR > 0);
+          const bHas = Boolean(bRoll && bRoll !== '—' && bRoll !== '-' && !isNaN(bR) && bR > 0);
 
-        if (aHas && bHas) {
-          return sortDirection === 'asc' ? aR - bR : bR - aR;
+          if (aHas && bHas) {
+            return sortDirection === 'asc' ? aR - bR : bR - aR;
+          }
+          if (aHas && !bHas) return -1; // Students with assigned roll always come first
+          if (!aHas && bHas) return 1;  // Unassigned students go to the bottom
+
+          aVal = String(a?.['Exam R.No. (Current)'] || a?.["Student's Name (as per school records)"] || a?.studentName || a?.name || '').toLowerCase();
+          bVal = String(b?.['Exam R.No. (Current)'] || b?.["Student's Name (as per school records)"] || b?.studentName || b?.name || '').toLowerCase();
+        } else if (sortField === 'examRoll') {
+          aVal = String(getCurrentOfficialExamRoll(a, cls) || a?.['Exam R.No. (Current)'] || a?.examRollNo || '').toLowerCase();
+          bVal = String(getCurrentOfficialExamRoll(b, cls) || b?.['Exam R.No. (Current)'] || b?.examRollNo || '').toLowerCase();
+        } else if (sortField === 'regNo') {
+          aVal = String(a?.['Board Registration Number'] || a?.['Board Reg. No.'] || a?.boardRegNo || a?.regNo || '').toLowerCase();
+          bVal = String(b?.['Board Registration Number'] || b?.['Board Reg. No.'] || b?.boardRegNo || b?.regNo || '').toLowerCase();
+        } else if (sortField === 'name') {
+          aVal = String(a?.["Student's Name (as per school records)"] || a?.["Student's Name"] || a?.studentName || a?.name || '').toLowerCase();
+          bVal = String(b?.["Student's Name (as per school records)"] || b?.["Student's Name"] || b?.studentName || b?.name || '').toLowerCase();
+        } else if (sortField === 'father') {
+          aVal = String(a?.["Father's/Guardian's Name (as per school records)"] || a?.["Father's Name"] || a?.fatherName || '').toLowerCase();
+          bVal = String(b?.["Father's/Guardian's Name (as per school records)"] || b?.["Father's Name"] || b?.fatherName || '').toLowerCase();
+        } else if (sortField === 'stream') {
+          const isSec = String(cls || '').includes('10') || String(cls || '').includes('9');
+          aVal = isSec ? 'general' : String(getStudentStreamStr(a, cls) || a?.stream || a?.Stream || '').toLowerCase();
+          bVal = isSec ? 'general' : String(getStudentStreamStr(b, cls) || b?.stream || b?.Stream || '').toLowerCase();
+        } else if (sortField === 'hashTotal') {
+          const aT = typeof getStudentHashTotal(a) === 'number' ? getStudentHashTotal(a) : -1;
+          const bT = typeof getStudentHashTotal(b) === 'number' ? getStudentHashTotal(b) : -1;
+          return sortDirection === 'asc' ? aT - bT : bT - aT;
         }
-        if (aHas && !bHas) return -1; // Students with assigned roll always come first
-        if (!aHas && bHas) return 1;  // Unassigned students go to the bottom
 
-        aVal = String(a['Exam R.No. (Current)'] || a["Student's Name (as per school records)"] || a.studentName || a.name || '').toLowerCase();
-        bVal = String(b['Exam R.No. (Current)'] || b["Student's Name (as per school records)"] || b.studentName || b.name || '').toLowerCase();
-      } else if (sortField === 'examRoll') {
-        aVal = String(getCurrentOfficialExamRoll(a, cls) || a['Exam R.No. (Current)'] || a.examRollNo || '').toLowerCase();
-        bVal = String(getCurrentOfficialExamRoll(b, cls) || b['Exam R.No. (Current)'] || b.examRollNo || '').toLowerCase();
-      } else if (sortField === 'regNo') {
-        aVal = String(a['Board Registration Number'] || a['Board Reg. No.'] || a.boardRegNo || a.regNo || '').toLowerCase();
-        bVal = String(b['Board Registration Number'] || b['Board Reg. No.'] || b.boardRegNo || b.regNo || '').toLowerCase();
-      } else if (sortField === 'name') {
-        aVal = String(a["Student's Name (as per school records)"] || a["Student's Name"] || a.studentName || a.name || '').toLowerCase();
-        bVal = String(b["Student's Name (as per school records)"] || b["Student's Name"] || b.studentName || b.name || '').toLowerCase();
-      } else if (sortField === 'father') {
-        aVal = String(a["Father's/Guardian's Name (as per school records)"] || a["Father's Name"] || a.fatherName || '').toLowerCase();
-        bVal = String(b["Father's/Guardian's Name (as per school records)"] || b["Father's Name"] || b.fatherName || '').toLowerCase();
-      } else if (sortField === 'stream') {
-        aVal = String(a.stream || a.Stream || '').toLowerCase();
-        bVal = String(b.stream || b.Stream || '').toLowerCase();
-      } else if (sortField === 'hashTotal') {
-        const aT = typeof getStudentHashTotal(a) === 'number' ? getStudentHashTotal(a) : -1;
-        const bT = typeof getStudentHashTotal(b) === 'number' ? getStudentHashTotal(b) : -1;
-        return sortDirection === 'asc' ? aT - bT : bT - aT;
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      } catch {
+        return 0;
       }
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
     });
-  }, [filteredStudents, sortField, sortDirection, selectedSession, localPrintOpts.practicalType, bioMode]);
+  }, [filteredStudents, sortField, sortDirection, selectedSession, localPrintOpts?.practicalType, bioMode, activeSubjects, cls]);
 
   const selectedStudentsList = selectedRolls.size > 0
     ? sortedStudents.filter(st => {
@@ -2470,6 +2595,21 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
       return selectedRolls.has(uniqueKey) || (roll && roll !== '—' && selectedRolls.has(roll));
     })
     : sortedStudents;
+
+  const getSafeListToPrint = useCallback(() => {
+    try {
+      const rawList = (selectedStudentsList && selectedStudentsList.length > 0) ? selectedStudentsList : sortedStudents;
+      return (rawList || []).filter(st => {
+        if (!st) return false;
+        if (isStudentExamDropped(st)) return false;
+        const approval = checkStudentApprovalState(st);
+        return Boolean(approval?.isApproved);
+      });
+    } catch (e) {
+      console.warn('Error computing listToPrint:', e);
+      return [];
+    }
+  }, [selectedStudentsList, sortedStudents]);
 
   const toggleSubject = (code) => {
     if (selectedSubCodes.includes(code)) setSelectedSubCodes(selectedSubCodes.filter(c => c !== code));
@@ -2496,7 +2636,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
       { id: '2024-25', label: 'Session 2024–25 (Oct-Nov)' }
     ];
     const extraSessions = new Set();
-    submissions.forEach(s => {
+    (submissions || []).forEach(s => {
+      if (!s) return;
       const sess = normalizePracticalSession(s.sessionText || s.session);
       if (sess !== '2025-26' && sess !== '2024-25' && sess !== '2024-25 (Oct-Nov)') {
         if (sess) extraSessions.add(sess);
@@ -2512,7 +2653,6 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
     return list;
   }, [submissions]);
 
-  const activeSubjects = activeCodesList.filter(c => selectedSubCodes.includes(c));
   const [exportSubjectTarget, setExportSubjectTarget] = useState('all');
 
   // If user has filtered table to exactly 1 subject in toolbar, align export target
@@ -2785,27 +2925,31 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         type="button"
                         onClick={() => {
                           setShowAwardsMenu(false);
-                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
-                          if (!listToPrint || listToPrint.length === 0) {
-                            showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                            return;
+                          try {
+                            const listToPrint = getSafeListToPrint();
+                            if (!listToPrint || listToPrint.length === 0) {
+                              showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                              return;
+                            }
+                            const isSingle = exportSubjectTarget !== 'all';
+                            const targetCode = isSingle ? exportSubjectTarget : '';
+                            const targetName = isSingle ? (getSubjectDisplayName(targetCode, cls) || targetCode) : '';
+                            printMarksRecordAwardRoll({
+                              className: cls,
+                              session: localPrintOpts.sessionText,
+                              students: listToPrint,
+                              submissions,
+                              isExternal: localPrintOpts.practicalType === 'external',
+                              evaluationType: localPrintOpts.practicalType,
+                              subjectCode: targetCode,
+                              subjectName: targetName,
+                              selectedSubjectCodes: !isSingle ? activeSubjects : null,
+                              printDetails: localPrintOpts
+                            });
+                          } catch (err) {
+                            console.error('Error generating Marks Record print:', err);
+                            showToast('Failed to generate Marks Record print.', 'error');
                           }
-                          const isSingle = exportSubjectTarget !== 'all';
-                          const targetCode = isSingle ? exportSubjectTarget : '';
-                          const targetName = isSingle ? (getSubjectDisplayName(targetCode, cls) || targetCode) : '';
-                          printMarksRecordAwardRoll({
-                            className: cls,
-                            session: localPrintOpts.sessionText,
-                            students: listToPrint,
-                            submissions,
-                            isExternal: localPrintOpts.practicalType === 'external',
-                            evaluationType: localPrintOpts.practicalType,
-                            subjectCode: targetCode,
-                            subjectName: targetName,
-                            selectedSubjectCodes: !isSingle ? activeSubjects : null,
-                            printDetails: localPrintOpts
-                          });
                         }}
                         className="w-full px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
                       >
@@ -2829,25 +2973,29 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         type="button"
                         onClick={() => {
                           setShowAwardsMenu(false);
-                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
-                          if (!listToPrint || listToPrint.length === 0) {
-                            showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                            return;
+                          try {
+                            const listToPrint = getSafeListToPrint();
+                            if (!listToPrint || listToPrint.length === 0) {
+                              showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                              return;
+                            }
+                            const isSingle = exportSubjectTarget !== 'all';
+                            const targetCode = isSingle ? exportSubjectTarget : '';
+                            const targetName = isSingle ? (getSubjectDisplayName(targetCode, cls) || targetCode) : '';
+                            printAttendanceSheet({
+                              className: cls,
+                              session: localPrintOpts.sessionText,
+                              students: listToPrint,
+                              isExternal: localPrintOpts.practicalType === 'external',
+                              evaluationType: localPrintOpts.practicalType,
+                              subjectCode: targetCode,
+                              subjectName: targetName,
+                              selectedSubjectCodes: !isSingle ? activeSubjects : null
+                            });
+                          } catch (err) {
+                            console.error('Error generating Attendance Sheet:', err);
+                            showToast('Failed to generate Attendance Sheet.', 'error');
                           }
-                          const isSingle = exportSubjectTarget !== 'all';
-                          const targetCode = isSingle ? exportSubjectTarget : '';
-                          const targetName = isSingle ? (getSubjectDisplayName(targetCode, cls) || targetCode) : '';
-                          printAttendanceSheet({
-                            className: cls,
-                            session: localPrintOpts.sessionText,
-                            students: listToPrint,
-                            isExternal: localPrintOpts.practicalType === 'external',
-                            evaluationType: localPrintOpts.practicalType,
-                            subjectCode: targetCode,
-                            subjectName: targetName,
-                            selectedSubjectCodes: !isSingle ? activeSubjects : null
-                          });
                         }}
                         className="w-full px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
                       >
@@ -2871,24 +3019,28 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         type="button"
                         onClick={() => {
                           setShowAwardsMenu(false);
-                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
-                          if (!listToPrint || listToPrint.length === 0) {
-                            showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                            return;
+                          try {
+                            const listToPrint = getSafeListToPrint();
+                            if (!listToPrint || listToPrint.length === 0) {
+                              showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                              return;
+                            }
+                            const isSingle = exportSubjectTarget !== 'all';
+                            const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                            printAllIndividualAwardRolls({
+                              className: cls,
+                              session: localPrintOpts.sessionText,
+                              students: listToPrint,
+                              submissions,
+                              isExternal: localPrintOpts.practicalType === 'external',
+                              evaluationType: localPrintOpts.practicalType,
+                              selectedSubjectCodes: targetCodes,
+                              printDetails: { ...localPrintOpts, settings }
+                            });
+                          } catch (err) {
+                            console.error('Error generating 2-Column Award Rolls:', err);
+                            showToast('Failed to generate 2-Column Award Rolls.', 'error');
                           }
-                          const isSingle = exportSubjectTarget !== 'all';
-                          const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
-                          printAllIndividualAwardRolls({
-                            className: cls,
-                            session: localPrintOpts.sessionText,
-                            students: listToPrint,
-                            submissions,
-                            isExternal: localPrintOpts.practicalType === 'external',
-                            evaluationType: localPrintOpts.practicalType,
-                            selectedSubjectCodes: targetCodes,
-                            printDetails: { ...localPrintOpts, settings }
-                          });
                         }}
                         className="w-full px-2.5 py-1.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
                       >
@@ -2912,25 +3064,29 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         type="button"
                         onClick={() => {
                           setShowAwardsMenu(false);
-                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
-                          if (!listToPrint || listToPrint.length === 0) {
-                            showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                            return;
+                          try {
+                            const listToPrint = getSafeListToPrint();
+                            if (!listToPrint || listToPrint.length === 0) {
+                              showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                              return;
+                            }
+                            const isSingle = exportSubjectTarget !== 'all';
+                            const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
+                            printFailList({
+                              className: cls,
+                              session: localPrintOpts.sessionText,
+                              students: listToPrint,
+                              submissions,
+                              pendingSubmissions: pendingApprovals,
+                              selectedSubjectCodes: targetCodes,
+                              isExternal: localPrintOpts.practicalType === 'external',
+                              evaluationType: localPrintOpts.practicalType,
+                              printDetails: { ...localPrintOpts, settings }
+                            });
+                          } catch (err) {
+                            console.error('Error generating Fail/Absent List:', err);
+                            showToast('Failed to generate Fail / Absent List.', 'error');
                           }
-                          const isSingle = exportSubjectTarget !== 'all';
-                          const targetCodes = isSingle ? [exportSubjectTarget] : activeSubjects;
-                          printFailList({
-                            className: cls,
-                            session: localPrintOpts.sessionText,
-                            students: listToPrint,
-                            submissions,
-                            pendingSubmissions: pendingApprovals,
-                            selectedSubjectCodes: targetCodes,
-                            isExternal: localPrintOpts.practicalType === 'external',
-                            evaluationType: localPrintOpts.practicalType,
-                            printDetails: { ...localPrintOpts, settings }
-                          });
                         }}
                         className="w-full px-2.5 py-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
                       >
@@ -2955,26 +3111,30 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                           type="button"
                           onClick={() => {
                             setShowAwardsMenu(false);
-                            const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
-                            if (!listToPrint || listToPrint.length === 0) {
-                              showToast(`No student records available to print for Class ${cls}.`, 'warning');
-                              return;
+                            try {
+                              const listToPrint = getSafeListToPrint();
+                              if (!listToPrint || listToPrint.length === 0) {
+                                showToast(`No student records available to print for Class ${cls}.`, 'warning');
+                                return;
+                              }
+                              const isSingle = exportSubjectTarget !== 'all';
+                              const targetCodes = isSingle
+                                ? [exportSubjectTarget]
+                                : (subjectsWithSubmissions.size > 0 ? activeSubjects.filter(c => subjectsWithSubmissions.has(c)) : activeSubjects);
+                              printConsolidatedAwardRoll({
+                                className: cls,
+                                session: localPrintOpts.sessionText,
+                                students: listToPrint,
+                                submissions,
+                                isExternal: localPrintOpts.practicalType === 'external',
+                                evaluationType: localPrintOpts.practicalType,
+                                selectedSubjectCodes: targetCodes,
+                                printDetails: localPrintOpts
+                              });
+                            } catch (err) {
+                              console.error('Error generating Consolidated Award Roll:', err);
+                              showToast('Failed to generate Consolidated Award Roll.', 'error');
                             }
-                            const isSingle = exportSubjectTarget !== 'all';
-                            const targetCodes = isSingle
-                              ? [exportSubjectTarget]
-                              : (subjectsWithSubmissions.size > 0 ? activeSubjects.filter(c => subjectsWithSubmissions.has(c)) : activeSubjects);
-                            printConsolidatedAwardRoll({
-                              className: cls,
-                              session: localPrintOpts.sessionText,
-                              students: listToPrint,
-                              submissions,
-                              isExternal: localPrintOpts.practicalType === 'external',
-                              evaluationType: localPrintOpts.practicalType,
-                              selectedSubjectCodes: targetCodes,
-                              printDetails: localPrintOpts
-                            });
                           }}
                           className="w-full px-2.5 py-1.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
                         >
@@ -3005,26 +3165,30 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                           type="button"
                           onClick={() => {
                             setShowAwardsMenu(false);
-                            const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
-                            if (!listToPrint || listToPrint.length === 0) {
-                              showToast(`No student records available to export for Class ${cls}.`, 'warning');
-                              return;
+                            try {
+                              const listToPrint = getSafeListToPrint();
+                              if (!listToPrint || listToPrint.length === 0) {
+                                showToast(`No student records available to export for Class ${cls}.`, 'warning');
+                                return;
+                              }
+                              const isSingle = exportSubjectTarget !== 'all';
+                              const targetCodes = isSingle
+                                ? [exportSubjectTarget]
+                                : (subjectsWithSubmissions.size > 0 ? activeSubjects.filter(c => subjectsWithSubmissions.has(c)) : activeSubjects);
+                              exportConsolidatedAwardsToExcel({
+                                className: cls,
+                                session: localPrintOpts.sessionText,
+                                students: listToPrint,
+                                submissions,
+                                isExternal: localPrintOpts.practicalType === 'external',
+                                evaluationType: localPrintOpts.practicalType,
+                                selectedSubjectCodes: targetCodes,
+                                printDetails: localPrintOpts
+                              });
+                            } catch (err) {
+                              console.error('Error exporting Consolidated Excel:', err);
+                              showToast('Failed to export Consolidated Excel.', 'error');
                             }
-                            const isSingle = exportSubjectTarget !== 'all';
-                            const targetCodes = isSingle
-                              ? [exportSubjectTarget]
-                              : (subjectsWithSubmissions.size > 0 ? activeSubjects.filter(c => subjectsWithSubmissions.has(c)) : activeSubjects);
-                            exportConsolidatedAwardsToExcel({
-                              className: cls,
-                              session: localPrintOpts.sessionText,
-                              students: listToPrint,
-                              submissions,
-                              isExternal: localPrintOpts.practicalType === 'external',
-                              evaluationType: localPrintOpts.practicalType,
-                              selectedSubjectCodes: targetCodes,
-                              printDetails: localPrintOpts
-                            });
                           }}
                           className="w-full px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
                         >
@@ -3046,26 +3210,30 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                           type="button"
                           onClick={() => {
                             setShowAwardsMenu(false);
-                            const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                            const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
-                            if (!listToPrint || listToPrint.length === 0) {
-                              showToast(`No student records available to export for Class ${cls}.`, 'warning');
-                              return;
+                            try {
+                              const listToPrint = getSafeListToPrint();
+                              if (!listToPrint || listToPrint.length === 0) {
+                                showToast(`No student records available to export for Class ${cls}.`, 'warning');
+                                return;
+                              }
+                              const isSingle = exportSubjectTarget !== 'all';
+                              const targetCodes = isSingle
+                                ? [exportSubjectTarget]
+                                : (subjectsWithSubmissions.size > 0 ? activeSubjects.filter(c => subjectsWithSubmissions.has(c)) : activeSubjects);
+                              exportConsolidatedAwardsToWord({
+                                className: cls,
+                                session: localPrintOpts.sessionText,
+                                students: listToPrint,
+                                submissions,
+                                isExternal: localPrintOpts.practicalType === 'external',
+                                evaluationType: localPrintOpts.practicalType,
+                                selectedSubjectCodes: targetCodes,
+                                printDetails: localPrintOpts
+                              });
+                            } catch (err) {
+                              console.error('Error exporting Word doc:', err);
+                              showToast('Failed to export Word document.', 'error');
                             }
-                            const isSingle = exportSubjectTarget !== 'all';
-                            const targetCodes = isSingle
-                              ? [exportSubjectTarget]
-                              : (subjectsWithSubmissions.size > 0 ? activeSubjects.filter(c => subjectsWithSubmissions.has(c)) : activeSubjects);
-                            exportConsolidatedAwardsToWord({
-                              className: cls,
-                              session: localPrintOpts.sessionText,
-                              students: listToPrint,
-                              submissions,
-                              isExternal: localPrintOpts.practicalType === 'external',
-                              evaluationType: localPrintOpts.practicalType,
-                              selectedSubjectCodes: targetCodes,
-                              printDetails: localPrintOpts
-                            });
                           }}
                           className="w-full px-2.5 py-1.5 rounded-xl hover:bg-sky-50 dark:hover:bg-sky-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2.5 cursor-pointer transition-colors"
                         >
@@ -3088,16 +3256,21 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         type="button"
                         onClick={() => {
                           setShowAwardsMenu(false);
-                          const rawList = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                          const listToPrint = (rawList || []).filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
-                          const subToRoster = exportSubjectTarget !== 'all' ? exportSubjectTarget : (activeSubjects[0] || 'BO');
-                          exportCurrentRosterToExcel({
-                            className: cls,
-                            session: localPrintOpts.sessionText,
-                            students: listToPrint,
-                            subjectCode: subToRoster,
-                            evaluationType: localPrintOpts.practicalType
-                          });
+                          try {
+                            const listToPrint = getSafeListToPrint();
+                            const defaultSub = String(cls || '').includes('10') ? 'SC' : 'PH';
+                            const subToRoster = exportSubjectTarget !== 'all' ? exportSubjectTarget : (activeSubjects[0] || defaultSub);
+                            exportCurrentRosterToExcel({
+                              className: cls,
+                              session: localPrintOpts.sessionText,
+                              students: listToPrint,
+                              subjectCode: subToRoster,
+                              evaluationType: localPrintOpts.practicalType
+                            });
+                          } catch (err) {
+                            console.error('Error exporting Teacher Roster:', err);
+                            showToast('Failed to export Teacher Roster.', 'error');
+                          }
                         }}
                         className="w-full px-2.5 py-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 text-left font-bold text-slate-600 dark:text-slate-400 flex items-center gap-2.5 cursor-pointer transition-colors"
                       >
@@ -3347,8 +3520,9 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
               const name = toTitleCase(rawName);
               const father = toTitleCase(rawFather);
               const mother = rawMother ? toTitleCase(rawMother) : '';
-              const streamRaw = getStudentStreamStr(st, cls);
-              const streamDisplay = streamRaw ? toTitleCase(streamRaw) : 'Science';
+              const isSecondaryCls = String(cls || '').includes('10') || String(cls || '').includes('9');
+              const streamRaw = isSecondaryCls ? 'General' : (getStudentStreamStr(st, cls) || 'Science');
+              const streamDisplay = toTitleCase(streamRaw);
               const streamLower = streamRaw.toLowerCase();
               const rawExam = getCurrentOfficialExamRoll(st, cls) || String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim();
               // Always show official current exam roll if available (board issues rolls well before the exam)
@@ -3394,6 +3568,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                   </td>
                   <td className="py-1.5 px-2 whitespace-nowrap">
                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                      streamLower.includes('general') ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20' :
                       (streamLower.includes('science') || streamLower.includes('med') || streamLower.includes('sci')) ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20' :
                       streamLower.includes('commerce') ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20' :
                       'bg-purple-50 text-purple-700 dark:bg-purple-900/20'
@@ -6101,7 +6276,7 @@ function ClassPracticalSubmissionWindowsCard({ settings, setSettings, saveSettin
   const handleToggleClass = async (targetCls) => {
     const nextVal = !currentWindows[targetCls];
     const updatedWindows = {
-      ...(settings.submissionWindows || DEFAULT_PRACTICAL_SUBMISSION_WINDOWS),
+      ...(settings?.submissionWindows || DEFAULT_PRACTICAL_SUBMISSION_WINDOWS),
       [targetCls]: nextVal
     };
     const updatedSettings = {
@@ -6226,9 +6401,9 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
   const [marksSaved, setMarksSaved] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
-  const evalMarksConfig = settings.evaluationMarksConfig || DEFAULT_PRACTICAL_MARKS_CONFIG;
-  const currentClassConfig = evalMarksConfig[activeClassTab] || DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab];
-  const currentTypeConfig = currentClassConfig[activeTypeTab] || DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab][activeTypeTab];
+  const evalMarksConfig = settings?.evaluationMarksConfig || DEFAULT_PRACTICAL_MARKS_CONFIG;
+  const currentClassConfig = evalMarksConfig?.[activeClassTab] || DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab] || {};
+  const currentTypeConfig = currentClassConfig?.[activeTypeTab] || DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab]?.[activeTypeTab] || {};
 
   const handleUpdateMarks = (code, field, val) => {
     const rawVal = typeof val === 'string' ? val.trim() : String(val);
@@ -6649,7 +6824,7 @@ function SettingsPermissionsView({
     }
   };
 
-  const activePermissions = settings.permissions || [];
+  const activePermissions = settings?.permissions || [];
   const filteredPermissions = activePermissions.filter(p => {
     if (!permSearch.trim()) return true;
     const q = permSearch.toLowerCase().trim();

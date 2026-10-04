@@ -163,6 +163,15 @@ export function getStudentStream(s) {
   if (!s || typeof s !== 'object') return 'General';
   const raw = s.raw || s._rawStudent || s;
 
+  // Secondary School (Classes 9th & 10th) have NO streams - strictly General
+  const cls = String(
+    s.Class || s.class || s.className || s['Admission sought for class'] ||
+    s['Class for Admission'] || s['Class for which Admission Sought'] ||
+    s['Class Enrolled'] || s.admittedClass || raw.Class || raw.class ||
+    raw['Admission sought for class'] || ''
+  ).toLowerCase();
+  if (cls.includes('9') || cls.includes('10') || cls.includes('ix') || cls.includes('x')) return 'General';
+
   for (const k of STREAM_KEYS) {
     const val = s[k] !== undefined && s[k] !== null ? s[k] : raw[k];
     if (val && typeof val === 'string' && val.trim() && !/^(n\/?a|—|-|null|undefined)$/i.test(val.trim())) {
@@ -212,9 +221,6 @@ export function getStudentStream(s) {
   if (subStr.includes('account') || subStr.includes('business') || subStr.includes('commerce')) {
     return 'Commerce';
   }
-
-  const cls = String(s.Class || s.class || s['Admission sought for class'] || raw.Class || raw.class || '').toLowerCase();
-  if (cls.includes('9') || cls.includes('10')) return 'General';
 
   return 'General';
 }

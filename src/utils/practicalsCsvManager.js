@@ -248,6 +248,7 @@ export function exportCurrentRosterToExcel({
   students = (students || []).filter(st => !isStudentExamDropped(st));
   const subName = getSubjectDisplayName(subjectCode, className) || VALID_SUBJECT_CODES[subjectCode] || subjectCode;
 
+  const isSecondary = String(className || '').replace(/[^0-9]/g, '') === '10' || String(className || '').replace(/[^0-9]/g, '') === '9' || /^(9|10)(th)?$/i.test(String(className || '').trim());
   const rows = students.map((st, idx) => {
     const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st.regNo || st.boardRegNo || '';
     const regNo = cleanRegistrationNumber(rawReg);
@@ -255,7 +256,7 @@ export function exportCurrentRosterToExcel({
     const classRoll = String(st['Class Roll No'] || st.classRollNo || st.rollNo || (idx + 1)).trim();
     const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').trim();
     const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').trim();
-    const stream = String(st.stream || st.Stream || 'Science').trim();
+    const stream = isSecondary ? 'General' : String(st.stream || st.Stream || 'Science').trim();
     const resolvedSubs = getAbbreviatedSubjects(st, className);
     const rawSubs = String(st.subjects || st.Subjects || st.Subs || '').trim();
     const subjects = resolvedSubs || (!/same\s+as/i.test(rawSubs) ? rawSubs : '');
@@ -498,7 +499,8 @@ export function exportConsolidatedAwardsToExcel({
     const regNo = cleanRegistrationNumber(rawReg) || '—';
     const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—').trim();
     const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '—').trim();
-    const stream = String(st.stream || st.Stream || 'Science').trim();
+    const isSecondary = String(className || '').replace(/[^0-9]/g, '') === '10' || String(className || '').replace(/[^0-9]/g, '') === '9' || /^(9|10)(th)?$/i.test(String(className || '').trim());
+    const stream = isSecondary ? 'General' : String(st.stream || st.Stream || 'Science').trim();
 
     let rowHash = 0;
 
@@ -1346,7 +1348,7 @@ export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true)
                 name: st.name,
                 studentName: st.name,
                 parentName: '—',
-                stream: evalType === 'external' ? 'External / Outside' : 'Science',
+                stream: evalType === 'external' ? 'External / Outside' : (cls === '10th' || cls === '9th' ? 'General' : 'Science'),
                 practicalMarks: mVal,
                 totalMarks: mVal
               });
@@ -1466,7 +1468,8 @@ export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true)
     let classRoll = (colClassRoll !== -1 ? String(r[colClassRoll] || '') : '').trim();
     let stName = (colStudentName !== -1 ? String(r[colStudentName] || '') : '').trim();
     let fatherName = (colFatherName !== -1 ? String(r[colFatherName] || '') : '').trim();
-    let stream = (colStream !== -1 ? String(r[colStream] || '') : '') || (evalType === 'external' ? 'External / Outside' : 'Science');
+    const isSecondaryRow = cls === '10th' || cls === '9th';
+    let stream = (colStream !== -1 ? String(r[colStream] || '') : '') || (evalType === 'external' ? 'External / Outside' : (isSecondaryRow ? 'General' : 'Science'));
     let subjects = (colSubjects !== -1 ? String(r[colSubjects] || '') : '').trim();
     let marksRaw = String(r[colMarks] || '').trim().toUpperCase();
     let maxMarks = parseInt((colMaxMarks !== -1 ? String(r[colMaxMarks] || '10') : '10') || '10', 10) || 10;

@@ -1514,8 +1514,19 @@ export function printConsolidatedAwardRoll({
  */
 export function resolveStudentStream(st, className = '') {
   if (!st) return '';
-  const clsName = String(className || st.Class || st.class || '').toLowerCase();
-  if (clsName.includes('9') || clsName.includes('10')) return 'General';
+  const clsName = String(
+    className ||
+    st?.Class ||
+    st?.class ||
+    st?.className ||
+    st?.['Admission sought for class'] ||
+    st?.['Class for Admission'] ||
+    st?.['Class for which Admission Sought'] ||
+    st?.['Class Enrolled'] ||
+    st?.admittedClass ||
+    ''
+  ).toLowerCase();
+  if (clsName.includes('9') || clsName.includes('10') || clsName.includes('ix') || clsName.includes('x')) return 'General';
 
   const rawStream = String(
     st['Stream for Class 12th'] ||
@@ -1779,8 +1790,19 @@ export function getAbbreviatedSubjects(st, className = '') {
 export function isStudentEnrolledInPracticalSubject(st, subCode, className = '') {
   if (!st || !subCode) return false;
   const code = subCode.toUpperCase().trim();
-  const clsName = String(className || st.Class || st.class || '').toLowerCase();
-  const isSecondary = clsName.includes('9') || clsName.includes('10');
+  const clsName = String(
+    className ||
+    st?.Class ||
+    st?.class ||
+    st?.className ||
+    st?.['Admission sought for class'] ||
+    st?.['Class for Admission'] ||
+    st?.['Class for which Admission Sought'] ||
+    st?.['Class Enrolled'] ||
+    st?.admittedClass ||
+    ''
+  ).toLowerCase();
+  const isSecondary = clsName.includes('9') || clsName.includes('10') || clsName.includes('ix') || clsName.includes('x');
 
   // Secondary School (Class 9th & 10th) Authoritative Enrollment:
   if (isSecondary) {
