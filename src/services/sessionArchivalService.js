@@ -528,8 +528,25 @@ export async function reconcileAndDeduplicateSession({ session = '2025-26', onPr
 }
 
 /**
+ * Generates an authoritative, deterministic document ID for an individual master register record.
+ */
+export function generateMasterRegisterDocId(student, session) {
+  const sess = String(session || student?.session || student?.Session || 'unknown').replace(/[^a-zA-Z0-9-]/g, '');
+  const rawClass = String(student?.['Admission sought for class'] || student?.Class || student?.class || '11th').toLowerCase();
+  let classKey = '11th';
+  if (rawClass.includes('9')) classKey = '9th';
+  else if (rawClass.includes('10')) classKey = '10th';
+  else if (rawClass.includes('11')) classKey = '11th';
+  else if (rawClass.includes('12')) classKey = '12th';
+
+  const idKey = String(student?.formNo || student?.['Form Number'] || student?.['Form No.'] || student?.boardRegNo || student?.regNo || student?.admNo || student?.id || '')
+    .trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `mr_${sess}_${classKey}_${idKey}`;
+}
+
+/**
  * Phase 2: Session Rollover Execution.
- * 1. Packages approved records into structured masterRegisters chunks.
+ * 1. Writes approved records into individual masterRegisters documents.
  * 2. Wipes admissions collection for the archived session.
  * 3. Updates site/settings.session to newSession.
  * 4. Clears all memory caches.
@@ -578,78 +595,90 @@ export async function archiveSessionRecords(records, { session, newSession, onPr
     groups.get(groupKey).items.push(s);
   });
 
-  onProgress?.(30, `Packing ${approvedRecords.length} approved students into master registers chunks...`);
+  onProgress?.(30, `Writing ${approvedRecords.length} approved students as individual master registers documents...`);
 
-  // 3. Write structured chunk documents (up to 60 students per chunk)
-  let chunkIndex = 1;
-  for (const [groupKey, groupData] of groups.entries()) {
-    const items = groupData.items;
-    const CHUNK_SIZE = 60;
+  // 3. Write individual student documents in batches of 400
+  const WRITE_BATCH_SIZE = 400;
+  for (let i = 0; i < approvedRecords.length; i += WRITE_BATCH_SIZE) {
+    const batch = writeBatch(db);
+    const slice = approvedRecords.slice(i, i + WRITE_BATCH_SIZE);
 
-    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
-      const chunkItems = items.slice(i, i + CHUNK_SIZE).map((student, itemIdx) => {
-        const cleaned = { ...student };
-        // Strip internal UI properties
-        delete cleaned._docId;
-        delete cleaned._source;
-        delete cleaned._parentDocId;
-        delete cleaned._arrayKey;
-        delete cleaned._isHistorical;
-        delete cleaned._isMasterRegister;
-        delete cleaned._masterMatch;
-        delete cleaned._masterAdmNo;
-        delete cleaned._masterRegNo;
-        delete cleaned._masterFatherName;
-        delete cleaned._masterMotherName;
-        delete cleaned._masterDob;
+    slice.forEach(student => {
+      const cleaned = { ...student };
+      // Strip internal UI properties
+      delete cleaned._docId;
+      delete cleaned._source;
+      delete cleaned._parentDocId;
+      delete cleaned._arrayKey;
+      delete cleaned._isHistorical;
+      delete cleaned._isMasterRegister;
+      delete cleaned._masterMatch;
+      delete cleaned._masterAdmNo;
+      delete cleaned._masterRegNo;
+      delete cleaned._masterFatherName;
+      delete cleaned._masterMotherName;
+      delete cleaned._masterDob;
 
-        // Strip legacy duplicate photo keys, preserving only canonical photo_id
-        delete cleaned['Student Photo'];
-        delete cleaned.photoUrl;
-        delete cleaned.photoId;
-        delete cleaned.studentPhoto;
-        delete cleaned.passport_photo;
+      // Strip legacy duplicate photo keys, preserving only canonical photo_id
+      delete cleaned['Student Photo'];
+      delete cleaned.photoUrl;
+      delete cleaned.photoId;
+      delete cleaned.studentPhoto;
+      delete cleaned.passport_photo;
 
-        // Canonical master registers fields
-        const sName = student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || student.name || '';
-        const fName = student["Father's Name"] || student["Father's/Guardian's Name (as per school records)"] || student["Father's/Guardian's Name"] || student.fatherName || '';
-        const mName = student["Mother's Name"] || student["Mother's Name (as per school records)"] || student.motherName || '';
-        const sDob = student['DoB (figures)'] || student['DoB (as per school records)'] || student['Date of Birth'] || student.dob || '';
-        const sReg = student['Board Registration Number'] || student['Board Registration No. (Class 11th)'] || student['Board Registration No. (Class 10th)'] || student['Board Reg. No.'] || student.boardRegNo || student.regNo || '';
-        const sAdm = student['Admission No'] || student['Admission No.'] || student['Adm. No.'] || student.admNo || student.admissionNo || '';
-        const sRoll = student['Class Roll No'] || student.classRollNo || student.rollNo || '';
+      // Canonical master registers fields
+      const sName = student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || student.name || '';
+      const fName = student["Father's Name"] || student["Father's/Guardian's Name (as per school records)"] || student["Father's/Guardian's Name"] || student.fatherName || '';
+      const mName = student["Mother's Name"] || student["Mother's Name (as per school records)"] || student.motherName || '';
+      const sDob = student['DoB (figures)'] || student['DoB (as per school records)'] || student['Date of Birth'] || student.dob || '';
+      const sReg = student['Board Registration Number'] || student['Board Registration No. (Class 11th)'] || student['Board Registration No. (Class 10th)'] || student['Board Reg. No.'] || student.boardRegNo || student.regNo || '';
+      const sAdm = student['Admission No'] || student['Admission No.'] || student['Adm. No.'] || student.admNo || student.admissionNo || '';
+      const sRoll = student['Class Roll No'] || student.classRollNo || student.rollNo || '';
 
-        if (sName) cleaned["Student's Name"] = sName;
-        if (fName) cleaned["Father's Name"] = fName;
-        if (mName) cleaned["Mother's Name"] = mName;
-        if (sDob) cleaned["DoB (figures)"] = sDob;
-        if (sReg) cleaned["Board Registration Number"] = sReg;
-        if (sAdm) cleaned["Admission No"] = sAdm;
-        if (sRoll) cleaned["Class Roll No"] = sRoll;
+      if (sName) cleaned["Student's Name"] = sName;
+      if (fName) cleaned["Father's Name"] = fName;
+      if (mName) cleaned["Mother's Name"] = mName;
+      if (sDob) cleaned["DoB (figures)"] = sDob;
+      if (sReg) cleaned["Board Registration Number"] = sReg;
+      if (sAdm) cleaned["Admission No"] = sAdm;
+      if (sRoll) cleaned["Class Roll No"] = sRoll;
 
-        cleaned.Session = session;
-        cleaned.session = session;
-        cleaned.archivedAt = new Date().toISOString();
-        return cleaned;
-      });
+      const rawClass = String(student['Admission sought for class'] || student.Class || student.class || 'Class 11th');
+      let canonicalClass = '11th';
+      if (rawClass.includes('9')) canonicalClass = '9th';
+      else if (rawClass.includes('10')) canonicalClass = '10th';
+      else if (rawClass.includes('11')) canonicalClass = '11th';
+      else if (rawClass.includes('12')) canonicalClass = '12th';
 
-      const chunkDocId = `chunk_${session}_${groupData.classKey}_${groupData.stream}_part${String(chunkIndex).padStart(2, '0')}`;
-      const chunkDocRef = doc(db, 'masterRegisters', chunkDocId);
+      const stream = String(student.Stream || student.stream || student['Academic Stream'] || 'General').trim();
+      const docId = generateMasterRegisterDocId(student, session);
 
-      await setDoc(chunkDocRef, {
+      const recordPayload = {
+        ...cleaned,
+        id: docId,
+        _docId: docId,
+        _source: 'masterRegisters',
+        _srcCollection: 'masterRegisters',
+        _isHistorical: true,
         session,
-        class: groupData.classKey.replace('_', ' '),
-        stream: groupData.stream,
-        groupKey,
-        items: chunkItems,
-        count: chunkItems.length,
+        Session: session,
+        canonicalSession: session,
+        class: canonicalClass,
+        Class: canonicalClass,
+        canonicalClass,
+        stream,
+        Stream: stream,
         archivedAt: new Date().toISOString(),
         archivalJobId: session,
+        status: 'Approved',
+        Status: 'Approved',
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      };
 
-      chunkIndex++;
-    }
+      batch.set(doc(db, 'masterRegisters', docId), recordPayload, { merge: true });
+    });
+
+    await batch.commit();
   }
 
   onProgress?.(65, `Committed ${approvedRecords.length} records to master registers. Wiping admissions collection...`);

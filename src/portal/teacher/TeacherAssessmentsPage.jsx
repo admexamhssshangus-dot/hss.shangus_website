@@ -367,7 +367,7 @@ export default function TeacherAssessmentsPage() {
       const [pendingSnap, canonicalSnap, masterRes, admRes] = await Promise.all([
         getDoc(fsDoc(db, 'practicalsData', pendingDocId)).catch(() => null),
         getDoc(fsDoc(db, 'practicalsData', canonicalDocId)).catch(() => null),
-        getMasterRegistersScoped({ forceAll: false }).catch(() => []),
+        getMasterRegistersScoped({ session: selectedSession, className: selectedClass }).catch(() => []),
         getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => [])
       ]);
 

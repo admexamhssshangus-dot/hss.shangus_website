@@ -1703,7 +1703,7 @@ export default function PracticalsPage() {
       try {
         let [rawDocs, masterRes, admRes] = await Promise.all([
           getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []),
-          getMasterRegistersScoped({ forceAll: false }).catch(() => []),
+          getMasterRegistersScoped({ session: yearSuffix, className: selectedClass }).catch(() => []),
           getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => [])
         ]);
 

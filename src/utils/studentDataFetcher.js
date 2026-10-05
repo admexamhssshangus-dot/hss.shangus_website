@@ -373,9 +373,9 @@ export async function fetchStudentsForSessionOnDemand(session, options = {}) {
         addUnique(fetchedCap);
       }
 
-      // If still empty and it's a past session, query masterRegistersScoped
+      // If still empty and it's a past session, query masterRegisters scoped to this session
       if (results.length === 0) {
-        const masterList = await getMasterRegistersScoped({ forceAll: true });
+        const masterList = await getMasterRegistersScoped({ session: cleanSession, forceRefresh: options.forceRefresh });
         const filteredMaster = (masterList || []).filter((s) => isStudentInSession(s, cleanSession));
         addUnique(filteredMaster);
       }

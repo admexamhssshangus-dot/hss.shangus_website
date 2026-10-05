@@ -6,7 +6,7 @@
 // =================================================================
 
 import { db } from './firebase';
-import { doc, setDoc, deleteDoc, collection, getDocs, runTransaction, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, runTransaction, writeBatch } from 'firebase/firestore';
 import { updateCachedItem, invalidateCache } from './dbCache';
 import { recycleDeletedFormNumber } from './formNumberService';
 
@@ -159,6 +159,21 @@ async function cleanStudentFromMasterRegistersChunks(studentTarget) {
   const targetId = String(studentTarget.id || studentTarget.docId || '').trim().toLowerCase();
   const targetClass = String(studentTarget.class || studentTarget.Class || studentTarget['Admission sought for class'] || '').trim().toLowerCase();
   const targetSession = String(studentTarget.session || studentTarget.Session || studentTarget['Academic Session'] || '').trim().toLowerCase();
+
+  // Fast path: if targetId is a known flat document in masterRegisters, delete it directly
+  if (targetId && !targetId.startsWith('chunk_')) {
+    try {
+      const directRef = doc(db, 'masterRegisters', targetId);
+      const directSnap = await getDoc(directRef).catch(() => null);
+      if (directSnap && directSnap.exists()) {
+        const dData = directSnap.data();
+        if (!Array.isArray(dData.items)) {
+          await deleteDoc(directRef).catch(() => {});
+          return;
+        }
+      }
+    } catch (_) {}
+  }
 
   try {
     const masterSnap = await getDocs(collection(db, 'masterRegisters')).catch(() => null);

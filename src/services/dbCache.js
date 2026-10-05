@@ -6,7 +6,7 @@
 // while avoiding unnecessary database reads when cache is fresh.
 // =================================================================
 
-import { collection, getDocs, onSnapshot, doc, getDoc, setDoc, deleteDoc, deleteField, query, limit, startAfter, getCountFromServer } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, doc, getDoc, setDoc, deleteDoc, deleteField, query, where, limit, startAfter, getCountFromServer } from 'firebase/firestore';
 import { db, ensureFirestoreConnected } from './firebase';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 import { updateStudentInRegIndex } from './studentIndexService';
@@ -97,8 +97,11 @@ export function invalidateCollectionCache(collectionName) {
   fullyHydratedCollections.delete(collectionName);
   memoryCache.delete(collectionName);
   memoryTs.delete(collectionName);
-  if (collectionName === 'masterRegisters' && typeof window !== 'undefined') {
-    delete window._hssMasterRegistersCache;
+  if (collectionName === 'masterRegisters') {
+    if (typeof window !== 'undefined') {
+      delete window._hssMasterRegistersCache;
+    }
+    scopeMemoryCache.clear();
   }
   try {
     sessionStorage.removeItem(`${CACHE_PREFIX}${collectionName}`);
@@ -421,15 +424,171 @@ export function unpackMasterRegisterDoc(docSnap) {
     return list;
   }
 
-  return [{ ...data, id: data.id || docSnap.id, _docId: docSnap.id, _source: 'masterRegisters' }];
+  // Standalone individual student document in masterRegisters
+  const docId = docSnap.id || data.id || '';
+  const sSession = data.Session || data.session || data['Academic Session'] || (docId && docId.startsWith('mr_') ? docId.split('_')[1] : '') || '';
+  const sClass = data.Class || data.class || data['Class'] || data.className || (docId && docId.startsWith('mr_') ? docId.split('_')[2] : '') || '';
+  const sStream = data.Stream || data.stream || data['Stream'] || '';
+
+  return [{
+    ...data,
+    id: data.id || docId,
+    _docId: docId,
+    _source: 'masterRegisters',
+    _srcCollection: 'masterRegisters',
+    _parentDocId: null,
+    _arrayKey: null,
+    _isHistorical: true,
+    Session: sSession,
+    session: sSession,
+    Class: sClass,
+    class: sClass,
+    Stream: sStream,
+    stream: sStream,
+    status: data.status || data.Status || 'Approved',
+    Status: data.Status || data.status || 'Approved'
+  }];
+}
+
+// Scoped memory cache for on-demand queries by (session, class, stream)
+export const scopeMemoryCache = new Map();
+
+/**
+ * Fast check whether a student record matches a target session string.
+ */
+function isStudentInSessionFast(student, targetSession) {
+  if (!targetSession || targetSession === 'ALL' || targetSession === 'all' || targetSession === 'All Sessions') return true;
+  const s = student?.session || student?.Session || student?.['Academic Session'] || '';
+  if (!s) return false;
+  const sNorm = String(s).toLowerCase().replace(/session\s*/i, '').replace(/[\u2013\u2014]/g, '-').trim();
+  const tNorm = String(targetSession).toLowerCase().replace(/session\s*/i, '').replace(/[\u2013\u2014]/g, '-').trim();
+  if (sNorm === tNorm) return true;
+  const sYears = sNorm.match(/\d{4}-\d{2,4}/);
+  const tYears = tNorm.match(/\d{4}-\d{2,4}/);
+  if (sYears && tYears && sYears[0] === tYears[0]) return true;
+  return sNorm.includes(tNorm) || tNorm.includes(sNorm);
+}
+
+/**
+ * On-demand Scoped Master Registers Retrieval:
+ * Loads ONLY students belonging to the requested session, class, and/or stream on demand.
+ * Caches results in memory at the scope level so switching views costs 0 Firestore reads.
+ */
+export async function getMasterRegistersByScope({ session, className, stream, forceRefresh = false } = {}) {
+  const cleanSession = session && session !== 'All' ? String(session).trim() : '';
+  const cleanClass = className && className !== 'All' ? normalizeCanonicalClass(className) : '';
+  const cleanStream = stream && stream !== 'All' ? String(stream).trim() : '';
+
+  const cacheKey = `${cleanSession || '*'}_${cleanClass || '*'}_${cleanStream || '*'}`;
+
+  if (!forceRefresh && scopeMemoryCache.has(cacheKey)) {
+    return scopeMemoryCache.get(cacheKey);
+  }
+
+  // 1. If in-memory master register cache already exists, filter from it (0 reads)
+  if (!forceRefresh && typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
+    const inMem = window._hssMasterRegistersCache.filter(s => {
+      if (cleanSession && !isStudentInSessionFast(s, cleanSession)) return false;
+      if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
+      if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
+      return true;
+    });
+    if (inMem.length > 0 || window._hssMasterRegistersIsFull) {
+      scopeMemoryCache.set(cacheKey, inMem);
+      return inMem;
+    }
+  }
+
+  // 2. Query Firestore on-demand
+  try {
+    const constraints = [];
+    if (cleanSession) {
+      constraints.push(where('session', '==', cleanSession));
+    }
+    if (cleanClass) {
+      constraints.push(where('canonicalClass', '==', cleanClass));
+    }
+    if (cleanStream) {
+      constraints.push(where('stream', '==', cleanStream));
+    }
+
+    if (constraints.length > 0) {
+      const q = query(collection(db, 'masterRegisters'), ...constraints);
+      const snap = await getDocs(q);
+      const results = [];
+      snap.forEach(docSnap => {
+        results.push(...unpackMasterRegisterDoc(docSnap));
+      });
+
+      if (results.length > 0) {
+        scopeMemoryCache.set(cacheKey, results);
+        if (typeof window !== 'undefined') {
+          const existing = window._hssMasterRegistersCache || [];
+          const existingIds = new Set(existing.map(s => String(s.id || s._docId)));
+          const toAdd = results.filter(s => !existingIds.has(String(s.id || s._docId)));
+          if (toAdd.length > 0) {
+            window._hssMasterRegistersCache = [...existing, ...toAdd];
+          }
+        }
+        return results;
+      }
+
+      // Check alternate capitalized field names (e.g. Session)
+      if (cleanSession) {
+        const qCap = query(collection(db, 'masterRegisters'), where('Session', '==', cleanSession));
+        const snapCap = await getDocs(qCap).catch(() => null);
+        if (snapCap && !snapCap.empty) {
+          const capResults = [];
+          snapCap.forEach(docSnap => {
+            capResults.push(...unpackMasterRegisterDoc(docSnap));
+          });
+          const filteredCap = capResults.filter(s => {
+            if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
+            if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
+            return true;
+          });
+          if (filteredCap.length > 0) {
+            scopeMemoryCache.set(cacheKey, filteredCap);
+            return filteredCap;
+          }
+        }
+      }
+    }
+
+    // Fallback: If no flat docs match or during legacy chunk transition,
+    // load via chunk retrieval and filter in memory
+    const fallbackList = await getMasterRegistersScoped({ forceAll: false });
+    const scopedList = (fallbackList || []).filter(s => {
+      if (cleanSession && !isStudentInSessionFast(s, cleanSession)) return false;
+      if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
+      if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
+      return true;
+    });
+
+    scopeMemoryCache.set(cacheKey, scopedList);
+    return scopedList;
+  } catch (err) {
+    console.warn('[dbCache] getMasterRegistersByScope error:', err);
+    return [];
+  }
 }
 
 /**
  * Demand-based Master Registers retrieval:
- * By default, loads ONLY recent chunks (previous 4 sessions + active admissions, 2022-2026).
- * Deep historical archives (2006-2021) are loaded ONLY when explicitly requested (forceAll = true).
+ * If specific cohort options (session/class/stream) are provided, delegates to on-demand getMasterRegistersByScope.
+ * Otherwise loads recent chunks by default, and deep historical archives (2006-2021) only when forceAll = true.
  */
 export async function getMasterRegistersScoped(options = {}) {
+  // If specific cohort is provided, route directly to on-demand query
+  if (options?.session || options?.className || options?.class || options?.stream) {
+    return getMasterRegistersByScope({
+      session: options.session,
+      className: options.className || options.class,
+      stream: options.stream,
+      forceRefresh: options.forceRefresh
+    });
+  }
+
   const forceAll = options?.forceAll === true;
 
   // 1. If full cache is already present, return it immediately (0 reads)
@@ -931,6 +1090,10 @@ export function updateCachedItem(collectionName, itemId, updatedFields) {
   }
 
   setCachedCollectionData(collectionName, updatedList);
+
+  if (collectionName === 'masterRegisters') {
+    scopeMemoryCache.clear();
+  }
 
   if (collectionName === 'admissions' && updatedFields && typeof updatedFields === 'object') {
     try {

@@ -355,15 +355,16 @@ export async function persistStudentExamDropStatus(student, shouldDrop, reasonTe
       }
     }
 
-    // Attempt direct setDoc with merge in admissions
+    // Attempt direct setDoc with merge in target collection (masterRegisters or admissions)
     if (!primaryDocUpdated) {
+      const targetColl = (student._srcCollection === 'masterRegisters' || student._source === 'masterRegisters' || student._isHistorical) ? 'masterRegisters' : 'admissions';
       try {
-        const admRef = doc(db, 'admissions', targetDocId);
-        await setDoc(admRef, updatePayload, { merge: true });
-        updateCachedItem('admissions', targetDocId, updatePayload);
+        const targetRef = doc(db, targetColl, targetDocId);
+        await setDoc(targetRef, updatePayload, { merge: true });
+        updateCachedItem(targetColl, targetDocId, updatePayload);
         primaryDocUpdated = true;
-      } catch (admErr) {
-        console.warn('[examineeDropService] Direct admissions setDoc note:', admErr.message || admErr);
+      } catch (err) {
+        console.warn(`[examineeDropService] Direct ${targetColl} setDoc note:`, err.message || err);
       }
     }
   }
