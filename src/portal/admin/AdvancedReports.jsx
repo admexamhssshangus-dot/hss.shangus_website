@@ -908,20 +908,7 @@ export async function deleteStudentDocument(student) {
  * Dynamically adapts as future academic sessions (e.g. 2026-27) are introduced without code changes.
  */
 export function getDynamicRecentSessionCohort(sessions = []) {
-  if (!Array.isArray(sessions) || sessions.length === 0) {
-    const fallbackList = ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2026 APR/BIAN', '2025 APR/BIAN'];
-    const fallbackLowerSet = new Set(fallbackList.map(s => s.toLowerCase()));
-    ['2025', '2026', '2025 bian', '2026 bian'].forEach(s => fallbackLowerSet.add(s));
-    return {
-      latestRegularSessions: ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)'],
-      matchingBianSessions: ['2026 APR/BIAN', '2025 APR/BIAN'],
-      defaultRecentCohort: fallbackList,
-      defaultRecentLowerSet: fallbackLowerSet,
-      isDefaultSession: (s) => fallbackLowerSet.has(String(s || '').trim().toLowerCase())
-    };
-  }
-
-  const isBianSession = (sess) => /bian|bi-annual|private/i.test(String(sess || ''));
+  const isBianSession = (sess) => /bian|bi-annual|private/i.test(String(sess || '')) || (/apr/i.test(String(sess || '')) && !/mar-apr/i.test(String(sess || '')));
 
   // Parse chronological weight for regular sessions to order newest first
   const parseRegularSessionScore = (sessStr) => {
@@ -941,7 +928,16 @@ export function getDynamicRecentSessionCohort(sessions = []) {
   const regularList = [];
   const bianList = [];
 
-  sessions.forEach(sess => {
+  // Always evaluate recent canonical cycles
+  const candidateSessions = new Set([
+    ...(Array.isArray(sessions) ? sessions : []),
+    '2025-26',
+    '2024-25 (Oct-Nov)',
+    '2024-25 (Mar-Apr)',
+    '2023-24'
+  ]);
+
+  candidateSessions.forEach(sess => {
     const s = String(sess || '').trim();
     if (!s || s === '—' || s === 'ALL' || s === '__NONE__' || s === '2024-25' || s === '2024–25') return;
     if (isBianSession(s)) {
@@ -957,10 +953,10 @@ export function getDynamicRecentSessionCohort(sessions = []) {
   // Deduplicate regular sessions (excluding bare '2024-25')
   const uniqueRegular = Array.from(new Set(regularList)).filter(s => s !== '2024-25' && s !== '2024–25');
 
-  // Take top 3 regular sessions
-  let latestRegularSessions = uniqueRegular.slice(0, 3);
+  // Top 4 regular sessions: 2025-26, 2024-25 (Oct-Nov), 2024-25 (Mar-Apr), and 2023-24
+  let latestRegularSessions = uniqueRegular.slice(0, 4);
   if (latestRegularSessions.length === 0) {
-    latestRegularSessions = ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)'];
+    latestRegularSessions = ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2023-24'];
   }
 
   // Extract all 4-digit years involved in the top 3 regular sessions
@@ -11701,22 +11697,45 @@ function AdvancedReports({
 
   // Canonical 20-year sessions (2006 to 2026) for complete historical coverage
   const CANONICAL_ACADEMIC_SESSIONS = useMemo(() => [
-    '2025-26', '2024-25', '2023-24', '2022-23', '2021-22',
-    '2020-21', '2019-20', '2018-19', '2017-18', '2016-17',
-    '2015-16', '2014-15', '2013-14', '2012-13', '2011-12',
-    '2010-11', '2009-10', '2008-09', '2007-08', '2006-07'
+    '2025-26',
+    '2024-25 (Oct-Nov)',
+    '2024-25 (Mar-Apr)',
+    '2023-24',
+    '2022-23',
+    '2021-22',
+    '2020-21',
+    '2019-20',
+    '2018-19',
+    '2017-18',
+    '2016-17',
+    '2015-16',
+    '2014-15',
+    '2013-14',
+    '2012-13',
+    '2011-12',
+    '2010-11',
+    '2009-10',
+    '2008-09',
+    '2007-08',
+    '2006-07'
   ], []);
 
   const allKnownSessions = useMemo(() => {
     const set = new Set([...availableSessions, ...CANONICAL_ACADEMIC_SESSIONS]);
+    // Purge ambiguous bare '2024-25' so both distinct sub-cycles are always displayed
+    set.delete('2024-25');
+    set.delete('2024–25');
     return Array.from(set).sort((a, b) => {
-      const aIsBian = /bian|bi-annual|apr/i.test(a);
-      const bIsBian = /bian|bi-annual|apr/i.test(b);
+      const aIsBian = /bian|bi-annual/i.test(a) || (/apr/i.test(a) && !/mar-apr/i.test(a));
+      const bIsBian = /bian|bi-annual/i.test(b) || (/apr/i.test(b) && !/mar-apr/i.test(b));
       if (aIsBian && !bIsBian) return 1;
       if (!aIsBian && bIsBian) return -1;
       const numA = parseInt(String(a).match(/\d{4}/)?.[0] || '0', 10);
       const numB = parseInt(String(b).match(/\d{4}/)?.[0] || '0', 10);
       if (numA !== numB) return numB - numA;
+      // Secondary sorting: Oct-Nov occurs after Mar-Apr chronologically (newest-first)
+      if (/oct|nov/i.test(a) && /mar|apr/i.test(b)) return -1;
+      if (/mar|apr/i.test(a) && /oct|nov/i.test(b)) return 1;
       return b.localeCompare(a, undefined, { numeric: true });
     });
   }, [availableSessions, CANONICAL_ACADEMIC_SESSIONS]);
@@ -11738,7 +11757,7 @@ function AdvancedReports({
 
     return pool.filter(s => {
       const sSess = String(s.session || '').trim().toLowerCase();
-      if (!isAllSess && !normSelectedSessions.has(sSess)) return false;
+      if (!isAllSess && !normSelectedSessions.has(sSess) && !(normSelectedSessions.has('2024-25') && sSess.startsWith('2024-25'))) return false;
       if (masterExportSelectedClasses && masterExportSelectedClasses.length > 0) {
         if (masterExportSelectedClasses.includes('__NONE__')) return false;
         const normClasses = new Set(masterExportSelectedClasses.map(c => normalizeClassVal(c)));
@@ -11832,17 +11851,20 @@ function AdvancedReports({
       return allStudents.filter(s => {
         if (s._isCurrentScope === true) return true;
         const sSessLower = String(s.session || '').trim().toLowerCase();
-        if (defaultRecentLowerSet.has(sSessLower)) return true;
+        if (defaultRecentLowerSet.has(sSessLower) || (defaultRecentLowerSet.has('2024-25') && sSessLower.startsWith('2024-25'))) return true;
         if (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
           const activeSessionLowerSet = new Set(selectedSessions.map(sess => String(sess || '').trim().toLowerCase()));
-          return activeSessionLowerSet.has(sSessLower);
+          return activeSessionLowerSet.has(sSessLower) || (activeSessionLowerSet.has('2024-25') && sSessLower.startsWith('2024-25'));
         }
         return false;
       });
     }
     if (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
       const activeSessionLowerSet = new Set(selectedSessions.map(s => String(s || '').trim().toLowerCase()));
-      return allStudents.filter(s => activeSessionLowerSet.has(String(s.session || '').trim().toLowerCase()));
+      return allStudents.filter(s => {
+        const sSessLower = String(s.session || '').trim().toLowerCase();
+        return activeSessionLowerSet.has(sSessLower) || (activeSessionLowerSet.has('2024-25') && sSessLower.startsWith('2024-25'));
+      });
     }
     // Default view ("All Sessions" without search query): only active admissions for 0ms instant speed
     return allStudents.filter(s => s._isCurrentScope === true);

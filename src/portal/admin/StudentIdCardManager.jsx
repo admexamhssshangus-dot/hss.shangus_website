@@ -148,19 +148,27 @@ function resolveStudentPhoto(student, photoIndex = new Map()) {
   return formatPhotoDisplayUrl(resolveCanonicalStudentPhoto(student)) || '/logo.png';
 }
 
-function StudentIdCardManager({ students = [], onClose }) {
+function StudentIdCardManager({ students = [], allStudents, onClose }) {
   // ─── Live Data Fetching & Sync across all classes ───
   const [liveStudents, setLiveStudents] = useState(() => {
-    if (Array.isArray(students) && students.length > 0) return students;
-    return getCachedCollectionSync('admissions') || [];
+    const list = (Array.isArray(allStudents) && allStudents.length > 0)
+      ? allStudents
+      : (Array.isArray(students) && students.length > 0 ? students : null);
+    if (list) return list;
+    const adms = getCachedCollectionSync('admissions') || [];
+    const mr = getCachedCollectionSync('masterRegisters') || [];
+    return adms.length > 0 ? adms : (mr.length > 0 ? mr : []);
   });
 
   // The parent hydrates admissions progressively. Keep this module in sync
   // without launching its own full-collection reads.
   useEffect(() => {
-    if (!Array.isArray(students)) return;
-    React.startTransition(() => setLiveStudents(students));
-  }, [students]);
+    const list = (Array.isArray(allStudents) && allStudents.length > 0)
+      ? allStudents
+      : (Array.isArray(students) && students.length > 0 ? students : null);
+    if (!list) return;
+    React.startTransition(() => setLiveStudents(list));
+  }, [students, allStudents]);
 
   const photoIndex = useMemo(() => buildPhotoIndex(liveStudents), [liveStudents]);
 

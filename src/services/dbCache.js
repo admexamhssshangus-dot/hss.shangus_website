@@ -456,9 +456,22 @@ function isStudentInSessionFast(student, targetSession) {
   const sNorm = String(s).toLowerCase().replace(/session\s*/i, '').replace(/[\u2013\u2014]/g, '-').trim();
   const tNorm = String(targetSession).toLowerCase().replace(/session\s*/i, '').replace(/[\u2013\u2014]/g, '-').trim();
   if (sNorm === tNorm) return true;
+
+  // Strict distinction for sub-cycles (e.g. 2024-25 Oct-Nov vs Mar-Apr)
+  const sHasOct = /oct|nov/i.test(sNorm);
+  const tHasOct = /oct|nov/i.test(tNorm);
+  const sHasMar = /mar|apr/i.test(sNorm);
+  const tHasMar = /mar|apr/i.test(tNorm);
+
+  if ((tHasOct && !sHasOct) || (tHasMar && !sHasMar)) return false;
+  if ((sHasOct && tHasMar) || (sHasMar && tHasOct)) return false;
+
   const sYears = sNorm.match(/\d{4}-\d{2,4}/);
   const tYears = tNorm.match(/\d{4}-\d{2,4}/);
-  if (sYears && tYears && sYears[0] === tYears[0]) return true;
+  if (sYears && tYears && sYears[0] === tYears[0]) {
+    if ((tHasOct && !sHasOct) || (tHasMar && !sHasMar)) return false;
+    return true;
+  }
   return sNorm.includes(tNorm) || tNorm.includes(sNorm);
 }
 
@@ -476,6 +489,17 @@ export async function getMasterRegistersByScope({ session, className, stream, fo
 
   if (!forceRefresh && scopeMemoryCache.has(cacheKey)) {
     return scopeMemoryCache.get(cacheKey);
+  }
+
+  // If bare '2024-25' is requested, query both 2024-25 (Oct-Nov) and 2024-25 (Mar-Apr) in parallel
+  if (cleanSession === '2024-25' || cleanSession === '2024–25') {
+    const [octNov, marApr] = await Promise.all([
+      getMasterRegistersByScope({ session: '2024-25 (Oct-Nov)', className, stream, forceRefresh }),
+      getMasterRegistersByScope({ session: '2024-25 (Mar-Apr)', className, stream, forceRefresh })
+    ]);
+    const combined = [...octNov, ...marApr];
+    scopeMemoryCache.set(cacheKey, combined);
+    return combined;
   }
 
   // 1. If in-memory master register cache already exists, filter from it (0 reads)

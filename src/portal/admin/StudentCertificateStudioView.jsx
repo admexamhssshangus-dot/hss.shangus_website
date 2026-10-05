@@ -913,6 +913,18 @@ export default function StudentCertificateStudioView({
     });
   }, [dynamicSessions]);
 
+  // Gracefully auto-adjust if the selected session does not exist in indexed student records
+  useEffect(() => {
+    if (dynamicSessions.length > 0 && selectedSessions.length === 1) {
+      const activeSess = (selectedSessions[0] || '').toLowerCase().trim();
+      const match = dynamicSessions.find(d => (d.value || '').toLowerCase().trim() === activeSess);
+      if (!match) {
+        setSelectedSessions([dynamicSessions[0].value]);
+        setSession(dynamicSessions[0].value);
+      }
+    }
+  }, [dynamicSessions, selectedSessions]);
+
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [debouncedStudentQuery, setDebouncedStudentQuery] = useState('');

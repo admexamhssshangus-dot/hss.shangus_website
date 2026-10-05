@@ -4634,6 +4634,17 @@ function CustomRosterDocumentBuilderView({
     return list.map(sess => ({ value: sess, label: `Session ${sess}`, count: counts[sess] }));
   }, [unifiedStudentPool]);
 
+  // Gracefully auto-adjust if the initial or defaulted session has 0 records in the database
+  useEffect(() => {
+    if (dynamicSessions.length > 0 && selectedSessions.length === 1) {
+      const activeSess = (selectedSessions[0] || '').toLowerCase().trim();
+      const match = dynamicSessions.find(d => (d.value || '').toLowerCase().trim() === activeSess);
+      if (!match || match.count === 0) {
+        setSelectedSessions([dynamicSessions[0].value]);
+      }
+    }
+  }, [dynamicSessions, selectedSessions]);
+
   const sessionStudents = useMemo(() => {
     if (selectedSessions.length === 0) return unifiedStudentPool;
     const normList = selectedSessions.map(s => s.toLowerCase().trim());

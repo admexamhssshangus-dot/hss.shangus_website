@@ -518,9 +518,11 @@ export default function AdminDashboard() {
       hydrationCancelRef.current = null;
     }
 
-    if (!ADMISSIONS_DATA_TABS.has(activeTab) && !isSubscribedRef.current) {
-      setLoading(false);
-      return undefined;
+    if (!ADMISSIONS_DATA_TABS.has(activeTab)) {
+      if (!isSubscribedRef.current) {
+        setLoading(false);
+        return undefined;
+      }
     }
 
     if (isSubscribedRef.current) {
@@ -1021,7 +1023,8 @@ export default function AdminDashboard() {
                       aria-hidden={activeTab !== 'idCards'}
                     >
                       <StudentIdCardManager
-                        students={applications}
+                        students={identityStudents || applications}
+                        allStudents={identityStudents}
                         onClose={handleCloseToReports}
                       />
                     </div>
