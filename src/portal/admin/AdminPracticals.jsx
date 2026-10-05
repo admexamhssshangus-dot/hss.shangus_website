@@ -13,7 +13,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot } from 
 import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
 import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
-import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
+import { invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import { saveVersionToBin, getVersionsForDoc, restoreVersionFromBin, moveSubmissionToRecycleBin } from '../../services/practicalsBinService';
@@ -701,7 +701,7 @@ export const invalidatePracticalsCache = () => {
 // ─────────────────────────────────────────────────────────────
 // MAIN ADMIN PRACTICALS PORTAL COMPONENT
 // ─────────────────────────────────────────────────────────────
-function AdminPracticals() {
+function AdminPracticals({ isActive = true }) {
   const getInitialPracticalsTab = () => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
@@ -860,18 +860,17 @@ function AdminPracticals() {
             return { docs: [], empty: true };
           });
 
-      const [ssRaw, setDocSnap, ts, admissionsData, masterRegistersData, dropOverrides] = await Promise.all([
+      const [ssRaw, setDocSnap, ts, masterRegistersData, dropOverrides] = await Promise.all([
         fetchPracticals,
         fetchSettings,
         getStaffDirectory().catch(err => {
           console.warn('getStaffDirectory error handled:', err?.message || err);
           return { docs: [], empty: true, forEach: () => {} };
         }),
-        getCachedCollection('admissions', force, 30 * 60 * 1000).catch(err => {
-          console.warn('admissions fetch note:', err?.message || err);
-          return [];
-        }),
-        getMasterRegistersScoped({ session: '2023-24', forceRefresh: force }).catch(err => {
+        // The individual master-register documents are now the authoritative
+        // cohort. Fetch only the live academic session instead of both the
+        // full admissions collection and the old 2023-24 register scope.
+        getMasterRegistersScoped({ session: '2025-26', forceRefresh: force }).catch(err => {
           console.warn('masterRegisters fetch note:', err?.message || err);
           return [];
         }),
@@ -1067,35 +1066,12 @@ function AdminPracticals() {
       setSubmissions(canonicalSubmissions);
       setPendingApprovals(pendingSubmissions);
 
-      // 1. Ingest Master Registers (Canonical School Historical Registers across Sessions)
+      // 1. Ingest individual master-register documents for the live cohort.
       (masterRegistersData || []).forEach(d => {
-        const items = d.items || d.students || d.records || d.data;
-        const groupKey = d.groupKey || '';
-        let docSession = d.Session || d.session || d['Academic Session'] || '';
-        if (!docSession) {
-          if (groupKey && /\d{4}/.test(groupKey)) docSession = groupKey.split('_')[0];
-          else if (d.id && /\d{4}/.test(d.id)) docSession = d.id.replace(/^part_/, '').split('_')[0];
-          else docSession = '2024-25 (Oct-Nov)';
-        }
-        if (!/\d{4}/.test(docSession)) {
-          docSession = '2024-25 (Oct-Nov)';
-        }
+        const docSession = d.Session || d.session || d['Academic Session'] || '2025-26';
         const canonicalDocSess = normalizePracticalSession(docSession);
-        const docClass = d.class || d.Class || d.className || (groupKey ? groupKey.split('_')[1] : '') || '';
-
-        if (Array.isArray(items)) {
-          items.forEach(it => {
-            if (!it || typeof it !== 'object') return;
-            const itemSess = it.Session || it.session || it['Academic Session'] || canonicalDocSess;
-            addOrMergeStudent({
-              ...it,
-              session: normalizePracticalSession(itemSess),
-              Session: normalizePracticalSession(itemSess),
-              class: it.class || it.Class || it['Class'] || docClass,
-              _source: 'masterRegisters'
-            }, 'masterRegisters');
-          });
-        } else if (d.StudentName || d["Student's Name"] || d["Student's Name (as per school records)"] || d.studentName || d.name) {
+        const docClass = d.class || d.Class || d.className || '';
+        if (d.StudentName || d["Student's Name"] || d["Student's Name (as per school records)"] || d.studentName || d.name) {
           addOrMergeStudent({
             ...d,
             session: canonicalDocSess,
@@ -1106,24 +1082,7 @@ function AdminPracticals() {
         }
       });
 
-      // 2. Ingest Active Student Admissions (Current Live Intake 2025-26 & Registered Students)
-      (admissionsData || []).forEach(st => {
-        const approval = checkStudentApprovalState(st);
-        const isDropped = checkIsStudentDropped(st) || Boolean(approval.isDropped);
-        // Ingest both approved students and dropped examinees so dropped counts reflect accurately in UI and returns
-        if (!approval.isApproved && !isDropped) return;
-        const sess = getStudentSession(st) || '2025-26';
-        addOrMergeStudent({
-          ...st,
-          isExamDropped: isDropped,
-          examStatus: isDropped ? 'dropped' : (st.examStatus || 'active'),
-          session: sess,
-          Session: sess,
-          _source: 'admissions'
-        }, 'admissions');
-      });
-
-      // 3. Enrich existing students with Exam Rolls and Registration Numbers from Practical Submissions (NO duplicate student injections)
+      // 2. Enrich existing students with Exam Rolls and Registration Numbers from Practical Submissions (NO duplicate student injections)
       canonicalSubmissions.forEach(sub => {
         const subCls = sub.className || (String(sub.id).startsWith('12') ? '12th' : '11th');
         const subSess = normalizePracticalSession(sub.sessionText || sub.session || '2024-25 (Oct-Nov)');
@@ -1161,7 +1120,7 @@ function AdminPracticals() {
         });
       });
 
-      // 4. Offline / Quota Fallback Seed: If live collections returned no students for the current session
+      // 3. Offline / Quota Fallback Seed: If live collections returned no students for the current session
       if (studentsMap.size === 0) {
         try {
           const verifiedModule = await import('../../data/verifiedStudentsCatalog.json');
@@ -1341,6 +1300,9 @@ function AdminPracticals() {
   };
 
   useEffect(() => {
+    // AdminDashboard keeps visited tabs mounted for instant visual switching.
+    // Suspend practicals reads, listeners, and refresh work while this tab is hidden.
+    if (!isActive) return undefined;
     loadData();
 
     // 1. Real-time Firestore sync on practicalsData so submissions by faculty reflect immediately
@@ -1391,7 +1353,7 @@ function AdminPracticals() {
       window.removeEventListener('hss-student-updated', handleUpdate);
       window.removeEventListener('hss-results-updated', handleResultsUpdate);
     };
-  }, [loadData]);
+  }, [isActive, loadData]);
 
   const saveSettingsDoc = async (keyName, updatedSettings) => {
     setSaving(true);

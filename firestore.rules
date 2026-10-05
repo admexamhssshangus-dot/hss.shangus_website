@@ -507,22 +507,24 @@ service cloud.firestore {
     // Strictly confidential institutional records accessible exclusively via Teacher and Admin logins.
     match /practicalsData/{documentId} {
       allow read: if isTeacher() || canUseAny(['practicals', 'gkTest']);
-      allow create, update: if (isTeacher() || canUseAny(['practicals', 'gkTest'])) && validStaffDocument(request.resource.data);
-      allow delete: if canUseAny(['practicals', 'gkTest']);
+      // Teachers submit only through the verified server workflow. This keeps
+      // roster and marks validation authoritative and blocks stale clients.
+      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /practicalsBin/{documentId} {
       allow read: if isTeacher() || canUseAny(['practicals', 'gkTest']);
-      allow create, update: if (isTeacher() || canUseAny(['practicals', 'gkTest'])) && validStaffDocument(request.resource.data);
-      allow delete: if canUseAny(['practicals', 'gkTest']);
+      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     // Practicals Submission Recycle Bin — soft-deleted award submissions awaiting
     // restoration or permanent purge. Strictly admin-only write access.
     match /practicalsRecycleBin/{documentId} {
       allow read: if isAdmin() || canUseAny(['practicals', 'gkTest']);
-      allow create, update: if canUseAny(['practicals', 'gkTest']) && validStaffDocument(request.resource.data);
-      allow delete: if canUseAny(['practicals', 'gkTest']);
+      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /activityLogs/{documentId} {
@@ -607,7 +609,7 @@ service cloud.firestore {
 
     match /adminPracticalsSettings/{documentId} {
       allow read: if isTeacher() || isAdmin() || (documentId == 'config');
-      allow create, update: if (isTeacher() || isAdmin()) && hasNoCredentialFields(request.resource.data);
+      allow create, update: if isAdmin() && hasNoCredentialFields(request.resource.data);
       allow delete: if isAdmin();
     }
 

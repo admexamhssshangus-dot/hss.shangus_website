@@ -1,46 +1,45 @@
 # Changes Since Last Commit
 
 ## Commit Message
-`fix(master-register): complete individual-document migration`
+`fix(practicals): secure submissions and defer data reads`
 
 ## Date & Time
-- **Timestamp**: 2026-10-05T20:19:46+05:30
+- **Timestamp**: 2026-10-05T20:54:38+05:30
 
-## Migration Summary
-- Completed the transition from chunked `masterRegisters` documents to one Firestore document per application/student record across client data access, server fallbacks, and administrative workflows.
-- `getMasterRegistersScoped({ forceAll: true })` now genuinely reads the complete `masterRegisters` collection and marks the cache as fully hydrated. Normal master-register reads no longer attempt to unpack `items`, `students`, `records`, or `data` arrays.
-- Certificate issuing/revoking, examinee dropping, recycling, and result editing now update or delete the exact physical source document in `masterRegisters` rather than writing to an admissions fallback or mutating a legacy chunk.
-- Bulk certificates, field overwrite, result ingestion, session archival, roster/document builders, GK registration, and advanced reports now consume individual master-register documents and force a complete dataset where their workflow requires one.
-- Server-side admission/public-record and academic-cohort fallbacks now query and return flat master-register documents by their exact IDs.
-- Updated user-facing archival language to describe individual permanent master-register documents.
+## Production Safety and Practicals Changes
+- Teacher practical and assessment submissions can no longer fall back to direct Firestore writes when the secure staff backend is unavailable. A local draft is kept in the browser before a save attempt, so a failed secure request does not delete entered marks.
+- The server-side academic-record workflow now accepts the portal's pending document IDs, stores drafts as drafts and final teacher submissions as `pending_approval`, records the canonical document ID, and validates both global and class-level submission locks.
+- A closed global practicals switch rejects teacher writes without deleting existing data. Class-specific submission windows are also enforced server-side.
+- Firestore rules now allow only administrators to write practical award documents, practical version bins, recycle-bin records, and practical settings. Teachers keep their confidential read access but must use the verified backend to submit.
+- Added a targeted real-time listener to teacher practicals pages so an open browser tab locks immediately when an administrator disables practical submissions.
+
+## Performance and On-Demand Loading Changes
+- Teacher Practicals now loads only the selected master-register cohort and its exact canonical/pending award documents. It no longer downloads the entire practicals or admissions collection while opening an award sheet.
+- Teacher submission history is queried only after the history drawer is opened, filtered to the current teacher, rather than prefetched on portal mount.
+- Admin Practicals suspends its practicals listeners and refresh activity while its keep-alive dashboard tab is hidden, preserving fast tab switching without continued background reads.
+- Admin Practicals now uses the individual 2025-26 master-register documents directly instead of the old chunk-array shape or a full admissions download.
 
 ## Files Changed
-1. `functions/academicData.js`
-2. `netlify/functions/admission-workflow.js`
-3. `netlify/functions/lib/publicRecords.js`
-4. `src/pages/GkTestRegistration.jsx`
-5. `src/portal/admin/AdvancedReports.jsx`
-6. `src/portal/admin/BulkCertificateGeneratorModal.jsx`
-7. `src/portal/admin/BulkFieldOverwriteModal.jsx`
-8. `src/portal/admin/CustomRosterDocumentBuilderView.jsx`
-9. `src/portal/admin/OfficialDocumentsStudioView.jsx`
-10. `src/portal/admin/ResultIngestionModal.jsx`
-11. `src/portal/admin/SessionArchivalModal.jsx`
-12. `src/portal/admin/StudentResultEditorModal.jsx`
-13. `src/services/certificateRegistryService.js`
-14. `src/services/certificateRegistryService.test.js`
-15. `src/services/dbCache.js`
-16. `src/services/examineeDropService.js`
-17. `src/services/recycleBinService.js`
-18. `src/services/sessionArchivalService.test.js`
-19. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `firestore.rules`
+2. `functions/academicRecords.js`
+3. `scripts/backend-integrity.test.cjs`
+4. `scripts/security-behavior.test.cjs`
+5. `src/portal/admin/AdminDashboard.jsx`
+6. `src/portal/admin/AdminPracticals.jsx`
+7. `src/portal/teacher/PracticalsPage.jsx`
+8. `src/services/academicRecordService.js`
+9. `CHANGES_SINCE_LAST_COMMIT.md`
 
-## Verification
-- `npm run build`: completed successfully with exit code 0.
-- `npm test -- --watchAll=false src/services/certificateRegistryService.test.js src/services/sessionArchivalService.test.js`: 2 suites passed; 25 tests passed.
+## Verification and Deployment
+- `npm run build`: completed successfully; the generated `build/index.html` was verified.
+- `npm run performance:check`: passed.
 - `npm run test:public`: 9 tests passed.
+- Focused `PracticalsPage` regression test completed without errors.
 - `git diff --check`: completed without whitespace errors.
-- Verified the configured Firestore database is Native mode, Standard edition. No Firestore or Storage security rules were changed, so no rules deployment was required.
+- `node --check functions/academicRecords.js`: passed.
+- `npm run test:integrity` could not start its local Firestore emulator because this machine has a JDK older than Firebase's required JDK 21. This does not affect the deployed Firestore service.
+- Firestore rules were compiled and released successfully to production project `hsssdb` on 2026-10-05.
+- A full Netlify production deployment was not performed because it replaces the entire live site and requires the user's explicit approval. The live rules already prevent direct teacher writes; deploy the verified build and Netlify backend together before reopening practical submissions.
 
 ## Instructions for the User
 1. **Review the local commit:**
@@ -53,7 +52,11 @@
    git reset --soft HEAD~1
    git commit -m "Your custom commit message"
    ```
-3. **Push manually when ready:**
+3. **Deploy the verified site and Netlify staff backend after explicit approval:**
+   ```bash
+   netlify deploy --prod --dir=build --message "Secure practicals writes and on-demand data loading"
+   ```
+4. **Push the Git commit manually when ready:**
    ```bash
    git push origin main
    ```

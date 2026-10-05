@@ -27,26 +27,49 @@ async function main() {
     'users/integrityTeacher': { role: 'Teacher', active: true, subject: 'Physics', assignedClasses: ['11th'] },
     'users/integrityFinance': { role: 'Admin', active: true, perms: ['funds'] },
     'adminSessions/integrityFinance': { authTime: now, expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 3600000) },
-    'adminPracticalsSettings/config': { customEvaluations: [{ id: 'test', title: 'Unit Test', evalType: 'Unit Test', session: '2025-26', classes: ['11th'], maxMarks: 20, minMarks: 7, isPublishedForStudents: true }] },
-    'site/settings': { session: '2025-26' },
+    'adminPracticalsSettings/config': { customEvaluations: [{ id: 'test', title: 'Unit Test', evalType: 'Unit Test', session: '2025-26', classes: ['11th'], maxMarks: 20, minMarks: 7, isPublishedForStudents: true }], submissionWindows: { '11th': true } },
+    'site/settings': { session: '2025-26', practicalsSubmissionOpen: true },
     'fund_config/subsidiary_accounts': { accounts: [{ key: 'testFee', isScienceOnly: false }] },
     'fund_rates/11th': { testFee: 100 }
   });
   for (const [path, data] of Object.entries(rows)) await db.doc(path).set(data);
-  const base = { type: 'practicalsData', action: 'save', docId: '11th_Physics_Unit Test_2025-26', payload: {
+  const base = { type: 'practicalsData', action: 'save', docId: 'pending_11th_Physics_Unit Test_2025-26', payload: {
     className: '11th', subject: 'Physics', subjectCode: 'PH', practicalType: 'Unit Test', yearSuffix: '2025-26',
     records: [{ formNo: 'TEST0', regNo: 'REG0', name: 'Synthetic 0', practicalMarks: '12', vivaMarks: '3', totalMarks: 15 }]
   } };
   await check('off-cohort academic row is rejected', () => assert.rejects(submit({ ...base, payload: { ...base.payload, records: [{ ...base.payload.records[0], formNo: 'UNKNOWN' }] } }, context('integrityTeacher')), /missing from this cohort/));
-  await check('a teacher cannot choose an unassigned subject', () => assert.rejects(submit({ ...base, docId: '11th_Chemistry_Unit Test_2025-26', payload: { ...base.payload, subject: 'Chemistry', subjectCode: 'CH' } }, context('integrityTeacher')), /not assigned/));
+  await check('a teacher cannot choose an unassigned subject', () => assert.rejects(submit({ ...base, docId: 'pending_11th_Chemistry_Unit Test_2025-26', payload: { ...base.payload, subject: 'Chemistry', subjectCode: 'CH' } }, context('integrityTeacher')), /not assigned/));
   await check('forged document ID cannot bypass a submission lock', () => assert.rejects(submit({ ...base, docId: 'alternate-id' }, context('integrityTeacher')), /submission ID/));
   await check('empty components cannot become zero marks', () => assert.rejects(submit({ ...base, payload: { ...base.payload, records: [{ ...base.payload.records[0], practicalMarks: '', vivaMarks: '', totalMarks: 0 }] } }, context('integrityTeacher')), /components/));
   await check('assigned teacher submits valid marks and retains components', async () => {
     await submit(base, context('integrityTeacher'));
     const saved = (await db.doc(`practicalsData/${base.docId}`).get()).data();
-    assert.equal(saved.records[0].practicalMarks, '12'); assert.equal(saved.records[0].vivaMarks, '3'); assert.equal(saved.isLocked, true);
+    assert.equal(saved.records[0].practicalMarks, '12'); assert.equal(saved.records[0].vivaMarks, '3');
+    assert.equal(saved.status, 'pending_approval'); assert.equal(saved.isLocked, false);
   });
-  await check('submitted marks cannot be overwritten by the teacher', () => assert.rejects(submit(base, context('integrityTeacher')), /locked/));
+  await check('teacher can save an incomplete practical draft without replacing a final award', async () => {
+    const draft = { ...base, docId: 'pending_11th_Physics_Unit Test_2025-26', payload: {
+      ...base.payload, isDraft: true, status: 'draft', records: [{ formNo: 'TEST0', regNo: 'REG0', name: 'Synthetic 0', practicalMarks: '', vivaMarks: '', totalMarks: '' }]
+    } };
+    await submit(draft, context('integrityTeacher'));
+    const saved = (await db.doc(`practicalsData/${draft.docId}`).get()).data();
+    assert.equal(saved.status, 'draft'); assert.equal(saved.records[0].totalMarks, '');
+  });
+  await check('global practicals closure rejects teacher writes without deleting their existing draft', async () => {
+    await db.doc('site/settings').set({ session: '2025-26', practicalsSubmissionOpen: false });
+    await assert.rejects(submit(base, context('integrityTeacher')), /Submissions are currently closed/);
+    assert.equal((await db.doc(`practicalsData/${base.docId}`).get()).exists, true);
+    await db.doc('site/settings').set({ session: '2025-26', practicalsSubmissionOpen: true });
+  });
+  await check('class-level practicals closure rejects teacher writes', async () => {
+    await db.doc('adminPracticalsSettings/config').update({ submissionWindows: { '11th': false } });
+    await assert.rejects(submit(base, context('integrityTeacher')), /closed for 11th/);
+    await db.doc('adminPracticalsSettings/config').update({ submissionWindows: { '11th': true } });
+  });
+  await check('locked awards cannot be overwritten by the teacher', async () => {
+    await db.doc(`practicalsData/${base.docId}`).update({ isLocked: true });
+    await assert.rejects(submit(base, context('integrityTeacher')), /locked/);
+  });
   await check('missing subject keeps the public result pending', async () => {
     const result = await lookupResult(publicDb, { query: 'TEST0', type: 'formNo', className: '11th', session: '2025-26', evaluation: 'Unit Test' });
     assert.equal(result.result.resultStatus, 'PENDING'); assert.equal(result.result.percentage, null);

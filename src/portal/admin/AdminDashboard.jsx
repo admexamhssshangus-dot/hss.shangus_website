@@ -1163,7 +1163,7 @@ export default function AdminDashboard() {
                       style={activeTab === 'practicals' ? undefined : { display: 'none' }}
                       aria-hidden={activeTab !== 'practicals'}
                     >
-                      <AdminPracticals />
+                      <AdminPracticals isActive={activeTab === 'practicals'} />
                     </div>
                   )}
 

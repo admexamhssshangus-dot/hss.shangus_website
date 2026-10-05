@@ -3,6 +3,18 @@ const { requireStaff, roleKey } = require('./access');
 const { key, sessionKey, classKey, studentForm, studentReg, loadCohort } = require('./academicData');
 const { getSubjectMarksConfig } = require('./marksPolicy');
 const subjectDefinitions = require('./subjectDefinitions.json');
+
+function isClassSubmissionOpen(config, className) {
+  const windows = config?.submissionWindows || config?.classSubmissionStatus || {};
+  const normalized = String(className || '').toLowerCase().replace(/class/g, '').trim();
+  const keyWithTh = normalized.endsWith('th') ? normalized : `${normalized}th`;
+  const window = windows[keyWithTh] ?? windows[normalized];
+  if (window === undefined) return true;
+  return typeof window === 'object' && window !== null
+    ? window.enabled !== false
+    : window !== false;
+}
+
 module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCall(async (data, context) => {
   requireAppCheck(context);
   try {
@@ -31,15 +43,17 @@ module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCa
         const definition = subjectDefinitions.find(subject => subject.name === payload.subject);
         if (!definition || definition.code !== payload.subjectCode) throw new Error('Select a configured subject and its matching code.');
       }
-      const expectedId = type === 'attendance'
+      const canonicalId = type === 'attendance'
         ? `${payload.className}_${payload.date}_${payload.subject === 'General' ? 'general' : payload.subject}`
         : `${payload.className}_${payload.subject}_${payload.practicalType}_${payload.yearSuffix || session}`;
+      const expectedId = type === 'practicalsData' ? `pending_${canonicalId}` : canonicalId;
       if (!isAdmin && data.docId !== expectedId) throw new Error('The submission ID does not match this class, subject and date or assessment.');
       const explicitAssignment = (config.permissions || []).some(permission => key(permission.email) === key(staff.email) &&
         classKey(permission.className) === classKey(payload.className) && [key(payload.subject), key(payload.subjectCode)].includes(key(permission.subject)));
       const profileAssignment = Array.isArray(staff.assignedClasses) && staff.assignedClasses.includes(payload.className) && key(staff.subject) === key(payload.subject);
       if (!isAdmin && !explicitAssignment && !profileAssignment) throw new Error('This class and subject are not assigned to your account.');
       if (!isAdmin && site.data()?.[type === 'attendance' ? 'attendanceSubmissionOpen' : 'practicalsSubmissionOpen'] === false) throw new Error('Submissions are currently closed.');
+      if (!isAdmin && type === 'practicalsData' && !isClassSubmissionOpen(config, payload.className)) throw new Error(`Practical submissions are closed for ${payload.className}.`);
       if (!isAdmin && prior.exists && (prior.data().isLocked || prior.data().status === 'submitted' ||
         (prior.data().teacherUid ? prior.data().teacherUid !== staff.uid : prior.data().submittedByEmail && key(prior.data().submittedByEmail) !== key(staff.email)))) throw new Error('This submission is locked or belongs to another teacher. Request an administrator correction.');
       const roster = await loadCohort(tx, db, session, payload.className);
@@ -52,6 +66,7 @@ module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCa
         maximum = policy.max; minimum = policy.min;
         if (!Number.isFinite(maximum) || maximum <= 0 || !Number.isFinite(minimum) || minimum <= 0 || minimum > maximum) throw new Error('The marks scheme needs administrator configuration.');
       }
+      const isDraft = type === 'practicalsData' && (payload.isDraft === true || payload.status === 'draft');
       const records = payload.records.map(row => {
         const form = studentForm(row), reg = studentReg(row);
         if (!form && !reg) throw new Error('Every row needs a form or registration number.');
@@ -68,6 +83,15 @@ module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCa
         } else {
           const absent = /^(a|ab|absent)$/i.test(String(row.totalMarks));
           const value = Number(row.totalMarks);
+          const blankDraftRow = isDraft && (row.totalMarks === '' || row.totalMarks == null) &&
+            (row.practicalMarks === '' || row.practicalMarks == null) &&
+            (row.vivaMarks === '' || row.vivaMarks == null);
+          if (blankDraftRow) {
+            clean.totalMarks = '';
+            clean.practicalMarks = '';
+            clean.vivaMarks = '';
+            return clean;
+          }
           if (!absent && (row.totalMarks === '' || row.totalMarks == null || !Number.isFinite(value) || value < 0 || value > maximum)) throw new Error('Marks must be within the configured range; blank marks cannot be submitted.');
           clean.totalMarks = absent ? 'AB' : value;
           const practical = Number(row.practicalMarks), viva = row.vivaMarks === '' || row.vivaMarks == null ? 0 : Number(row.vivaMarks);
@@ -84,8 +108,17 @@ module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCa
         const date = new Date(`${payload.date}T12:00:00Z`);
         if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== payload.date) throw new Error('The attendance date is invalid.');
         Object.assign(document, { date: payload.date, sessionYear: session });
-      } else Object.assign(document, { yearSuffix: session, subjectCode: String(payload.subjectCode || ''), practicalType: String(payload.practicalType || ''),
-        maxMarks: maximum, minMarks: minimum, status: 'submitted', isDraft: false, isLocked: true });
+      } else Object.assign(document, {
+        canonicalDocId: canonicalId,
+        yearSuffix: session,
+        subjectCode: String(payload.subjectCode || ''),
+        practicalType: String(payload.practicalType || ''),
+        maxMarks: maximum,
+        minMarks: minimum,
+        status: isDraft ? 'draft' : 'pending_approval',
+        isDraft,
+        isLocked: false
+      });
       if (prior.exists) tx.create(db.collection('academicRecordHistory').doc(), { source: reference.path, before: prior.data(), action: 'update', actorUid: staff.uid, at: admin.firestore.FieldValue.serverTimestamp() });
       tx.set(reference, document);
       return { success: true };

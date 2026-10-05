@@ -15,10 +15,10 @@ async function main() {
       const db = context.firestore();
       for (const [path, data] of Object.entries({
         'site/recycle_bin': { faculty: [{ name: 'PRIVATE TEST', phone: '0000000000' }] },
-        'site/settings': { session: '2025-26' },
+        'site/settings': { session: '2025-26', practicalsSubmissionOpen: false },
         'users/reporter': { uid: 'reporter', email: 'reporter@example.test', name: 'Reporter', role: 'Admin', perms: ['reports'], active: true },
         'users/finance': { uid: 'finance', email: 'finance@example.test', name: 'Finance', role: 'Admin', perms: ['funds'], active: true },
-        'users/teacher': { uid: 'teacher', email: 'teacher@example.test', name: 'Teacher', role: 'Teacher', perms: [], active: true },
+        'users/teacher': { uid: 'teacher', email: 'teacher@example.test', name: 'Teacher', role: 'Teacher', perms: ['practicals'], active: true },
         'users/disabled': { uid: 'disabled', email: 'disabled@example.test', role: 'Admin', perms: ['reports'], active: false },
         'users/legacy@example.test': { email: 'legacy@example.test', role: 'Admin', perms: ['*'] },
         'admissions/example': { ownerUid: 'student', studentName: 'Synthetic Student', Status: 'Approved' },
@@ -59,7 +59,8 @@ async function main() {
     await check('teacher cannot change own assigned subject', assertFails(updateDoc(doc(teacher, 'users/teacher'), { subject: 'Physics' })));
     await check('funds-only administrator cannot edit admissions', assertFails(updateDoc(doc(finance, 'admissions/example'), { studentName: 'Changed' })));
     await check('reports-only administrator cannot change school settings', assertFails(updateDoc(doc(reporter, 'site/settings'), { session: '2026-27' })));
-    await check('teacher cannot bypass academic submission validation', assertFails(setDoc(doc(teacher, 'practicalsData/forged'), { records: [], status: 'submitted' })));
+    await check('teacher cannot write practical awards directly while the portal is closed', assertFails(setDoc(doc(teacher, 'practicalsData/forged'), { records: [], status: 'submitted' })));
+    await check('teacher cannot reopen practical submissions through practical settings', assertFails(setDoc(doc(teacher, 'adminPracticalsSettings/config'), { submissionWindows: { '11th': true } })));
     await check('admin cannot bypass fund transaction', assertFails(setDoc(doc(finance, 'fund_distributions/forged'), { id: 'forged' })));
     await check('issued document writes are server-only', assertFails(setDoc(doc(reporter, 'issuedDocuments/forged'), { status: 'Active' })));
     await check('rollback snapshots reject anonymous access', assertFails(getDoc(doc(anonymous, 'csvImportBatches/job/entries/0'))));

@@ -1,35 +1,31 @@
 import { staffCallable } from './staffCommand';
-import { db, auth } from './firebase';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { auth } from './firebase';
 
 export async function saveAcademicRecord(type, docId, payload) {
+  if (!auth.currentUser) {
+    throw new Error('Authenticated staff session required. Please sign in again.');
+  }
   try {
     const res = await staffCallable('submitAcademicRecord')({ type, docId, payload });
     return res.data;
   } catch (callableErr) {
-    console.warn('submitAcademicRecord callable unavailable, using direct Firestore on Spark plan:', callableErr?.message || callableErr);
-    if (!auth.currentUser) {
-      throw new Error('Authenticated staff session required.');
-    }
-    const cleanPayload = {
-      ...payload,
-      updatedAt: new Date().toISOString(),
-    };
-    await setDoc(doc(db, type, docId), cleanPayload, { merge: true });
-    return { success: true, docId, record: cleanPayload };
+    // Academic awards must never bypass the server-side access, roster, marks,
+    // and submission-window checks. PracticalsPage persists a local draft before
+    // calling this function, so an unavailable service cannot discard teacher work.
+    console.error('Secure academic save rejected:', callableErr?.message || callableErr);
+    throw new Error(callableErr?.message || 'The secure academic-save service is unavailable. Your local draft is still available; please retry shortly.');
   }
 }
 
 export async function deleteAcademicRecord(type, docId) {
+  if (!auth.currentUser) {
+    throw new Error('Authenticated staff session required. Please sign in again.');
+  }
   try {
     const res = await staffCallable('submitAcademicRecord')({ type, docId, action: 'delete' });
     return res.data;
   } catch (callableErr) {
-    console.warn('deleteAcademicRecord callable unavailable, using direct Firestore on Spark plan:', callableErr?.message || callableErr);
-    if (!auth.currentUser) {
-      throw new Error('Authenticated staff session required.');
-    }
-    await deleteDoc(doc(db, type, docId));
-    return { success: true, docId };
+    console.error('Secure academic deletion rejected:', callableErr?.message || callableErr);
+    throw new Error(callableErr?.message || 'The secure academic-save service is unavailable. No academic record was deleted.');
   }
 }

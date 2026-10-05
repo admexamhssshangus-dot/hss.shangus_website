@@ -12,8 +12,8 @@ import {
 import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, addDoc, doc, getDoc, onSnapshot } from 'firebase/firestore';
-import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
+import { collection, getDocs, addDoc, doc, getDoc, onSnapshot, query, where, limit } from 'firebase/firestore';
+import { invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { printIndividualAwardRoll, printMarksRecordAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll, getCurrentOfficialExamRoll, isValidExamRollForClass } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import { isStudentExamDropped } from '../../utils/studentApprovalStatus';
@@ -1425,8 +1425,19 @@ export default function PracticalsPage() {
       console.warn('Real-time practical settings sync note:', err?.message || err);
     });
 
+    // A single-document listener immediately locks the form in every open
+    // teacher tab when administration closes practical submissions.
+    const unsubSiteSettings = onSnapshot(doc(db, 'site', 'settings'), (snap) => {
+      if (snap.exists() && snap.data().practicalsSubmissionOpen !== undefined) {
+        setIsSubmissionOpen(Boolean(snap.data().practicalsSubmissionOpen));
+      }
+    }, (err) => {
+      console.warn('Real-time practicals submission lock sync note:', err?.message || err);
+    });
+
     return () => {
       try { unsub(); } catch (_) {}
+      try { unsubSiteSettings(); } catch (_) {}
     };
   }, []);
 
@@ -1589,58 +1600,12 @@ export default function PracticalsPage() {
   }, [existingAwardInfo?.canonical]);
 
 
-  // Detect past session years from masterRegisters and practicalsData records
+  // Do not download historical awards merely to populate a selector. History
+  // is fetched only when the teacher opens its drawer.
   useEffect(() => {
-    const detectPastSessions = async () => {
-      try {
-        // Canonical sessions always present (matches exact session values stored in Firestore/Excel)
-        const sessionsSet = new Set(['2025-26', '2024-25 (Oct-Nov)']);
-
-        // Helper: Normalize old/ambiguous yearSuffix values from practicalsData into canonical keys
-        const normalizeSessionKey = (yr) => {
-          if (!yr) return null;
-          const s = String(yr).trim().toLowerCase();
-
-          // Reject evaluation types or invalid session strings
-          if (['internal', 'external', 'term end', 'practical', 'all', 'na', 'n/a', 'undefined', 'null'].includes(s)) {
-            return null;
-          }
-
-          if (s === '2026' || s.includes('2025-26') || s.includes('2026')) return '2025-26';
-          if (s === '2025' || s.includes('oct-nov') || s.includes('revised') || s.includes('2024-25-oct-nov')) return '2024-25 (Oct-Nov)';
-          if (s.includes('mar-apr') || s === '2024-25') return '2024-25 (Mar-Apr)';
-          if (s === '2024' || s.includes('2023-24')) return '2023-24';
-          if (s === '2023' || s.includes('2022-23')) return '2022-23';
-
-          if (/^20\d\d/.test(s)) return String(yr).trim();
-          return null;
-        };
-
-        const cachedPracticals = await getCachedCollection('practicalsData', false, 30 * 60 * 1000).catch(() => []);
-        if (Array.isArray(cachedPracticals) && cachedPracticals.length > 0) {
-          cachedPracticals.forEach(d => {
-            const rawYr = d.yearSuffix || d.Session || d.session;
-            const canonical = normalizeSessionKey(rawYr);
-            if (canonical) sessionsSet.add(canonical);
-          });
-        } else {
-          const snap = await getDocs(collection(db, 'practicalsData')).catch(() => null);
-          if (snap && !snap.empty) {
-            snap.docs.forEach(d => {
-              const data = d.data();
-              const rawYr = data.yearSuffix || data.Session || data.session;
-              const canonical = normalizeSessionKey(rawYr);
-              if (canonical) sessionsSet.add(canonical);
-            });
-          }
-        }
-        setAvailableSessions(Array.from(sessionsSet).sort((a, b) => b.localeCompare(a)));
-      } catch (e) {
-        console.warn('Session detection note:', e);
-      }
-    };
-    detectPastSessions();
-  }, []);
+    const sessions = new Set(['2025-26', '2024-25 (Oct-Nov)', yearSuffix].filter(Boolean));
+    setAvailableSessions([...sessions].sort((a, b) => b.localeCompare(a)));
+  }, [yearSuffix]);
 
   const availableEvalTypes = useMemo(() => {
     return getPracticalEvaluationTypes();
@@ -1694,7 +1659,7 @@ export default function PracticalsPage() {
       const docId = formatPracticalDocId(selectedClass, selectedSubject, practicalType, yearSuffix);
       const pendingDocId = `pending_${docId}`;
 
-      // 1. Fetch collections concurrently in parallel for high performance
+      // 1. Fetch only the selected cohort and the two exact award documents.
       let savedMarksMap = {};
       let masterDocs = [];
       let admDocs = [];
@@ -1703,45 +1668,26 @@ export default function PracticalsPage() {
       let lockedOtherTeacherAward = null;
 
       try {
-        let [rawDocs, masterRes, admRes] = await Promise.all([
-          getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []),
+        const legacyDocId = clsNorm === '11th'
+          ? `11th,12th_${docId.replace(/^11th_/, '')}`
+          : '';
+        const awardRefs = [
+          doc(db, 'practicalsData', docId),
+          doc(db, 'practicalsData', pendingDocId),
+          legacyDocId ? doc(db, 'practicalsData', legacyDocId) : null
+        ].filter(Boolean);
+        const [masterRes, ...awardSnaps] = await Promise.all([
           getMasterRegistersScoped({ session: yearSuffix, className: selectedClass }).catch(() => []),
-          getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => [])
+          ...awardRefs.map(ref => getDoc(ref).catch(() => null))
         ]);
 
-        // Targeted single-document check if exact award was not present in memory cache
-        let targetedDocSnaps = [];
-        try {
-          const cachedIds = new Set((rawDocs || []).map(d => String(d.id || d.docId || "")));
-          if (!cachedIds.has(docId) && !cachedIds.has(pendingDocId)) {
-            const { getDoc, doc: fsDoc } = await import("firebase/firestore");
-            targetedDocSnaps = await Promise.all([
-              getDoc(fsDoc(db, "practicalsData", docId)).catch(() => null),
-              getDoc(fsDoc(db, "practicalsData", pendingDocId)).catch(() => null)
-            ]);
-          }
-        } catch (_) {}
-
         masterDocs = Array.isArray(masterRes) ? masterRes : [];
-        admDocs = Array.isArray(admRes) ? admRes : [];
-
-        let docItems = Array.isArray(rawDocs) ? [...rawDocs] : (rawDocs?.docs ? rawDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
-        if (Array.isArray(targetedDocSnaps)) {
-          targetedDocSnaps.forEach(snap => {
-            if (snap && snap.exists()) {
-              docItems.push({ id: snap.id, ...snap.data() });
-            }
-          });
-        }
-        // Direct query fallback to ensure complete integrity if cached collection is empty
-        if (docItems.length === 0) {
-          try {
-            const snap = await getDocs(collection(db, 'practicalsData'));
-            if (!snap.empty) {
-              docItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            }
-          } catch (_) {}
-        }
+        // Master registers are the authoritative roster after the individual-
+        // document migration. Avoid downloading the entire admissions collection.
+        admDocs = [];
+        const docItems = awardSnaps
+          .filter(snap => snap?.exists())
+          .map(snap => ({ id: snap.id, ...snap.data() }));
 
         docItems.forEach(data => {
           const dId = String(data.id || data.docId || '');
@@ -2766,22 +2712,25 @@ export default function PracticalsPage() {
   }, [location.state?.loadedRecord, handleLoadSubmissionRecord, user, triggerNotification]);
 
   // Fetch Past Submission History across all evaluation types
-  const fetchSubmissionHistory = useCallback(async (force = true) => {
+  const fetchSubmissionHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
-      if (force) {
-        invalidateCollectionCache('practicalsData');
+      const teacherEmail = String(auth.currentUser?.email || user?.email || '').trim().toLowerCase();
+      if (!teacherEmail) {
+        setSubmissionHistory([]);
+        return;
       }
-      let rawDocs = [];
-      try {
-        const snap = await getDocs(collection(db, 'practicalsData'));
-        if (!snap.empty) {
-          rawDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        }
-      } catch (err) {
-        console.warn('Direct getDocs failed, attempting cache:', err);
-        rawDocs = await getCachedCollection('practicalsData', force, 5 * 60 * 1000).catch(() => []);
-      }
+      // Current secure records always store submittedByEmail. The second query
+      // retains access to historical records created by earlier portal builds.
+      const [submittedBySnap, legacyTeacherSnap] = await Promise.all([
+        getDocs(query(collection(db, 'practicalsData'), where('submittedByEmail', '==', teacherEmail), limit(150))),
+        getDocs(query(collection(db, 'practicalsData'), where('teacherEmail', '==', teacherEmail), limit(150)))
+      ]);
+      const historyById = new Map();
+      [submittedBySnap, legacyTeacherSnap].forEach(snap => {
+        snap.docs.forEach(d => historyById.set(d.id, { id: d.id, ...d.data() }));
+      });
+      const rawDocs = [...historyById.values()];
 
       if (Array.isArray(rawDocs) && rawDocs.length > 0) {
         const list = rawDocs
@@ -2875,23 +2824,16 @@ export default function PracticalsPage() {
     const params = new URLSearchParams(location.search);
     if (params.get('view') === 'history' || params.get('history') === 'true' || location.state?.openHistory) {
       setShowHistoryModal(true);
-      fetchSubmissionHistory(true);
+      fetchSubmissionHistory();
     }
   }, [location, fetchSubmissionHistory]);
 
   // Auto-fetch fresh submission records whenever the modal is shown
   useEffect(() => {
     if (showHistoryModal) {
-      fetchSubmissionHistory(true);
+      fetchSubmissionHistory();
     }
   }, [showHistoryModal, fetchSubmissionHistory]);
-
-  // Pre-fetch submission records on mount so smart switch hints are ready
-  useEffect(() => {
-    fetchSubmissionHistory(false);
-  }, [fetchSubmissionHistory]);
-
-
 
   // Handle Mark Change — full range 0 to subjectMaxMarks allowed
   const handleMarkChange = (studentOrIdx, field, val) => {
@@ -3606,7 +3548,7 @@ export default function PracticalsPage() {
         secondaryButtonText: 'View Submission History',
         onSecondaryClick: () => {
           setShowHistoryModal(true);
-          fetchSubmissionHistory(true);
+          fetchSubmissionHistory();
         }
       });
     } catch (err) {
