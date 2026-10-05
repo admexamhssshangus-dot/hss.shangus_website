@@ -1,49 +1,34 @@
 # Changes Since Last Commit
 
 ## Commit Message
-`feat(db): complete migration of masterRegisters to flat queryable documents and scoped on-demand loading`
+`feat(portal): scope masterRegisters queries in teacher attendance, practicals, and public lookup, and retire legacy chunk containers`
 
 ## Date & Time
-- **Timestamp**: 2026-10-05T13:04:00+05:30
+- **Timestamp**: 2026-10-05T13:35:00+05:30
 
 ## Files Changed
-1. `src/services/dbCache.js`:
-   - Implemented `getMasterRegistersByScope({ session, className, stream, forceRefresh })` for on-demand Firestore cohort reads, reducing query overhead from ~6,000 document reads down to ~80-120 reads per session/class.
-   - Enhanced `unpackMasterRegisterDoc` and `unpackMasterRegisterStudents` to seamlessly support both flat documents (with `_parentDocId: null`) and legacy chunk formats for zero-downtime backwards compatibility.
-   - Integrated `scopeMemoryCache` to cache queried cohorts in memory and invalidated scoped cache properly in `invalidateCollectionCache('masterRegisters')`.
-   - Optimized `isStudentInSessionFast` to check memory caches first before falling back to network queries.
+1. `src/portal/admin/AdminPracticals.jsx`:
+   - Scoped `masterRegisters` query to academic cohort `2024-25` via `getMasterRegistersScoped({ session: '2024-25', forceRefresh: force })` instead of loading the unconstrained historical collection.
+   - Enhanced student name detection for flat master register documents (`StudentName`, `Student's Name`, `Student's Name (as per school records)`, `studentName`, `name`).
 
-2. `src/services/recycleBinService.js`:
-   - Updated soft-delete and purge routines to identify individual flat documents in `masterRegisters` and delete them directly via `deleteDoc` rather than parsing and rewriting chunk arrays.
-   - Fixed `sweepOrphanedStudentPhotos` to use in-memory registered students avoiding redundant full-collection Firestore scans.
+2. `src/portal/teacher/AttendancePage.jsx`:
+   - Replaced unconstrained `getCachedCollection('masterRegisters')` calls with scoped queries:
+     - Active session student lookup: `getMasterRegistersScoped({ session: '2025-26', className: selectedClass })`
+     - Historical session student lookup: `getMasterRegistersScoped({ session: selectedSession, className: selectedClass })`
+     - Report fallback resolution: `getMasterRegistersScoped({ session: reportSession, className: reportClass })`
+   - Drastically eliminates redundant Firestore read overhead when loading class attendance rosters.
 
-3. `src/services/sessionArchivalService.js`:
-   - Migrated session archival to write individual records using deterministic IDs (`mr_<session>_<class>_<identifier>`) via batch writes instead of aggregating records into 200KB chunk documents.
-   - Updated duplicate scanning to load master register records strictly for the target session cohort.
+3. `src/pages/PublicResultLookup.jsx`:
+   - Scoped staff fallback candidate search using `getMasterRegistersScoped({ session: selectedSession, className: targetClsKey })` rather than fetching all master registers across all 20 historical sessions.
 
-4. `src/portal/admin/AdmissionRegisterSuite.jsx`:
-   - Updated historical master registers loading to query on demand using `getMasterRegistersByScope({ session: selectedSession })`.
-
-5. `src/portal/admin/AdvancedReports.jsx`:
-   - Updated session export and master registers retrieval to fetch records on demand per requested academic session rather than pulling the entire historical database.
-
-6. `src/portal/admin/BulkCertificateGeneratorModal.jsx`:
-   - Modernized certificate generator to read master registers on demand with force refresh support.
-
-7. `src/portal/admin/CustomRosterDocumentBuilderView.jsx`:
-   - Cleaned up master registers retrieval for scoped cohort resolution.
-
-8. `src/portal/admin/OfficialDocumentsStudioView.jsx`:
-   - Scoped on-demand loading for historical registers when historical session is selected, with error handling and photo cache preloading.
-
-9. `src/portal/admin/StudentCertificateStudioView.jsx`:
-   - Optimized certificate studio cohort fetching for historical student registries.
-
-10. `src/services/certificateRegistryService.js`:
-    - Cleaned up unused imports and aligned document references with individual registry records.
+4. Firestore Migration & Legacy Chunk Container Retirement:
+   - Backed up all 123 legacy `chunk_...` documents safely to `masterRegisters_legacy_chunks` in batches of 5 to respect Firestore commit payload limits.
+   - Deleted all 123 legacy chunk documents and 4 legacy partial documents from `masterRegisters`.
+   - Verified live in Firestore that `masterRegisters` now strictly contains all 6,020 flat individual student records (`mr_<session>_<class>_<identifier>`) with zero legacy chunk containers remaining.
 
 ## Verification
 - Verified production build via `npm run build` (Completed with `Exit Code 0`, zero breaking errors, all 11 public SEO pages verified).
+- Verified Firestore collection state live via Google Cloud Datastore / Firestore REST API.
 
 ## Instructions for the User
 1. **To inspect the local commit:**

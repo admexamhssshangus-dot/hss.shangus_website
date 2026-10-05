@@ -11,7 +11,7 @@ import { publicLookup } from '../services/backendEndpoint';
 import SEO from '../components/SEO';
 import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS, getSubjectOverride } from '../utils/practicalsSettingsManager';
 import verifiedCatalog from '../data/verifiedStudentsCatalog.json';
-import { getCachedCollection, fetchStudentPhotoOnDemand } from '../services/dbCache';
+import { getCachedCollection, fetchStudentPhotoOnDemand, getMasterRegistersScoped } from '../services/dbCache';
 import { identityKey, classKey, sessionKey, formatConsistentName } from '../utils/recordIdentity';
 
 const STORAGE_KEY_RECENT_SEARCHES = 'hss_recent_results_lookups';
@@ -1754,7 +1754,7 @@ export default function PublicResultLookup() {
             if (!matchedStudent && auth?.currentUser) {
               const [cachedAdm, cachedMaster] = await Promise.all([
                 getCachedCollection('admissions', false, 10 * 60 * 1000).catch(() => []),
-                getCachedCollection('masterRegisters', false, 10 * 60 * 1000).catch(() => [])
+                getMasterRegistersScoped({ session: selectedSession, className: targetClsKey }).catch(() => [])
               ]);
               const allCandidates = [
                 ...(Array.isArray(cachedAdm) ? cachedAdm : []),

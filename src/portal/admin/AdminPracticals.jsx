@@ -13,7 +13,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot } from 
 import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
 import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
-import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
+import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import { saveVersionToBin, getVersionsForDoc, restoreVersionFromBin, moveSubmissionToRecycleBin } from '../../services/practicalsBinService';
@@ -868,7 +868,7 @@ function AdminPracticals() {
           console.warn('admissions fetch note:', err?.message || err);
           return [];
         }),
-        getCachedCollection('masterRegisters', force, 30 * 60 * 1000).catch(err => {
+        getMasterRegistersScoped({ session: '2024-25', forceRefresh: force }).catch(err => {
           console.warn('masterRegisters fetch note:', err?.message || err);
           return [];
         }),
@@ -1092,7 +1092,7 @@ function AdminPracticals() {
               _source: 'masterRegisters'
             }, 'masterRegisters');
           });
-        } else if (d.StudentName || d["Student's Name"] || d.name) {
+        } else if (d.StudentName || d["Student's Name"] || d["Student's Name (as per school records)"] || d.studentName || d.name) {
           addOrMergeStudent({
             ...d,
             session: canonicalDocSess,

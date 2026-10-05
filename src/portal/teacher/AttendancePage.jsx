@@ -7,7 +7,7 @@ import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, getDoc, deleteDoc, query, where, onSnapshot } from 'firebase/firestore';
 import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
-import { getCachedCollection } from '../../services/dbCache';
+import { getCachedCollection, getMasterRegistersScoped } from '../../services/dbCache';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import ModernLoader from '../../components/ModernLoader';
 import { toLocalDateKey, toLocalMonthKey } from '../../utils/localDate';
@@ -1240,7 +1240,7 @@ export default function AttendancePage() {
 
         // B. Also pull from masterRegisters for current session (students may be there too)
         try {
-          const masterDocs = await getCachedCollection('masterRegisters', false, 30 * 60 * 1000);
+          const masterDocs = await getMasterRegistersScoped({ session: '2025-26', className: selectedClass });
           masterDocs.forEach(data => {
             const items = data.items || data.data || data.records;
             const docSession = data.Session || data.session || '';
@@ -1292,7 +1292,7 @@ export default function AttendancePage() {
       } else {
         // Historical session: masterRegisters — strict isSessionMatch filtering
         try {
-          const masterDocs = await getCachedCollection('masterRegisters', false, 30 * 60 * 1000);
+          const masterDocs = await getMasterRegistersScoped({ session: selectedSession, className: selectedClass });
           masterDocs.forEach(data => {
             const items = data.items || data.data || data.records;
             const docSession = data.Session || data.session || '';
@@ -3875,7 +3875,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
         });
 
         if (list.length === 0) {
-          const masterDocs = await getCachedCollection('masterRegisters', false, 30 * 60 * 1000).catch(() => []);
+          const masterDocs = await getMasterRegistersScoped({ session: reportSession, className: reportClass }).catch(() => []);
           masterDocs.forEach(data => {
             const items = data.items || data.data || data.records;
             if (Array.isArray(items)) {
