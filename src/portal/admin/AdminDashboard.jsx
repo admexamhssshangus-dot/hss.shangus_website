@@ -205,10 +205,14 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') return;
     const idlePrefetch = () => {
-      const commonModules = ['controls', 'practicals', 'idCards', 'admRegisterSuite', 'attendanceMgmt'];
-      commonModules.forEach((modId) => {
+      const priorityModules = [
+        'controls', 'practicals', 'idCards', 'admRegisterSuite', 'attendanceMgmt',
+        'customRoster', 'officialLetter', 'certStudio', 'curriculum', 'staff',
+        'analyticsReports', 'boardSync', 'rollNo', 'mergeStudio', 'automations', 'funds', 'accounts'
+      ];
+      priorityModules.forEach((modId, idx) => {
         if (isUserPermittedForModule(user, modId)) {
-          prefetchAdminModule(modId);
+          setTimeout(() => prefetchAdminModule(modId), idx * 100);
         }
       });
     };
@@ -503,40 +507,43 @@ export default function AdminDashboard() {
     }
   }, [commitApplications]);
 
-  // Load admissions only for modules that consume them. Lightweight editors
-  // (letterhead, controls, CMS, etc.) must never download the entire collection.
+  // Persistent Admissions Hydration & Real-time Sync for the entire Admin Workspace
+  // Keeps the real-time subscription alive across tab switches so opening and closing
+  // modules is 0ms instantaneous without re-subscribing or re-downloading collections.
+  const isSubscribedRef = useRef(false);
+
   useEffect(() => {
     if (typeof hydrationCancelRef.current === 'function') {
       hydrationCancelRef.current();
       hydrationCancelRef.current = null;
     }
 
-    if (!ADMISSIONS_DATA_TABS.has(activeTab)) {
+    if (!ADMISSIONS_DATA_TABS.has(activeTab) && !isSubscribedRef.current) {
       setLoading(false);
       return undefined;
     }
 
-    if (!ADMISSIONS_REALTIME_TABS.has(activeTab)) {
-      loadAdminData(false, { progressive: false });
-      return () => {
-        if (typeof hydrationCancelRef.current === 'function') {
-          hydrationCancelRef.current();
-          hydrationCancelRef.current = null;
-        }
-      };
-    }
-
-    if (typeof subscribeToCollection !== 'function') {
-      loadAdminData(false, { progressive: activeTab === 'reports' });
+    if (isSubscribedRef.current) {
+      // Already actively subscribed! Keep subscription alive across tabs for 0ms instant switching!
+      setLoading(false);
       return undefined;
     }
+
+    isSubscribedRef.current = true;
+
+    if (typeof subscribeToCollection !== 'function') {
+      loadAdminData(false, { progressive: true });
+      return undefined;
+    }
+
     let unsubscribe = () => {};
     let receivedSnapshot = false;
     const fallbackTimer = setTimeout(() => {
       if (!receivedSnapshot && appsRef.current.length === 0) {
-        loadAdminData(false, { progressive: activeTab === 'reports' });
+        loadAdminData(false, { progressive: true });
       }
     }, 2500);
+
     try {
       unsubscribe = subscribeToCollection('admissions', (liveList) => {
         if (Array.isArray(liveList)) {
@@ -546,22 +553,23 @@ export default function AdminDashboard() {
         }
       }, (err) => {
         console.warn('Realtime listener fallback note:', err);
-        if (!receivedSnapshot) loadAdminData(false, { progressive: activeTab === 'reports' });
+        if (!receivedSnapshot) loadAdminData(false, { progressive: true });
       });
     } catch (err) {
       console.warn('subscribeToCollection initialization note:', err);
-      loadAdminData(false, { progressive: activeTab === 'reports' });
+      loadAdminData(false, { progressive: true });
     }
 
     return () => {
       clearTimeout(fallbackTimer);
       if (typeof unsubscribe === 'function') unsubscribe();
+      isSubscribedRef.current = false;
       if (typeof hydrationCancelRef.current === 'function') {
         hydrationCancelRef.current();
         hydrationCancelRef.current = null;
       }
     };
-  }, [activeTab, commitApplications, loadAdminData]);
+  }, [commitApplications, loadAdminData]);
 
   const masterRegisters = useMemo(() => {
     return getCachedCollectionSync('masterRegisters') || [];

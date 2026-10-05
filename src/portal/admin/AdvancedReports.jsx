@@ -25,8 +25,7 @@ import { loadSiteSettings } from '../../utils/settingsLoader';
 import { moveToRecycleBin } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentAdmissionPdf, downloadBulkAdmissionPdf } from '../../utils/pdfGenerator';
-import ModernLoader from '../../components/ModernLoader';
-import { parseSearchQuery, cleanSearchAdm, cleanSearchReg, cleanSearchMobile, evaluateStudentRecord } from '../../services/searchIndexService';
+import { parseSearchQuery, cleanSearchAdm, cleanSearchReg, cleanSearchMobile, evaluateStudentRecord, CANONICAL_SYNONYMS } from '../../services/searchIndexService';
 import { getNextAvailableFormNumber, consumeFormNumber, recycleDeletedFormNumber } from '../../services/formNumberService';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import LazyStudentPhoto from '../../components/LazyStudentPhoto';
@@ -7467,6 +7466,19 @@ function AdvancedReports({
     setSearchInputVal(val);
     setIsSearching(true);
     if (searchDebounceTimerRef.current) clearTimeout(searchDebounceTimerRef.current);
+    const trimmed = (val || '').trim();
+    if (!trimmed) {
+      startTransition(() => {
+        setSearchTerm('');
+        setDebouncedSearch('');
+        setCurrentPage(1);
+        setIsSearching(false);
+      });
+      return;
+    }
+    // Snappy debounce: 40ms for pure numeric IDs / explicit field patterns, 75ms for text keywords
+    const isFastId = /^\d+$/.test(trimmed) || /^(adm|roll|form|reg|mob)[\s:#]/i.test(trimmed);
+    const delay = isFastId ? 40 : 75;
     searchDebounceTimerRef.current = setTimeout(() => {
       startTransition(() => {
         setSearchTerm(val);
@@ -7474,7 +7486,7 @@ function AdvancedReports({
         setCurrentPage(1);
         setIsSearching(false);
       });
-    }, 180);
+    }, delay);
   }, []);
 
   const handleSearchClear = useCallback(() => {
@@ -11564,16 +11576,17 @@ function AdvancedReports({
     return combined;
   }, [currentAdmissions, masterHistoricalRecords]);
 
-  // Exact identifiers (registration, admission, form, roll and mobile) should
-  // never pay the cost of the phonetic/fuzzy scanner. Values map to arrays as
-  // old form or roll numbers may legitimately exist in more than one session.
+  // Exact identifiers and inverted name words are indexed in memory for instant
+  // sub-millisecond retrieval without scanning the entire multi-thousand cohort.
   const studentSearchLookup = useMemo(() => {
     const index = {
       admNo: new Map(),
       boardRegNo: new Map(),
       formNo: new Map(),
       classRollNo: new Map(),
-      mobile: new Map()
+      mobile: new Map(),
+      numericIndex: new Map(),
+      wordIndex: new Map()
     };
 
     const add = (map, key, student) => {
@@ -11586,12 +11599,36 @@ function AdvancedReports({
     };
 
     allStudents.forEach(student => {
-      add(index.admNo, cleanSearchAdm(student.admNo), student);
-      add(index.boardRegNo, cleanSearchReg(student.boardRegNo), student);
-      add(index.formNo, normalizeGridIdentifier(student.formNo), student);
-      add(index.classRollNo, normalizeGridIdentifier(student.classRollNo), student);
-      add(index.mobile, cleanSearchMobile(student.mobile), student);
-      add(index.mobile, cleanSearchMobile(student.parentContact), student);
+      const cAdm = cleanSearchAdm(student.admNo);
+      const cReg = cleanSearchReg(student.boardRegNo);
+      const cForm = normalizeGridIdentifier(student.formNo);
+      const cRoll = normalizeGridIdentifier(student.classRollNo);
+      const cMob = cleanSearchMobile(student.mobile);
+      const cPMob = cleanSearchMobile(student.parentContact);
+
+      add(index.admNo, cAdm, student);
+      add(index.boardRegNo, cReg, student);
+      add(index.formNo, cForm, student);
+      add(index.classRollNo, cRoll, student);
+      add(index.mobile, cMob, student);
+      add(index.mobile, cPMob, student);
+
+      // Fast unified numeric index for any bare digit query (Roll No, Adm No, Form No, Phone)
+      if (cRoll) add(index.numericIndex, cRoll, student);
+      if (cAdm) add(index.numericIndex, cAdm, student);
+      if (cForm && /^\d+$/.test(cForm)) add(index.numericIndex, cForm, student);
+      if (cMob) add(index.numericIndex, cMob, student);
+      if (cPMob) add(index.numericIndex, cPMob, student);
+
+      // Inverted word token index for instantaneous name/locality lookups
+      const rawText = `${student.studentName || ''} ${student.fatherName || ''} ${student.village || ''}`.toLowerCase();
+      const words = rawText.split(/[^a-z0-9]+/).filter(w => w.length >= 2);
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        add(index.wordIndex, w, student);
+        const syn = CANONICAL_SYNONYMS?.[w];
+        if (syn && syn !== w) add(index.wordIndex, syn, student);
+      }
     });
 
     return index;
@@ -11826,32 +11863,62 @@ function AdvancedReports({
       return [];
     }
 
-    const patternLookupKey = (() => {
-      if (!parsedQuery?.isPattern) return null;
-      if (parsedQuery.patternType === 'admNo') return cleanSearchAdm(parsedQuery.patternVal);
-      if (parsedQuery.patternType === 'boardRegNo') return cleanSearchReg(parsedQuery.patternVal);
-      if (parsedQuery.patternType === 'formNo' || parsedQuery.patternType === 'classRollNo') return normalizeGridIdentifier(parsedQuery.patternVal);
-      if (parsedQuery.patternType === 'mobile') return cleanSearchMobile(parsedQuery.patternVal);
-      return null;
-    })();
+    // ── HIGH-SPEED O(1) INDEXED CANDIDATE DISCOVERY ──
+    let lookupMatches = null;
 
-    const bareNumericLookupKey = !parsedQuery?.isPattern && parsedQuery?.rawTokens?.length === 1 && /^\d{5,}$/.test(parsedQuery.raw)
-      ? parsedQuery.raw
-      : null;
-    const resolvedLookupMatches = patternLookupKey
-      ? studentSearchLookup[parsedQuery.patternType]?.get(patternLookupKey)
-      : bareNumericLookupKey
-        ? Array.from(new Set([
-          ...(studentSearchLookup.admNo.get(bareNumericLookupKey) || []),
-          ...(studentSearchLookup.boardRegNo.get(bareNumericLookupKey) || []),
-          ...(studentSearchLookup.formNo.get(bareNumericLookupKey) || []),
-          ...(studentSearchLookup.classRollNo.get(bareNumericLookupKey) || []),
-          ...(studentSearchLookup.mobile.get(bareNumericLookupKey) || [])
-        ]))
-        : null;
+    if (parsedQuery && activeQuery) {
+      // 1. Explicit search pattern (adm:123, roll:45, form:67, reg:89, mob:9906)
+      if (parsedQuery.isPattern) {
+        let patternLookupKey = null;
+        if (parsedQuery.patternType === 'admNo') patternLookupKey = cleanSearchAdm(parsedQuery.patternVal);
+        else if (parsedQuery.patternType === 'boardRegNo') patternLookupKey = cleanSearchReg(parsedQuery.patternVal);
+        else if (parsedQuery.patternType === 'formNo' || parsedQuery.patternType === 'classRollNo') patternLookupKey = normalizeGridIdentifier(parsedQuery.patternVal);
+        else if (parsedQuery.patternType === 'mobile') patternLookupKey = cleanSearchMobile(parsedQuery.patternVal);
+
+        if (patternLookupKey) {
+          lookupMatches = studentSearchLookup[parsedQuery.patternType]?.get(patternLookupKey) || null;
+        }
+      }
+      // 2. Pure numeric identifier lookup (any digits: roll no "1", "42", "105", adm no "1234", phone "9906...")
+      else if (/^\d{1,10}$/.test(activeQuery)) {
+        const cleanDigits = activeQuery.trim();
+        const matches = studentSearchLookup.numericIndex.get(cleanDigits);
+        if (matches && matches.length > 0) {
+          lookupMatches = matches;
+        }
+      }
+      // 3. Fast inverted name word index for standard 1 to 3 word queries (e.g. "Iqra", "Shahid", "Suhail Ahmad")
+      else if (parsedQuery.rawTokens && parsedQuery.rawTokens.length >= 1 && parsedQuery.rawTokens.length <= 3) {
+        const words = parsedQuery.rawTokens.map(t => t.toLowerCase().replace(/[^a-z0-9]/g, '')).filter(w => w.length >= 2);
+        if (words.length > 0) {
+          let candidateSet = null;
+          let allWordsFound = true;
+          for (let i = 0; i < words.length; i++) {
+            const w = words[i];
+            const wMatches = studentSearchLookup.wordIndex.get(w);
+            if (!wMatches || wMatches.length === 0) {
+              allWordsFound = false;
+              break;
+            }
+            if (candidateSet === null) {
+              candidateSet = new Set(wMatches);
+            } else {
+              candidateSet = new Set(wMatches.filter(s => candidateSet.has(s)));
+              if (candidateSet.size === 0) {
+                allWordsFound = false;
+                break;
+              }
+            }
+          }
+          if (allWordsFound && candidateSet && candidateSet.size > 0) {
+            lookupMatches = Array.from(candidateSet);
+          }
+        }
+      }
+    }
+
     // Retain the existing partial-ID and fuzzy fallback whenever an exact map
-    // miss occurs (for example, a staff member types only the final digits).
-    const lookupMatches = resolvedLookupMatches?.length ? resolvedLookupMatches : null;
+    // miss occurs (for example, a staff member types only the final digits or misspellings).
     const targetSet = lookupMatches ? new Set(targetDataset) : null;
     const candidateStudents = lookupMatches
       ? lookupMatches.filter(student => targetSet.has(student))

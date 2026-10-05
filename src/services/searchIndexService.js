@@ -57,7 +57,7 @@ export function cleanSearchMobile(val) {
 /**
  * Known common name synonyms and prefix abbreviations in Kashmiri & Indian academic records
  */
-const CANONICAL_SYNONYMS = {
+export const CANONICAL_SYNONYMS = {
   // Mohammad / Ahmad variants
   mohd: 'mohammad',
   mhd: 'mohammad',
@@ -1469,12 +1469,12 @@ export function evaluateStudentRecord(s, parsed) {
   const sMob = String(s.mob || s.mobile || s['Mobile No. (with working WhatsApp)'] || '').trim();
   const sPMob = String(s.pmob || s.parentContact || s["Parent's Contact"] || s["Parent's Mobile No."] || '').trim();
 
-  const cleanForm = sFormNo.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const cleanAdm = cleanSearchAdm(sAdmNo);
-  const cleanReg = cleanSearchReg(sBoardRegNo);
-  const cleanRoll = sRollNo.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const cleanMob = cleanSearchMobile(sMob);
-  const cleanPMob = cleanSearchMobile(sPMob);
+  const cleanForm = s._cleanForm !== undefined ? s._cleanForm : (s._cleanForm = sFormNo.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const cleanAdm = s._cleanAdm !== undefined ? s._cleanAdm : (s._cleanAdm = cleanSearchAdm(sAdmNo));
+  const cleanReg = s._cleanReg !== undefined ? s._cleanReg : (s._cleanReg = cleanSearchReg(sBoardRegNo));
+  const cleanRoll = s._cleanRoll !== undefined ? s._cleanRoll : (s._cleanRoll = sRollNo.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const cleanMob = s._cleanMob !== undefined ? s._cleanMob : (s._cleanMob = cleanSearchMobile(sMob));
+  const cleanPMob = s._cleanPMob !== undefined ? s._cleanPMob : (s._cleanPMob = cleanSearchMobile(sPMob));
 
   // Extract or memoize token arrays directly on record s to prevent redundant computation
   const nameTokens = s._nameTokens || (s._nameTokens = extractWordTokens(sName));

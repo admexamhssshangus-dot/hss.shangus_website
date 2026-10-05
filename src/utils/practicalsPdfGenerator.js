@@ -2072,7 +2072,6 @@ export function printMarksRecordAwardRoll({
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const isClass10 = String(className).toLowerCase().includes('10');
-  const isClass12 = String(className).toLowerCase().includes('12');
   const hseText = isClass10
     ? 'Secondary School Examination (Class 10th)'
     : className === '11th'
