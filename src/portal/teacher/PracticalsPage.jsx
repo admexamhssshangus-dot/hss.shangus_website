@@ -14,7 +14,7 @@ import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, addDoc, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
-import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll, getCurrentOfficialExamRoll, isValidExamRollForClass } from '../../utils/practicalsPdfGenerator';
+import { printIndividualAwardRoll, printMarksRecordAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll, getCurrentOfficialExamRoll, isValidExamRollForClass } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import { isStudentExamDropped } from '../../utils/studentApprovalStatus';
 import { checkIsStudentDropped } from '../../services/examineeDropService';
@@ -1444,6 +1444,7 @@ export default function PracticalsPage() {
   const [selectedKeys, setSelectedKeys] = useState(new Set());
   const [quickFillMark, setQuickFillMark] = useState('');
   const [showQuickFill, setShowQuickFill] = useState(false);
+  const [showPrintMenu, setShowPrintMenu] = useState(false);
   const [teacherCustomMax, setTeacherCustomMax] = useState(null);
 
   useEffect(() => {
@@ -3681,6 +3682,48 @@ export default function PracticalsPage() {
     });
   };
 
+  const handlePrintBlankMarksRecord = () => {
+    if (existingAwardInfo?.lockedOtherTeacherAward) {
+      triggerNotification({
+        type: 'error',
+        title: 'Print Restricted',
+        badge: 'Restricted',
+        text: 'You cannot print evaluation awards submitted by other faculty members.',
+        primaryButtonText: 'Dismiss'
+      });
+      return;
+    }
+
+    if (!studentMarks || studentMarks.length === 0) {
+      triggerNotification({
+        type: 'error',
+        title: 'Cannot Print Blank Marks Record',
+        badge: 'Empty Award List',
+        text: 'No student records available to print.',
+        primaryButtonText: 'Dismiss'
+      });
+      return;
+    }
+
+    const isExternal = practicalType.toLowerCase().includes('external');
+    const isBiAnnual = /\b(oct|nov|bian|private|bi-annual|mar-apr)\b/i.test(yearSuffix);
+    const sessionStr = isBiAnnual
+      ? `Annual Private / Bi-Annual (${yearSuffix})`
+      : (yearSuffix.toLowerCase().includes('annual') ? yearSuffix : `Annual Regular ${yearSuffix}`);
+
+    printMarksRecordAwardRoll({
+      className: selectedClass,
+      session: sessionStr,
+      students: studentMarks,
+      isExternal,
+      evaluationType: practicalType,
+      practicalType,
+      subjectCode: currentSubjectObj.code,
+      subjectName: currentSubjectObj.name,
+      printDetails: { settings: practicalsSettings }
+    });
+  };
+
   // Dynamic Multi-Column Sorting
   const sortedStudents = [...studentMarks].sort((a, b) => {
     if (sortBy === 'examAsc') {
@@ -4217,21 +4260,81 @@ export default function PracticalsPage() {
                 )}
               </button>
 
-              {/* Print Button (Always Visible & Prominent) */}
-              <button
-                type="button"
-                onClick={handlePrintReport}
-                disabled={Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
-                className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] w-8 sm:w-auto px-1.5 sm:px-2.5 rounded-lg font-bold text-[11px] shadow-2xs flex items-center justify-center gap-1 active:scale-95 shrink-0 ${
-                  Boolean(existingAwardInfo?.lockedOtherTeacherAward)
-                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60'
-                    : 'bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 cursor-pointer'
-                }`}
-                title={Boolean(existingAwardInfo?.lockedOtherTeacherAward) ? "Printing restricted for other teachers' awards" : "Print Evaluation Roster"}
-              >
-                <Printer size={13} />
-                <span className="hidden sm:inline">Print</span>
-              </button>
+              {/* Print Dropdown (Always Visible & Prominent) */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowPrintMenu(!showPrintMenu)}
+                  disabled={Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
+                  className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] w-8 sm:w-auto px-1.5 sm:px-2.5 rounded-lg font-bold text-[11px] shadow-2xs flex items-center justify-center gap-1 active:scale-95 shrink-0 ${
+                    Boolean(existingAwardInfo?.lockedOtherTeacherAward)
+                      ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60'
+                      : showPrintMenu
+                      ? 'bg-indigo-700 text-white border border-indigo-700 cursor-pointer'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 cursor-pointer'
+                  }`}
+                  title={Boolean(existingAwardInfo?.lockedOtherTeacherAward) ? "Printing restricted for other teachers' awards" : "Print Evaluation Sheets & Award Rolls"}
+                >
+                  <Printer size={13} />
+                  <span className="hidden sm:inline">Print</span>
+                  <ChevronDown size={11} className={`transition-transform duration-200 shrink-0 ${showPrintMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showPrintMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowPrintMenu(false)} />
+                    <div className="absolute right-0 top-full mt-1.5 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 p-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <div className="px-2 py-1 text-[9.5px] font-black uppercase tracking-wider text-slate-400">
+                        Print Practical Records
+                      </div>
+
+                      {/* 1. Blank Marks Record */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPrintMenu(false);
+                          handlePrintBlankMarksRecord();
+                        }}
+                        className="w-full px-2.5 py-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left flex items-start gap-2.5 cursor-pointer transition-colors group"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                          <Printer size={12} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-black text-slate-800 dark:text-slate-100">
+                            Print Blank Marks Record
+                          </div>
+                          <div className="text-[9.5px] text-slate-400 font-semibold leading-tight mt-0.5">
+                            100% blank for manual teacher scoring during exam & physical record
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 2. Official 2-Column Award Roll */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPrintMenu(false);
+                          handlePrintReport();
+                        }}
+                        className="w-full px-2.5 py-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-left flex items-start gap-2.5 cursor-pointer transition-colors group mt-1"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                          <Award size={12} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-black text-slate-800 dark:text-slate-100">
+                            Print Official Award Roll (JKBOSE)
+                          </div>
+                          <div className="text-[9.5px] text-slate-400 font-semibold leading-tight mt-0.5">
+                            Official 2-column layout (Figures & Words) with online marks
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

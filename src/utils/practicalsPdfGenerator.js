@@ -2073,7 +2073,6 @@ export function printMarksRecordAwardRoll({
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const isClass10 = String(className).toLowerCase().includes('10');
   const isClass12 = String(className).toLowerCase().includes('12');
-  const clsTarget = isClass10 ? '10' : isClass12 ? '12' : '11';
   const hseText = isClass10
     ? 'Secondary School Examination (Class 10th)'
     : className === '11th'
@@ -2103,28 +2102,14 @@ export function printMarksRecordAwardRoll({
   let combinedHtml = '';
 
   targetSubs.forEach((sub, subIdx) => {
-    // Subject-specific enrolled students
-    const subStudents = students.filter(st => isStudentEnrolledInPracticalSubject(st, sub.code, className));
+    // Subject-specific enrolled students sorted cleanly by roll number
+    const subStudents = sortRecordsForAwardRoll(
+      students.filter(st => isStudentEnrolledInPracticalSubject(st, sub.code, className))
+    );
     if (subStudents.length === 0) return;
 
-    // Find corresponding teacher submission if exists
-    const subDoc = submissions.find(s => {
-      const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-      if (!matchClass) return false;
-      const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-      if (evaluationType || practicalType) {
-        const target = String(evaluationType || practicalType).toLowerCase();
-        if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
-          const targetNorm = target.includes('ext') ? 'external' : 'internal';
-          if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
-        }
-      } else {
-        const targetType = isExternal ? 'external' : 'internal';
-        if (sType !== targetType && !sType.includes(targetType)) return false;
-      }
-      const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
-      return isMatchingSubjectCode(codeStr, sub.code);
-    });
+    const markCfg = getSubjectMarksConfig(printDetails?.settings || printDetails, className, isExternal ? 'external' : 'internal', sub.code);
+    const subMaxMarks = markCfg?.max || (isClass10 ? 50 : 20);
 
     const isLastSub = subIdx === targetSubs.length - 1;
 
@@ -2140,7 +2125,7 @@ export function printMarksRecordAwardRoll({
           </p>
           <div style="display: flex; justify-content: space-between; font-size: 8.5pt; font-weight: 700; margin-top: 6px; color: #334155;">
             <span>No.: ____________________</span>
-            <span>Max Marks: _______</span>
+            <span>Max Marks: <strong>${subMaxMarks || '_______'}</strong></span>
             <span>Date of Exam: ____________________</span>
           </div>
         </div>
@@ -2168,12 +2153,7 @@ export function printMarksRecordAwardRoll({
       const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
       const regNo = String(rawReg).trim();
 
-      const markRec = findStudentMarkRecord(subDoc, st);
-      const isAbs = markRec && String(markRec.totalMarks ?? markRec.practicalMarks ?? '').toUpperCase() === 'AB';
-      const pMark = markRec ? (markRec.pracMarks ?? markRec.practicalMarks ?? '') : '';
-      const vMark = markRec ? (markRec.vivaMarks ?? '') : '';
-      const tMark = markRec ? (markRec.totalMarks ?? markRec.practicalMarks ?? '') : '';
-
+      // ALWAYS 100% blank marks columns for physical manual scoring by teachers
       combinedHtml += `
         <tr style="height: 38px; page-break-inside: avoid !important; break-inside: avoid !important;">
           <td style="text-align: center; color: #475569; font-size: 8.5pt;">${idx + 1}</td>
@@ -2185,9 +2165,9 @@ export function printMarksRecordAwardRoll({
               ${regNo && regNo !== '—' ? `<div style="font-family: monospace; font-size: 7.5pt; color: #64748b; font-weight: 600; margin-top: 2px; white-space: nowrap;">Reg: ${regNo}</div>` : ''}
             </div>
           </td>
-          <td style="text-align: center; font-weight: 700; font-size: 9.5pt; color: #0f172a;">${isAbs ? 'AB' : (pMark !== '' ? pMark : '&nbsp;')}</td>
-          <td style="text-align: center; font-weight: 700; font-size: 9.5pt; color: #0f172a;">${isAbs ? 'AB' : (vMark !== '' ? vMark : '&nbsp;')}</td>
-          <td style="text-align: center; font-weight: 800; font-size: 10pt; background: #f8fafc; color: #0f172a;">${isAbs ? '<span class="absent-text">AB</span>' : (tMark !== '' ? `<strong>${tMark}</strong>` : '&nbsp;')}</td>
+          <td style="text-align: center; height: 38px;">&nbsp;</td>
+          <td style="text-align: center; height: 38px;">&nbsp;</td>
+          <td style="text-align: center; height: 38px; background: #f8fafc;">&nbsp;</td>
         </tr>
       `;
     });

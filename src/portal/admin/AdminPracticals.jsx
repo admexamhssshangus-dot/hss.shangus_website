@@ -3016,11 +3016,11 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                         <div className="min-w-0 flex-1">
                           <div className="text-[11.5px] font-black truncate">
                             {exportSubjectTarget === 'all'
-                              ? `Print Marks Record Award Rolls (All ${activeSubjects.length} Subs)`
-                              : `Print Marks Record — ${getSubjectDisplayName(exportSubjectTarget, cls)}`}
+                              ? `Print Blank Marks Record Sheets (All ${activeSubjects.length} Subs)`
+                              : `Print Blank Marks Record — ${getSubjectDisplayName(exportSubjectTarget, cls)}`}
                           </div>
                           <div className="text-[9.5px] text-slate-400 font-semibold truncate">
-                            Pract Copy / Assignment, Viva Voce & Total columns
+                            100% Blank Pract Copy, Viva Voce & Total for manual teacher evaluation
                           </div>
                         </div>
                       </button>
@@ -3200,10 +3200,10 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="text-[11.5px] font-black truncate">
-                              Print Consolidated Cover Letter & Matrix
+                              Print Consolidated Cover Letter & Awards Matrix
                             </div>
                             <div className="text-[9.5px] text-slate-400 font-semibold truncate">
-                              Forwarding letter + subject hash totals matrix
+                              Official forwarding letter + awards submitted online by teachers
                             </div>
                           </div>
                         </button>
