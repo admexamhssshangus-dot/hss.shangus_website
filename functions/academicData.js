@@ -20,13 +20,10 @@ async function loadCohort(reader, db, session, className) {
       if (snapshot.size === 2000) throw new Error('This cohort requires pagination/index maintenance before submitting.');
       for (const snap of snapshot.docs) {
         const data = snap.data();
-        const rows = ['items', 'students', 'records', 'data'].map(k => data[k]).find(Array.isArray);
-        for (const [index, raw] of (rows || [data]).entries()) {
-          const record = { Session: data.Session || data.session, Class: data.Class || data.class, ...raw };
-          if (studentSession(record) === session && studentClass(record) === classKey(className) &&
-              (collection === 'masterRegisters' ? !record._deleted : isApproved(record))) {
-            records.set(`${collection}/${snap.id}/${index}`, record);
-          }
+        const record = { ...data, _docId: snap.id };
+        if (studentSession(record) === session && studentClass(record) === classKey(className) &&
+            (collection === 'masterRegisters' ? !record._deleted : isApproved(record))) {
+          records.set(`${collection}/${snap.id}`, record);
         }
       }
     }

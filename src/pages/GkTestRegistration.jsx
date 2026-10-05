@@ -525,7 +525,7 @@ export default function GkTestRegistration() {
         });
       };
 
-      let masterRes = await getMasterRegistersScoped({ forceAll: false }).catch(() => null);
+      let masterRes = await getMasterRegistersScoped({ forceAll: true }).catch(() => null);
       if (!masterRes) {
         const masterSnap = await getDocs(collection(db, 'masterRegisters')).catch(() => null);
         masterRes = masterSnap ? masterSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];

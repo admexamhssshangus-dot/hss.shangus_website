@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, writeBatch, collection, addDoc, serverTimestamp, getDocs, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, setDoc, writeBatch, collection, addDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from './firebase';
 import { updateCachedItem, getCachedCollectionSync } from './dbCache';
 import * as XLSX from 'xlsx';
@@ -74,25 +74,6 @@ export function extractCertificateSerial(value) {
 }
 
 const normalizeIdentityKey = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-
-const isSessionMatch = (s1, s2) => {
-  if (!s1 || !s2) return true;
-  const n1 = normalizeIdentityKey(s1);
-  const n2 = normalizeIdentityKey(s2);
-  return n1 === n2 || n1.includes(n2) || n2.includes(n1);
-};
-
-const isClassMatch = (c1, c2) => {
-  if (!c1 || !c2) return true;
-  const n1 = normalizeIdentityKey(c1);
-  const n2 = normalizeIdentityKey(c2);
-  if (n1 === n2) return true;
-  for (const grade of ['12', '11', '10', '9']) {
-    if (n1.includes(grade) && n2.includes(grade)) return true;
-    if (n1.includes(grade) !== n2.includes(grade)) return false;
-  }
-  return true;
-};
 
 const isDuplicateIssue = item => String(item?.issueKind || '').toLowerCase() === 'duplicate';
 
@@ -196,8 +177,7 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
   const cacheUpdates = [];
   const maxCertInBatch = Math.max(...serials);
   const minCertInBatch = Math.min(...serials);
-  const masterGroups = new Map();
-  const admissionAssignments = [];
+  const documentAssignments = [];
   const lockAssignments = [];
   const targetKeys = new Set();
 
@@ -225,35 +205,23 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
       dischargeIssueDate: effectiveDate,
       dischargeCertStatus: 'Issued'
     };
-    const parentDocId = raw._parentDocId || item.student?._parentDocId || '';
-    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || (parentDocId ? 'masterRegisters' : 'admissions');
+    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || 'admissions';
+    const collectionName = sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions';
     const studentDocId = String(raw._docId || raw.docId || raw.id || '').trim() ||
       (formNo ? (formNo.startsWith('adm_') ? formNo : `adm_${formNo}`) : regNo);
 
-    if (sourceCollection === 'masterRegisters' && parentDocId) {
-      if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
-      masterGroups.get(parentDocId).push({ formNo, regNo, regKey, session, className, certNo, issueKind, previousCertificateNo, patch });
-    } else if (studentDocId) {
-      admissionAssignments.push({ studentDocId, regNo, regKey, session, className, certNo, issueKind, previousCertificateNo, patch });
+    if (studentDocId) {
+      documentAssignments.push({ collectionName, studentDocId, regNo, regKey, session, className, certNo, issueKind, previousCertificateNo, patch });
     } else {
       throw new Error('A selected student has no source document or form number. No certificate numbers were assigned.');
     }
-    lockAssignments.push({ certNo, regNo, regKey, session, className, issueKind, previousCertificateNo, studentDocId, parentDocId });
+    lockAssignments.push({ certNo, regNo, regKey, session, className, issueKind, previousCertificateNo, studentDocId, collectionName });
   });
 
-  admissionAssignments.forEach(({ studentDocId }) => {
-    const targetKey = `admissions/${studentDocId}`;
+  documentAssignments.forEach(({ collectionName, studentDocId }) => {
+    const targetKey = `${collectionName}/${studentDocId}`;
     if (targetKeys.has(targetKey)) throw new Error('The same student was included more than once in the certificate batch.');
     targetKeys.add(targetKey);
-  });
-  masterGroups.forEach((assignments, parentDocId) => {
-    assignments.forEach(item => {
-      const identity = normalizeIdentityKey(item.regNo) || normalizeIdentityKey(item.formNo);
-      const targetKey = `masterRegisters/${parentDocId}/${identity}/${normalizeIdentityKey(item.session)}/${normalizeIdentityKey(item.className)}`;
-      if (!identity) throw new Error('An archived student has no registration or form number. No certificate numbers were assigned.');
-      if (targetKeys.has(targetKey)) throw new Error('The same archived student was included more than once in the certificate batch.');
-      targetKeys.add(targetKey);
-    });
   });
 
   // Reserve the serial range and stamp every student in one transaction. This
@@ -262,15 +230,10 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
   const regRef = doc(db, REGISTRY_DOC_PATH, REGISTRY_DOC_ID);
   await runTransaction(db, async transaction => {
     const registrySnapshot = await transaction.get(regRef);
-    const admissionSnapshots = await Promise.all(admissionAssignments.map(async assignment => ({
+    const documentSnapshots = await Promise.all(documentAssignments.map(async assignment => ({
       ...assignment,
-      ref: doc(db, 'admissions', assignment.studentDocId),
-      snapshot: await transaction.get(doc(db, 'admissions', assignment.studentDocId))
-    })));
-    const masterSnapshots = await Promise.all(Array.from(masterGroups.keys()).map(async parentDocId => ({
-      parentDocId,
-      ref: doc(db, 'masterRegisters', String(parentDocId)),
-      snapshot: await transaction.get(doc(db, 'masterRegisters', String(parentDocId)))
+      ref: doc(db, assignment.collectionName, assignment.studentDocId),
+      snapshot: await transaction.get(doc(db, assignment.collectionName, assignment.studentDocId))
     })));
     const lockSnapshots = await Promise.all(lockAssignments.map(async assignment => {
       const ref = doc(db, CERTIFICATE_LOCK_COLLECTION, assignment.certNo);
@@ -302,8 +265,8 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
     });
 
     cacheUpdates.length = 0;
-    admissionSnapshots.forEach((assignment) => {
-      const { studentDocId, ref, snapshot } = assignment;
+    documentSnapshots.forEach((assignment) => {
+      const { collectionName, studentDocId, ref, snapshot } = assignment;
       if (!snapshot.exists()) {
         throw new Error(`Student record ${studentDocId} was not found. No certificate numbers were assigned.`);
       }
@@ -316,49 +279,10 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
       }
       const finalPatch = buildCertificateIssuePatch(snapshot.data(), assignment, effectiveDate);
       transaction.set(ref, finalPatch, { merge: true });
-      cacheUpdates.push(['admissions', studentDocId, finalPatch]);
+      cacheUpdates.push([collectionName, studentDocId, finalPatch]);
     });
 
-    masterSnapshots.forEach(({ parentDocId, ref, snapshot }) => {
-      if (!snapshot.exists()) throw new Error(`Master-register chunk ${parentDocId} was not found.`);
-      const parentData = snapshot.data();
-      const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
-      if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student array.`);
-      const assignments = masterGroups.get(parentDocId);
-      const matchedAssignments = new Set();
-      const updatedRecords = parentData[arrayKey].map(record => {
-        const recordForm = normalizeIdentityKey(record.formNo || record['Form No.'] || record['Form Number']);
-        const recordReg = normalizeIdentityKey(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
-        const recordSession = record.session || record.Session || record['Session'] || parentData.session || '';
-        const recordClass = record.class || record.Class || record['Class'] || record.selectedClass || parentData.selectedClass || '';
-        const assignmentIndex = assignments.findIndex((item, index) => {
-          if (matchedAssignments.has(index)) return false;
-          const regMatches = item.regNo && normalizeIdentityKey(item.regNo) === recordReg;
-          const formMatches = item.formNo && normalizeIdentityKey(item.formNo) === recordForm;
-          return (regMatches || formMatches) && isSessionMatch(item.session, recordSession) && isClassMatch(item.className, recordClass);
-        });
-        if (assignmentIndex < 0) return record;
-        const existingSerial = extractCertificateSerial(record.ccDcNo || record.certificateNo || record['No. & Date of CC/DC Issued (This Institution)']);
-        const assignment = assignments[assignmentIndex];
-        if (existingSerial && !isDuplicateIssue(assignment)) {
-          throw new Error(`An archived student already has certificate #${existingSerial}. Refresh before issuing again.`);
-        }
-        if (existingSerial && existingSerial !== assignment.previousCertificateNo) {
-          throw new Error(`An archived student now has certificate #${existingSerial}; duplicate issuance expected #${assignment.previousCertificateNo}. Refresh first.`);
-        }
-        matchedAssignments.add(assignmentIndex);
-        const itemPatch = buildCertificateIssuePatch(record, assignment, effectiveDate);
-        delete itemPatch.dischargeIssuedAt;
-        return { ...record, ...itemPatch, dischargeIssuedAt: effectiveDate };
-      });
-      if (matchedAssignments.size !== assignments.length) {
-        throw new Error(`One or more students were not found in master-register chunk ${parentDocId}. No certificate numbers were assigned.`);
-      }
-      transaction.set(ref, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
-      cacheUpdates.push(['masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords }]);
-    });
-
-    lockSnapshots.forEach(({ certNo, regNo, regKey, session, className, issueKind, previousCertificateNo, studentDocId, parentDocId, ref }) => {
+    lockSnapshots.forEach(({ certNo, regNo, regKey, session, className, issueKind, previousCertificateNo, studentDocId, collectionName, ref }) => {
       transaction.set(ref, {
         certificateNo: certNo,
         regNo,
@@ -368,13 +292,13 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
         previousCertificateNo: previousCertificateNo || '',
         session,
         className,
-        sourceDocument: parentDocId ? `masterRegisters/${parentDocId}` : `admissions/${studentDocId}`,
+        sourceDocument: `${collectionName}/${studentDocId}`,
         issueDate: effectiveDate,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
     });
-    previousLockSnapshots.forEach(({ previousCertificateNo, regNo, regKey, session, className, studentDocId, parentDocId, ref, snapshot }) => {
+    previousLockSnapshots.forEach(({ previousCertificateNo, regNo, regKey, session, className, studentDocId, collectionName, ref, snapshot }) => {
       if (snapshot.exists()) return;
       transaction.set(ref, {
         certificateNo: previousCertificateNo,
@@ -385,7 +309,7 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
         previousCertificateNo: '',
         session,
         className,
-        sourceDocument: parentDocId ? `masterRegisters/${parentDocId}` : `admissions/${studentDocId}`,
+        sourceDocument: `${collectionName}/${studentDocId}`,
         issueDate: '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -435,7 +359,7 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
  * Revoke issued certificate assignments for one or more students.
  * Registry serials remain retired so an official number is never reused.
  * Clears ccDcNo, certificateNo, 'No. & Date of CC/DC Issued (This Institution)', dischargeCertStatus, etc.
- * Supports both admissions and chunked masterRegisters records.
+ * Supports admissions and one-student-per-document master-register records.
  */
 export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
   if (!studentsToRevoke || studentsToRevoke.length === 0) {
@@ -456,7 +380,6 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
     currentBatchSize += 1;
   };
 
-  const masterGroups = new Map();
   const revokedCerts = [];
 
   studentsToRevoke.forEach(item => {
@@ -477,18 +400,15 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
       dischargeRevokedAt: serverTimestamp()
     };
 
-    const parentDocId = raw._parentDocId || item.student?._parentDocId || '';
-    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || (parentDocId ? 'masterRegisters' : 'admissions');
+    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || 'admissions';
+    const collectionName = sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions';
     const studentDocId = String(raw._docId || raw.docId || raw.id || '').trim() ||
       (formNo ? (formNo.startsWith('adm_') ? formNo : `adm_${formNo}`) : regNo);
 
-    if (sourceCollection === 'masterRegisters' && parentDocId) {
-      if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
-      masterGroups.get(parentDocId).push({ formNo, regNo, session, className, patch });
-    } else if (studentDocId) {
-      const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId);
+    if (studentDocId) {
+      const studentRef = doc(db, collectionName, studentDocId);
       queueSet(studentRef, patch, { merge: true });
-      cacheUpdates.push([sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId, patch]);
+      cacheUpdates.push([collectionName, studentDocId, patch]);
     }
 
     const serial = extractCertificateSerial(certNo);
@@ -501,43 +421,12 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
         status: 'Revoked',
         session,
         className,
-        sourceDocument: parentDocId ? `masterRegisters/${parentDocId}` : `admissions/${studentDocId}`,
+        sourceDocument: `${collectionName}/${studentDocId}`,
         updatedAt: serverTimestamp(),
         revokedAt: serverTimestamp()
       }, { merge: true });
     }
   });
-
-  // Handle masterRegisters chunks using regNo/formNo along with session and class
-  for (const [parentDocId, assignments] of masterGroups.entries()) {
-    const parentRef = doc(db, 'masterRegisters', String(parentDocId));
-    const parentSnap = await getDoc(parentRef);
-    if (!parentSnap.exists()) continue;
-    const parentData = parentSnap.data();
-    const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
-    if (!arrayKey) continue;
-    const updatedRecords = parentData[arrayKey].map(record => {
-      const recordForm = normalizeIdentityKey(record.formNo || record['Form No.'] || record['Form Number']);
-      const recordReg = normalizeIdentityKey(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
-      const recordSession = record.session || record.Session || record['Session'] || parentData.session || '';
-      const recordClass = record.class || record.Class || record['Class'] || record.selectedClass || parentData.selectedClass || '';
-
-      const assignment = assignments.find(item => {
-        const regMatches = item.regNo && normalizeIdentityKey(item.regNo) === recordReg;
-        const formMatches = item.formNo && normalizeIdentityKey(item.formNo) === recordForm;
-        if (!regMatches && !formMatches) return false;
-        if (!isSessionMatch(item.session, recordSession)) return false;
-        if (!isClassMatch(item.className, recordClass)) return false;
-        return true;
-      });
-      if (!assignment) return record;
-      const itemPatch = { ...assignment.patch };
-      delete itemPatch.dischargeRevokedAt;
-      return { ...record, ...itemPatch, dischargeRevokedAt: new Date().toISOString() };
-    });
-    queueSet(parentRef, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
-    cacheUpdates.push(['masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords }]);
-  }
 
   for (const pendingBatch of batches) {
     await pendingBatch.commit();
@@ -568,8 +457,8 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
   };
 }
 
-/** Permanently update certificate identity fields in the student's actual
- * admissions document or packed master-register source row. */
+/** Permanently update certificate identity fields in the student's exact
+ * admissions or master-register document. */
 export async function persistCertificateStudentFields(student, values = {}) {
   const raw = student?.raw || student || {};
   const usable = value => value !== undefined && value !== null && String(value).trim() !== '';
@@ -601,47 +490,12 @@ export async function persistCertificateStudentFields(student, values = {}) {
   patch.updatedAt = serverTimestamp();
 
   const formNo = String(student?.formNo || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
-  const regNo = String(values.regNo || student?.regNo || raw.regNo || raw.boardRegNo || raw['Board Registration Number'] || '').trim();
-  const session = String(student?.session || raw.session || raw.Session || raw['Session'] || '').trim();
-  const className = String(student?.className || student?.class || raw.class || raw.Class || raw['Class'] || raw.selectedClass || '').trim();
   const sourceCollection = raw._srcCollection || raw._source || student?.sourceCollection || 'admissions';
-  const parentDocId = raw._parentDocId || student?._parentDocId || '';
-
-  if (sourceCollection === 'masterRegisters' && parentDocId) {
-    const parentRef = doc(db, 'masterRegisters', String(parentDocId));
-    const parentSnap = await getDoc(parentRef);
-    if (!parentSnap.exists()) throw new Error(`Master-register chunk ${parentDocId} was not found.`);
-    const parentData = parentSnap.data();
-    const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
-    if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student array.`);
-    let matched = false;
-    const updatedRecords = parentData[arrayKey].map(record => {
-      const recordForm = normalizeIdentityKey(record.formNo || record['Form No.'] || record['Form Number']);
-      const recordReg = normalizeIdentityKey(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
-      const recordSession = record.session || record.Session || record['Session'] || parentData.session || '';
-      const recordClass = record.class || record.Class || record['Class'] || record.selectedClass || parentData.selectedClass || '';
-
-      const regMatches = regNo && normalizeIdentityKey(regNo) === recordReg;
-      const formMatches = formNo && normalizeIdentityKey(formNo) === recordForm;
-      if (!regMatches && !formMatches) return record;
-      if (!isSessionMatch(session, recordSession)) return record;
-      if (!isClassMatch(className, recordClass)) return record;
-
-      matched = true;
-      const itemPatch = { ...patch };
-      delete itemPatch.updatedAt;
-      return { ...record, ...itemPatch };
-    });
-    if (!matched) throw new Error('Student was not found in the source master-register chunk.');
-    await setDoc(parentRef, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
-    updateCachedItem('masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords });
-  } else {
-    const docId = raw._docId || raw.docId || raw.id || student?._docId || student?.docId || student?.id || formNo || regNo;
-    if (!docId) throw new Error('Missing Form No. or Registration No. for permanent update.');
-    const collectionName = sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions';
-    await setDoc(doc(db, collectionName, String(docId)), patch, { merge: true });
-    updateCachedItem(collectionName, String(docId), patch);
-  }
+  const docId = raw._docId || raw.docId || raw.id || student?._docId || student?.docId || student?.id || formNo || values.regNo || student?.regNo || raw.regNo || raw.boardRegNo;
+  if (!docId) throw new Error('Missing Firestore document ID for permanent update.');
+  const collectionName = sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions';
+  await setDoc(doc(db, collectionName, String(docId)), patch, { merge: true });
+  updateCachedItem(collectionName, String(docId), patch);
 
   return { ...student, ...patch, raw: { ...raw, ...patch } };
 }

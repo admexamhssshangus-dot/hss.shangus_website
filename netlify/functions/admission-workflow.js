@@ -498,21 +498,20 @@ async function lookupRegistrationRecord(db, token, body) {
     }
   }
 
-  // 2. Search masterRegisters chunks if not found in admissions
+  // 2. Search individual master-register documents if not found in admissions.
+  // Each archived application now has its own document, so there is no nested
+  // `items` array to unwrap before matching its registration number.
   if (!foundRecord) {
     const masterSnaps = await db.collection('masterRegisters').get();
     for (const doc of masterSnaps.docs) {
       const data = doc.data();
-      const items = Array.isArray(data.items) ? data.items : (data["Student's Name"] ? [data] : []);
-      for (const it of items) {
-        const itReg = String(it['Board Reg. No.'] || it['Board Registration Number'] || it['DIET Registration No.'] || it.boardRegNo || it.regNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (itReg === cleanKey) {
-          foundRecord = it;
-          source = 'masterRegister';
-          break;
-        }
+      if (!data || data.Status === 'Deleted' || data.status === 'Deleted' || data._deleted === true) continue;
+      const itReg = String(data['Board Reg. No.'] || data['Board Registration Number'] || data['DIET Registration No.'] || data.boardRegNo || data.regNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (itReg === cleanKey) {
+        foundRecord = { _docId: doc.id, ...data };
+        source = 'masterRegister';
+        break;
       }
-      if (foundRecord) break;
     }
   }
 

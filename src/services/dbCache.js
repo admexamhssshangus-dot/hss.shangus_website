@@ -377,45 +377,28 @@ export const DEEP_ARCHIVE_CHUNK_REGEX = /$^/;
 export const MODERN_CHUNK_IDS = [];
 
 /**
- * Check whether a collection stores chunked student registries (e.g. admissions, masterRegisters, legacyStudents).
+ * Check whether a collection stores a legacy chunked student registry.
+ *
+ * `masterRegisters` deliberately does not appear here: every register row is
+ * now its own Firestore document.  Treating it as chunked causes callers to
+ * lose its physical document ID and makes safe per-student updates impossible.
  * Document-level collections like practicalsData, attendance, holidays, and settings must never have their records flattened.
  */
 export const isChunkedRegistryCollection = (collName) => 
-  collName === 'admissions' || collName === 'masterRegisters' || collName === 'legacyStudents';
+  collName === 'admissions' || collName === 'legacyStudents';
 
 /**
- * Helper to unpack chunk or flat student documents into uniform student records.
+ * Normalize one individual master-register document into a student record.
+ * Master-register chunk containers were migrated out of this collection; a
+ * legacy-shaped document is intentionally ignored rather than being exposed
+ * as an editable student row with an ambiguous identity.
  */
 export function unpackMasterRegisterDoc(docSnap) {
   const data = typeof docSnap.data === 'function' ? docSnap.data() : docSnap;
   if (!data || data.Status === 'Deleted' || data.status === 'Deleted' || data._deleted === true) return [];
 
   const chunkItems = data.items || data.students || data.records || data.data;
-  if (Array.isArray(chunkItems) && chunkItems.length > 0) {
-    const docSession = data.Session || data.session || data['Academic Session'] || data.groupKey?.split('_')[0] || (docSnap.id ? docSnap.id.split('_')[0] : '') || '';
-    const docClass = data.class || data.Class || data.className || data['Class'] || data.groupKey?.split('_')[1] || '';
-    const docStream = data.stream || data.Stream || data['Stream'] || data.groupKey?.split('_')[2] || '';
-
-    const list = [];
-    chunkItems.forEach((item, itemIdx) => {
-      if (!item || typeof item !== 'object') return;
-      if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
-      list.push({
-        ...item,
-        id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docSnap.id || 'doc'}_${itemIdx}`,
-        Session: item.Session || item.session || item['Academic Session'] || docSession || '',
-        session: item.session || item.Session || item['Academic Session'] || docSession || '',
-        Class: item.Class || item.class || item['Class'] || docClass || '',
-        class: item.class || item.Class || item['Class'] || docClass || '',
-        Stream: item.Stream || item.stream || item['Stream'] || docStream || '',
-        stream: item.stream || item.Stream || item['Stream'] || docStream || '',
-        _source: 'masterRegisters',
-        _parentDocId: docSnap.id || null,
-        _arrayKey: ['items', 'students', 'records', 'data'].find(key => Array.isArray(data[key]))
-      });
-    });
-    return list;
-  }
+  if (Array.isArray(chunkItems)) return [];
 
   // Standalone individual student document in masterRegisters
   const docId = docSnap.id || data.id || '';
@@ -429,8 +412,6 @@ export function unpackMasterRegisterDoc(docSnap) {
     _docId: docId,
     _source: 'masterRegisters',
     _srcCollection: 'masterRegisters',
-    _parentDocId: null,
-    _arrayKey: null,
     _isHistorical: true,
     Session: sSession,
     session: sSession,
@@ -588,6 +569,28 @@ export async function getMasterRegistersByScope({ session, className, stream, fo
  * NEVER executes an un-scoped getDocs on masterRegisters (which would read 6,020 documents).
  */
 export async function getMasterRegistersScoped(options = {}) {
+  // A full archive read is deliberate and used only by tools that explicitly
+  // request it (backups, broad historical search, certificate work).  The old
+  // implementation silently returned the default session even for forceAll,
+  // which made those tools appear to have missing records.
+  if (options?.forceAll === true) {
+    try {
+      const snapshot = await getDocs(collection(db, 'masterRegisters'));
+      const allRecords = snapshot.docs.flatMap(unpackMasterRegisterDoc);
+      if (typeof window !== 'undefined') {
+        window._hssMasterRegistersCache = allRecords;
+        window._hssMasterRegistersIsFull = true;
+      }
+      scopeMemoryCache.clear();
+      setCachedCollectionData('masterRegisters', allRecords);
+      markCollectionFullyHydrated('masterRegisters', true);
+      return allRecords;
+    } catch (err) {
+      console.warn('[dbCache] full master-register fetch error:', err);
+      throw err;
+    }
+  }
+
   // If specific cohort is provided, route directly to on-demand query
   if (options?.session || options?.className || options?.class || options?.stream) {
     return getMasterRegistersByScope({

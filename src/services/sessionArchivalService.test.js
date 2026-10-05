@@ -1,35 +1,80 @@
-import { archiveSessionRecords } from './sessionArchivalService';
-import { doc, getDocs, runTransaction } from 'firebase/firestore';
+import { archiveSessionRecords, generateMasterRegisterDocId } from './sessionArchivalService';
+import { doc, getDocs, setDoc, writeBatch } from 'firebase/firestore';
+
 jest.mock('./firebase', () => ({ db: {} }));
-jest.mock('firebase/firestore', () => ({ collection: jest.fn(), doc: jest.fn(), getDocs: jest.fn(), query: jest.fn(), where: jest.fn(),
-  orderBy: jest.fn(), documentId: jest.fn(), limit: jest.fn(), startAfter: jest.fn(), runTransaction: jest.fn(), serverTimestamp: () => 'SERVER_TIME' }));
-const student = { _docId: 'physical', Session: '2025-26', Class: '12th', Status: 'Approved', classRollNo: '1', boardRegNo: 'REG1', studentName: 'Synthetic' };
+jest.mock('./dbCache', () => ({ clearAllMemoryCache: jest.fn(), invalidateCache: jest.fn() }));
+jest.mock('firebase/firestore', () => ({
+  collection: jest.fn(),
+  doc: jest.fn(),
+  getDocs: jest.fn(),
+  query: jest.fn(),
+  where: jest.fn(),
+  orderBy: jest.fn(),
+  documentId: jest.fn(),
+  limit: jest.fn(),
+  startAfter: jest.fn(),
+  writeBatch: jest.fn(),
+  serverTimestamp: () => 'SERVER_TIME',
+  setDoc: jest.fn(),
+  deleteDoc: jest.fn()
+}));
+
+const student = {
+  _docId: 'physical',
+  Session: '2025-26',
+  Class: '12th',
+  Status: 'Approved',
+  classRollNo: '1',
+  boardRegNo: 'REG1',
+  studentName: 'Synthetic'
+};
+
 function setup(extra = {}) {
   const records = { 'admissions/physical': student, 'site/settings': { session: '2025-26' }, ...extra };
-  doc.mockImplementation((_db,...parts) => ({ path: parts.join('/') }));
+  doc.mockImplementation((_db, ...parts) => ({ path: parts.join('/') }));
   getDocs.mockResolvedValue({ docs: [], size: 0 });
-  const tx = { get: async ref => ({ exists: () => Object.hasOwn(records, ref.path), data: () => records[ref.path] }),
-    set: jest.fn((ref, data, options) => { records[ref.path] = options?.merge ? { ...records[ref.path], ...data } : data; }) };
-  runTransaction.mockImplementation((_db, body) => body(tx));
-  return { records, tx };
+  const applySet = (ref, data, options) => {
+    records[ref.path] = options?.merge ? { ...records[ref.path], ...data } : data;
+  };
+  const applyDelete = ref => { delete records[ref.path]; };
+  writeBatch.mockImplementation(() => ({
+    set: jest.fn(applySet),
+    delete: jest.fn(applyDelete),
+    commit: jest.fn().mockResolvedValue()
+  }));
+  setDoc.mockImplementation(async (ref, data, options) => applySet(ref, data, options));
+  return { records };
 }
-const options = { session: '2025-26', newSession: '2026-27', purgeDrafts: false, purgeRejected: false };
-test('archive and pointer are in one transaction and the old source leaves active queries', async () => {
+
+const options = { session: '2025-26', newSession: '2026-27' };
+
+beforeEach(() => jest.clearAllMocks());
+
+test('archives each approved application into its own deterministic master-register document', async () => {
   const { records } = setup();
   await archiveSessionRecords([student], options);
-  expect(records['masterRegisters/archive_2025-26_physical'].studentName).toBe('Synthetic');
-  expect(records['admissions/physical']).toEqual({ _deleted: true, _archivedTo: 'masterRegisters/archive_2025-26_physical', Status: 'Archived', archivalJobId: '2025-26' });
-  expect(records['site/settings'].session).toBe('2026-27');
-  await archiveSessionRecords([student], options);
-  expect(records['masterRegisters/archive_2025-26_physical'].studentName).toBe('Synthetic');
+
+  const masterId = generateMasterRegisterDocId(student, '2025-26');
+  expect(records[`masterRegisters/${masterId}`]).toMatchObject({
+    id: masterId,
+    _docId: masterId,
+    _source: 'masterRegisters',
+    _isHistorical: true,
+    session: '2025-26',
+    canonicalClass: '12th',
+    boardRegNo: 'REG1'
+  });
+  expect(records['admissions/physical']).toBeUndefined();
+  expect(records['site/settings']).toMatchObject({ session: '2026-27', lastArchivedSession: '2025-26' });
 });
-test('different cohort fails before any archive write', async () => {
-  const { tx } = setup({ 'admissions/physical': { ...student, Session: '2024-25' } });
-  await expect(archiveSessionRecords([student], options)).rejects.toThrow(/different session/);
-  expect(tx.set).not.toHaveBeenCalled();
+
+test('keeps identifiers stable for a repeat archive attempt', () => {
+  expect(generateMasterRegisterDocId(student, '2025-26')).toBe('mr_2025-26_12th_REG1');
+  expect(generateMasterRegisterDocId({ ...student, _docId: 'another-physical' }, '2025-26')).toBe('mr_2025-26_12th_REG1');
 });
-test('existing archives cannot be replaced by a recreated admission', async () => {
-  const { tx } = setup({ 'masterRegisters/archive_2025-26_physical': { studentName: 'Earlier student' } });
-  await expect(archiveSessionRecords([student], options)).rejects.toThrow(/already has an archive/);
-  expect(tx.set).not.toHaveBeenCalled();
+
+test('rejects an invalid target session before starting any writes', async () => {
+  setup();
+  await expect(archiveSessionRecords([student], { ...options, newSession: 'invalid' })).rejects.toThrow(/valid new academic session/);
+  expect(writeBatch).not.toHaveBeenCalled();
 });

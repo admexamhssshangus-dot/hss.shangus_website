@@ -6,7 +6,7 @@
 // Supports students originating from live admissions, master registers, and static rosters.
 // =================================================================
 
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { updateCachedItem } from './dbCache';
 import { getAssignedClassRollNumber, isStudentExamDropped } from '../utils/studentApprovalStatus';
@@ -322,50 +322,18 @@ export async function persistStudentExamDropStatus(student, shouldDrop, reasonTe
     console.warn('[examineeDropService] Cloud settings note:', cloudErr.message || cloudErr);
   }
 
-  // 4. Update the student document in Firestore if an authentic docId or formNo exists
-  let primaryDocUpdated = false;
+  // 4. Update the student's individual Firestore document if an authentic
+  // document ID exists.  Master-register entries are no longer nested arrays.
   const targetDocId = primaryDocId || formNo;
 
   if (targetDocId && targetDocId !== '—' && !targetDocId.startsWith('item_') && !targetDocId.startsWith('part_')) {
-    // If student has a parent chunk in masterRegisters
-    const parentDocId = student._parentDocId || student.parentDocId;
-    if (student._srcCollection === 'masterRegisters' && parentDocId) {
-      try {
-        const parentRef = doc(db, 'masterRegisters', String(parentDocId));
-        const parentSnap = await getDoc(parentRef);
-        if (parentSnap.exists()) {
-          const parentData = parentSnap.data();
-          const arrayKey = ['items', 'students', 'records', 'data'].find(k => Array.isArray(parentData[k]));
-          if (arrayKey) {
-            const updatedArray = parentData[arrayKey].map(rec => {
-              const recKeys = getStudentDropLookupKeys(rec);
-              const matches = recKeys.some(rk => keys.includes(rk));
-              if (matches) {
-                return { ...rec, ...updatePayload };
-              }
-              return rec;
-            });
-            await setDoc(parentRef, { [arrayKey]: updatedArray, updatedAt: serverTimestamp() }, { merge: true });
-            updateCachedItem('masterRegisters', String(parentDocId), { [arrayKey]: updatedArray });
-            primaryDocUpdated = true;
-          }
-        }
-      } catch (chunkErr) {
-        console.warn('[examineeDropService] Chunk update note:', chunkErr.message || chunkErr);
-      }
-    }
-
-    // Attempt direct setDoc with merge in target collection (masterRegisters or admissions)
-    if (!primaryDocUpdated) {
-      const targetColl = (student._srcCollection === 'masterRegisters' || student._source === 'masterRegisters' || student._isHistorical) ? 'masterRegisters' : 'admissions';
-      try {
-        const targetRef = doc(db, targetColl, targetDocId);
-        await setDoc(targetRef, updatePayload, { merge: true });
-        updateCachedItem(targetColl, targetDocId, updatePayload);
-        primaryDocUpdated = true;
-      } catch (err) {
-        console.warn(`[examineeDropService] Direct ${targetColl} setDoc note:`, err.message || err);
-      }
+    const targetColl = (student._srcCollection === 'masterRegisters' || student._source === 'masterRegisters' || student._isHistorical) ? 'masterRegisters' : 'admissions';
+    try {
+      const targetRef = doc(db, targetColl, targetDocId);
+      await setDoc(targetRef, updatePayload, { merge: true });
+      updateCachedItem(targetColl, targetDocId, updatePayload);
+    } catch (err) {
+      console.warn(`[examineeDropService] Direct ${targetColl} setDoc note:`, err.message || err);
     }
   }
 

@@ -14,75 +14,34 @@ import OfficialLetterWriterView from './OfficialLetterWriterView';
 import StudentCertificateStudioView from './StudentCertificateStudioView';
 
 /**
- * Standardize and flatten student records from masterRegisters chunk/group documents into standard student objects.
- * Handles chunk_001..chunk_123, groupKey documents, and individual student documents.
+ * Standardize individual master-register student documents for the studio.
  * @param {Array<object>} masterDocs - Raw documents from Firestore masterRegisters collection
  * @returns {Array<object>} Flat array of normalized student records
  */
 export function unpackMasterRegisterStudents(masterDocs = []) {
-  const flatList = [];
-  if (!Array.isArray(masterDocs)) return flatList;
-
-  masterDocs.forEach(m => {
-    if (!m) return;
-    const chunkItems = m.items || m.students || m.records || m.data;
-    const docId = m.id || '';
-    const groupKey = m.groupKey || '';
-    
-    // Extract document-level fallback session, class, stream metadata
-    let docSession = m.Session || m.session || m['Academic Session'] || m['academicSession'] || '';
-    if (!docSession) {
-      if (groupKey) docSession = groupKey.split('_')[0];
-      else if (docId.startsWith('part_')) {
-        const parts = docId.replace(/^part_/, '').split('_');
-        docSession = parts[0];
-      }
-    }
-    const docClass = m.class || m.Class || m.className || m['Class'] || (groupKey ? groupKey.split('_')[1] : '') || '';
-    const docStream = m.stream || m.Stream || m['Stream'] || (groupKey ? groupKey.split('_')[2] : '') || '';
-
-    if (Array.isArray(chunkItems) && chunkItems.length > 0) {
-      chunkItems.forEach((item, itemIdx) => {
-        if (item && typeof item === 'object') {
-          const itemSession = item.Session || item.session || item['Academic Session'] || item['academicSession'] || item['Session / Batch'] || item['Batch'] || docSession || '';
-          const itemClass = item.Class || item.class || item['Class'] || item['Admission sought for class'] || docClass || '';
-          const itemStream = item.Stream || item.stream || item['Stream'] || docStream || '';
-          const itemId = item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docId}_${itemIdx}`;
-
-          flatList.push({
-            ...item,
-            id: itemId,
-            Session: itemSession,
-            session: itemSession,
-            Class: itemClass,
-            class: itemClass,
-            Stream: itemStream,
-            stream: itemStream,
-            _source: 'masterRegisters',
-            _srcCollection: 'masterRegisters',
-            _parentDocId: docId
-          });
-        }
-      });
-    } else if (typeof m === 'object' && !chunkItems) {
-      // Individual student document in masterRegisters
-      const itemSession = m.Session || m.session || m['Academic Session'] || docSession || '';
-      flatList.push({
-        ...m,
-        id: m.id || m['Form Number'] || m.formNo,
-        Session: itemSession,
-        session: itemSession,
-        Class: docClass || m.Class || m.class,
-        class: docClass || m.class || m.Class,
-        Stream: docStream || m.Stream || m.stream,
-        stream: docStream || m.stream || m.Stream,
-        _source: 'masterRegisters',
-        _srcCollection: 'masterRegisters'
-      });
-    }
+  if (!Array.isArray(masterDocs)) return [];
+  return masterDocs.flatMap((record) => {
+    if (!record || typeof record !== 'object' || record.Status === 'Deleted' || record.status === 'Deleted' || record._deleted) return [];
+    const documentId = String(record._docId || record.id || '').trim();
+    if (!documentId) return [];
+    const session = record.Session || record.session || record['Academic Session'] || '';
+    const className = record.Class || record.class || record.className || record['Admission sought for class'] || '';
+    const stream = record.Stream || record.stream || record['Stream'] || '';
+    return [{
+      ...record,
+      id: documentId,
+      _docId: documentId,
+      Session: session,
+      session,
+      Class: className,
+      class: className,
+      Stream: stream,
+      stream,
+      _source: 'masterRegisters',
+      _srcCollection: 'masterRegisters',
+      _isHistorical: true
+    }];
   });
-
-  return flatList;
 }
 
 export default function OfficialDocumentsStudioView({
@@ -146,7 +105,7 @@ export default function OfficialDocumentsStudioView({
     setIsLoadingHistorical(true);
     setHistoricalFetchToast('Loading historical registers from Firestore...');
     try {
-      const docs = await getMasterRegistersScoped();
+      const docs = await getMasterRegistersScoped({ forceAll: true });
       const flatList = unpackMasterRegisterStudents(docs);
       setMasterHistoricalRecords(flatList);
       preloadStudentPhotosCache().catch(() => {});

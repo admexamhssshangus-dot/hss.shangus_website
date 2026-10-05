@@ -814,8 +814,8 @@ export async function updateStudentDocument(student, updates) {
   let updated = false;
   let successfulDocId = null;
 
-  // For nested chunk master register records, use transactional applyRecordPatch to prevent creating duplicate docs
-  if (isMasterRegister || student._parentDocId || student.parentDocId || String(student.id || '').includes('chunk_')) {
+  // Update a master-register student through its exact Firestore document ID.
+  if (isMasterRegister) {
     try {
       const jobId = await applyRecordPatch({ ...student, _source: 'masterRegisters' }, updates, { force: true });
       if (jobId) {
@@ -8221,10 +8221,10 @@ function AdvancedReports({
         showToast('Loading requested session archives from Cloud Firestore...', 'info');
         const sessionPromises = (activeSessList && activeSessList.length > 0)
           ? activeSessList.map(sess => getMasterRegistersScoped({ session: sess }))
-          : [getMasterRegistersScoped()];
-        const fullChunks = (await Promise.all(sessionPromises)).flat();
-        if (Array.isArray(fullChunks) && fullChunks.length > 0) {
-          const formatted = flattenAndFormatMasterRegisters(fullChunks);
+          : [getMasterRegistersScoped({ forceAll: true })];
+        const fullDocuments = (await Promise.all(sessionPromises)).flat();
+        if (Array.isArray(fullDocuments) && fullDocuments.length > 0) {
+          const formatted = flattenAndFormatMasterRegisters(fullDocuments);
           startTransition(() => {
             setMasterHistoricalRecords(formatted);
           });
@@ -8933,7 +8933,7 @@ function AdvancedReports({
 
   // ─── Comprehensive Full Disaster Recovery Database Compiler ───
   // Compiles all Firestore collections into a unified, lossless disaster recovery payload:
-  // admissions, masterRegisters (raw chunks + unpacked records), studentPhotos (lossless Base64),
+  // admissions, one-document-per-student masterRegisters, studentPhotos (lossless Base64),
   // attendance, holidays, practicals, funds, site configs, system settings, admin permissions, and recycle bin.
   const compileFullDisasterRecoveryDatabase = async () => {
     // 1. Fetch raw admissions collection from Firestore
@@ -8949,14 +8949,14 @@ function AdvancedReports({
       rawAdmissionsList = currentAdmissions || [];
     }
 
-    // 2. Fetch full Master Registers (raw chunks + unpacked records across 2006-2026)
-    let rawMasterChunks = [];
+    // 2. Fetch full Master Registers (individual student documents across 2006-2026)
+    let rawMasterRegisterDocuments = [];
     let formattedMasterRecords = [];
     try {
-      const fullChunks = await getMasterRegistersScoped({ forceAll: true });
-      if (Array.isArray(fullChunks) && fullChunks.length > 0) {
-        rawMasterChunks = fullChunks;
-        formattedMasterRecords = flattenAndFormatMasterRegisters(fullChunks);
+      const fullDocuments = await getMasterRegistersScoped({ forceAll: true });
+      if (Array.isArray(fullDocuments) && fullDocuments.length > 0) {
+        rawMasterRegisterDocuments = fullDocuments;
+        formattedMasterRecords = flattenAndFormatMasterRegisters(fullDocuments);
         startTransition(() => {
           setMasterHistoricalRecords(formattedMasterRecords);
         });
@@ -9238,7 +9238,7 @@ function AdvancedReports({
         exportTimestamp: new Date().toISOString(),
         totalStudents: unifiedStudents.length,
         totalAdmissions: enrichedAdmissions.length,
-        totalMasterRegisterChunks: rawMasterChunks.length,
+        totalMasterRegisterDocuments: rawMasterRegisterDocuments.length,
         totalMasterHistoricalRecords: enrichedMasterRecords.length,
         totalStudentPhotos: studentPhotosList.length,
         totalFaculty: facultyList.length,
@@ -9253,7 +9253,7 @@ function AdvancedReports({
       },
       // Raw direct Firestore collections
       admissions: enrichedAdmissions,
-      masterRegisters: rawMasterChunks,
+      masterRegisters: rawMasterRegisterDocuments,
       masterHistoricalRecords: enrichedMasterRecords,
       studentPhotos: studentPhotosList,
       attendance: attendanceList,
@@ -9279,7 +9279,7 @@ function AdvancedReports({
       fullBackupPayload,
       unifiedStudents,
       enrichedAdmissions,
-      rawMasterChunks,
+      rawMasterRegisterDocuments,
       enrichedMasterRecords,
       studentPhotosList,
       facultyList,
@@ -9304,7 +9304,7 @@ function AdvancedReports({
         fullBackupPayload,
         unifiedStudents,
         enrichedAdmissions,
-        rawMasterChunks,
+        rawMasterRegisterDocuments,
         studentPhotosList,
         facultyList,
         noticesList,
@@ -9387,7 +9387,7 @@ function AdvancedReports({
         `Generated At   : ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
         `Students Scope : ${studentsToExport.length} Students (${masterMultiScope === 'filtered' ? 'Filtered Scope' : 'Full Database Universe'})`,
         `Admissions Coll: ${enrichedAdmissions.length} active admission documents`,
-        `Master Register: ${rawMasterChunks.length} chunk documents`,
+        `Master Register: ${rawMasterRegisterDocuments.length} individual student documents`,
         `Student Photos : ${studentPhotosList.length} Base64 passport photo documents`,
         `Column Mode    : ${masterMultiColumnMode === 'all' ? '100+ Complete Details' : '48 Standardized Columns'}`,
         `Faculty Members: ${facultyList.length}`,
@@ -9428,7 +9428,7 @@ function AdvancedReports({
         fullBackupPayload,
         unifiedStudents,
         enrichedAdmissions,
-        rawMasterChunks,
+        rawMasterRegisterDocuments,
         studentPhotosList,
         facultyList
       } = compiled;
@@ -9446,7 +9446,7 @@ function AdvancedReports({
       URL.revokeObjectURL(url);
 
       const mbSize = (blob.size / 1024 / 1024).toFixed(2);
-      logAdminActivity('Full JSON Disaster Recovery Backup', `Exported full database JSON (${mbSize} MB) containing ${unifiedStudents.length} students, ${enrichedAdmissions.length} admissions, ${rawMasterChunks.length} master chunks, ${studentPhotosList.length} Base64 photos, attendance, holidays, practicals & rules.`);
+      logAdminActivity('Full JSON Disaster Recovery Backup', `Exported full database JSON (${mbSize} MB) containing ${unifiedStudents.length} students, ${enrichedAdmissions.length} admissions, ${rawMasterRegisterDocuments.length} master-register documents, ${studentPhotosList.length} Base64 photos, attendance, holidays, practicals & rules.`);
       showToast(`✅ Full JSON Disaster Recovery Backup downloaded (${mbSize} MB | ${unifiedStudents.length} students | ${studentPhotosList.length} Base64 photos)!`, 'success');
     } catch (err) {
       console.error('JSON backup error:', err);
@@ -9489,7 +9489,7 @@ function AdvancedReports({
           message: `WARNING: You are about to restore data from this JSON backup file.\n\n` +
             `• Students Universe: ${hasStudents ? `${backupData.students.length} records detected` : 'Not present'}\n` +
             `• Raw Admissions: ${hasAdmissions ? `${backupData.admissions.length} documents detected` : 'Not present'}\n` +
-            `• Master Register Chunks: ${hasMasterRegisters ? `${backupData.masterRegisters.length} chunks detected` : 'Not present'}\n` +
+            `• Master Register Documents: ${hasMasterRegisters ? `${backupData.masterRegisters.length} records detected` : 'Not present'}\n` +
             `• Student Photos (Base64): ${hasStudentPhotos ? `${backupData.studentPhotos.length} photo documents detected` : 'Not present'}\n` +
             `• Attendance Records: ${hasAttendance ? `${backupData.attendance.length} records detected` : 'Not present'}\n` +
             `• Holidays: ${hasHolidays ? `${backupData.holidays.length} records detected` : 'Not present'}\n` +
@@ -10104,56 +10104,27 @@ function AdvancedReports({
     return flat;
   };
 
-  // Helper to flatten chunked or flat masterRegisters records into uniform objects
+  // Normalize individual master-register documents for the historical grid.
   const flattenAndFormatMasterRegisters = (rawList = []) => {
     if (!Array.isArray(rawList)) return [];
     const flat = [];
-    rawList.forEach((doc, docIdx) => {
+    rawList.forEach((doc) => {
       if (!doc || typeof doc !== 'object') return;
-      const chunk = doc.items || doc.students || doc.records || doc.data;
-      if (Array.isArray(chunk) && chunk.length > 0) {
-        const parentSession = doc.Session || doc.session || doc['Academic Session'] || doc.groupKey?.split('_')[0] || doc.id?.split('_')[0] || '';
-        const parentClass = doc.class || doc.Class || doc.className || doc['Class'] || doc.groupKey?.split('_')[1] || '';
-        const parentStream = doc.stream || doc.Stream || doc['Stream'] || doc.groupKey?.split('_')[2] || '';
-
-        chunk.forEach((item, itemIdx) => {
-          if (item && typeof item === 'object') {
-            if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
-            flat.push({
-              ...item,
-              id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${doc.id}_${itemIdx}`,
-              Session: item.Session || item.session || item['Academic Session'] || parentSession || '2024-25',
-              session: item.session || item.Session || item['Academic Session'] || parentSession || '2024-25',
-              Class: item.Class || item.class || item['Class'] || parentClass || '11th',
-              class: item.class || item.Class || item['Class'] || parentClass || '11th',
-              Stream: item.Stream || item.stream || item['Stream'] || parentStream || 'General',
-              stream: item.stream || item.Stream || item['Stream'] || parentStream || 'General',
-              _source: 'masterRegisters',
-              _srcCollection: 'masterRegisters',
-              _parentDocId: doc._docId || doc.id,
-              _arrayKey: ['items', 'students', 'records', 'data'].find(key => Array.isArray(doc[key])),
-              _arrayIndex: itemIdx,
-              _isHistorical: true,
-              _isCurrentScope: false
-            });
-          }
-        });
-      } else {
-        if (doc.Status === 'Deleted' || doc.status === 'Deleted' || doc._deleted === true) return;
-        flat.push({
-          ...doc,
-          _source: 'masterRegisters',
-          _srcCollection: 'masterRegisters',
-          _isHistorical: true,
-          _isCurrentScope: false
-        });
-      }
+      if (doc.Status === 'Deleted' || doc.status === 'Deleted' || doc._deleted === true) return;
+      flat.push({
+        ...doc,
+        id: doc._docId || doc.id,
+        _source: 'masterRegisters',
+        _srcCollection: 'masterRegisters',
+        _isHistorical: true,
+        _isCurrentScope: false
+      });
     });
     return flat;
   };
 
   // Historical archives stay unloaded until a search, a session selection, or an
-  // archive tool actually needs them. Formatting these large chunk documents on
+  // archive tool actually needs them. Formatting every historical document on
   // every initial grid render was the main cause of a sluggish first interaction.
   const [masterHistoricalRecords, setMasterHistoricalRecords] = useState([]);
   const historicalLoadAttemptedRef = useRef(false);
@@ -11815,7 +11786,9 @@ function AdvancedReports({
         historicalLoadAttemptedRef.current = true;
         setIsHydratingMasterRegisters(true);
         const scopeOptions = {};
-        if (selectedSessions && selectedSessions.length > 0 && selectedSessions[0] !== '__NONE__') {
+        if (fullDbSearchActive || fullHistoryRequested || showAnalyticsModal) {
+          scopeOptions.forceAll = true;
+        } else if (selectedSessions && selectedSessions.length > 0 && selectedSessions[0] !== '__NONE__') {
           scopeOptions.session = selectedSessions[0];
         }
         getMasterRegistersScoped(scopeOptions).then(ml => {

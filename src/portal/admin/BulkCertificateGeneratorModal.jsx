@@ -97,7 +97,7 @@ export default function BulkCertificateGeneratorModal({
     setIsRefreshingData(true);
     try {
       invalidateCollectionCache('masterRegisters');
-      const fresh = await getMasterRegistersScoped({ forceRefresh: true });
+      const fresh = await getMasterRegistersScoped({ forceAll: true, forceRefresh: true });
       if (Array.isArray(fresh) && fresh.length > 0) {
         const unpacked = unpackMasterRegisterStudents(fresh);
         setLiveMasterRegisters(unpacked);

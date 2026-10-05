@@ -42,83 +42,39 @@ import ExcelSpreadsheetGrid from './bulkOverwrite/ExcelSpreadsheetGrid';
 import ExpressDirectIngestionTab from './bulkOverwrite/ExpressDirectIngestionTab';
 import GazetteAndAdmitAiTab from './bulkOverwrite/GazetteAndAdmitAiTab';
 
-// Helper to unpack chunked or flat masterRegisters documents into standard candidate records
+// Normalize the individual master-register documents used by bulk updates.
 export function flattenMasterRegisters(rawList = []) {
   if (!Array.isArray(rawList)) return [];
-  const flat = [];
-  rawList.forEach((docItem, docIdx) => {
-    if (!docItem || typeof docItem !== 'object') return;
-    const chunk = docItem.items || docItem.students || docItem.records || docItem.data;
-    const parentSession = docItem.Session || docItem.session || docItem['Academic Session'] || docItem.groupKey?.split('_')[0] || docItem.id?.split('_')[0] || '';
-    const parentClass = docItem.class || docItem.Class || docItem.className || docItem['Class'] || docItem.groupKey?.split('_')[1] || '';
-    const parentStream = docItem.stream || docItem.Stream || docItem['Stream'] || docItem.groupKey?.split('_')[2] || '';
-
-    if (Array.isArray(chunk) && chunk.length > 0) {
-      chunk.forEach((item, itemIdx) => {
-        if (item && typeof item === 'object') {
-          if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
-          const iSess = item.Session || item.session || item['Academic Session'] || parentSession;
-          const iCls = item.Class || item.class || item['Class'] || parentClass;
-          const defaultStream = (String(iCls).includes('9') || String(iCls).includes('10')) ? 'General' : '';
-          const itemRoll = String(item['Class Roll No'] || item['Class Roll No.'] || item['Class R.No.'] || item['Class R.No'] || item['RL. NO.'] || item.classRollNo || item.rollNo || '').trim();
-          const hasItemRoll = itemRoll !== '' && itemRoll !== '-' && itemRoll !== '—' && itemRoll !== 'N/A' && itemRoll !== 'null' && itemRoll !== 'undefined';
-          const defaultStat = hasItemRoll ? 'Approved' : 'Submitted';
-          const resolvedItemStatus = item.status || item.Status || item.admissionStatus || defaultStat;
-
-          flat.push({
-            ...item,
-            id: item.id || item['Form Number'] || item['Form No.'] || item['Form No'] || item.formNo || item['Board Registration Number'] || `${docItem.id}_${itemIdx}`,
-            formNo: item.formNo || item['Form Number'] || item['Form No.'] || item['Form No'] || item.fNo || '',
-            classRollNo: item.classRollNo || item['Class Roll No'] || item['Class Roll No.'] || item['Class R.No.'] || item['Class R.No'] || item['RL. NO.'] || item.rollNo || '',
-            boardRegNo: item.boardRegNo || item.regNo || item['Board Registration Number'] || item['Board Reg. No.'] || item['Board Registration No.'] || '',
-            Session: iSess,
-            session: iSess,
-            Class: iCls,
-            class: iCls,
-            Stream: item.Stream || item.stream || item['Stream'] || parentStream || item.faculty || defaultStream,
-            stream: item.stream || item.Stream || item['Stream'] || parentStream || item.faculty || defaultStream,
-            status: resolvedItemStatus,
-            Status: resolvedItemStatus,
-            _source: 'masterRegisters',
-            _srcCollection: 'masterRegisters',
-            _parentDocId: docItem._docId || docItem.id,
-            _arrayKey: ['items', 'students', 'records', 'data'].find(key => Array.isArray(docItem[key])) || 'items',
-            _arrayIndex: itemIdx,
-            _isHistorical: true
-          });
-        }
-      });
-    } else {
-      if (docItem.Status === 'Deleted' || docItem.status === 'Deleted' || docItem._deleted === true) return;
-      const docSess = docItem.Session || docItem.session || docItem['Academic Session'] || parentSession;
-      const docCls = docItem.Class || docItem.class || docItem['Class'] || parentClass;
-      const defaultDocStream = (String(docCls).includes('9') || String(docCls).includes('10')) ? 'General' : '';
-      const docRoll = String(docItem['Class Roll No'] || docItem['Class Roll No.'] || docItem['Class R.No.'] || docItem['Class R.No'] || docItem['RL. NO.'] || docItem.classRollNo || docItem.rollNo || '').trim();
-      const hasDocRoll = docRoll !== '' && docRoll !== '-' && docRoll !== '—' && docRoll !== 'N/A' && docRoll !== 'null' && docRoll !== 'undefined';
-      const defaultDocStat = hasDocRoll ? 'Approved' : 'Submitted';
-      const resolvedDocStatus = docItem.status || docItem.Status || docItem.admissionStatus || defaultDocStat;
-
-      flat.push({
-        ...docItem,
-        id: docItem.id || docItem['Form Number'] || docItem['Form No.'] || `${docItem.id || 'doc'}_${docIdx}`,
-        formNo: docItem.formNo || docItem['Form Number'] || docItem['Form No.'] || docItem['Form No'] || docItem.fNo || '',
-        classRollNo: docItem.classRollNo || docItem['Class Roll No'] || docItem['Class Roll No.'] || docItem['Class R.No.'] || docItem['Class R.No'] || docItem['RL. NO.'] || docItem.rollNo || '',
-        boardRegNo: docItem.boardRegNo || docItem.regNo || docItem['Board Registration Number'] || docItem['Board Reg. No.'] || docItem['Board Registration No.'] || '',
-        Session: docSess,
-        session: docSess,
-        Class: docCls,
-        class: docCls,
-        Stream: docItem.Stream || docItem.stream || docItem['Stream'] || parentStream || docItem.faculty || defaultDocStream,
-        stream: docItem.stream || docItem.Stream || docItem['Stream'] || parentStream || docItem.faculty || defaultDocStream,
-        status: resolvedDocStatus,
-        Status: resolvedDocStatus,
-        _source: 'masterRegisters',
-        _srcCollection: 'masterRegisters',
-        _isHistorical: true
-      });
-    }
+  return rawList.flatMap((record) => {
+    if (!record || typeof record !== 'object' || record.Status === 'Deleted' || record.status === 'Deleted' || record._deleted) return [];
+    const documentId = String(record._docId || record.id || '').trim();
+    if (!documentId) return [];
+    const className = record.Class || record.class || record['Admission sought for class'] || '';
+    const streamFallback = /(?:9|10)/.test(String(className)) ? 'General' : '';
+    const classRollNo = record.classRollNo || record['Class Roll No'] || record['Class Roll No.'] || record['Class R.No.'] || record['Class R.No'] || record['RL. NO.'] || record.rollNo || '';
+    const status = record.status || record.Status || record.admissionStatus || (classRollNo ? 'Approved' : 'Submitted');
+    const session = record.Session || record.session || record['Academic Session'] || '';
+    const stream = record.Stream || record.stream || record['Stream'] || record.faculty || streamFallback;
+    return [{
+      ...record,
+      id: documentId,
+      _docId: documentId,
+      formNo: record.formNo || record['Form Number'] || record['Form No.'] || record['Form No'] || record.fNo || '',
+      classRollNo,
+      boardRegNo: record.boardRegNo || record.regNo || record['Board Registration Number'] || record['Board Reg. No.'] || record['Board Registration No.'] || '',
+      Session: session,
+      session,
+      Class: className,
+      class: className,
+      Stream: stream,
+      stream,
+      status,
+      Status: status,
+      _source: 'masterRegisters',
+      _srcCollection: 'masterRegisters',
+      _isHistorical: true
+    }];
   });
-  return flat;
 }
 
 // ─── Standard Database Fields Grouped by Functional Categories ───
@@ -1110,7 +1066,7 @@ export default function BulkFieldOverwriteModal({
       try {
         const [admissionsList, masterList] = await Promise.all([
           getCachedCollection('admissions').catch(() => []),
-          getCachedCollection('masterRegisters').catch(() => [])
+          getMasterRegistersScoped({ forceAll: true }).catch(() => [])
         ]);
 
         if (isCancelled) return;

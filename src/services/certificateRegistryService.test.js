@@ -110,6 +110,37 @@ describe('TC/DC certificate registry rules', () => {
     );
   });
 
+  test('stamps the exact individual master-register document', async () => {
+    const transactionSet = jest.fn();
+    getDoc.mockResolvedValue({ exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) });
+    runTransaction.mockImplementation(async (_db, operation) => operation({
+      get: jest.fn(async ref => {
+        if (ref === 'systemSettings/certificateRegistry') return { exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) };
+        if (String(ref).startsWith('certificateNumberLocks/')) return { exists: () => false, data: () => ({}) };
+        return { exists: () => true, data: () => ({}) };
+      }),
+      set: transactionSet
+    }));
+
+    await commitIssuedCertificateBatch([{
+      certNo: '1401',
+      student: {
+        regNo: 'REG-001',
+        raw: { _docId: 'mr_2025-26_12th_reg_REG001', _srcCollection: 'masterRegisters' }
+      }
+    }], '2026-09-04');
+
+    expect(transactionSet).toHaveBeenCalledWith(
+      'masterRegisters/mr_2025-26_12th_reg_REG001',
+      expect.objectContaining({ certificateNo: '1401', dischargeIssueDate: '2026-09-04' }),
+      { merge: true }
+    );
+    expect(transactionSet).toHaveBeenCalledWith(
+      'certificateNumberLocks/1401',
+      expect.objectContaining({ sourceDocument: 'masterRegisters/mr_2025-26_12th_reg_REG001' })
+    );
+  });
+
   test('does not reserve a serial when the student source record is missing', async () => {
     const transactionSet = jest.fn();
     getDoc.mockResolvedValue({ exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) });

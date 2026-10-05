@@ -79,31 +79,36 @@ async function findStudent(db, body) {
     }
   }
 
-  // Fallback: Check masterRegisters collection if not found in admissions
+  // Fallback: check the individual master-register documents with the same
+  // exact-field lookup strategy.  A fixed first-page scan used to miss almost
+  // every migrated record once chunk containers were replaced by student docs.
   if (matches.size === 0) {
     try {
-      const masterSnap = await db.collection('masterRegisters').limit(50).get();
       const qNorm = normalize(body.query);
-      for (const docSnap of masterSnap.docs) {
-        const docData = docSnap.data();
-        const records = ['items', 'students', 'records', 'data'].map(key => docData[key]).find(Array.isArray) || [docData];
-        for (const item of records) {
-          if (!item || typeof item !== 'object' || item.Status === 'Deleted' || item._deleted) continue;
-          const merged = { ...docData, ...item };
-          const student = studentProjection(merged);
-          const rReg = normalize(student.boardRegNo);
-          const rForm = normalize(student.formNo);
-          const rRoll = normalize(student.classRollNo);
-          const isMatch = (rReg && (rReg === qNorm || (qNorm.length < 10 && rReg.length >= 6 && qNorm.length >= 6 && rReg.endsWith(qNorm)))) ||
-                          (rForm && rForm === qNorm) ||
-                          (rRoll && rRoll === qNorm);
-          if (isMatch && (!body.className || classKey(student.className) === classKey(body.className)) &&
-              (!body.session || sessionKey(student.session) === sessionKey(body.session))) {
-            matches.set(`${docSnap.id}_${rReg || rForm || rRoll}`, { id: docSnap.id, data: merged, student });
-            if (matches.size >= 1) break;
+      const lookupTypes = body.type ? [body.type] : ['regNo', 'formNo', 'rollNo'];
+      for (const type of lookupTypes) {
+        const values = [...new Set([String(body.query).trim(), String(body.query).trim().toUpperCase()])];
+        for (const field of FIELDS[type] || []) {
+          for (const value of values) {
+            const snapshot = await db.collection('masterRegisters').where(new FieldPath(field), '==', value).limit(20).get();
+            if (snapshot.size === 20) throw Object.assign(new Error('Use a unique form or registration number.'), { status: 409 });
+            for (const docSnap of snapshot.docs) {
+              const data = docSnap.data();
+              if (!data || data.Status === 'Deleted' || data.status === 'Deleted' || data._deleted) continue;
+              const student = studentProjection(data);
+              const rReg = normalize(student.boardRegNo);
+              const rForm = normalize(student.formNo);
+              const rRoll = normalize(student.classRollNo);
+              const isMatch = (rReg && (rReg === qNorm || (qNorm.length < 10 && rReg.length >= 6 && qNorm.length >= 6 && rReg.endsWith(qNorm)))) ||
+                              (rForm && rForm === qNorm) ||
+                              (rRoll && rRoll === qNorm);
+              if (isMatch && (!body.className || classKey(student.className) === classKey(body.className)) &&
+                  (!body.session || sessionKey(student.session) === sessionKey(body.session))) {
+                matches.set(docSnap.id, { id: docSnap.id, data, student });
+              }
+            }
           }
         }
-        if (matches.size >= 1) break;
       }
     } catch (_) {}
   }
@@ -125,17 +130,10 @@ async function loadSource(db, sourceDocument, identity, followedArchive = false)
       !/^masterRegisters\/archive_[^/]+$/.test(data._archivedTo)) return null;
     return loadSource(db, data._archivedTo, identity, true);
   }
-  const records = ['items', 'students', 'records', 'data'].map(key => data[key]).find(Array.isArray);
-  if (!records) {
-    const student = studentProjection(data);
-    if ((identity.session && sessionKey(student.session) !== sessionKey(identity.session)) ||
-        (identity.className && classKey(student.className) !== classKey(identity.className))) return null;
-    return data;
-  }
-  const matches = records.filter(record => normalize(first(record, FIELDS.regNo)) === normalize(identity.regNo) &&
-    (!identity.session || sessionKey(studentProjection({ ...data, ...record }).session) === sessionKey(identity.session)) &&
-    (!identity.className || classKey(studentProjection({ ...data, ...record }).className) === classKey(identity.className)));
-  return matches.length === 1 ? { Session: data.session || data.Session, Class: data.class || data.Class, ...matches[0] } : null;
+  const student = studentProjection(data);
+  if ((identity.session && sessionKey(student.session) !== sessionKey(identity.session)) ||
+      (identity.className && classKey(student.className) !== classKey(identity.className))) return null;
+  return data;
 }
 function createHandler(operation) {
   return async event => {

@@ -155,7 +155,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
       // 2. Fetch masterRegisters to index by Form Number (scoped & cached)
       let masterRes = [];
       try {
-        masterRes = await getMasterRegistersScoped({ forceAll: false });
+        masterRes = await getMasterRegistersScoped({ forceAll: true });
       } catch (_) {
         const masterSnap = await getDocs(collection(db, 'masterRegisters'));
         masterRes = masterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -543,7 +543,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
         downloadUnapprovedJsonBackup(analysis.unapproved);
       }
 
-      // 2. Commit Approved to masterRegisters chunks and wipe admissions
+      // 2. Commit approved applications as individual master-register documents and wipe admissions
       await archiveSessionRecords(rawAdmissions, {
         session: archiveSessionTag,
         newSession: newSessionTag,
@@ -936,7 +936,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
                   <span>Administrative Authorization & Rollover Execution Confirmation</span>
                 </div>
                 <p className="text-[11px] font-bold text-purple-800 dark:text-purple-300 leading-relaxed">
-                  Executing this rollover will pack <strong>{analysis.approved.length} approved students</strong> into permanent <code className="font-mono font-black">masterRegisters</code> chunks for session <strong>"{archiveSessionTag}"</strong>. All <strong>{analysis.unapproved.length} unapproved/draft records</strong> will automatically download as an offline <code className="font-mono font-black">.json</code> file to your computer. Active <code className="font-mono font-black">admissions</code> will be completely emptied for incoming session <strong>"{newSessionTag}"</strong>.
+                  Executing this rollover will write <strong>{analysis.approved.length} approved students</strong> as individual permanent <code className="font-mono font-black">masterRegisters</code> documents for session <strong>"{archiveSessionTag}"</strong>. All <strong>{analysis.unapproved.length} unapproved/draft records</strong> will automatically download as an offline <code className="font-mono font-black">.json</code> file to your computer. Active <code className="font-mono font-black">admissions</code> will be completely emptied for incoming session <strong>"{newSessionTag}"</strong>.
                 </p>
               </div>
 
@@ -1023,7 +1023,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
               <div className="space-y-1">
                 <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">Annual Session Successfully Archived!</h3>
                 <p className="text-xs font-bold text-slate-600 dark:text-slate-300 max-w-lg mx-auto">
-                  <strong>{analysis.approved.length} approved students</strong> packaged into permanent <code className="font-mono text-purple-600">masterRegisters</code> chunks under session <strong>{archiveSessionTag}</strong>. All unapproved records downloaded to offline JSON. Active admissions intake is now 100% clean for session <strong>{newSessionTag}</strong>.
+                  <strong>{analysis.approved.length} approved students</strong> archived as individual permanent <code className="font-mono text-purple-600">masterRegisters</code> documents under session <strong>{archiveSessionTag}</strong>. All unapproved records downloaded to offline JSON. Active admissions intake is now 100% clean for session <strong>{newSessionTag}</strong>.
                 </p>
               </div>
             </div>

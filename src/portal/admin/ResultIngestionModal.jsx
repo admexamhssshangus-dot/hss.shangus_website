@@ -129,7 +129,7 @@ export default function ResultIngestionModal({
       });
 
       // 2. Fetch masterRegisters using SWR cache to match against historical rosters
-      getMasterRegistersScoped({ forceAll: false }).then(docs => {
+      getMasterRegistersScoped({ forceAll: true }).then(docs => {
         const flat = unpackMasterRegisterStudents(docs);
         setMasterRegisterStudents(flat);
       }).catch(async () => {

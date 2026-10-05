@@ -186,41 +186,9 @@ export default function StudentResultEditorModal({
       };
 
       const collName = raw._srcCollection || (student.sourceType === 'past' ? 'masterRegisters' : 'admissions');
-      const parentDocId = raw._parentDocId || student._parentDocId || '';
-
-      if (collName === 'masterRegisters' && parentDocId) {
-        // Archived rosters are packed inside a parent chunk. Update the item in
-        // that chunk instead of creating a redundant flat master-register doc.
-        const parentRef = doc(db, 'masterRegisters', String(parentDocId));
-        const parentSnap = await getDoc(parentRef);
-        if (!parentSnap.exists()) throw new Error(`Master-register chunk ${parentDocId} was not found.`);
-        const parentData = parentSnap.data();
-        const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
-        if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student records array.`);
-
-        let didMatch = false;
-        const normalized = (value) => String(value || '').trim().toLowerCase();
-        const updatedRecords = parentData[arrayKey].map((record) => {
-          const recordForm = normalized(record.formNo || record['Form No.'] || record['Form Number']);
-          const recordReg = normalized(record.regNo || record.boardRegNo || record['Board Reg. No.'] || record['Board Registration Number']);
-          const recordName = normalized(record.studentName || record.name || record["Student's Name"] || record["Student's Name (as per school records)"]);
-          const matches = (formNo && recordForm === normalized(formNo)) ||
-            (regNo && recordReg === normalized(regNo)) ||
-            (studentName && recordName === normalized(studentName));
-          if (!matches) return record;
-          didMatch = true;
-          const itemPatch = { ...patch };
-          delete itemPatch.updatedAt;
-          return { ...record, ...itemPatch };
-        });
-        if (!didMatch) throw new Error('Student was not found inside the source master-register chunk.');
-        await setDoc(parentRef, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
-        updateCachedItem('masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords });
-      } else {
-        const studentDocRef = doc(db, collName, String(docId));
-        await setDoc(studentDocRef, patch, { merge: true });
-        updateCachedItem(collName, String(docId), patch);
-      }
+      const studentDocRef = doc(db, collName, String(docId));
+      await setDoc(studentDocRef, patch, { merge: true });
+      updateCachedItem(collName, String(docId), patch);
 
       if (collName !== 'admissions' && formNo) {
         try {

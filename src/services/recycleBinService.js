@@ -6,7 +6,7 @@
 // =================================================================
 
 import { db } from './firebase';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, runTransaction, writeBatch, query, where } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, collection, getDocs, runTransaction, writeBatch } from 'firebase/firestore';
 import { updateCachedItem, invalidateCache, getCachedCollectionSync } from './dbCache';
 import { recycleDeletedFormNumber } from './formNumberService';
 
@@ -105,13 +105,9 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
       }
     }
 
-    // 3. A historical record may live inside a master-register chunk rather than
-    // as a standalone document. Only inspect chunks when that was the source.
-    if (originalCollection === 'masterRegisters') {
-      await cleanStudentFromMasterRegistersChunks({ ...recordData, formNo, studentName, boardRegNo, id: rawId }).catch(() => {});
-    }
-
-    // 4. Update multi-tier local caches & global window cache
+    // 3. Update multi-tier local caches & global window cache.  The original
+    // Firestore document was deleted above; do not perform a second, fuzzy
+    // form/registration lookup that could delete a different historical row.
     idCandidates.forEach(cid => {
       updateCachedItem(originalCollection, cid, null);
     });
@@ -128,7 +124,7 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
     try { sessionStorage.removeItem('hss_reports_cache_v5'); } catch(e) {}
     try { sessionStorage.removeItem('cached_admin_dashboard'); } catch(e) {}
 
-    // 5. Recycle form number if present
+    // 4. Recycle form number if present
     if (formNo && formNo !== '—') {
       await recycleDeletedFormNumber(formNo, recordData, adminEmail).catch(() => {});
     }
@@ -146,86 +142,6 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
   } catch (err) {
     console.error('moveToRecycleBin error:', err);
     throw err;
-  }
-}
-
-/**
- * Remove matching student entries from inside masterRegisters chunk documents (items: []).
- */
-async function cleanStudentFromMasterRegistersChunks(studentTarget) {
-  if (!studentTarget) return;
-  const targetForm = String(studentTarget.formNo || studentTarget['Form Number'] || studentTarget['Form No.'] || studentTarget.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
-  const targetReg = String(studentTarget.boardRegNo || studentTarget['Board Registration Number'] || studentTarget.regNo || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
-  const targetId = String(studentTarget.id || studentTarget.docId || '').trim().toLowerCase();
-  const targetClass = String(studentTarget.class || studentTarget.Class || studentTarget['Admission sought for class'] || '').trim().toLowerCase();
-  const targetSession = String(studentTarget.session || studentTarget.Session || studentTarget['Academic Session'] || '').trim().toLowerCase();
-
-  // Fast path: if targetId is a known flat document in masterRegisters, delete it directly
-  if (targetId && !targetId.startsWith('chunk_')) {
-    try {
-      const directRef = doc(db, 'masterRegisters', targetId);
-      const directSnap = await getDoc(directRef).catch(() => null);
-      if (directSnap && directSnap.exists()) {
-        const dData = directSnap.data();
-        if (!Array.isArray(dData.items)) {
-          await deleteDoc(directRef).catch(() => {});
-          return;
-        }
-      }
-    } catch (_) {}
-  }
-
-  try {
-    let masterDocs = [];
-    if (targetSession) {
-      const q = query(collection(db, 'masterRegisters'), where('Session', '==', targetSession));
-      const s = await getDocs(q).catch(() => null);
-      if (s && !s.empty) masterDocs = s.docs;
-    } else if (targetForm) {
-      const q = query(collection(db, 'masterRegisters'), where('formNo', '==', targetForm));
-      const s = await getDocs(q).catch(() => null);
-      if (s && !s.empty) masterDocs = s.docs;
-    }
-    if (masterDocs.length === 0) return;
-
-    for (const d of masterDocs) {
-      const data = d.data();
-      if (Array.isArray(data.items) && data.items.length > 0) {
-        let modified = false;
-        const remainingItems = data.items.filter(item => {
-          if (!item) return false;
-          const iForm = String(item.formNo || item['Form Number'] || item['Form No.'] || item.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
-          const iReg = String(item.boardRegNo || item['Board Registration Number'] || item.regNo || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
-          const iId = String(item.id || item.docId || '').trim().toLowerCase();
-          const iClass = String(item.class || item.Class || item['Admission sought for class'] || '').trim().toLowerCase();
-          const iSession = String(item.session || item.Session || item['Academic Session'] || '').trim().toLowerCase();
-
-          const matchForm = targetForm && targetForm !== '—' && iForm && iForm === targetForm;
-          const matchId = targetId && iId && iId === targetId;
-          const sameClass = !targetClass || !iClass || targetClass === iClass;
-          const sameSession = !targetSession || !iSession || targetSession === iSession;
-          const matchReg = targetReg && targetReg !== '—' && iReg && iReg === targetReg && sameClass && sameSession;
-
-          if (matchForm || matchReg || matchId) {
-            modified = true;
-            return false;
-          }
-          return true;
-        });
-
-        if (modified) {
-          await setDoc(doc(db, 'masterRegisters', d.id), { ...data, items: remainingItems }, { merge: true }).catch(() => {});
-        }
-      } else {
-        const dForm = String(data.formNo || data['Form Number'] || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
-        const dId = String(d.id || data.id || data.docId || '').trim().toLowerCase();
-        if ((targetForm && dForm === targetForm) || (targetId && dId === targetId)) {
-          await deleteDoc(doc(db, 'masterRegisters', d.id)).catch(() => {});
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('cleanStudentFromMasterRegistersChunks warning:', err);
   }
 }
 
@@ -554,15 +470,7 @@ export async function sweepOrphanedStudentPhotos() {
       }
     };
 
-    [...cachedAdm, ...cachedMr].forEach(st => {
-      if (!st) return;
-      const inner = st.items || st.students || st.records || st.data;
-      if (Array.isArray(inner)) {
-        inner.forEach(sub => indexRecord(sub, sub?.id));
-      } else {
-        indexRecord(st, st.id || st._docId);
-      }
-    });
+    [...cachedAdm, ...cachedMr].forEach(st => indexRecord(st, st?.id || st?._docId));
 
     binSnap?.docs?.forEach(d => {
       const bData = d.data();
@@ -610,4 +518,3 @@ export async function sweepOrphanedStudentPhotos() {
     throw new Error(err.message || 'Failed to sweep orphaned photos.');
   }
 }
-
