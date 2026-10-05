@@ -1135,6 +1135,7 @@ export default function PracticalsPage() {
   const user = outletContext.user || null;
 
   const [practicalsSettings, setPracticalsSettings] = useState(null);
+  const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);
 
   // Resolve all teacher's officially assigned teaching subjects (supporting multiple subjects and explicit admin permissions)
   const allTeacherAssignedSubjects = useMemo(() => {
@@ -1402,7 +1403,6 @@ export default function PracticalsPage() {
   }, [location.state]);
   const [sortBy, setSortBy] = useState('rollAsc'); // 'rollAsc' | 'rollDesc' | 'nameAsc' | 'formAsc'
   const [showFilterSettings, setShowFilterSettings] = useState(false);
-  const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);
 
   useEffect(() => {
     loadSiteSettings().then(cfg => {
@@ -1652,14 +1652,15 @@ export default function PracticalsPage() {
     SUBJECT_MAP.find(s => s.name.toLowerCase() === String(selectedSubject || '').toLowerCase() || s.code.toLowerCase() === String(selectedSubject || '').toLowerCase()) ||
     displaySubjectMap[0] ||
     { name: selectedSubject || 'General English', code: 'EN', defaultMax: 20 };
+  const currentSubjCode = currentSubjectObj?.code || 'EN';
   const evalTypeNorm = String(practicalType || '').toLowerCase().includes('ext') ? 'external' : 'internal';
-  const currentMarksConfig = getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, currentSubjectObj.code);
-  const customSubjOverride = getSubjectOverride(activeEvalOption?.evalConfig?.subjectOverrides, currentSubjectObj.code, selectedClass);
+  const currentMarksConfig = getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, currentSubjCode);
+  const customSubjOverride = getSubjectOverride(activeEvalOption?.evalConfig?.subjectOverrides, currentSubjCode, selectedClass);
   const baseEvalMax = customSubjOverride?.maxMarks
     ? Number(customSubjOverride.maxMarks)
     : (isCustomEval && activeEvalOption?.evalConfig?.maxMarks
         ? Number(activeEvalOption.evalConfig.maxMarks)
-        : currentMarksConfig.max);
+        : (currentMarksConfig?.max ?? 20));
   const defaultSubjectPaperMax = customSubjOverride?.maxMarks
     ? Number(customSubjOverride.maxMarks)
     : baseEvalMax;
@@ -1669,7 +1670,7 @@ export default function PracticalsPage() {
     : Math.ceil(subjectMaxMarks * 0.36);
 
   const getSubjectMax = useCallback((code) => {
-    if (code === currentSubjectObj.code && Number(teacherCustomMax) > 0) {
+    if (code === (currentSubjectObj?.code || 'EN') && Number(teacherCustomMax) > 0) {
       return Number(teacherCustomMax);
     }
     const override = getSubjectOverride(activeEvalOption?.evalConfig?.subjectOverrides, code, selectedClass);
@@ -1679,8 +1680,8 @@ export default function PracticalsPage() {
     if (isCustomEval && activeEvalOption?.evalConfig?.maxMarks) {
       return Number(activeEvalOption.evalConfig.maxMarks);
     }
-    return getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, code).max;
-  }, [practicalsSettings, selectedClass, evalTypeNorm, isCustomEval, activeEvalOption, currentSubjectObj.code, teacherCustomMax]);
+    return getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, code)?.max ?? 20;
+  }, [practicalsSettings, selectedClass, evalTypeNorm, isCustomEval, activeEvalOption, currentSubjectObj?.code, teacherCustomMax]);
 
   // Fetch Roster strictly for confirmed students with assigned class roll numbers
   const fetchPracticalData = useCallback(async () => {
@@ -3718,8 +3719,8 @@ export default function PracticalsPage() {
       isExternal,
       evaluationType: practicalType,
       practicalType,
-      subjectCode: currentSubjectObj.code,
-      subjectName: currentSubjectObj.name,
+      subjectCode: currentSubjectObj?.code || 'EN',
+      subjectName: currentSubjectObj?.name || selectedSubject || 'General English',
       printDetails: { settings: practicalsSettings }
     });
   };
@@ -3977,7 +3978,7 @@ export default function PracticalsPage() {
                   Practical Evaluation
                 </h1>
                 <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[10px] font-black shrink-0 truncate max-w-[130px] sm:max-w-none">
-                  {selectedClass} • {currentSubjectObj.name} ({currentSubjectObj.code})
+                  {selectedClass} • {currentSubjectObj?.name || selectedSubject} ({currentSubjectObj?.code || 'EN'})
                 </span>
               </div>
             </div>

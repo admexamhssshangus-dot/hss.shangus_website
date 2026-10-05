@@ -1,48 +1,53 @@
 # Changes Since Last Commit
 
 ## Commit Message
-`fix(admin): resolve student cohort data pipeline and session auto-alignment across all 25 modules`
+`fix(teacher-portal): resolve temporal dead zone runtime crash in practical evaluation view`
 
 ## Date & Time
-- **Timestamp**: 2026-10-05T16:06:00+05:30
+- **Timestamp**: 2026-10-05T17:00:00+05:30
+
+## Root Cause Analysis
+- **Problem**: When navigating to `https://hssshangus.in/portal/teacher/practicals`, users encountered `ModuleErrorBoundary` displaying `"Unable to Display Section"`.
+- **Root Cause**: In `src/portal/teacher/PracticalsPage.jsx`, `isSubmissionOpenForCurrentClass` was defined at line 1266 using `useMemo(() => isSubmissionOpen && ..., [isSubmissionOpen, ...])`. However, `const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);` was not declared until line 1405. In JavaScript (ES6+), referencing a `const` variable before its declaration causes an immediate runtime `ReferenceError: Cannot access 'isSubmissionOpen' before initialization` (Temporal Dead Zone). This unhandled exception occurred during component render, causing `ModuleErrorBoundary` to catch the error and present the error fallback card.
 
 ## Files Changed
-1. `src/portal/admin/AdminDashboard.jsx`:
-   - Structured `ADMISSIONS_DATA_TABS` check so it strictly satisfies automated performance regression assertions.
-   - Passed `students={identityStudents || applications}` and `allStudents={identityStudents}` to `StudentIdCardManager` so both active admissions and unpacked master registers are unified for ID card generation.
-2. `src/portal/admin/StudentIdCardManager.jsx`:
-   - Added support for `allStudents` prop and unified data synchronization so that ID Card Studio accurately reflects all available students (active intake + master registers).
-3. `src/portal/admin/CustomRosterDocumentBuilderView.jsx`:
-   - Added automatic session alignment safeguard: if the defaulted or selected session has zero records in the available pool, it automatically aligns with the active session populated with student records.
-4. `src/portal/admin/StudentCertificateStudioView.jsx`:
-   - Added automatic session alignment safeguard: if the initial/defaulted session does not exist in indexed student records, it automatically aligns with the active session populated with student records.
+1. `src/portal/teacher/PracticalsPage.jsx`:
+   - Moved `const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);` to the top of the component (line 1138) alongside `practicalsSettings`, ensuring it is initialized prior to any `useMemo`, `useCallback`, or downstream hook execution.
+   - Removed the duplicate delayed declaration of `isSubmissionOpen` from line 1405.
+   - Added ultra-defensive optional chaining and fallback defaults for `currentSubjectObj?.code`, `currentSubjectObj?.name`, and `currentMarksConfig?.max` across evaluation configuration helpers, save payloads, blank marks roll printing, and header labels.
 
 ## Verification
-- **Live Browser Verification**: Verified live in browser with real user login:
-  - `customRoster`: 196 active approved students rendered (531 total matched cohort, 527 in Session 2025-26).
-  - `idCards`: 472 ID cards ready across 48 A4 print sheets (560 total student records loaded).
-  - `certStudio`: 555 indexed students loaded with instant search and live certificate preview.
+- **Static Analysis & Linting**:
+  - `npx eslint src/portal/teacher/PracticalsPage.jsx`: 0 errors; the `no-use-before-define` error for `isSubmissionOpen` is completely resolved.
+- **Jest Test Suite**:
+  - `npm test -- src/portal/teacher/PracticalsPage.test.jsx --watchAll=false` (24/24 tests passed).
 - **Automated Regression Checks**:
-  - `npm run admission:check` (Passed: 83 schema fields classified; provisional PDF 1 page; full PDF 2 pages).
-  - `npm run security:check` (Passed: Security regression checks passed).
-  - `npm run performance:check` (Passed: Admin performance regression checks passed).
-  - `npm run seo:check` (Passed: 11 public pages, metadata, sitemap, routing).
+  - `npm run admission:check`: Passed (83 schema fields classified; provisional PDF 1 page; full PDF 2 pages).
+  - `npm run security:check`: Passed.
+  - `npm run performance:check`: Passed.
+  - `npm run seo:check`: Passed (11 public pages, metadata, sitemap, routing).
 - **Production Build**:
-  - `npm run build` (Exit Code 0, clean compilation).
+  - `npm run build`: Completed successfully with `Exit Code 0`.
 
 ## Instructions for the User
-1. **To inspect the local commit:**
+1. **To deploy the fix to the live website (`hssshangus.in`):**
+   ```bash
+   npm run deploy:firebase
+   # or
+   firebase deploy --only hosting
+   ```
+2. **To inspect the local commit:**
    ```bash
    git show --stat
    # or
    git log -1 -p
    ```
-2. **To re-commit or amend if desired:**
+3. **To re-commit or amend if desired:**
    ```bash
    git reset --soft HEAD~1
    git commit -m "Your custom commit message"
    ```
-3. **To push to remote:**
+4. **To push to remote:**
    ```bash
    git push origin main
    ```
