@@ -1,21 +1,18 @@
 # Changes Since Last Commit
 
 ## Commit Message
-`fix(practicals): eliminate infinite recursion in scoped masterRegisters query and add safety timeout to loading state`
+`feat(practicals): enhance submission lock visibility, real-time sync, and view-only messaging in teacher portal`
 
 ## Date & Time
-- **Timestamp**: 2026-10-05T13:48:00+05:30
+- **Timestamp**: 2026-10-05T14:05:00+05:30
 
 ## Files Changed
-1. `src/services/dbCache.js`:
-   - **Resolved Infinite Async Recursion**: Removed the fallback loop in `getMasterRegistersByScope` that triggered infinite recursion when a requested cohort returned 0 documents (e.g. querying `session: '2024-25'` in `masterRegisters`, which only houses historical records up to `2023-24` while `2024-25` is in `admissions`).
-   - Any scope returning 0 documents from Firestore now safely caches `[]` into `scopeMemoryCache` and returns immediately (0 extra reads, 0 recursion).
-   - Set the default fallback cohort for historical registries in `getMasterRegistersScoped` to `'2023-24'`.
-
-2. `src/portal/admin/AdminPracticals.jsx`:
-   - Aligned the historical register query in `loadData` to request `{ session: '2023-24' }` (the latest historical cohort in `masterRegisters`), avoiding empty queries.
-   - Fixed destructuring for the 6 promises in `Promise.all` (`dropOverrides` was missing from array destructuring).
-   - Added a 7-second safety fallback timer (`safetyTimer`) that automatically clears `loading` to guarantee the portal interface never stays perpetually stuck on "Loading practical records...".
+1. `src/portal/teacher/PracticalsPage.jsx`:
+   - **Prominent Header Lock Badge**: Added a distinct `SUBMISSIONS LOCKED` badge with a lock icon in the top navigation bar when practical submissions are locked for the active class.
+   - **Expanded Alert Notification Banner**: Enhanced the locked notification banner with an "Administration Lock" badge and clear descriptive text explaining that practical & internal marks submissions for the class are closed by administration, placing the portal into View-Only Mode while keeping offline printouts accessible.
+   - **Class Dropdown Indicators**: Added `(Locked)` indicators next to Class 10th, 11th, and 12th in both desktop and mobile class selector dropdowns based on real-time `submissionWindows` status.
+   - **Action Footer Lock Notice**: Added an inline warning above the Save Draft and Final Submit buttons informing the teacher that submissions are currently closed and actions are locked.
+   - **Input & Submit Guards**: All marks inputs and submission action buttons remain strictly disabled when an admin lock is active, with dialog notifications if attempted.
 
 ## Verification
 - Verified production build via `npm run build` (Completed with `Exit Code 0`, zero breaking errors, all 11 public SEO pages verified).

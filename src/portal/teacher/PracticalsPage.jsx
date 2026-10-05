@@ -7,7 +7,7 @@ import {
   ArrowLeft, ArrowRight, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock, Search,
   Bookmark, Send, ChevronDown, ChevronRight, Check, SlidersHorizontal, Zap, X, Info, Sparkles, Award,
-  AlertTriangle, ShieldAlert
+  AlertTriangle, ShieldAlert, Lock, Unlock
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
@@ -3989,17 +3989,39 @@ export default function PracticalsPage() {
                   <span className="hidden xs:inline">Assigned:</span> {teacherClassRegisteredSubject}
                 </span>
               )}
-              <div className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                <ShieldCheck size={10} /> LAB EVALUATION
-              </div>
+              {(!isSubmissionOpen || !isSubmissionOpenForCurrentClass) ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20" title={`Practical marks submission for Class ${selectedClass} is closed by administration.`}>
+                  <Lock size={10} className="text-rose-600 dark:text-rose-400" />
+                  <span>SUBMISSIONS LOCKED</span>
+                </span>
+              ) : (
+                <div className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                  <ShieldCheck size={10} /> LAB EVALUATION
+                </div>
+              )}
             </div>
           </div>
 
           {/* Alert Notification */}
           {(!isSubmissionOpen || !isSubmissionOpenForCurrentClass) && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-extrabold flex items-center gap-2 text-xs">
-              <ShieldAlert size={16} className="text-amber-600 shrink-0" />
-              <span>Practical Award Submissions for <strong>Class {selectedClass}</strong> are currently <strong>CLOSED</strong> by Administration. Marks cannot be submitted until authorized.</span>
+            <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-900 dark:text-amber-200 font-extrabold flex items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in duration-200">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/25 flex items-center justify-center text-amber-700 dark:text-amber-400 shrink-0">
+                  <ShieldAlert size={18} />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-black text-amber-950 dark:text-amber-100 text-xs sm:text-[13px] flex items-center gap-1.5 flex-wrap">
+                    <span>Practical Submissions for Class {selectedClass} are Currently Closed</span>
+                    <span className="px-1.5 py-0.2 rounded-md bg-amber-600/20 text-amber-900 dark:text-amber-300 text-[9.5px] uppercase font-mono font-black">Admin Lock</span>
+                  </div>
+                  <p className="text-[11px] font-medium text-amber-800/90 dark:text-amber-300/90 mt-0.5 leading-snug">
+                    Marks entry and online submissions for <strong>Class {selectedClass}</strong> have been locked by administration. Student rosters are available for viewing and offline physical award printouts, but marks cannot be submitted online until authorized.
+                  </p>
+                </div>
+              </div>
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-500/30 text-[10.5px] font-black uppercase shrink-0">
+                <Lock size={12} /> View-Only Mode
+              </span>
             </div>
           )}
 
@@ -4348,10 +4370,10 @@ export default function PracticalsPage() {
                     onChange={(e) => handleClassChange(e.target.value)}
                     className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors"
                   >
-                    <option value="12th">Class 12th</option>
-                    <option value="11th">Class 11th</option>
-                    <option value="10th">Class 10th</option>
-                    <option value="9th">Class 9th</option>
+                    <option value="12th">Class 12th {!isClassPracticalSubmissionEnabled(practicalsSettings, '12th') ? ' (Locked)' : ''}</option>
+                    <option value="11th">Class 11th {!isClassPracticalSubmissionEnabled(practicalsSettings, '11th') ? ' (Locked)' : ''}</option>
+                    <option value="10th">Class 10th {!isClassPracticalSubmissionEnabled(practicalsSettings, '10th') ? ' (Locked)' : ''}</option>
+                    <option value="9th">Class 9th {!isClassPracticalSubmissionEnabled(practicalsSettings, '9th') ? ' (Locked)' : ''}</option>
                   </select>
                 </div>
 
@@ -4506,10 +4528,10 @@ export default function PracticalsPage() {
                           onChange={(e) => handleClassChange(e.target.value)}
                           className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
                         >
-                          <option value="12th">Class 12th</option>
-                          <option value="11th">Class 11th</option>
-                          <option value="10th">Class 10th</option>
-                          <option value="9th">Class 9th</option>
+                          <option value="12th">Class 12th {!isClassPracticalSubmissionEnabled(practicalsSettings, '12th') ? ' (Locked)' : ''}</option>
+                          <option value="11th">Class 11th {!isClassPracticalSubmissionEnabled(practicalsSettings, '11th') ? ' (Locked)' : ''}</option>
+                          <option value="10th">Class 10th {!isClassPracticalSubmissionEnabled(practicalsSettings, '10th') ? ' (Locked)' : ''}</option>
+                          <option value="9th">Class 9th {!isClassPracticalSubmissionEnabled(practicalsSettings, '9th') ? ' (Locked)' : ''}</option>
                         </select>
                       </div>
 
@@ -5355,6 +5377,13 @@ export default function PracticalsPage() {
                 {displayedStudents.length} Students
               </span>
             </div>
+
+            {(!isSubmissionOpen || !isSubmissionOpenForCurrentClass) ? (
+              <div className="text-[11px] font-extrabold text-amber-700 dark:text-amber-400 flex items-center justify-end gap-1.5 px-1 py-1">
+                <Lock size={12} className="shrink-0 text-amber-600" />
+                <span>Submissions currently closed for Class {selectedClass}. Actions locked.</span>
+              </div>
+            ) : null}
 
             <div className="flex items-center gap-1.5">
               <button
