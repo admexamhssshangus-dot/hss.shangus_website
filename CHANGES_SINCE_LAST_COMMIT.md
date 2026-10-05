@@ -1,34 +1,24 @@
 # Changes Since Last Commit
 
 ## Commit Message
-`feat(portal): scope masterRegisters queries in teacher attendance, practicals, and public lookup, and retire legacy chunk containers`
+`fix(practicals): eliminate infinite recursion in scoped masterRegisters query and add safety timeout to loading state`
 
 ## Date & Time
-- **Timestamp**: 2026-10-05T13:35:00+05:30
+- **Timestamp**: 2026-10-05T13:48:00+05:30
 
 ## Files Changed
-1. `src/portal/admin/AdminPracticals.jsx`:
-   - Scoped `masterRegisters` query to academic cohort `2024-25` via `getMasterRegistersScoped({ session: '2024-25', forceRefresh: force })` instead of loading the unconstrained historical collection.
-   - Enhanced student name detection for flat master register documents (`StudentName`, `Student's Name`, `Student's Name (as per school records)`, `studentName`, `name`).
+1. `src/services/dbCache.js`:
+   - **Resolved Infinite Async Recursion**: Removed the fallback loop in `getMasterRegistersByScope` that triggered infinite recursion when a requested cohort returned 0 documents (e.g. querying `session: '2024-25'` in `masterRegisters`, which only houses historical records up to `2023-24` while `2024-25` is in `admissions`).
+   - Any scope returning 0 documents from Firestore now safely caches `[]` into `scopeMemoryCache` and returns immediately (0 extra reads, 0 recursion).
+   - Set the default fallback cohort for historical registries in `getMasterRegistersScoped` to `'2023-24'`.
 
-2. `src/portal/teacher/AttendancePage.jsx`:
-   - Replaced unconstrained `getCachedCollection('masterRegisters')` calls with scoped queries:
-     - Active session student lookup: `getMasterRegistersScoped({ session: '2025-26', className: selectedClass })`
-     - Historical session student lookup: `getMasterRegistersScoped({ session: selectedSession, className: selectedClass })`
-     - Report fallback resolution: `getMasterRegistersScoped({ session: reportSession, className: reportClass })`
-   - Drastically eliminates redundant Firestore read overhead when loading class attendance rosters.
-
-3. `src/pages/PublicResultLookup.jsx`:
-   - Scoped staff fallback candidate search using `getMasterRegistersScoped({ session: selectedSession, className: targetClsKey })` rather than fetching all master registers across all 20 historical sessions.
-
-4. Firestore Migration & Legacy Chunk Container Retirement:
-   - Backed up all 123 legacy `chunk_...` documents safely to `masterRegisters_legacy_chunks` in batches of 5 to respect Firestore commit payload limits.
-   - Deleted all 123 legacy chunk documents and 4 legacy partial documents from `masterRegisters`.
-   - Verified live in Firestore that `masterRegisters` now strictly contains all 6,020 flat individual student records (`mr_<session>_<class>_<identifier>`) with zero legacy chunk containers remaining.
+2. `src/portal/admin/AdminPracticals.jsx`:
+   - Aligned the historical register query in `loadData` to request `{ session: '2023-24' }` (the latest historical cohort in `masterRegisters`), avoiding empty queries.
+   - Fixed destructuring for the 6 promises in `Promise.all` (`dropOverrides` was missing from array destructuring).
+   - Added a 7-second safety fallback timer (`safetyTimer`) that automatically clears `loading` to guarantee the portal interface never stays perpetually stuck on "Loading practical records...".
 
 ## Verification
 - Verified production build via `npm run build` (Completed with `Exit Code 0`, zero breaking errors, all 11 public SEO pages verified).
-- Verified Firestore collection state live via Google Cloud Datastore / Firestore REST API.
 
 ## Instructions for the User
 1. **To inspect the local commit:**

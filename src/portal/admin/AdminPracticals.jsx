@@ -826,6 +826,9 @@ function AdminPracticals() {
 
   const loadData = useCallback(async (force = false) => {
     setLoading(true);
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 7000);
     if (force) {
       memoryPracticalsData = null;
       memoryPracticalsSettings = null;
@@ -857,7 +860,7 @@ function AdminPracticals() {
             return { docs: [], empty: true };
           });
 
-      const [ssRaw, setDocSnap, ts, admissionsData, masterRegistersData] = await Promise.all([
+      const [ssRaw, setDocSnap, ts, admissionsData, masterRegistersData, dropOverrides] = await Promise.all([
         fetchPracticals,
         fetchSettings,
         getStaffDirectory().catch(err => {
@@ -868,7 +871,7 @@ function AdminPracticals() {
           console.warn('admissions fetch note:', err?.message || err);
           return [];
         }),
-        getMasterRegistersScoped({ session: '2024-25', forceRefresh: force }).catch(err => {
+        getMasterRegistersScoped({ session: '2023-24', forceRefresh: force }).catch(err => {
           console.warn('masterRegisters fetch note:', err?.message || err);
           return [];
         }),
@@ -1309,6 +1312,7 @@ function AdminPracticals() {
       console.error(e);
       showAlert('error', 'Failed to load practicals data.');
     } finally {
+      clearTimeout(safetyTimer);
       setLoading(false);
     }
   }, []);

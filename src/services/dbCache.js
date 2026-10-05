@@ -548,20 +548,12 @@ export async function getMasterRegistersByScope({ session, className, stream, fo
       }
     }
 
-    // Fallback: If no flat docs match or during legacy chunk transition,
-    // load via chunk retrieval and filter in memory
-    const fallbackList = await getMasterRegistersScoped({ forceAll: false });
-    const scopedList = (fallbackList || []).filter(s => {
-      if (cleanSession && !isStudentInSessionFast(s, cleanSession)) return false;
-      if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
-      if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
-      return true;
-    });
-
-    scopeMemoryCache.set(cacheKey, scopedList);
-    return scopedList;
+    // If no records match this scope, cache empty array and return safely (zero loops)
+    scopeMemoryCache.set(cacheKey, []);
+    return [];
   } catch (err) {
     console.warn('[dbCache] getMasterRegistersByScope error:', err);
+    scopeMemoryCache.set(cacheKey, []);
     return [];
   }
 }
@@ -587,10 +579,10 @@ export async function getMasterRegistersScoped(options = {}) {
     return window._hssMasterRegistersCache;
   }
 
-  // 2. Default: Load ONLY the current/recent default academic session on-demand!
+  // 2. Default: Load ONLY the most recent historical academic session on-demand!
   try {
-    const defaultSession = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hss_last_selected_session') : null) || '2024-25';
-    const recentScoped = await getMasterRegistersByScope({ session: defaultSession });
+    const defaultSession = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hss_last_selected_session') : null) || '2023-24';
+    const recentScoped = await getMasterRegistersByScope({ session: defaultSession, forceRefresh: options?.forceRefresh });
     if (typeof window !== 'undefined') {
       window._hssMasterRegistersCache = recentScoped;
       window._hssMasterRegistersIsFull = false;
