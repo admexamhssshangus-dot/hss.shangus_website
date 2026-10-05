@@ -17,6 +17,7 @@ import {
   updateCachedItem,
   getCachedCollectionSync,
   getCachedCollection,
+  getMasterRegistersByScope,
   fetchStudentPhotoOnDemand,
   isValidPhotoKey
 } from '../../services/dbCache';
@@ -2207,18 +2208,8 @@ function AdmissionRegisterSuite({
     }
   }, [propAllHistory]);
 
-  // Direct-route usage may not receive the dashboard's archive prop. Load the cached
-  // archive once, only when needed, so missing legacy identifiers can still be enriched.
-  useEffect(() => {
-    if (historyDataset.length > 0) return undefined;
-    let active = true;
-    getCachedCollection('masterRegisters')
-      .then(records => {
-        if (active && Array.isArray(records) && records.length > 0) setHistoryDataset(records);
-      })
-      .catch(error => console.warn('Could not load historical register enrichment data:', error));
-    return () => { active = false; };
-  }, [historyDataset.length]);
+  // Eager mount-time whole-collection download removed to prevent quota exhaustion.
+  // Historical registers are now loaded strictly on-demand per selected session.
 
   // 1. Flatten all masterRegisters history records into a clean searchable lookup array
   const flatHistoryRecords = useMemo(() => {
@@ -2796,7 +2787,8 @@ function AdmissionRegisterSuite({
           }));
           await new Promise(r => setTimeout(r, 20));
 
-          const masterList = await getCachedCollection('masterRegisters');
+          // Strictly scoped on-demand query by selectedSession (~80 reads instead of 6,020!)
+          const masterList = await getMasterRegistersByScope({ session: selectedSession });
           const flat = [];
           (masterList || []).forEach(docItem => {
             if (!docItem) return;

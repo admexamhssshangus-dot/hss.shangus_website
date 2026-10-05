@@ -372,16 +372,9 @@ export async function getCachedCollection(collectionName, forceRefresh = false, 
  * Chunk IDs corresponding to deep historical archives (2006-07 through 2021-22).
  * Chunks 006 to 075 contain older records prior to 2022.
  */
-export const DEEP_ARCHIVE_CHUNK_REGEX = /^chunk_(00[6-9]|0[1-6][0-9]|07[0-5])$/;
-
-/**
- * Modern / recent chunk IDs (2022-2026: previous 4 sessions + current active).
- * Includes chunk_001..chunk_005 and chunk_076..chunk_123.
- */
-export const MODERN_CHUNK_IDS = [
-  'chunk_001', 'chunk_002', 'chunk_003', 'chunk_004', 'chunk_005',
-  ...Array.from({ length: 48 }, (_, i) => `chunk_${String(76 + i).padStart(3, '0')}`)
-];
+// Legacy chunk compatibility stubs (retired in favor of individual flat documents)
+export const DEEP_ARCHIVE_CHUNK_REGEX = /$^/;
+export const MODERN_CHUNK_IDS = [];
 
 /**
  * Check whether a collection stores chunked student registries (e.g. admissions, masterRegisters, legacyStudents).
@@ -576,7 +569,7 @@ export async function getMasterRegistersByScope({ session, className, stream, fo
 /**
  * Demand-based Master Registers retrieval:
  * If specific cohort options (session/class/stream) are provided, delegates to on-demand getMasterRegistersByScope.
- * Otherwise loads recent chunks by default, and deep historical archives (2006-2021) only when forceAll = true.
+ * NEVER executes an un-scoped getDocs on masterRegisters (which would read 6,020 documents).
  */
 export async function getMasterRegistersScoped(options = {}) {
   // If specific cohort is provided, route directly to on-demand query
@@ -589,75 +582,23 @@ export async function getMasterRegistersScoped(options = {}) {
     });
   }
 
-  const forceAll = options?.forceAll === true;
-
-  // 1. If full cache is already present, return it immediately (0 reads)
-  if (typeof window !== 'undefined' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
-    if (!forceAll || window._hssMasterRegistersIsFull) {
-      return window._hssMasterRegistersCache;
-    }
-  }
-
-  // 2. If user explicitly requested full 20-year history:
-  if (forceAll) {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'masterRegisters'));
-      const all = [];
-      querySnapshot.forEach(docSnap => {
-        all.push(...unpackMasterRegisterDoc(docSnap));
-      });
-      if (typeof window !== 'undefined') {
-        window._hssMasterRegistersCache = all;
-        window._hssMasterRegistersIsFull = true;
-      }
-      return all;
-    } catch (err) {
-      console.warn('[dbCache] getMasterRegistersScoped forceAll note:', err);
-      return window._hssMasterRegistersCache || [];
-    }
-  }
-
-  // 3. If recent cache already exists, return it (0 reads)
+  // 1. If in-memory cache is present, return it immediately (0 reads)
   if (typeof window !== 'undefined' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
     return window._hssMasterRegistersCache;
   }
 
-  // 4. Default: Load modern/recent chunks from Firestore in parallel (saves ~70 reads!)
+  // 2. Default: Load ONLY the current/recent default academic session on-demand!
   try {
-    const results = [];
-    const snaps = await Promise.all(
-      MODERN_CHUNK_IDS.map(id => getDoc(doc(db, 'masterRegisters', id)).catch(() => null))
-    );
-    snaps.forEach(snap => {
-      if (snap && snap.exists()) {
-        results.push(...unpackMasterRegisterDoc(snap));
-      }
-    });
-
-    if (results.length > 0) {
-      if (typeof window !== 'undefined') {
-        window._hssMasterRegistersCache = results;
-        window._hssMasterRegistersIsFull = false;
-      }
-      return results;
-    }
-
-    // Fallback if specific chunk IDs returned nothing:
-    const querySnapshot = await getDocs(collection(db, 'masterRegisters'));
-    const fallbackList = [];
-    querySnapshot.forEach(docSnap => {
-      if (DEEP_ARCHIVE_CHUNK_REGEX.test(docSnap.id)) return;
-      fallbackList.push(...unpackMasterRegisterDoc(docSnap));
-    });
-
+    const defaultSession = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hss_last_selected_session') : null) || '2024-25';
+    const recentScoped = await getMasterRegistersByScope({ session: defaultSession });
     if (typeof window !== 'undefined') {
-      window._hssMasterRegistersCache = fallbackList;
+      window._hssMasterRegistersCache = recentScoped;
       window._hssMasterRegistersIsFull = false;
     }
-    return fallbackList;
+    return recentScoped;
   } catch (err) {
-    console.warn('[dbCache] getMasterRegistersScoped note:', err);
-    return window._hssMasterRegistersCache || [];
+    console.warn('[dbCache] getMasterRegistersScoped default cohort note:', err);
+    return [];
   }
 }
 
@@ -1372,80 +1313,16 @@ export async function preloadStudentPhotosCache() {
 export { preloadStudentPhotosCache as preloadCentralStudentPhotos };
 
 /**
- * Loads and indexes all processed student photos directly from the Cloud Firestore 'studentPhotos' collection.
- * Populates window._hss_central_photo_map across registration numbers, form numbers, document IDs, and class-band tags.
- * Dispatches 'hss-photos-loaded' event so all active components and exporter counters update instantaneously.
+ * Resolves student photos in memory from loaded admissions and master registers.
+ * Zero Firestore reads: delegates to preloadStudentPhotosCache; individual missing photos
+ * are fetched strictly on-demand via fetchStudentPhotoOnDemand(student).
  */
 export async function loadCentralStudentPhotosFromFirestore() {
   if (typeof window === 'undefined') return {};
   try {
-    window._hss_central_photo_map = window._hss_central_photo_map || {};
-    const photoMap = window._hss_central_photo_map;
-
-    const photosSnap = await getDocs(collection(db, 'studentPhotos'));
-    let indexedCount = 0;
-
-    photosSnap.forEach(docSnap => {
-      const d = docSnap.data();
-      const rawP = d.photo_id || d.photoData || d.photo || d.photoUrl || d.data || d.url || '';
-      const p = formatPhotoDisplayUrl(rawP) || (typeof rawP === 'string' ? rawP.trim() : '');
-      if (p && p.length > 20 && p !== '/logo.png' && !p.includes('drive.google.com')) {
-        indexedCount++;
-        const docId = docSnap.id;
-        photoMap[docId] = p;
-        const cleanDocId = docId.replace(/^photo_/, '').replace(/^form_/, '').trim();
-        photoMap[cleanDocId] = p;
-
-        const reg = extractUniversalRegNo(d);
-        if (reg) {
-          photoMap[reg] = p;
-          photoMap[`photo_${reg}`] = p;
-          photoMap[`reg_${reg}`] = p;
-        }
-        if (d.regNo) {
-          const cReg = normalizeRegNoKey(d.regNo);
-          photoMap[cReg] = p;
-          photoMap[`photo_${cReg}`] = p;
-        }
-        if (d.boardRegNo) {
-          const cBoardReg = normalizeRegNoKey(d.boardRegNo);
-          photoMap[cBoardReg] = p;
-          photoMap[`photo_${cBoardReg}`] = p;
-        }
-        if (d.formNo) {
-          const cleanFNo = String(d.formNo).trim();
-          photoMap[cleanFNo] = p;
-          photoMap[`photo_form_${cleanFNo}`] = p;
-          photoMap[`photo_${cleanFNo}`] = p;
-        }
-
-        const dClass = normalizeCanonicalClass(d.selectedClass || d.class || d['Class'] || '');
-        if (reg && dClass) {
-          photoMap[`${reg}_${dClass}`] = p;
-          photoMap[`photo_${reg}_${dClass}`] = p;
-        }
-
-        if (Array.isArray(d.photoHistory)) {
-          d.photoHistory.forEach(h => {
-            const hUrl = formatPhotoDisplayUrl(h.url || h.photo_id || h.photoData || h.photo || '');
-            if (hUrl && hUrl.length > 20 && hUrl !== '/logo.png') {
-              const hClass = normalizeCanonicalClass(h.class || h.selectedClass || '');
-              const r = reg || d.boardRegNo || d.regNo;
-              if (r && hClass) {
-                photoMap[`${r}_${hClass}`] = hUrl;
-                photoMap[`photo_${r}_${hClass}`] = hUrl;
-              }
-            }
-          });
-        }
-      }
-    });
-
-    window._hss_central_photo_map = photoMap;
-    window.dispatchEvent(new CustomEvent('hss-photos-loaded', { detail: { count: indexedCount } }));
-    return photoMap;
+    return preloadStudentPhotosCache();
   } catch (err) {
-    console.warn('Could not load central student photos from Firestore:', err);
+    console.warn('loadCentralStudentPhotosFromFirestore note:', err);
     return window._hss_central_photo_map || {};
   }
 }

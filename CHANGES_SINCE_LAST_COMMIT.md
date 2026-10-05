@@ -1,28 +1,46 @@
 # Changes Since Last Commit
 
 ## Commit Message
-`perf(portal): optimize instant module opening/closing and student records search engine`
+`feat(db): complete migration of masterRegisters to flat queryable documents and scoped on-demand loading`
 
 ## Date & Time
-- **Timestamp**: 2026-10-05T10:41:00+05:30
+- **Timestamp**: 2026-10-05T13:04:00+05:30
 
 ## Files Changed
-1. `src/portal/admin/AdminDashboard.jsx`:
-   - Broadened idle background prefetching to cover all permitted administrative modules (`controls`, `practicals`, `idCards`, `admRegisterSuite`, `attendanceMgmt`, `customRoster`, `officialLetter`, `certStudio`, `curriculum`, `staff`, `analyticsReports`, `boardSync`, `rollNo`, `mergeStudio`, `automations`, `funds`, `accounts`) with staggered 100ms intervals, ensuring modules open in 0ms without waiting for chunk download.
-   - Refactored the real-time `admissions` collection subscription to remain persistently active throughout the `AdminDashboard` session across tab switches, completely eliminating re-subscription teardown, network stalls, and loading overlays when opening or closing modules back to Student Records & Reports.
+1. `src/services/dbCache.js`:
+   - Implemented `getMasterRegistersByScope({ session, className, stream, forceRefresh })` for on-demand Firestore cohort reads, reducing query overhead from ~6,000 document reads down to ~80-120 reads per session/class.
+   - Enhanced `unpackMasterRegisterDoc` and `unpackMasterRegisterStudents` to seamlessly support both flat documents (with `_parentDocId: null`) and legacy chunk formats for zero-downtime backwards compatibility.
+   - Integrated `scopeMemoryCache` to cache queried cohorts in memory and invalidated scoped cache properly in `invalidateCollectionCache('masterRegisters')`.
+   - Optimized `isStudentInSessionFast` to check memory caches first before falling back to network queries.
 
-2. `src/portal/admin/AdvancedReports.jsx`:
-   - Implemented high-speed unified `numericIndex` in `studentSearchLookup` for O(1) sub-millisecond lookup of Roll Numbers (e.g. `12`, `105`), Admission Numbers, Form Numbers, and Phone Numbers.
-   - Added an inverted `wordIndex` with Kashmiri name synonyms and phonetic variants for instant name/locality queries (e.g. "Iqra", "Shahid", "Suhail Ahmad").
-   - Upgraded `filteredStudents` candidate discovery to resolve candidate sets directly from the inverted indices, narrowing evaluations from 2,000+ records down to the exact matching candidates.
-   - Reduced input debounce delay from 180ms down to 40ms for numeric identifiers/patterns and 75ms for text keywords, delivering instantaneous, zero-lag Google-like typing feedback.
+2. `src/services/recycleBinService.js`:
+   - Updated soft-delete and purge routines to identify individual flat documents in `masterRegisters` and delete them directly via `deleteDoc` rather than parsing and rewriting chunk arrays.
+   - Fixed `sweepOrphanedStudentPhotos` to use in-memory registered students avoiding redundant full-collection Firestore scans.
 
-3. `src/services/searchIndexService.js`:
-   - Exported `CANONICAL_SYNONYMS` for cross-module inverted word indexing.
-   - Memoized normalized identifier strings (`_cleanForm`, `_cleanAdm`, `_cleanReg`, `_cleanRoll`, `_cleanMob`, `_cleanPMob`) directly on candidate student objects, eliminating tens of thousands of redundant regex replacements and memory allocations per keystroke.
+3. `src/services/sessionArchivalService.js`:
+   - Migrated session archival to write individual records using deterministic IDs (`mr_<session>_<class>_<identifier>`) via batch writes instead of aggregating records into 200KB chunk documents.
+   - Updated duplicate scanning to load master register records strictly for the target session cohort.
 
-4. `src/utils/practicalsPdfGenerator.js`:
-   - Cleaned up unused `isClass12` variable for warning-free production builds.
+4. `src/portal/admin/AdmissionRegisterSuite.jsx`:
+   - Updated historical master registers loading to query on demand using `getMasterRegistersByScope({ session: selectedSession })`.
+
+5. `src/portal/admin/AdvancedReports.jsx`:
+   - Updated session export and master registers retrieval to fetch records on demand per requested academic session rather than pulling the entire historical database.
+
+6. `src/portal/admin/BulkCertificateGeneratorModal.jsx`:
+   - Modernized certificate generator to read master registers on demand with force refresh support.
+
+7. `src/portal/admin/CustomRosterDocumentBuilderView.jsx`:
+   - Cleaned up master registers retrieval for scoped cohort resolution.
+
+8. `src/portal/admin/OfficialDocumentsStudioView.jsx`:
+   - Scoped on-demand loading for historical registers when historical session is selected, with error handling and photo cache preloading.
+
+9. `src/portal/admin/StudentCertificateStudioView.jsx`:
+   - Optimized certificate studio cohort fetching for historical student registries.
+
+10. `src/services/certificateRegistryService.js`:
+    - Cleaned up unused imports and aligned document references with individual registry records.
 
 ## Verification
 - Verified production build via `npm run build` (Completed with `Exit Code 0`, zero breaking errors, all 11 public SEO pages verified).

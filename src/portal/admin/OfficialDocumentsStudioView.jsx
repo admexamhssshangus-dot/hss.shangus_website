@@ -146,10 +146,7 @@ export default function OfficialDocumentsStudioView({
     setIsLoadingHistorical(true);
     setHistoricalFetchToast('Loading historical registers from Firestore...');
     try {
-      const docs = await getMasterRegistersScoped({ forceAll: true }).catch(async () => {
-        const snap = await getDocs(collection(db, 'masterRegisters'));
-        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      });
+      const docs = await getMasterRegistersScoped();
       const flatList = unpackMasterRegisterStudents(docs);
       setMasterHistoricalRecords(flatList);
       preloadStudentPhotosCache().catch(() => {});

@@ -10,7 +10,7 @@ import {
   FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Unlock, Edit3, Save,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Copy
 } from 'lucide-react';
-import { getCachedCollectionSync, getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
+import { getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, invalidateCollectionCache } from '../../services/dbCache';
 import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
 import {
   fetchLastIssuedCertificateNumber,
@@ -97,7 +97,7 @@ export default function BulkCertificateGeneratorModal({
     setIsRefreshingData(true);
     try {
       invalidateCollectionCache('masterRegisters');
-      const fresh = await getCachedCollection('masterRegisters', true);
+      const fresh = await getMasterRegistersScoped({ forceRefresh: true });
       if (Array.isArray(fresh) && fresh.length > 0) {
         const unpacked = unpackMasterRegisterStudents(fresh);
         setLiveMasterRegisters(unpacked);

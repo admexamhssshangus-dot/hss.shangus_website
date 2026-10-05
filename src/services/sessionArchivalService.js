@@ -246,8 +246,12 @@ export async function scanSessionDuplicates({ session = '2025-26', onProgress = 
 
   onProgress?.(15, `Indexed ${admByFormNo.size} admissions by Form Number. Reading master registers...`);
 
-  // Load all masterRegisters documents
-  const masterSnap = await getDocs(collection(db, 'masterRegisters'));
+  // Load masterRegisters documents strictly for target session (~80 reads instead of 6,020!)
+  let masterSnap = await getDocs(query(collection(db, 'masterRegisters'), where('Session', '==', normTargetSession))).catch(() => null);
+  if (!masterSnap || masterSnap.empty) {
+    masterSnap = await getDocs(query(collection(db, 'masterRegisters'), where('session', '==', normTargetSession))).catch(() => null);
+  }
+  if (!masterSnap) masterSnap = { docs: [], size: 0, empty: true };
   let duplicatesFound = 0;
   let matchedCount = 0;
   let fieldsHarvestedCount = 0;

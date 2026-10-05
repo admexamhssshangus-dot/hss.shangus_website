@@ -663,22 +663,8 @@ export default function StudentCertificateStudioView({
     return Array.isArray(cached) && cached.length > 0 ? unpackMasterRegisterStudents(cached) : [];
   });
 
-  useEffect(() => {
-    let isMounted = true;
-    const cancelIdleWork = scheduleIdleWork(() => {
-      getCachedCollection('masterRegisters', false, 30 * 60 * 1000).then((docs) => {
-        if (!isMounted || !Array.isArray(docs)) return;
-        const flat = unpackMasterRegisterStudents(docs);
-        if (flat.length > 0) {
-          React.startTransition(() => setMasterRegistersList(flat));
-        }
-      }).catch(() => {});
-    });
-    return () => {
-      isMounted = false;
-      cancelIdleWork();
-    };
-  }, []);
+  // Eager whole-collection download removed to prevent quota exhaustion.
+  // Master register records are resolved from synchronous memory cache or on-demand by student identifier.
 
   const combinedStudentPool = useMemo(() => {
     const primary = Array.isArray(allStudents) && allStudents.length > 0 ? allStudents : (Array.isArray(identityStudents) ? identityStudents : []);

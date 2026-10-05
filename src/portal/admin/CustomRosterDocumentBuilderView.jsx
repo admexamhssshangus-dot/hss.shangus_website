@@ -3384,22 +3384,8 @@ function CustomRosterDocumentBuilderView({
     return () => { isMounted = false; };
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-    const cancelIdleWork = scheduleIdleWork(() => {
-      getCachedCollection('masterRegisters', false, 30 * 60 * 1000).then((docs) => {
-        if (!isMounted || !Array.isArray(docs)) return;
-        const flat = unpackMasterRegisterStudents(docs);
-        if (flat.length > 0) {
-          React.startTransition(() => setMasterRegistersList(flat));
-        }
-      }).catch(() => {});
-    });
-    return () => {
-      isMounted = false;
-      cancelIdleWork();
-    };
-  }, []);
+  // Eager whole-collection download removed to prevent quota exhaustion.
+  // Historical records are resolved from synchronous memory cache or on-demand by session.
 
   // Combine live intake with historical registers seamlessly with scoped deduplication and field enrichment
   const combinedRawStudents = useMemo(() => {

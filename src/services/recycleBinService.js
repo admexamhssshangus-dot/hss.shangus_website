@@ -6,8 +6,8 @@
 // =================================================================
 
 import { db } from './firebase';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, runTransaction, writeBatch } from 'firebase/firestore';
-import { updateCachedItem, invalidateCache } from './dbCache';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, runTransaction, writeBatch, query, where } from 'firebase/firestore';
+import { updateCachedItem, invalidateCache, getCachedCollectionSync } from './dbCache';
 import { recycleDeletedFormNumber } from './formNumberService';
 
 const RECYCLE_BIN_COLLECTION = 'recycleBin';
@@ -176,10 +176,19 @@ async function cleanStudentFromMasterRegistersChunks(studentTarget) {
   }
 
   try {
-    const masterSnap = await getDocs(collection(db, 'masterRegisters')).catch(() => null);
-    if (!masterSnap || masterSnap.empty) return;
+    let masterDocs = [];
+    if (targetSession) {
+      const q = query(collection(db, 'masterRegisters'), where('Session', '==', targetSession));
+      const s = await getDocs(q).catch(() => null);
+      if (s && !s.empty) masterDocs = s.docs;
+    } else if (targetForm) {
+      const q = query(collection(db, 'masterRegisters'), where('formNo', '==', targetForm));
+      const s = await getDocs(q).catch(() => null);
+      if (s && !s.empty) masterDocs = s.docs;
+    }
+    if (masterDocs.length === 0) return;
 
-    for (const d of masterSnap.docs) {
+    for (const d of masterDocs) {
       const data = d.data();
       if (Array.isArray(data.items) && data.items.length > 0) {
         let modified = false;
@@ -516,15 +525,12 @@ export async function sweepOrphanedStudentPhotos() {
     const photosSnap = await getDocs(collection(db, 'studentPhotos'));
     if (photosSnap.empty) return { success: true, count: 0, scanned: 0 };
 
-    // 2. Fetch active and trash registers to build active reference sets
-    const [admSnap, mrSnap, binSnap] = await Promise.all([
-      getDocs(collection(db, 'admissions')).catch(() => null),
-      getDocs(collection(db, 'masterRegisters')).catch(() => null),
-      getDocs(collection(db, RECYCLE_BIN_COLLECTION)).catch(() => null),
-    ]);
+    // 2. Build active reference sets from in-memory registers (0 Firestore reads)
+    const cachedAdm = getCachedCollectionSync('admissions') || [];
+    const cachedMr = getCachedCollectionSync('masterRegisters') || [];
+    const binSnap = await getDocs(collection(db, RECYCLE_BIN_COLLECTION)).catch(() => null);
 
     const activeKeys = new Set();
-
     const indexRecord = (data, docId) => {
       if (!data) return;
       if (docId) activeKeys.add(String(docId).toLowerCase().trim());
@@ -548,8 +554,16 @@ export async function sweepOrphanedStudentPhotos() {
       }
     };
 
-    admSnap?.docs?.forEach(d => indexRecord(d.data(), d.id));
-    mrSnap?.docs?.forEach(d => indexRecord(d.data(), d.id));
+    [...cachedAdm, ...cachedMr].forEach(st => {
+      if (!st) return;
+      const inner = st.items || st.students || st.records || st.data;
+      if (Array.isArray(inner)) {
+        inner.forEach(sub => indexRecord(sub, sub?.id));
+      } else {
+        indexRecord(st, st.id || st._docId);
+      }
+    });
+
     binSnap?.docs?.forEach(d => {
       const bData = d.data();
       indexRecord(bData, d.id);

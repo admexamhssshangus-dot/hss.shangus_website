@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, writeBatch, collection, addDoc, serverTimestamp, getDocs, runTransaction } from 'firebase/firestore';
 import { db } from './firebase';
-import { updateCachedItem } from './dbCache';
+import { updateCachedItem, getCachedCollectionSync } from './dbCache';
 import * as XLSX from 'xlsx';
 import { showToast } from '../components/common/GlobalToast';
 
@@ -145,20 +145,17 @@ export async function fetchLastIssuedCertificateNumber() {
       }
     }
 
-    // Registry recovery is rare, but it must scan all possible sources. A
-    // limited unordered sample can miss the true maximum and create duplicates.
-    const [admSnap, masterSnap] = await Promise.all([
-      getDocs(collection(db, 'admissions')),
-      getDocs(collection(db, 'masterRegisters'))
-    ]);
+    // Registry fallback: scan in-memory caches with 0 Firestore reads
+    const cachedAdm = getCachedCollectionSync('admissions') || [];
+    const cachedMaster = getCachedCollectionSync('masterRegisters') || [];
     let maxFound = DEFAULT_INITIAL_CERT_NO;
 
-    [admSnap, masterSnap].forEach(snapshot => {
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
+    [cachedAdm, cachedMaster].forEach(collectionList => {
+      collectionList.forEach(item => {
+        if (!item) return;
         const records = ['items', 'students', 'records', 'data']
-          .map(key => data[key])
-          .find(Array.isArray) || [data];
+          .map(key => item[key])
+          .find(Array.isArray) || [item];
         records.forEach(record => {
           const rawCert = record.ccDcNo || record.certificateNo || record['No. & Date of CC/DC Issued (This Institution)'];
           const serial = extractCertificateSerial(rawCert);

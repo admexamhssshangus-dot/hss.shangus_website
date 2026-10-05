@@ -8222,8 +8222,11 @@ function AdvancedReports({
       });
 
       if (needsFull && !window._hssMasterRegistersIsFull) {
-        showToast('Hydrating complete 2006–2026 master register archives from Cloud Firestore...', 'info');
-        const fullChunks = await getMasterRegistersScoped({ forceAll: true });
+        showToast('Loading requested session archives from Cloud Firestore...', 'info');
+        const sessionPromises = (activeSessList && activeSessList.length > 0)
+          ? activeSessList.map(sess => getMasterRegistersScoped({ session: sess }))
+          : [getMasterRegistersScoped()];
+        const fullChunks = (await Promise.all(sessionPromises)).flat();
         if (Array.isArray(fullChunks) && fullChunks.length > 0) {
           const formatted = flattenAndFormatMasterRegisters(fullChunks);
           startTransition(() => {
@@ -11792,7 +11795,11 @@ function AdvancedReports({
       if (needFetch) {
         historicalLoadAttemptedRef.current = true;
         setIsHydratingMasterRegisters(true);
-        getMasterRegistersScoped({ forceAll: shouldLoadFull }).then(ml => {
+        const scopeOptions = {};
+        if (selectedSessions && selectedSessions.length > 0 && selectedSessions[0] !== '__NONE__') {
+          scopeOptions.session = selectedSessions[0];
+        }
+        getMasterRegistersScoped(scopeOptions).then(ml => {
           if (Array.isArray(ml) && ml.length > 0) {
             setTimeout(() => {
               const formatted = flattenAndFormatMasterRegisters(ml);
