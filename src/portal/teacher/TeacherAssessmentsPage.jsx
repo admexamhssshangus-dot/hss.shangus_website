@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, doc as fsDoc, getDoc, onSnapshot } from 'firebase/firestore';
-import { getCachedCollection, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
+import { doc as fsDoc, getDoc, onSnapshot } from 'firebase/firestore';
+import { getAdmissionsBySession, getCachedCollection, getCurrentAcademicSession, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { saveAcademicRecord } from '../../services/academicRecordService';
 import { saveVersionToBin, archiveSupersededPendingSubmission } from '../../services/practicalsBinService';
 import { logTeacherActivity } from '../../services/adminActivityLogger';
@@ -48,7 +48,7 @@ import {
   HIGHER_SECONDARY_15_SUBJECTS
 } from './PracticalsPage';
 
-const CURRENT_SESSION = '2025-26';
+const CURRENT_SESSION = getCurrentAcademicSession();
 const AVAILABLE_CLASSES = ['9th', '10th', '11th', '12th'];
 
 export default function TeacherAssessmentsPage() {
@@ -368,7 +368,7 @@ export default function TeacherAssessmentsPage() {
         getDoc(fsDoc(db, 'practicalsData', pendingDocId)).catch(() => null),
         getDoc(fsDoc(db, 'practicalsData', canonicalDocId)).catch(() => null),
         getMasterRegistersScoped({ session: selectedSession, className: selectedClass }).catch(() => []),
-        getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => [])
+        getAdmissionsBySession({ session: selectedSession }).catch(() => [])
       ]);
 
       if (pendingSnap && pendingSnap.exists()) {

@@ -28,6 +28,26 @@ requireMatch(
   /if \(!ADMISSIONS_DATA_TABS\.has\(activeTab\)\)/,
   'Admin modules must opt in before admissions are loaded.'
 );
+requireMatch(
+  'src/portal/admin/AdminDashboard.jsx',
+  /subscribeToAdmissionsSession\(/,
+  'AdminDashboard must subscribe only to the shared current-session admissions cohort.'
+);
+forbidMatch(
+  'src/portal/admin/AdminDashboard.jsx',
+  /subscribeToCollection\(['"]admissions['"]\)/,
+  'AdminDashboard must not retain a whole-admissions listener across modules.'
+);
+requireMatch(
+  'src/services/dbCache.js',
+  /export async function getAdmissionsBySession/,
+  'Student modules must have a shared admissions query keyed by academic session.'
+);
+requireMatch(
+  'src/services/dbCache.js',
+  /scopeInflightFetches/,
+  'Master-register cohort reads must deduplicate concurrent module requests.'
+);
 forbidMatch(
   'src/portal/admin/AdminDashboard.jsx',
   /preloadStudentPhotosCache/,
@@ -142,6 +162,26 @@ forbidMatch(
   'src/portal/admin/FundDistribution.jsx',
   /getDocs\(collection\(db, 'fund_distributions'\)\)/,
   'Funds must not duplicate the fund-distribution read already supplied by onSnapshot.'
+);
+forbidMatch(
+  'src/portal/admin/FundDistribution.jsx',
+  /getDocs\(collection\(db, ['"](?:admissions|masterRegisters)['"]\)\)/,
+  'Funds must reuse the shared current-session student directory.'
+);
+forbidMatch(
+  'src/portal/admin/BulkFieldOverwriteModal.jsx',
+  /getMasterRegistersScoped\(\{ forceAll: true/,
+  'Bulk ingestion must load only selected sessions, not the entire register archive.'
+);
+forbidMatch(
+  'src/pages/GkTestRegistration.jsx',
+  /getMasterRegistersScoped\(\{ forceAll: true/,
+  'Public GK registration must use exact identity queries, never a full master-register scan.'
+);
+forbidMatch(
+  'src/pages/GkTestRegistration.jsx',
+  /getDocs\(collection\(db, ['"](?:admissions|masterRegisters)['"]\)\)/,
+  'Public GK registration must not scan student collections to find one candidate.'
 );
 
 if (failures.length > 0) {

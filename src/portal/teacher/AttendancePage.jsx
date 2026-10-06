@@ -7,7 +7,7 @@ import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, getDoc, deleteDoc, query, where, onSnapshot } from 'firebase/firestore';
 import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
-import { getCachedCollection, getMasterRegistersScoped } from '../../services/dbCache';
+import { getAdmissionsBySession, getCachedCollection, getCurrentAcademicSession, getMasterRegistersScoped } from '../../services/dbCache';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import ModernLoader from '../../components/ModernLoader';
 import { toLocalDateKey, toLocalMonthKey } from '../../utils/localDate';
@@ -627,7 +627,7 @@ function resolveTeacherSubjectCode(rawSubject) {
   return '';
 }
 
-const CURRENT_SESSION = '2026';
+const CURRENT_SESSION = getCurrentAcademicSession();
 
 export default function AttendancePage() {
   const { user } = useOutletContext();
@@ -1221,7 +1221,7 @@ export default function AttendancePage() {
       if (isCurrent) {
         // A. Current Session: use shared admissions cache (30-min TTL)
         try {
-          const admDocs = await getCachedCollection('admissions', false, 30 * 60 * 1000);
+          const admDocs = await getAdmissionsBySession({ session: selectedSession });
           admDocs.forEach(data => {
             const items = data.items || data.students || data.records;
             if (Array.isArray(items)) {
@@ -1240,7 +1240,7 @@ export default function AttendancePage() {
 
         // B. Also pull from masterRegisters for current session (students may be there too)
         try {
-          const masterDocs = await getMasterRegistersScoped({ session: '2025-26', className: selectedClass });
+          const masterDocs = await getMasterRegistersScoped({ session: selectedSession, className: selectedClass });
           masterDocs.forEach(data => {
             const items = data.items || data.data || data.records;
             const docSession = data.Session || data.session || '';
@@ -1248,14 +1248,14 @@ export default function AttendancePage() {
               items.forEach(it => {
                 const stClass = it.class || it.Class || it['Class'] || data.class || data.Class || '';
                 const stSes = it.Session || it.session || docSession;
-                if (isClassMatch(stClass, selectedClass) && isSessionMatch(stSes, '2025-26') && hasAssignedClassRoll(it))
-                  allDiscoveredStudents.push({ id: it.formNo || it.rollNo || data.id, ...it, session: stSes || '2025-26' });
+                if (isClassMatch(stClass, selectedClass) && isSessionMatch(stSes, selectedSession) && hasAssignedClassRoll(it))
+                  allDiscoveredStudents.push({ id: it.formNo || it.rollNo || data.id, ...it, session: stSes || selectedSession });
               });
             } else {
               const stClass = data.class || data.Class || '';
               const stSes = data.Session || data.session || '';
-              if (isClassMatch(stClass, selectedClass) && isSessionMatch(stSes, '2025-26') && hasAssignedClassRoll(data))
-                allDiscoveredStudents.push({ id: data.id, ...data, session: stSes || '2025-26' });
+              if (isClassMatch(stClass, selectedClass) && isSessionMatch(stSes, selectedSession) && hasAssignedClassRoll(data))
+                allDiscoveredStudents.push({ id: data.id, ...data, session: stSes || selectedSession });
             }
           });
         } catch (e) { console.warn('masterRegisters (current) lookup note:', e); }
@@ -3855,7 +3855,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
     let isMounted = true;
     const loadClassRoster = async () => {
       try {
-        const admDocs = await getCachedCollection('admissions', false, 30 * 60 * 1000).catch(() => []);
+        const admDocs = await getAdmissionsBySession({ session: reportSession }).catch(() => []);
         const list = [];
         admDocs.forEach(data => {
           const items = data.items || data.students || data.records;
@@ -3915,7 +3915,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
 
     loadClassRoster();
     return () => { isMounted = false; };
-  }, [isOpen, reportClass, defaultClass, roster]);
+  }, [isOpen, reportClass, reportSession, defaultClass, roster]);
 
   // Fetch holidays internally if holidaysList prop is empty
   useEffect(() => {

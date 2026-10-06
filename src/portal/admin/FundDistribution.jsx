@@ -53,7 +53,7 @@ import {
   onSnapshot,
   writeBatch
 } from 'firebase/firestore';
-import { getCachedCollectionSync } from '../../services/dbCache';
+import { getAdmissionsBySession, getCachedCollectionSync, getCurrentAcademicSession, getMasterRegistersScoped } from '../../services/dbCache';
 import {
   DEFAULT_SUBSIDIARY_ACCOUNTS,
   SUBSIDIARY_ACCOUNTS,
@@ -372,8 +372,8 @@ export default function FundDistribution() {
   });
 
   // Local Academic Session State (Fund Distribution specific)
-  const [fundSession, setFundSession] = useState('2025-26');
-  const [formSession, setFormSession] = useState('2025-26');
+  const [fundSession, setFundSession] = useState(() => getCurrentAcademicSession());
+  const [formSession, setFormSession] = useState(() => getCurrentAcademicSession());
 
   // Live Database Students & Master Registers for auto-populating enrollment and roll numbers
   const [rawStudents, setRawStudents] = useState(() => {
@@ -492,27 +492,15 @@ export default function FundDistribution() {
         setTempRates(loadedRates);
       }
 
-      // Student sources are required for enrollment calculations.
-      const cachedAdmissions = getCachedCollectionSync('admissions') || [];
-      const cachedMasterRegisters = getCachedCollectionSync('masterRegisters') || [];
-      const [admSnap, mrSnap] = await Promise.all([
-        cachedAdmissions.length ? Promise.resolve(null) : getDocs(collection(db, 'admissions')).catch(() => null),
-        cachedMasterRegisters.length ? Promise.resolve(null) : getDocs(collection(db, 'masterRegisters')).catch(() => null)
+      // Use the shared current-session student directory rather than scanning
+      // every admissions and master-register document when Funds is opened.
+      const currentSession = getCurrentAcademicSession();
+      const [admissions, masterRecords] = await Promise.all([
+        getAdmissionsBySession({ session: currentSession }),
+        getMasterRegistersScoped({ session: currentSession })
       ]);
-
-      if (cachedAdmissions.length) {
-        setRawStudents(cachedAdmissions);
-      } else if (admSnap && !admSnap.empty) {
-        const admList = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setRawStudents(admList);
-      }
-
-      if (cachedMasterRegisters.length) {
-        setMasterRegisters(cachedMasterRegisters);
-      } else if (mrSnap && !mrSnap.empty) {
-        const mrList = mrSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setMasterRegisters(mrList);
-      }
+      setRawStudents(Array.isArray(admissions) ? admissions : []);
+      setMasterRegisters(Array.isArray(masterRecords) ? masterRecords : []);
     } catch (e) {
       console.error('Error fetching fund distribution data:', e);
       showNotification(`Could not fully synchronize fee accounts: ${e.message}`, 'error');

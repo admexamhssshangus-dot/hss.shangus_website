@@ -15,6 +15,7 @@ import { db } from '../../services/firebase';
 import { doc, writeBatch, collection, getDocs, getDoc, query, where, setDoc, deleteDoc } from 'firebase/firestore';
 import {
   updateCachedItem,
+  getAdmissionsBySession,
   getCachedCollectionSync,
   getCachedCollection,
   getMasterRegistersByScope,
@@ -2765,7 +2766,7 @@ function AdmissionRegisterSuite({
         let loadedRecords = [];
 
         // 1. Check admissions collection (live & cached)
-        const allAdmissions = await getCachedCollection('admissions');
+        const allAdmissions = await getAdmissionsBySession({ session: selectedSession });
         if (Array.isArray(allAdmissions) && allAdmissions.length > 0) {
           if (!isCancelled) setAllAdmissionsPool(allAdmissions);
           const matched = allAdmissions.filter(d => {
@@ -2813,7 +2814,8 @@ function AdmissionRegisterSuite({
           loadedRecords = flat;
         }
 
-        // 3. Fallback direct Firestore fetch if cache was empty
+        // 3. The shared scoped admission query is the final active-cohort
+        // source; never scan every admissions document for one session.
         if (loadedRecords.length === 0) {
           setTaskProgress(prev => ({
             ...(prev || {}),
@@ -2822,14 +2824,7 @@ function AdmissionRegisterSuite({
           }));
           await new Promise(r => setTimeout(r, 20));
 
-          const admSnap = await getDocs(collection(db, 'admissions'));
-          if (!admSnap.empty) {
-            const rawDocs = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            loadedRecords = rawDocs.filter(d => {
-              const sSess = cleanStr(d.session || d.Session || d['Academic Session'] || '');
-              return isSessionMatching(sSess, selectedSession);
-            });
-          }
+          loadedRecords = await getAdmissionsBySession({ session: selectedSession, forceRefresh: true });
         }
 
         // 4. Purge historical orphan ghost documents from Firestore where 'form_XXXX' exists alongside 'XXXX'

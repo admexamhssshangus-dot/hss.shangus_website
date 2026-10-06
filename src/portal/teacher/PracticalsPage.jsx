@@ -13,7 +13,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, addDoc, doc, getDoc, onSnapshot, query, where, limit } from 'firebase/firestore';
-import { invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
+import { getCurrentAcademicSession, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { printIndividualAwardRoll, printMarksRecordAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll, getCurrentOfficialExamRoll, isValidExamRollForClass } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import { isStudentExamDropped } from '../../utils/studentApprovalStatus';
@@ -1127,7 +1127,7 @@ function CustomSubjectSelect({
   );
 }
 
-const CURRENT_SESSION = '2025-26';
+const CURRENT_SESSION = getCurrentAcademicSession();
 
 export default function PracticalsPage() {
   const location = useLocation();

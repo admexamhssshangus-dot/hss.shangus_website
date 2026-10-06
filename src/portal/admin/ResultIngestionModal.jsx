@@ -60,10 +60,8 @@ import {
   callDirectGeminiClient,
   AVAILABLE_GEMINI_MODELS
 } from '../../services/geminiLetterService';
-import { db } from '../../services/firebase';
-import { collection, getDocs } from 'firebase/firestore';
 import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
-import { getCachedCollection, getMasterRegistersScoped } from '../../services/dbCache';
+import { getAdmissionsBySession, getCurrentAcademicSession, getMasterRegistersScoped } from '../../services/dbCache';
 
 export const STANDARD_SESSIONS_LIST = [
   '2026 APR/BIAN',
@@ -79,6 +77,14 @@ export const STANDARD_SESSIONS_LIST = [
   '2019-20',
   '2018-19'
 ];
+
+function getRosterAcademicSession(examSession) {
+  const standard = String(examSession || '').match(/^(20\d{2}-\d{2})/);
+  if (standard) return standard[1];
+  const examYear = Number(String(examSession || '').match(/20\d{2}/)?.[0]);
+  if (examYear) return `${examYear - 1}-${String(examYear % 100).padStart(2, '0')}`;
+  return getCurrentAcademicSession();
+}
 
 export default function ResultIngestionModal({
   isOpen,
@@ -106,7 +112,8 @@ export default function ResultIngestionModal({
   const [customModelIdInput, setCustomModelIdInput] = useState('');
   const [customModelNameInput, setCustomModelNameInput] = useState('');
 
-  // Sync Gemini keys, admissions, and masterRegisters from Cloud Firestore whenever modal opens
+  // Sync Gemini keys and only the roster matching the selected academic
+  // session.  Result ingestion must not hydrate the complete student archive.
   const [masterRegisterStudents, setMasterRegisterStudents] = useState([]);
   const [liveAdmissionsStudents, setLiveAdmissionsStudents] = useState([]);
 
@@ -128,35 +135,21 @@ export default function ResultIngestionModal({
         }
       });
 
-      // 2. Fetch masterRegisters using SWR cache to match against historical rosters
-      getMasterRegistersScoped({ forceAll: true }).then(docs => {
+      const rosterSession = getRosterAcademicSession(selectedSession);
+
+      // 2. Fetch the selected master-register cohort using the shared cache.
+      getMasterRegistersScoped({ session: rosterSession }).then(docs => {
         const flat = unpackMasterRegisterStudents(docs);
         setMasterRegisterStudents(flat);
-      }).catch(async () => {
-        try {
-          const snap = await getDocs(collection(db, 'masterRegisters'));
-          const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setMasterRegisterStudents(unpackMasterRegisterStudents(docs));
-        } catch (err) {
-          console.warn('Could not load masterRegisters for result matching:', err);
-        }
-      });
+      }).catch(err => console.warn('Could not load scoped master register roster:', err));
 
-      // 3. Fetch admissions collection using SWR cache to ensure all sessions are present
-      getCachedCollection('admissions', false, 15 * 60 * 1000).then(docs => {
+      // 3. Fetch the same admissions cohort from the shared session directory.
+      getAdmissionsBySession({ session: rosterSession }).then(docs => {
         const rawList = Array.isArray(docs) ? docs : (docs?.docs ? docs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
         setLiveAdmissionsStudents(rawList);
-      }).catch(async () => {
-        try {
-          const snap = await getDocs(collection(db, 'admissions'));
-          const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setLiveAdmissionsStudents(docs);
-        } catch (err) {
-          console.warn('Could not load admissions for result matching:', err);
-        }
-      });
+      }).catch(err => console.warn('Could not load scoped admissions roster:', err));
     }
-  }, [isOpen]);
+  }, [isOpen, selectedSession]);
 
   // Combined, de-duplicated unified students directory (Live Admissions + Master Registers Archive)
   const unifiedStudentsList = useMemo(() => {

@@ -13,7 +13,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot } from 
 import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
 import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
-import { invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
+import { getCurrentAcademicSession, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import { saveVersionToBin, getVersionsForDoc, restoreVersionFromBin, moveSubmissionToRecycleBin } from '../../services/practicalsBinService';
@@ -870,7 +870,7 @@ function AdminPracticals({ isActive = true }) {
         // The individual master-register documents are now the authoritative
         // cohort. Fetch only the live academic session instead of both the
         // full admissions collection and the old 2023-24 register scope.
-        getMasterRegistersScoped({ session: '2025-26', forceRefresh: force }).catch(err => {
+        getMasterRegistersScoped({ session: getCurrentAcademicSession(), forceRefresh: force }).catch(err => {
           console.warn('masterRegisters fetch note:', err?.message || err);
           return [];
         }),

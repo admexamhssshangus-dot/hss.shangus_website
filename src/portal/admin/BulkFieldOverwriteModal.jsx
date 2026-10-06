@@ -31,8 +31,8 @@ import {
 } from '../../utils/studentDataFetcher';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, getDocs, collection } from 'firebase/firestore';
-import { updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, invalidateCache, invalidateStudentCaches } from '../../services/dbCache';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { updateCachedItem, getAdmissionsBySession, getCachedCollectionSync, getMasterRegistersScoped, invalidateCache, invalidateStudentCaches } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { saveCsvImportBatch } from '../../services/csvBatchManager';
 import { toTitleCase } from '../../utils/textFormatting';
@@ -1057,45 +1057,26 @@ export default function BulkFieldOverwriteModal({
     return () => { isCancelled = true; };
   }, [isOpen, selectedSessions, currentSession]);
 
-  // Asynchronous background hydration ensuring admissions + masterRegisters are fully loaded
+  // Hydrate only the sessions chosen for this tool.  Full archive reads belong
+  // to an explicit historical export, never to opening the ingestion screen.
   useEffect(() => {
     if (!isOpen) return;
 
     let isCancelled = false;
     const hydrateUniversalPool = async () => {
       try {
-        const [admissionsList, masterList] = await Promise.all([
-          getCachedCollection('admissions').catch(() => []),
-          getMasterRegistersScoped({ forceAll: true }).catch(() => [])
+        const targetSessions = (selectedSessions.length > 0 && !selectedSessions.includes('All'))
+          ? selectedSessions
+          : [currentSession || '2025-26'];
+        const [admissionsBySession, masterBySession] = await Promise.all([
+          Promise.all(targetSessions.map(session => getAdmissionsBySession({ session }).catch(() => []))),
+          Promise.all(targetSessions.map(session => getMasterRegistersScoped({ session }).catch(() => [])))
         ]);
 
         if (isCancelled) return;
 
-        let validAdmissions = Array.isArray(admissionsList) ? admissionsList : [];
-        let validMaster = Array.isArray(masterList) ? masterList : [];
-
-        if (validAdmissions.length === 0) {
-          try {
-            const admSnap = await getDocs(collection(db, 'admissions'));
-            if (!admSnap.empty) {
-              validAdmissions = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            }
-          } catch (_) {}
-        }
-
-        if (validMaster.length === 0) {
-          try {
-            const masterRes = await getMasterRegistersScoped({ forceAll: true });
-            if (Array.isArray(masterRes) && masterRes.length > 0) {
-              validMaster = masterRes;
-            } else {
-              const masterSnap = await getDocs(collection(db, 'masterRegisters'));
-              if (!masterSnap.empty) {
-                validMaster = masterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-              }
-            }
-          } catch (_) {}
-        }
+        const validAdmissions = admissionsBySession.flat().filter(Boolean);
+        const validMaster = masterBySession.flat().filter(Boolean);
 
         if (!isCancelled) {
           const flatMaster = flattenMasterRegisters(validMaster);
@@ -1109,7 +1090,7 @@ export default function BulkFieldOverwriteModal({
 
     hydrateUniversalPool();
     return () => { isCancelled = true; };
-  }, [isOpen, allStudents, onDemandStudents, buildUniversalPool]);
+  }, [isOpen, selectedSessions, currentSession, allStudents, onDemandStudents, buildUniversalPool]);
 
   // Dynamic discovery of sessions, classes, streams, and statuses from active database (11th, then 12th)
   const availableClasses = useMemo(() => {

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { updateCachedItem } from '../../services/dbCache';
+import { getCurrentAcademicSession, updateCachedItem } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 
 import { normalizeClassVal, normalizeSessionVal } from './AdvancedReports';
@@ -260,7 +260,7 @@ export default function AnalyticsSuiteModal({
   // Fetch student records on-demand whenever the session filter changes
   useEffect(() => {
     if (!isOpen && !isPage) return;
-    const sessionsToFetch = selectedSessions.length > 0 ? selectedSessions : ['2025-26'];
+    const sessionsToFetch = selectedSessions.length > 0 ? selectedSessions : [getCurrentAcademicSession()];
     let isCancelled = false;
     setIsLoadingSession(true);
 

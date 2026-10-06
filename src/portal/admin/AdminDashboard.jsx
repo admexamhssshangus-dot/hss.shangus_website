@@ -8,7 +8,7 @@ import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
 import { lazyWithChunkRecovery } from '../../utils/lazyWithChunkRecovery';
-import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, getPaginatedCollection, hydrateRemainingPages, ensureFirestoreConnected, isCollectionFullyHydrated, markCollectionFullyHydrated } from '../../services/dbCache';
+import { getCachedCollectionSync, getAdmissionsBySession, subscribeToAdmissionsSession, getCurrentAcademicSession, ensureFirestoreConnected } from '../../services/dbCache';
 import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 import { showToast } from '../../components/common/GlobalToast';
 
@@ -414,8 +414,6 @@ export default function AdminDashboard() {
   const [selectedApp, setSelectedApp] = useState(null); // For ApplicationReviewModal
   const appsRef = useRef(applications);
   appsRef.current = applications;
-  const hydrationCancelRef = useRef(null);
-
   const commitApplications = useCallback((list, urgent = false) => {
     if (!Array.isArray(list)) return;
     appsRef.current = list;
@@ -426,13 +424,9 @@ export default function AdminDashboard() {
     React.startTransition(() => setApplications(list));
   }, []);
 
-  // Fetch Admin Dashboard Data: instant first-page load + non-blocking background hydration
+  // Fetch the shared current-session directory.  Do not hydrate every
+  // admissions year merely because the admin workspace opens.
   const loadAdminData = useCallback(async (force = false, options = {}) => {
-    const progressive = options && typeof options === 'object' && options.progressive === true;
-    if (typeof hydrationCancelRef.current === 'function') {
-      hydrationCancelRef.current();
-      hydrationCancelRef.current = null;
-    }
     if (appsRef.current.length === 0) {
       setLoading(true);
     }
@@ -446,55 +440,10 @@ export default function AdminDashboard() {
     }, 2500);
 
     try {
-      // 1. If we have cached data and not forcing, ensure it is fully hydrated before skipping network fetch
-      const cached = getCachedCollectionSync('admissions');
-      const isHydrated = isCollectionFullyHydrated('admissions');
-      if (cached && cached.length > 0 && isHydrated && !force) {
-        commitApplications(cached, true);
-        setLoading(false);
-      } else {
-        // 2. Cold start / force sync / partial cache recovery: Fetch first 50 applications instantly
-        const page1 = await getPaginatedCollection('admissions', 50);
-        if (page1.docs && page1.docs.length > 0) {
-          if (appsRef.current.length === 0) {
-            commitApplications(page1.docs, true);
-            setLoading(false);
-          }
-
-          if (page1.hasMore && page1.lastDoc) {
-            // 3. Hydrate remaining pages in the background. Document studios
-            // receive one completed update instead of re-rendering every batch.
-            hydrationCancelRef.current = hydrateRemainingPages(
-              'admissions',
-              page1.lastDoc,
-              page1.docs,
-              progressive ? (batch) => commitApplications(batch) : null,
-              (completeList) => {
-                hydrationCancelRef.current = null;
-                commitApplications(completeList);
-                if (force) {
-                  showToast('Cloud database synchronized successfully', 'success');
-                }
-              }
-            );
-          } else {
-            markCollectionFullyHydrated('admissions', true);
-            commitApplications(page1.docs);
-            if (force) {
-              showToast('Cloud database synchronized successfully', 'success');
-            }
-          }
-        } else {
-          // Fallback to full fetch if paginated query returns empty
-          const fullList = await getCachedCollection('admissions', force, 30 * 60 * 1000);
-          if (fullList && Array.isArray(fullList)) {
-            commitApplications(fullList);
-            if (force) {
-              showToast('Cloud database synchronized successfully', 'success');
-            }
-          }
-        }
-      }
+      const currentSession = getCurrentAcademicSession();
+      const currentCohort = await getAdmissionsBySession({ session: currentSession, forceRefresh: force });
+      if (Array.isArray(currentCohort)) commitApplications(currentCohort, appsRef.current.length === 0);
+      if (force) showToast('Current-session student directory synchronized successfully', 'success');
     } catch (err) {
       console.error('Failed to load admin dashboard data:', err);
       if (force) {
@@ -507,71 +456,46 @@ export default function AdminDashboard() {
     }
   }, [commitApplications]);
 
-  // Persistent Admissions Hydration & Real-time Sync for the entire Admin Workspace
-  // Keeps the real-time subscription alive across tab switches so opening and closing
-  // modules is 0ms instantaneous without re-subscribing or re-downloading collections.
-  const isSubscribedRef = useRef(false);
+  const needsAdmissionsData = ADMISSIONS_DATA_TABS.has(activeTab);
+  const needsLiveAdmissions = ADMISSIONS_REALTIME_TABS.has(activeTab);
 
+  // A single listener follows the current cohort while a live-edit workspace is
+  // open.  Read-only modules reuse the memory directory and release it, rather
+  // than retaining a whole-collection subscription while hidden.
   useEffect(() => {
-    if (typeof hydrationCancelRef.current === 'function') {
-      hydrationCancelRef.current();
-      hydrationCancelRef.current = null;
-    }
-
     if (!ADMISSIONS_DATA_TABS.has(activeTab)) {
-      if (!isSubscribedRef.current) {
-        setLoading(false);
-        return undefined;
-      }
-    }
-
-    if (isSubscribedRef.current) {
-      // Already actively subscribed! Keep subscription alive across tabs for 0ms instant switching!
       setLoading(false);
-      return undefined;
-    }
-
-    isSubscribedRef.current = true;
-
-    if (typeof subscribeToCollection !== 'function') {
-      loadAdminData(false, { progressive: true });
       return undefined;
     }
 
     let unsubscribe = () => {};
     let receivedSnapshot = false;
-    const fallbackTimer = setTimeout(() => {
-      if (!receivedSnapshot && appsRef.current.length === 0) {
-        loadAdminData(false, { progressive: true });
-      }
-    }, 2500);
+    if (!needsLiveAdmissions) {
+      loadAdminData(false);
+      return undefined;
+    }
 
     try {
-      unsubscribe = subscribeToCollection('admissions', (liveList) => {
-        if (Array.isArray(liveList)) {
-          receivedSnapshot = true;
-          commitApplications(liveList);
-          setLoading(false);
-        }
+      unsubscribe = subscribeToAdmissionsSession(getCurrentAcademicSession(), (liveList) => {
+        receivedSnapshot = true;
+        commitApplications(liveList, appsRef.current.length === 0);
+        setLoading(false);
+        // Legacy capitalized-session rows are not part of the canonical
+        // listener.  Load the one-time compatibility query only if needed.
+        if (liveList.length === 0 && appsRef.current.length === 0) loadAdminData(false);
       }, (err) => {
-        console.warn('Realtime listener fallback note:', err);
-        if (!receivedSnapshot) loadAdminData(false, { progressive: true });
+        console.warn('Current-session listener fallback note:', err);
+        if (!receivedSnapshot) loadAdminData(false);
       });
     } catch (err) {
-      console.warn('subscribeToCollection initialization note:', err);
-      loadAdminData(false, { progressive: true });
+      console.warn('Current-session listener initialization note:', err);
+      loadAdminData(false);
     }
 
     return () => {
-      clearTimeout(fallbackTimer);
       if (typeof unsubscribe === 'function') unsubscribe();
-      isSubscribedRef.current = false;
-      if (typeof hydrationCancelRef.current === 'function') {
-        hydrationCancelRef.current();
-        hydrationCancelRef.current = null;
-      }
     };
-  }, [commitApplications, loadAdminData]);
+  }, [needsAdmissionsData, needsLiveAdmissions, commitApplications, loadAdminData]);
 
   const masterRegisters = useMemo(() => {
     return getCachedCollectionSync('masterRegisters') || [];
@@ -997,7 +921,7 @@ export default function AdminDashboard() {
                         onClose={handleCloseToReports}
                         onOpenHub={() => setActiveTab('directEntry')}
                         allStudents={identityStudents || applications}
-                        currentSession={(sessionStorage.getItem('hss_last_selected_session') || '2025-26')}
+                        currentSession={getCurrentAcademicSession()}
                         initialMode={activeTab === 'directEntry' ? 'express' : 'overwrite'}
                         onComplete={() => {
                           const cached = getCachedCollectionSync('admissions');

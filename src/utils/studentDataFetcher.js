@@ -6,10 +6,9 @@
  * normalizing all student field variations (Name, Father, Class, Stream, Session).
  */
 
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../services/firebase';
 import {
   getCachedCollectionSync,
+  getAdmissionsBySession,
   getMasterRegistersScoped
 } from '../services/dbCache';
 import {
@@ -308,6 +307,7 @@ export function normalizeStudentRecord(s) {
  * Memory cache of session-specific on-demand student queries
  */
 const sessionQueryCache = new Map();
+const sessionQueryInflight = new Map();
 
 /**
  * Fetches all student records for a specific session on demand from Firestore,
@@ -321,6 +321,17 @@ export async function fetchStudentsForSessionOnDemand(session, options = {}) {
   // 1. Check local sessionQueryCache
   if (!options.forceRefresh && sessionQueryCache.has(cleanSession)) {
     return sessionQueryCache.get(cleanSession);
+  }
+  // Analytics, certificates and the ingestion tools can mount together.  They
+  // share this one request instead of each issuing the same cohort query.
+  if (!options._sharedInflight && sessionQueryInflight.has(cleanSession)) {
+    return sessionQueryInflight.get(cleanSession);
+  }
+  if (!options._sharedInflight) {
+    const sharedRequest = fetchStudentsForSessionOnDemand(session, { ...options, _sharedInflight: true })
+      .finally(() => sessionQueryInflight.delete(cleanSession));
+    sessionQueryInflight.set(cleanSession, sharedRequest);
+    return sharedRequest;
   }
 
   const results = [];
@@ -359,19 +370,13 @@ export async function fetchStudentsForSessionOnDemand(session, options = {}) {
   // 5. If we still have few or zero records for a historical session, query Firestore
   if (results.length === 0 || options.forceRefresh) {
     try {
-      // Query admissions collection for session
-      const q = query(collection(db, 'admissions'), where('session', '==', cleanSession));
-      const snap = await getDocs(q);
-      const fetched = snap.docs.map((d) => ({ ...d.data(), id: d.id, _docId: d.id }));
+      // Reuse the central per-session admissions directory.  It queries the
+      // canonical lowercase field once and only falls back for legacy rows.
+      const fetched = await getAdmissionsBySession({
+        session: cleanSession,
+        forceRefresh: options.forceRefresh
+      });
       addUnique(fetched);
-
-      // If still empty, try capitalized 'Session'
-      if (results.length === 0) {
-        const qCap = query(collection(db, 'admissions'), where('Session', '==', cleanSession));
-        const snapCap = await getDocs(qCap);
-        const fetchedCap = snapCap.docs.map((d) => ({ ...d.data(), id: d.id, _docId: d.id }));
-        addUnique(fetchedCap);
-      }
 
       // If still empty and it's a past session, query masterRegisters scoped to this session
       if (results.length === 0) {

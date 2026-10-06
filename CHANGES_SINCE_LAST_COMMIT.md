@@ -1,62 +1,64 @@
 # Changes Since Last Commit
 
 ## Commit Message
-`fix(practicals): secure submissions and defer data reads`
 
-## Date & Time
-- **Timestamp**: 2026-10-05T20:54:38+05:30
+`perf(student-directory): share current-session reads`
 
-## Production Safety and Practicals Changes
-- Teacher practical and assessment submissions can no longer fall back to direct Firestore writes when the secure staff backend is unavailable. A local draft is kept in the browser before a save attempt, so a failed secure request does not delete entered marks.
-- The server-side academic-record workflow now accepts the portal's pending document IDs, stores drafts as drafts and final teacher submissions as `pending_approval`, records the canonical document ID, and validates both global and class-level submission locks.
-- A closed global practicals switch rejects teacher writes without deleting existing data. Class-specific submission windows are also enforced server-side.
-- Firestore rules now allow only administrators to write practical award documents, practical version bins, recycle-bin records, and practical settings. Teachers keep their confidential read access but must use the verified backend to submit.
-- Added a targeted real-time listener to teacher practicals pages so an open browser tab locks immediately when an administrator disables practical submissions.
+## Summary
 
-## Performance and On-Demand Loading Changes
-- Teacher Practicals now loads only the selected master-register cohort and its exact canonical/pending award documents. It no longer downloads the entire practicals or admissions collection while opening an award sheet.
-- Teacher submission history is queried only after the history drawer is opened, filtered to the current teacher, rather than prefetched on portal mount.
-- Admin Practicals suspends its practicals listeners and refresh activity while its keep-alive dashboard tab is hidden, preserving fast tab switching without continued background reads.
-- Admin Practicals now uses the individual 2025-26 master-register documents directly instead of the old chunk-array shape or a full admissions download.
+- Replaced the default all-session student loading path with a private, in-memory current-session directory. The session is read from cached site settings when configured, with the school's November academic rollover as a fallback.
+- Added one-query sharing for concurrent requests to both admissions cohorts and individual master-register cohorts. A module opening while another module requests the same session now awaits the same Firestore request instead of creating another read.
+- Kept student data in authenticated memory only; current and historical student records are not persisted in browser storage by this directory layer.
+- Scoped the Admin Dashboard's admissions listener to the current session and releases it outside live-edit workspaces. It no longer subscribes to the entire admissions collection across all academic years.
+- Migrated the main admin, teacher, attendance, assessment, practicals, funds, reports, bulk-ingestion, admission-register, result-ingestion, analytics, and public GK lookup paths to reuse the shared scoped directory or exact identity queries.
+- Removed full student-collection scans from funds, bulk ingestion, result ingestion, and public GK candidate lookup. Historical archive reads remain explicit actions in archival/export tools.
+- Added regression checks to prevent a future return of whole-admissions listeners, duplicate scoped requests, full bulk-ingestion archive loads, or public full-directory scans.
 
 ## Files Changed
-1. `firestore.rules`
-2. `functions/academicRecords.js`
-3. `scripts/backend-integrity.test.cjs`
-4. `scripts/security-behavior.test.cjs`
-5. `src/portal/admin/AdminDashboard.jsx`
-6. `src/portal/admin/AdminPracticals.jsx`
-7. `src/portal/teacher/PracticalsPage.jsx`
-8. `src/services/academicRecordService.js`
-9. `CHANGES_SINCE_LAST_COMMIT.md`
 
-## Verification and Deployment
-- `npm run build`: completed successfully; the generated `build/index.html` was verified.
+1. `scripts/admin-performance-regression-check.js`
+2. `src/pages/GkTestRegistration.jsx`
+3. `src/portal/admin/AdminDashboard.jsx`
+4. `src/portal/admin/AdminPracticals.jsx`
+5. `src/portal/admin/AdmissionRegisterSuite.jsx`
+6. `src/portal/admin/AnalyticsSuiteModal.jsx`
+7. `src/portal/admin/BulkFieldOverwriteModal.jsx`
+8. `src/portal/admin/FundDistribution.jsx`
+9. `src/portal/admin/ResultIngestionModal.jsx`
+10. `src/portal/teacher/AttendancePage.jsx`
+11. `src/portal/teacher/PracticalsPage.jsx`
+12. `src/portal/teacher/TeacherAssessmentsPage.jsx`
+13. `src/services/dbCache.js`
+14. `src/utils/studentDataFetcher.js`
+15. `CHANGES_SINCE_LAST_COMMIT.md`
+
+## Verification
+
+- `npm run build`: completed successfully. Existing unrelated ESLint warnings remain warnings only; no build errors occurred.
 - `npm run performance:check`: passed.
-- `npm run test:public`: 9 tests passed.
-- Focused `PracticalsPage` regression test completed without errors.
-- `git diff --check`: completed without whitespace errors.
-- `node --check functions/academicRecords.js`: passed.
-- `npm run test:integrity` could not start its local Firestore emulator because this machine has a JDK older than Firebase's required JDK 21. This does not affect the deployed Firestore service.
-- Firestore rules were compiled and released successfully to production project `hsssdb` on 2026-10-05.
-- A full Netlify production deployment was not performed because it replaces the entire live site and requires the user's explicit approval. The live rules already prevent direct teacher writes; deploy the verified build and Netlify backend together before reopening practical submissions.
+- `node --check src/services/dbCache.js`: passed.
+- `node --check src/utils/studentDataFetcher.js`: passed.
+- Focused `src/utils/studentDataFetcher.test.js`: 5 tests passed. Firebase Auth logged an existing test-environment assertion to the console, but the suite passed.
+- `git diff --check`: passed with no whitespace errors.
 
 ## Instructions for the User
-1. **Review the local commit:**
+
+1. Review the local commit:
+
    ```bash
    git show --stat HEAD
    git log -1 -p
    ```
-2. **Amend or re-commit it if desired:**
+
+2. Amend or recreate the commit if you prefer another message:
+
    ```bash
    git reset --soft HEAD~1
    git commit -m "Your custom commit message"
    ```
-3. **Deploy the verified site and Netlify staff backend after explicit approval:**
-   ```bash
-   netlify deploy --prod --dir=build --message "Secure practicals writes and on-demand data loading"
-   ```
-4. **Push the Git commit manually when ready:**
+
+3. Push manually when ready. This project workflow deliberately never pushes automatically:
+
    ```bash
    git push origin main
    ```

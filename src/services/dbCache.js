@@ -10,12 +10,13 @@ import { collection, getDocs, onSnapshot, doc, getDoc, setDoc, deleteDoc, delete
 import { db, ensureFirestoreConnected } from './firebase';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 import { updateStudentInRegIndex } from './studentIndexService';
+import { getCachedSiteSettings } from '../utils/settingsLoader';
 
 export { ensureFirestoreConnected };
 
 const CACHE_PREFIX = 'hss_cache_v8_';
 const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins — prevents unnecessary re-fetches)
-const DB_CACHE_VERSION = 'v9_private_memory_cache_20260910';
+const DB_CACHE_VERSION = 'v10_current_session_student_directory_20261006';
 
 // Separate lightweight photo URL cache (avoids stripping logic issues for photo fields)
 const PHOTO_CACHE_KEY = 'hss_photo_url_cache_v1';
@@ -39,6 +40,50 @@ const memoryCache = new Map();
 const memoryTs = new Map();
 const privatePhotoCache = new Map();
 const fullyHydratedCollections = new Set();
+// Student records are confidential, so these shared indexes deliberately live
+// only in the active browser-memory session.  They let independently loaded
+// modules reuse the same current cohort without putting PII in web storage.
+export const scopeMemoryCache = new Map();
+const scopeInflightFetches = new Map();
+const fullyHydratedMasterSessions = new Set();
+const admissionsSessionCache = new Map();
+const admissionsSessionInflightFetches = new Map();
+const fullyHydratedAdmissionSessions = new Set();
+
+function normalizeAcademicSession(value) {
+  const session = String(value || '')
+    .replace(/^\s*session\s*[:-]?\s*/i, '')
+    .replace(/[\u2013\u2014]/g, '-')
+    .trim();
+  return /^20\d{2}-\d{2}$/.test(session) ? session : '';
+}
+
+function normalizeAcademicSessionScope(value) {
+  const session = String(value || '')
+    .replace(/^\s*session\s*[:-]?\s*/i, '')
+    .replace(/[\u2013\u2014]/g, '-')
+    .trim();
+  return /^20\d{2}-\d{2}(?:\s*\((?:oct-nov|mar-apr)\))?$/i.test(session) ? session : '';
+}
+
+/**
+ * Returns the configured current academic session without inheriting a
+ * historical filter left behind by another module.  A date fallback follows
+ * the school's November rollover convention when settings are unavailable.
+ */
+export function getCurrentAcademicSession() {
+  try {
+    const settings = getCachedSiteSettings();
+    const configured = normalizeAcademicSession(
+      settings?.currentSession || settings?.session || settings?.academicSession
+    );
+    if (configured) return configured;
+  } catch (_) {}
+
+  const now = new Date();
+  const startYear = now.getMonth() >= 10 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`;
+}
 
 /**
  * Checks whether a collection's cache represents the complete dataset from Firestore,
@@ -67,8 +112,15 @@ export function clearAllMemoryCache() {
   memoryTs.clear();
   privatePhotoCache.clear();
   fullyHydratedCollections.clear();
+  scopeMemoryCache.clear();
+  scopeInflightFetches.clear();
+  fullyHydratedMasterSessions.clear();
+  admissionsSessionCache.clear();
+  admissionsSessionInflightFetches.clear();
+  fullyHydratedAdmissionSessions.clear();
   if (typeof window !== 'undefined') {
     delete window._hssMasterRegistersCache;
+    delete window._hssMasterRegistersIsFull;
     delete window._hss_central_photo_map;
   }
   try {
@@ -100,8 +152,16 @@ export function invalidateCollectionCache(collectionName) {
   if (collectionName === 'masterRegisters') {
     if (typeof window !== 'undefined') {
       delete window._hssMasterRegistersCache;
+      delete window._hssMasterRegistersIsFull;
     }
     scopeMemoryCache.clear();
+    scopeInflightFetches.clear();
+    fullyHydratedMasterSessions.clear();
+  }
+  if (collectionName === 'admissions') {
+    admissionsSessionCache.clear();
+    admissionsSessionInflightFetches.clear();
+    fullyHydratedAdmissionSessions.clear();
   }
   try {
     sessionStorage.removeItem(`${CACHE_PREFIX}${collectionName}`);
@@ -327,6 +387,23 @@ export function setCachedCollectionData(collectionName, list) {
  * @returns {Promise<Array<object>>} Array of document data with id attached
  */
 export async function getCachedCollection(collectionName, forceRefresh = false, ttlMs = DEFAULT_TTL_MS, onBackgroundUpdate = null) {
+  // Student collections must never silently hydrate every academic year.  The
+  // default shared directory is only the configured current session; callers
+  // needing history must opt in with a scoped helper below.
+  if (collectionName === 'admissions') {
+    return getAdmissionsBySession({
+      session: getCurrentAcademicSession(),
+      forceRefresh,
+      onBackgroundUpdate
+    });
+  }
+  if (collectionName === 'masterRegisters') {
+    return getMasterRegistersScoped({
+      session: getCurrentAcademicSession(),
+      forceRefresh
+    });
+  }
+
   const syncData = getCachedCollectionSync(collectionName);
   const timestampKey = `${CACHE_PREFIX}${collectionName}_ts`;
   const lastTs = Number(sessionStorage.getItem(timestampKey) || localStorage.getItem(timestampKey) || memoryTs.get(collectionName) || 0);
@@ -424,9 +501,6 @@ export function unpackMasterRegisterDoc(docSnap) {
   }];
 }
 
-// Scoped memory cache for on-demand queries by (session, class, stream)
-export const scopeMemoryCache = new Map();
-
 /**
  * Fast check whether a student record matches a target session string.
  */
@@ -456,6 +530,124 @@ function isStudentInSessionFast(student, targetSession) {
   return sNorm.includes(tNorm) || tNorm.includes(sNorm);
 }
 
+function unpackAdmissionsDocument(docSnap) {
+  const data = docSnap.data();
+  if (!data || data.Status === 'Deleted' || data.status === 'Deleted' || data._deleted === true) return [];
+
+  const chunkItems = data.items || data.students || data.records || data.data;
+  if (Array.isArray(chunkItems)) {
+    const docSession = data.Session || data.session || data['Academic Session'] || data.groupKey?.split('_')[0] || '';
+    const docClass = data.class || data.Class || data.className || data['Class'] || data.groupKey?.split('_')[1] || '';
+    const docStream = data.stream || data.Stream || data['Stream'] || data.groupKey?.split('_')[2] || '';
+    return chunkItems.flatMap((item, itemIdx) => {
+      if (!item || typeof item !== 'object' || item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return [];
+      return [{
+        ...item,
+        id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docSnap.id}_${itemIdx}`,
+        _docId: item._docId || docSnap.id,
+        Session: item.Session || item.session || item['Academic Session'] || docSession || '',
+        session: item.session || item.Session || item['Academic Session'] || docSession || '',
+        Class: item.Class || item.class || item['Class'] || docClass || '',
+        class: item.class || item.Class || item['Class'] || docClass || '',
+        Stream: item.Stream || item.stream || item['Stream'] || docStream || '',
+        stream: item.stream || item.Stream || item['Stream'] || docStream || '',
+        _source: 'admissions',
+        _parentDocId: docSnap.id
+      }];
+    });
+  }
+
+  return [{ ...data, id: data.id || docSnap.id, _docId: docSnap.id, _source: 'admissions' }];
+}
+
+/**
+ * Read one admissions cohort once and share it across all portal modules.
+ * Historical sessions are kept in separate private memory entries so they can
+ * never replace the current-session default directory.
+ */
+export async function getAdmissionsBySession({ session, forceRefresh = false, onBackgroundUpdate = null } = {}) {
+  const cleanSession = normalizeAcademicSessionScope(session) || getCurrentAcademicSession();
+  const isCurrentSession = cleanSession === getCurrentAcademicSession();
+
+  if (!forceRefresh && admissionsSessionCache.has(cleanSession)) {
+    return admissionsSessionCache.get(cleanSession);
+  }
+  if (!forceRefresh && fullyHydratedAdmissionSessions.has(cleanSession)) {
+    return [];
+  }
+  if (admissionsSessionInflightFetches.has(cleanSession)) {
+    return admissionsSessionInflightFetches.get(cleanSession);
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const readForField = async (fieldName) => {
+        const snapshot = await getDocs(query(collection(db, 'admissions'), where(fieldName, '==', cleanSession)));
+        return snapshot.docs.flatMap(unpackAdmissionsDocument);
+      };
+
+      let records = await readForField('session');
+      // Individual documents use lowercase canonical fields.  This small
+      // fallback preserves older rows without charging a second read when the
+      // canonical query already returned the cohort.
+      if (records.length === 0) {
+        records = await readForField('Session').catch(() => []);
+      }
+
+      admissionsSessionCache.set(cleanSession, records);
+      fullyHydratedAdmissionSessions.add(cleanSession);
+      if (isCurrentSession) {
+        setCachedCollectionData('admissions', records);
+        markCollectionFullyHydrated('admissions', true);
+      }
+      if (typeof onBackgroundUpdate === 'function') onBackgroundUpdate(records);
+      return records;
+    } catch (err) {
+      console.warn('[dbCache] getAdmissionsBySession error:', err);
+      return admissionsSessionCache.get(cleanSession) || [];
+    } finally {
+      admissionsSessionInflightFetches.delete(cleanSession);
+    }
+  })();
+
+  admissionsSessionInflightFetches.set(cleanSession, fetchPromise);
+  return fetchPromise;
+}
+
+/** Attach a single current-session admissions listener for screens that need live mutations. */
+export function subscribeToAdmissionsSession(session, onUpdate, onError) {
+  const cleanSession = normalizeAcademicSession(session) || getCurrentAcademicSession();
+  const isCurrentSession = cleanSession === getCurrentAcademicSession();
+  try {
+    const rowsByDocument = new Map();
+    const q = query(collection(db, 'admissions'), where('session', '==', cleanSession));
+    return onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'removed') {
+          rowsByDocument.delete(change.doc.id);
+        } else {
+          rowsByDocument.set(change.doc.id, unpackAdmissionsDocument(change.doc));
+        }
+      });
+      const records = Array.from(rowsByDocument.values()).flat();
+      admissionsSessionCache.set(cleanSession, records);
+      fullyHydratedAdmissionSessions.add(cleanSession);
+      if (isCurrentSession) {
+        setCachedCollectionData('admissions', records);
+        markCollectionFullyHydrated('admissions', true);
+      }
+      if (typeof onUpdate === 'function') onUpdate(records);
+    }, (err) => {
+      console.warn('[dbCache] admissions session listener error:', err);
+      if (typeof onError === 'function') onError(err);
+    });
+  } catch (err) {
+    console.warn('[dbCache] failed to attach admissions session listener:', err);
+    if (typeof onError === 'function') onError(err);
+    return () => {};
+  }
+}
+
 /**
  * On-demand Scoped Master Registers Retrieval:
  * Loads ONLY students belonging to the requested session, class, and/or stream on demand.
@@ -471,95 +663,84 @@ export async function getMasterRegistersByScope({ session, className, stream, fo
   if (!forceRefresh && scopeMemoryCache.has(cacheKey)) {
     return scopeMemoryCache.get(cacheKey);
   }
-
-  // If bare '2024-25' is requested, query both 2024-25 (Oct-Nov) and 2024-25 (Mar-Apr) in parallel
-  if (cleanSession === '2024-25' || cleanSession === '2024–25') {
-    const [octNov, marApr] = await Promise.all([
-      getMasterRegistersByScope({ session: '2024-25 (Oct-Nov)', className, stream, forceRefresh }),
-      getMasterRegistersByScope({ session: '2024-25 (Mar-Apr)', className, stream, forceRefresh })
-    ]);
-    const combined = [...octNov, ...marApr];
-    scopeMemoryCache.set(cacheKey, combined);
-    return combined;
+  if (scopeInflightFetches.has(cacheKey)) {
+    return scopeInflightFetches.get(cacheKey);
   }
 
-  // 1. If in-memory master register cache already exists, filter from it (0 reads)
-  if (!forceRefresh && typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
-    const inMem = window._hssMasterRegistersCache.filter(s => {
-      if (cleanSession && !isStudentInSessionFast(s, cleanSession)) return false;
-      if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
-      if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
-      return true;
-    });
-    if (inMem.length > 0 || window._hssMasterRegistersIsFull) {
-      scopeMemoryCache.set(cacheKey, inMem);
-      return inMem;
-    }
-  }
-
-  // 2. Query Firestore on-demand
-  try {
-    const constraints = [];
-    if (cleanSession) {
-      constraints.push(where('session', '==', cleanSession));
-    }
-    if (cleanClass) {
-      constraints.push(where('canonicalClass', '==', cleanClass));
-    }
-    if (cleanStream) {
-      constraints.push(where('stream', '==', cleanStream));
+  const fetchPromise = (async () => {
+    // If bare '2024-25' is requested, query both 2024-25 (Oct-Nov) and 2024-25 (Mar-Apr) in parallel.
+    if (cleanSession === '2024-25' || cleanSession === '2024–25') {
+      const [octNov, marApr] = await Promise.all([
+        getMasterRegistersByScope({ session: '2024-25 (Oct-Nov)', className, stream, forceRefresh }),
+        getMasterRegistersByScope({ session: '2024-25 (Mar-Apr)', className, stream, forceRefresh })
+      ]);
+      const combined = [...octNov, ...marApr];
+      scopeMemoryCache.set(cacheKey, combined);
+      return combined;
     }
 
-    if (constraints.length > 0) {
-      const q = query(collection(db, 'masterRegisters'), ...constraints);
-      const snap = await getDocs(q);
-      const results = [];
-      snap.forEach(docSnap => {
-        results.push(...unpackMasterRegisterDoc(docSnap));
+    // A complete session has already been loaded: every class/stream can be
+    // derived locally, including a valid empty result, with zero extra reads.
+    if (!forceRefresh && typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache)) {
+      const inMem = window._hssMasterRegistersCache.filter(s => {
+        if (cleanSession && !isStudentInSessionFast(s, cleanSession)) return false;
+        if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
+        if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
+        return true;
       });
+      if (inMem.length > 0 || window._hssMasterRegistersIsFull || (cleanSession && fullyHydratedMasterSessions.has(cleanSession))) {
+        scopeMemoryCache.set(cacheKey, inMem);
+        return inMem;
+      }
+    }
 
-      if (results.length > 0) {
+    try {
+      const constraints = [];
+      if (cleanSession) constraints.push(where('session', '==', cleanSession));
+      if (cleanClass) constraints.push(where('canonicalClass', '==', cleanClass));
+      if (cleanStream) constraints.push(where('stream', '==', cleanStream));
+
+      if (constraints.length > 0) {
+        const snap = await getDocs(query(collection(db, 'masterRegisters'), ...constraints));
+        let results = snap.docs.flatMap(unpackMasterRegisterDoc);
+
+        // Lowercase fields are canonical.  Only legacy rows need the capitalized
+        // fallback, so the normal path remains a single Firestore query.
+        if (results.length === 0 && cleanSession) {
+          const snapCap = await getDocs(query(collection(db, 'masterRegisters'), where('Session', '==', cleanSession))).catch(() => null);
+          if (snapCap && !snapCap.empty) {
+            results = snapCap.docs.flatMap(unpackMasterRegisterDoc).filter(s => {
+              if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
+              if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
+              return true;
+            });
+          }
+        }
+
         scopeMemoryCache.set(cacheKey, results);
-        if (typeof window !== 'undefined') {
+        if (cleanSession && !cleanClass && !cleanStream) fullyHydratedMasterSessions.add(cleanSession);
+        if (typeof window !== 'undefined' && results.length > 0) {
           const existing = window._hssMasterRegistersCache || [];
           const existingIds = new Set(existing.map(s => String(s.id || s._docId)));
           const toAdd = results.filter(s => !existingIds.has(String(s.id || s._docId)));
-          if (toAdd.length > 0) {
-            window._hssMasterRegistersCache = [...existing, ...toAdd];
-          }
+          if (toAdd.length > 0) window._hssMasterRegistersCache = [...existing, ...toAdd];
         }
         return results;
       }
 
-      // Check alternate capitalized field names (e.g. Session)
-      if (cleanSession) {
-        const qCap = query(collection(db, 'masterRegisters'), where('Session', '==', cleanSession));
-        const snapCap = await getDocs(qCap).catch(() => null);
-        if (snapCap && !snapCap.empty) {
-          const capResults = [];
-          snapCap.forEach(docSnap => {
-            capResults.push(...unpackMasterRegisterDoc(docSnap));
-          });
-          const filteredCap = capResults.filter(s => {
-            if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
-            if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
-            return true;
-          });
-          if (filteredCap.length > 0) {
-            scopeMemoryCache.set(cacheKey, filteredCap);
-            return filteredCap;
-          }
-        }
-      }
+      scopeMemoryCache.set(cacheKey, []);
+      return [];
+    } catch (err) {
+      console.warn('[dbCache] getMasterRegistersByScope error:', err);
+      return scopeMemoryCache.get(cacheKey) || [];
     }
+  })();
 
-    // If no records match this scope, cache empty array and return safely (zero loops)
-    scopeMemoryCache.set(cacheKey, []);
-    return [];
-  } catch (err) {
-    console.warn('[dbCache] getMasterRegistersByScope error:', err);
-    scopeMemoryCache.set(cacheKey, []);
-    return [];
+  scopeInflightFetches.set(cacheKey, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    scopeInflightFetches.delete(cacheKey);
   }
 }
 
@@ -582,6 +763,8 @@ export async function getMasterRegistersScoped(options = {}) {
         window._hssMasterRegistersIsFull = true;
       }
       scopeMemoryCache.clear();
+      scopeInflightFetches.clear();
+      fullyHydratedMasterSessions.clear();
       setCachedCollectionData('masterRegisters', allRecords);
       markCollectionFullyHydrated('masterRegisters', true);
       return allRecords;
@@ -591,30 +774,24 @@ export async function getMasterRegistersScoped(options = {}) {
     }
   }
 
-  // If specific cohort is provided, route directly to on-demand query
+  // If only a class or stream is supplied, it still means the configured
+  // current session—not every matching class in the archive.
   if (options?.session || options?.className || options?.class || options?.stream) {
     return getMasterRegistersByScope({
-      session: options.session,
+      session: options.session || getCurrentAcademicSession(),
       className: options.className || options.class,
       stream: options.stream,
       forceRefresh: options.forceRefresh
     });
   }
 
-  // 1. If in-memory cache is present, return it immediately (0 reads)
-  if (typeof window !== 'undefined' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
-    return window._hssMasterRegistersCache;
-  }
-
-  // 2. Default: Load ONLY the most recent historical academic session on-demand!
+  // Default: only the configured current academic session.  A previous module's
+  // historical filter must never change this default for the rest of the portal.
   try {
-    const defaultSession = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hss_last_selected_session') : null) || '2023-24';
-    const recentScoped = await getMasterRegistersByScope({ session: defaultSession, forceRefresh: options?.forceRefresh });
-    if (typeof window !== 'undefined') {
-      window._hssMasterRegistersCache = recentScoped;
-      window._hssMasterRegistersIsFull = false;
-    }
-    return recentScoped;
+    return await getMasterRegistersByScope({
+      session: getCurrentAcademicSession(),
+      forceRefresh: options?.forceRefresh
+    });
   } catch (err) {
     console.warn('[dbCache] getMasterRegistersScoped default cohort note:', err);
     return [];
@@ -1053,6 +1230,17 @@ export function updateCachedItem(collectionName, itemId, updatedFields) {
 
   if (collectionName === 'masterRegisters') {
     scopeMemoryCache.clear();
+    scopeInflightFetches.clear();
+    fullyHydratedMasterSessions.clear();
+  }
+
+  if (collectionName === 'admissions') {
+    // A mutation can move a record between cohorts.  Keep the immediately
+    // rendered current list, but require the next scoped consumer to obtain a
+    // fresh authoritative cohort rather than reusing a stale session index.
+    admissionsSessionCache.clear();
+    admissionsSessionInflightFetches.clear();
+    fullyHydratedAdmissionSessions.clear();
   }
 
   if (collectionName === 'admissions' && updatedFields && typeof updatedFields === 'object') {

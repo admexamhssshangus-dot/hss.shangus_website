@@ -9,7 +9,7 @@ import SEO from '../components/SEO';
 import { generateGkTestAdmitCardPdf } from '../utils/pdfGenerator';
 import { showToast } from '../components/common/GlobalToast';
 import ConfirmModal from '../portal/components/ConfirmModal';
-import { getCachedCollection, getMasterRegistersScoped } from '../services/dbCache';
+import { getCurrentAcademicSession } from '../services/dbCache';
 
 const APPS_SCRIPT_URL = process.env.REACT_APP_APPS_SCRIPT_URL;
 const DRIVE_FOLDER_ID = '15YOPlfh2WHmXn7HEAoZEpSJbRCNZYaOF';
@@ -525,28 +525,32 @@ export default function GkTestRegistration() {
         });
       };
 
-      let masterRes = await getMasterRegistersScoped({ forceAll: true }).catch(() => null);
-      if (!masterRes) {
-        const masterSnap = await getDocs(collection(db, 'masterRegisters')).catch(() => null);
-        masterRes = masterSnap ? masterSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
-      }
-      processSnap(masterRes);
+      // Search exact indexed identity fields only.  The previous full scans of
+      // master registers and admissions charged every public lookup for the
+      // entire student directory.
+      const rawInput = String(input || '').trim();
+      const queryValues = [...new Set([rawInput, rawInput.toUpperCase(), q])].filter(Boolean);
+      const fields = inputType === 'regNo'
+        ? ['boardRegNo', 'registrationNo', 'regNo', 'Board Registration Number', 'Board Reg. No.']
+        : inputType === 'formNo'
+          ? ['formNo', 'Form Number', 'Form No.']
+          : ['mobile', 'phone', 'mobileNo', 'Mobile Number', 'Mobile No.'];
 
-      // Keep searching registerdata and admissions if we don't have a photo yet!
-      if (!found || !found.photoUrl) {
-        const regDataRes = await getCachedCollection('registerdata', false, 15 * 60 * 1000).catch(async () => {
-          const snap = await getDocs(collection(db, 'registerdata')).catch(() => null);
-          return snap ? snap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
-        });
-        processSnap(regDataRes);
-      }
+      const lookupExactStudent = async (collectionName) => {
+        for (const field of fields) {
+          for (const value of queryValues) {
+            if (found?.photoUrl) return;
+            const snapshot = await getDocs(
+              query(collection(db, collectionName), where(field, '==', value), limit(3))
+            ).catch(() => null);
+            if (snapshot && !snapshot.empty) processSnap(snapshot);
+          }
+        }
+      };
 
-      if (!found || !found.photoUrl) {
-        const admRes = await getCachedCollection('admissions', false, 15 * 60 * 1000).catch(async () => {
-          const snap = await getDocs(collection(db, 'admissions')).catch(() => null);
-          return snap ? snap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
-        });
-        processSnap(admRes);
+      for (const collectionName of ['masterRegisters', 'registerdata', 'admissions']) {
+        await lookupExactStudent(collectionName);
+        if (found?.photoUrl) break;
       }
 
       if (found) {
@@ -587,7 +591,7 @@ export default function GkTestRegistration() {
         fatherName: manualData.fatherName.trim(),
         className: manualData.className.trim(),
         classRollNo: manualData.classRollNo.trim(),
-        session: '2025-26',
+        session: getCurrentAcademicSession(),
         photoUrl: null,
         isManualEntry: true,
         submittedAt: serverTimestamp(),
@@ -602,7 +606,7 @@ export default function GkTestRegistration() {
         fatherName: student.fatherName,
         className: student.className,
         classRollNo: student.classRollNo,
-        session: student.session || '2025-26',
+        session: student.session || getCurrentAcademicSession(),
         photoUrl: student.photoUrl || null,
         isManualEntry: false,
         submittedAt: serverTimestamp(),
