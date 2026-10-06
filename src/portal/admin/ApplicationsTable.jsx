@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search, Eye, Unlock, Trash2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
+import ExamDropBadge from './ExamDropBadge';
 
 /**
  * ApplicationsTable — Sortable, Filterable Student Applications Data Table.
@@ -186,7 +187,12 @@ export default function ApplicationsTable({
                       )}
                     </td>
                     <td className="p-3 font-mono font-bold text-teal-600">{formNo}</td>
-                    <td className="p-3 font-extrabold" style={{ color: 'var(--text-main, #0f172a)' }}>{name}</td>
+                    <td className="p-3 font-extrabold" style={{ color: 'var(--text-main, #0f172a)' }}>
+                      <span className="inline-flex items-center gap-1.5 flex-wrap">
+                        <span>{name}</span>
+                        <ExamDropBadge student={app} />
+                      </span>
+                    </td>
                     <td className="p-3 text-slate-500">{parentage}</td>
                     <td className="p-3 font-semibold">{cls}</td>
                     <td className="p-3 text-slate-500">{stream}</td>

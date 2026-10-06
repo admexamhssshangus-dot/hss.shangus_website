@@ -32,6 +32,8 @@ import LazyStudentPhoto from '../../components/LazyStudentPhoto';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
 import { resolveCcDcVal, extractReappearCodes, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList } from '../../utils/certificateStudentResolution';
 import JkboseFieldBadge from './JkboseFieldBadge';
+import ExamDropBadge from './ExamDropBadge';
+import { isStudentExamDropped, getStudentExamDropDetails } from '../../utils/studentApprovalStatus';
 import { getJkboseFieldStatus, computeStudentJkboseStatusMap, loadRecentJkboseBatchTraceability, normalizeKey } from '../../utils/jkboseTraceability';
 import { applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
 import { toPublicFacultyList } from '../../utils/facultyPrivacy';
@@ -2839,6 +2841,10 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     const admDate = student?.admDate || student?.approvedAt || '—';
 
     const extraDetails = [];
+    if (isStudentExamDropped(student)) {
+      const dropInfo = getStudentExamDropDetails(student);
+      extraDetails.push(`• JKBOSE Exam Status: DROPPED (${dropInfo?.reason || 'Administrative Exclusion'})`);
+    }
     if (student?.rejectionReason) {
       extraDetails.push(`• Rejection Reason: "${student.rejectionReason}"`);
     }
@@ -5374,6 +5380,7 @@ const COLUMN_DEFS = [
   {
     key: 'status', label: 'Status', className: 'text-center whitespace-nowrap', render: (val, student) => {
       return (
+        <div className="inline-flex flex-col items-center justify-center gap-0.5">
         <StatusActionDropdown
           student={student}
           onViewEdit={(s) => {
@@ -5387,6 +5394,8 @@ const COLUMN_DEFS = [
           onDeleteRecord={student?._onDeleteRecord}
           onTriggerDelete={student?._onTriggerDelete}
         />
+          <ExamDropBadge student={student} minimal />
+        </div>
       );
     }
   },
@@ -5511,6 +5520,7 @@ const COLUMN_DEFS = [
               ({gCode})
             </span>
           )}
+          <ExamDropBadge student={student} />
           {student?._getJkboseStatus?.('studentName') && (
             <JkboseFieldBadge info={student._getJkboseStatus('studentName')} />
           )}

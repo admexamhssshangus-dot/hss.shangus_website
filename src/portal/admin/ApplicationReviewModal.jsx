@@ -9,6 +9,7 @@ import { savePhotoUrlToCache, syncStudentPhotoOnRegUpdate, invalidateStudentCach
 import ConfirmModal from '../components/ConfirmModal';
 import { showToast } from '../../components/common/GlobalToast';
 import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
+import ExamDropBadge from './ExamDropBadge';
 
 const DEFAULT_PRESET_REASONS = [
   'Documents incomplete / verification pending',
@@ -267,8 +268,9 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
             <div className="text-[10px] font-extrabold uppercase tracking-wider text-teal-600 dark:text-teal-400 flex items-center gap-1">
               <User size={12} /> Application Review Details
             </div>
-            <h2 className="text-xl font-extrabold" style={{ color: 'var(--text-main, #0f172a)' }}>
-              Form #{formNo} • {name}
+            <h2 className="text-xl font-extrabold flex items-center gap-2 flex-wrap" style={{ color: 'var(--text-main, #0f172a)' }}>
+              <span>Form #{formNo} • {name}</span>
+              <ExamDropBadge student={app} />
             </h2>
           </div>
           <button onClick={onClose} disabled={actionLoading} className="p-2 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer disabled:opacity-50">

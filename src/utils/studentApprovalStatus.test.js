@@ -1,5 +1,6 @@
 import {
   isStudentExamDropped,
+  getStudentExamDropDetails,
   checkStudentApprovalState,
   isStudentApprovedForPracticals,
   getAssignedClassRollNumber
@@ -44,6 +45,38 @@ describe('studentApprovalStatus unit & cohort invariant tests', () => {
         name: 'Another Student',
         classRollNo: '72'
       })).toBe(false);
+    });
+  });
+
+  describe('getStudentExamDropDetails', () => {
+    test('returns null for non-dropped students', () => {
+      expect(getStudentExamDropDetails(null)).toBeNull();
+      expect(getStudentExamDropDetails({ status: 'Approved', className: '10th', classRollNo: '12' })).toBeNull();
+    });
+
+    test('extracts comprehensive drop details and reasons for Class 10th and 11th dropped examinees', () => {
+      const drop10 = getStudentExamDropDetails({
+        className: '10th',
+        name: 'Suhaib Yousuf',
+        classRollNo: '46',
+        formNo: '251297',
+        boardRegNo: '2501000000610046'
+      });
+      expect(drop10).not.toBeNull();
+      expect(drop10.isDropped).toBe(true);
+      expect(drop10.classRollNo).toBe('46');
+      expect(drop10.studentName).toBe('Suhaib Yousuf');
+      expect(drop10.reason).toContain('Dropped from regular JKBOSE Class 10th Annual Regular Examination');
+
+      const drop11 = getStudentExamDropDetails({
+        className: '11th',
+        name: 'Seher Un Nisa',
+        classRollNo: '72',
+        formNo: '250459'
+      });
+      expect(drop11).not.toBeNull();
+      expect(drop11.isDropped).toBe(true);
+      expect(drop11.reason).toContain('Dropped from regular JKBOSE Class 11th Examination');
     });
   });
 

@@ -2,33 +2,52 @@
 
 ## Commit Message
 
-`perf(session-scoping): enforce current academic session 2025-26 default and load historical sessions on-demand`
+`feat(examinee-drop): add compact label with interactive floating tooltip for students dropped from JKBOSE exams`
 
 ## Summary
 
-- **Enforced Current Academic Session (`2025-26`) as the Sole Default on Login**:
-  - In `src/portal/admin/AdvancedReports.jsx`, updated `getDynamicRecentSessionCohort` to strictly return only `[getCurrentAcademicSession() || '2025-26']` as `defaultRecentCohort`.
-  - Configured `isDefaultSession` to return `true` strictly for the current academic session (`2025-26`).
-  - In the session filter dropdown, only `2025-26` is checked by default (`CURRENT`). Historical sessions (`2024-25 (Oct-Nov)`, `2024-25 (Mar-Apr)`, `2023-24`, and older cycles) remain unchecked (`ON-DEMAND` / `ARCHIVE`) and are queried only when the administrator explicitly selects them.
-  - Updated the dropdown informative banner:
-    `⚡ Current session active by default. Checking an archive session will prompt to load data on-demand.`
-  - Updated the table header scope pill from `Scope: Recent 3 Cycles` to `Scope: Current Session`.
-  - Fixed `isArchiveLoaded` to check `Boolean(window._hssMasterRegistersIsFull)` so the indicator does not prematurely display `✓ Complete 20-Year Archive Loaded` when only current session records are in memory.
-- **Protected Admissions Background Sync Against Unscoped Collection Reads**:
-  - In `src/services/dbCache.js`, updated `fetchFreshFromFirestore(collectionName)`: when `collectionName === 'admissions'`, it routes directly to `getAdmissionsBySession({ session: getCurrentAcademicSession(), forceRefresh: true })` instead of executing an unscoped `getDocs(collection(db, 'admissions'))`.
-  - This prevents cold logins or background revalidations from scanning the entire collection, preventing spikes in Cloud Firestore read operations.
+- **Created `ExamDropBadge` Component (`src/portal/admin/ExamDropBadge.jsx`)**:
+  - Implemented a compact, prominent badge (`EXAM DROPPED` / `DROPPED`) featuring an animated rose pulsing indicator dot and subtle micro-interactions (`hover:scale-105 active:scale-95`).
+  - Utilizes a window-responsive floating portal tooltip rendered directly into `document.body` via `createPortal`. This completely prevents CSS clipping inside table `overflow-x-auto` / `overflow-y-auto` containers and maintains correct positioning across desktop viewports, mobile screens, and table scroll states.
+  - Interactive tooltip displays:
+    - **Header Bar**: Status pill (`Examinee Dropped • JKBOSE Regular • Excluded`).
+    - **Student Demographics**: Name, Class, Roll Number, Form Number, and Board Registration Number.
+    - **Drop Comment & Order Details**: Dedicated high-contrast quote card displaying the full administrative reason/comment for the drop.
+    - **Institutional Policy Note**: Explicit warning that the candidate is excluded from regular JKBOSE exams returns, award rolls, and practicals.
+    - **Order Metadata**: Responsible authority (`Administration / Examination Cell`), academic session (`2025-26`), and recorded timestamp.
+
+- **Centralized Drop Details Helper (`src/utils/studentApprovalStatus.js`)**:
+  - Added and exported `getStudentExamDropDetails(student)`:
+    - Identifies if a student is dropped using authoritative institutional invariants (e.g., Class 10th Roll 46 Suhaib Yousuf, Class 11th Roll 72 Seher Un Nisa & Roll 186 Wanhar Ahmad Malik, generic flags `isExamDropped`, `examDropped`, `status: 'dropped' / 'discharged'`).
+    - Resolves specific administrative comments and reasons, falling back to authoritative institutional descriptions where applicable.
+
+- **Integrated into Admin Portal Data Tables & Modals**:
+  - `src/portal/admin/AdvancedReports.jsx`:
+    - Mounted `<ExamDropBadge student={student} />` in the `STUDENT'S NAME` column right beside the student name, gender badge, and JKBOSE field badges.
+    - Mounted `<ExamDropBadge student={student} minimal />` in the `STATUS` column under the status action dropdown.
+    - Added JKBOSE Exam Status and reason to the "View Activity History" dialog modal (`handleViewHistory`).
+  - `src/portal/admin/ApplicationsTable.jsx`: Mounted `ExamDropBadge` beside student names in application rows.
+  - `src/portal/admin/ApplicationReviewModal.jsx`: Mounted `ExamDropBadge` in the header review title next to form number and examinee name.
+
+- **Unit & Cohort Invariant Testing (`src/utils/studentApprovalStatus.test.js`)**:
+  - Added unit tests for `getStudentExamDropDetails`: verified `null` for active students, and verified full details extraction for Class 10th and 11th dropped examinees.
 
 ## Files Changed
 
-1. `src/portal/admin/AdvancedReports.jsx`
-2. `src/services/dbCache.js`
-3. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `src/portal/admin/ExamDropBadge.jsx` (New)
+2. `src/utils/studentApprovalStatus.js`
+3. `src/utils/studentApprovalStatus.test.js`
+4. `src/portal/admin/AdvancedReports.jsx`
+5. `src/portal/admin/ApplicationsTable.jsx`
+6. `src/portal/admin/ApplicationReviewModal.jsx`
+7. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- `npm run test:public`: 10/10 tests passed.
+- `npx react-scripts test src/utils/studentApprovalStatus.test.js --watchAll=false`: 10/10 unit tests passed.
+- `npm run test:public`: 10/10 security and public records verification tests passed.
 - `npm run security:check`: Security regression checks passed.
-- `npm run admission:check`: Admission regression checks passed.
+- `npm run admission:check`: Admission schema & PDF regression checks passed.
 - `npm run build`: Production build completed with `Exit Code 0` and zero breaking errors.
 
 ## Instructions for the User
