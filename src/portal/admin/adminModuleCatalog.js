@@ -308,6 +308,19 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     keywords: ['website', 'cms', 'homepage', 'notices', 'circulars', 'slider', 'hero banner', 'photo gallery', 'school website', 'announcements', 'public pages', 'news', 'content management', 'website bin'],
   },
   {
+    id: 'achievementsCms',
+    label: 'Achievements & Hall of Fame CMS',
+    shortLabel: 'Achievements CMS',
+    description: 'Publish and spotlight student academic awards, JKBOSE top ranks, UT positions, NEET/JEE and sports honors',
+    category: 'Operations & Automation',
+    maturity: 'optimized',
+    maturityNote: 'Student fast-lookup, UT position spotlight, automated photo resolution, and cross-tab real-time sync.',
+    launcher: true,
+    isNew: true,
+    aliases: ['achievementsCms', 'achievements', 'hallOfFame', 'achievements_cms'],
+    keywords: ['achievements', 'hall of fame', 'ut positions', 'top ranks', 'toppers', 'neet', 'jee', 'cuet', 'sports', 'jkbose position', 'medals', 'awards', 'merit', 'honors', 'trophies', 'cms'],
+  },
+  {
     id: 'boardSync',
     label: 'Student Data & Board Ingestion Hub',
     shortLabel: 'Board Ingestion',
@@ -397,7 +410,7 @@ export const ROLE_PRESETS = Object.freeze([
     name: 'Full Administrator',
     shortName: 'Full Admin',
     badgeClass: 'bg-indigo-600 text-white',
-    desc: 'Access to all 24 administrative modules, tools, and configurations.',
+    desc: 'Access to all 25 administrative modules, tools, and configurations.',
     perms: () => ADMIN_MODULE_CATALOG.map(m => m.id),
   },
   {
@@ -405,11 +418,11 @@ export const ROLE_PRESETS = Object.freeze([
     name: 'Academic & Examination Incharge',
     shortName: 'Academics',
     badgeClass: 'bg-emerald-600 text-white',
-    desc: 'Student Records, Admission Register, Subject Rolls, Rosters, Curriculum, Practicals, Attendance, Roll Numbers & Board Sync.',
+    desc: 'Student Records, Admission Register, Subject Rolls, Rosters, Curriculum, Practicals, Attendance, Roll Numbers, Board Sync & Achievements CMS.',
     perms: () => [
       'reports', 'admRegisterSuite', 'customRoster', 'gkTest', 'directEntry',
       'controls', 'curriculum', 'practicals', 'attendanceMgmt', 'rollNo', 'boardSync',
-      'analyticsReports', 'quickCellEdit'
+      'analyticsReports', 'achievementsCms', 'quickCellEdit'
     ],
   },
   {

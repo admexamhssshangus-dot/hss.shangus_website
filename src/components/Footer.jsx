@@ -236,6 +236,7 @@ export default function Footer() {
               <li><Link to="/verify-student" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Verify Student</Link></li>
               <li><Link to="/notices" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Notice Board</Link></li>
               <li><Link to="/academics" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Academics</Link></li>
+              <li><Link to="/achievements" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Achievements &amp; Honors</Link></li>
             </ul>
           </div>
 

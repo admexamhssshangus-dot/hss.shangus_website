@@ -27,7 +27,15 @@ const PUBLIC_PAGES = {
       'Secondary subjects include English, Mathematics, Science and Social Studies, with Urdu and vocational options including Healthcare and IT & ITES.',
       'Higher secondary students can explore Science and Humanities combinations. Subjects include General English, Physics, Chemistry, Biology, Mathematics, Education, History, Political Science, Economics and Urdu.',
       'The interactive academics page provides subject combinations and the school faculty directory.'
-    ], links: ['/admissions', '/about', '/contact']
+    ], links: ['/achievements', '/admissions', '/about', '/contact']
+  },
+  '/achievements': {
+    label: 'Achievements', title: `Achievements & Hall of Fame | ${SITE_NAME}`, heading: 'School Achievements & Merits',
+    description: 'Explore the distinguished academic achievements, JKBOSE board toppers, J&K UT position holders, NEET/JEE qualifiers, and athletic accolades of Govt. Higher Secondary School Shangus.',
+    paragraphs: [
+      'Govt. Higher Secondary School Shangus honors distinguished student performance across JKBOSE Class 10th and 12th Board examinations, Jammu & Kashmir UT position holders, and national competitive exams.',
+      'Our Hall of Fame celebrates top rankers in NEET-UG, JEE Main, state athletic championships, and science congress exhibitions, reflecting institutional commitment to academic excellence.'
+    ], links: ['/academics', '/admissions', '/about', '/notices']
   },
   '/admissions': {
     label: 'Admissions', title: `Admissions | ${SITE_NAME}`, heading: 'Admissions at HSS Shangus',

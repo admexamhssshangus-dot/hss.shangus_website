@@ -4,7 +4,8 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen, Award, X, Search, Calculator, History, Users, Sparkles
+  GitMerge, BookOpen, Award, X, Search, Calculator, History, Users, Sparkles,
+  Trophy
 } from 'lucide-react';
 import { ADMIN_MODULE_CATALOG } from './adminModuleCatalog';
 import { 
@@ -55,6 +56,8 @@ const MODULE_ICONS = {
   funds: CreditCard,
   accounts: Calculator,
   cms: PanelsTopLeft,
+  achievementsCms: Trophy,
+  achievements: Trophy,
   boardSync: FileSpreadsheet,
   googleContacts: Users,
   docStudio: FileSpreadsheet,

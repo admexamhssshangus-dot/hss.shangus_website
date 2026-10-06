@@ -20,6 +20,7 @@ const NetworkStatusIndicator = lazyWithChunkRecovery(() => import('./components/
 
 const About = lazyWithChunkRecovery(() => import('./pages/About'), 'about');
 const Academics = lazyWithChunkRecovery(() => import('./pages/Academics'), 'academics');
+const Achievements = lazyWithChunkRecovery(() => import('./pages/Achievements'), 'achievements');
 const Admissions = lazyWithChunkRecovery(() => import('./pages/Admissions'), 'admissions');
 const NoticeBoard = lazyWithChunkRecovery(() => import('./pages/NoticeBoard'), 'notices');
 const DynamicPage = lazyWithChunkRecovery(() => import('./pages/DynamicPage'), 'dynamic');
@@ -141,6 +142,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
             <Route path="/academics" element={<Academics />} />
+            <Route path="/achievements" element={<Achievements />} />
+            <Route path="/hall-of-fame" element={<Navigate to="/achievements" replace />} />
             <Route path="/admissions" element={<Admissions />} />
             <Route path="/login" element={<LoginPortal />} />
             <Route path="/notices" element={<NoticeBoard />} />

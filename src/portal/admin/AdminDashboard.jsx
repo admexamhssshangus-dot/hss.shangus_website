@@ -33,6 +33,7 @@ const FundDistribution = lazyWithChunkRecovery(() => import('./FundDistribution'
 const SchoolAccountsManager = lazyWithChunkRecovery(() => import('./SchoolAccountsManager'), 'admin-accounts');
 const AdministrativeCms = lazyWithChunkRecovery(() => import('../../pages/AdminPortal'), 'admin-cms');
 const ActivityAuditView = lazyWithChunkRecovery(() => import('./ActivityAuditView'), 'admin-activity-audit');
+const AchievementsCMSManager = lazyWithChunkRecovery(() => import('./AchievementsCMSManager'), 'admin-achievements-cms');
 const AnalyticsSuiteModal = lazyWithChunkRecovery(() => import('./AnalyticsSuiteModal'), 'admin-analytics-suite');
 const BulkFieldOverwriteModal = lazyWithChunkRecovery(() => import('./BulkFieldOverwriteModal'), 'admin-board-sync');
 
@@ -71,6 +72,10 @@ export const MODULE_LOADERS = {
   cms: () => import('../../pages/AdminPortal'),
   heroButtons: () => import('../../pages/AdminPortal'),
   activityAudit: () => import('./ActivityAuditView'),
+  achievementsCms: () => import('./AchievementsCMSManager'),
+  achievements: () => import('./AchievementsCMSManager'),
+  achievements_cms: () => import('./AchievementsCMSManager'),
+  hallOfFame: () => import('./AchievementsCMSManager'),
   analyticsReports: () => import('./AnalyticsSuiteModal'),
   analytics: () => import('./AnalyticsSuiteModal'),
   statisticalReports: () => import('./AnalyticsSuiteModal'),
@@ -148,6 +153,7 @@ function getInitialTab() {
       if (urlTab === 'curriculum' || urlTab === 'subjects' || urlTab === 'streams' || urlTab === 'feederSchools') return 'curriculum';
       if (urlTab === 'staff' || urlTab === 'permissions' || urlTab === 'staffPermissions') return 'staff';
       if (urlTab === 'controls' || urlTab === 'admissionControls' || urlTab === 'systemControls') return 'controls';
+      if (urlTab === 'achievementsCms' || urlTab === 'achievements' || urlTab === 'achievements_cms' || urlTab === 'hallOfFame') return 'achievementsCms';
       if (urlTab === 'storage' || urlTab === 'quota') {
         try { sessionStorage.setItem('hss_admin_controls_subtab', 'storage'); } catch (_) {}
         return 'controls';
@@ -169,6 +175,7 @@ function getInitialTab() {
       if (stored === 'curriculum' || stored === 'subjects' || stored === 'streams' || stored === 'feederSchools') return 'curriculum';
       if (stored === 'staff' || stored === 'permissions' || stored === 'staffPermissions') return 'staff';
       if (stored === 'controls' || stored === 'admissionControls' || stored === 'systemControls') return 'controls';
+      if (stored === 'achievementsCms' || stored === 'achievements' || stored === 'achievements_cms' || stored === 'hallOfFame') return 'achievementsCms';
       if (stored === 'storage' || stored === 'quota') {
         try { sessionStorage.setItem('hss_admin_controls_subtab', 'storage'); } catch (_) {}
         return 'controls';
@@ -208,7 +215,8 @@ export default function AdminDashboard() {
       const priorityModules = [
         'controls', 'practicals', 'idCards', 'admRegisterSuite', 'attendanceMgmt',
         'customRoster', 'officialLetter', 'certStudio', 'curriculum', 'staff',
-        'analyticsReports', 'boardSync', 'rollNo', 'mergeStudio', 'automations', 'funds', 'accounts'
+        'analyticsReports', 'boardSync', 'rollNo', 'mergeStudio', 'automations', 'funds', 'accounts',
+        'achievementsCms'
       ];
       priorityModules.forEach((modId, idx) => {
         if (isUserPermittedForModule(user, modId)) {
@@ -233,6 +241,9 @@ export default function AdminDashboard() {
       setAnalyticsInitialMode('jkbose_subject_rolls');
       setMountedTabs(prev => (prev.has('analyticsReports') ? prev : new Set(prev).add('analyticsReports')));
       tab = 'analyticsReports';
+    }
+    if (tab === 'achievements' || tab === 'achievements_cms' || tab === 'hallOfFame') {
+      tab = 'achievementsCms';
     }
     if (tab === 'storage' || tab === 'quota') {
       try {
@@ -1124,6 +1135,18 @@ export default function AdminDashboard() {
                       aria-hidden={activeTab !== 'activityAudit'}
                     >
                       <ActivityAuditView user={user} />
+                    </div>
+                  )}
+
+                  {/* TAB: Achievements & Hall of Fame CMS Studio */}
+                  {(mountedTabs.has('achievementsCms') || mountedTabs.has('achievements') || mountedTabs.has('achievements_cms') || mountedTabs.has('hallOfFame')) && (
+                    <div
+                      key="achievements-cms-container"
+                      className={(activeTab === 'achievementsCms' || activeTab === 'achievements' || activeTab === 'achievements_cms' || activeTab === 'hallOfFame') ? 'block w-full' : 'hidden'}
+                      style={(activeTab === 'achievementsCms' || activeTab === 'achievements' || activeTab === 'achievements_cms' || activeTab === 'hallOfFame') ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'achievementsCms' && activeTab !== 'achievements' && activeTab !== 'achievements_cms' && activeTab !== 'hallOfFame'}
+                    >
+                      <AchievementsCMSManager user={user} userEmail={user?.email} onClose={handleCloseToReports} />
                     </div>
                   )}
                 </React.Suspense>
