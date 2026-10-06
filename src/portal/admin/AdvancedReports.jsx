@@ -7,7 +7,7 @@ import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase, loadCentralStudentPhotosFromFirestore, invalidateStudentCaches } from '../../services/dbCache';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase, loadCentralStudentPhotosFromFirestore, invalidateStudentCaches, getCurrentAcademicSession } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl, getStudentPhotoDownloadFilename, downloadPhotoFile } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
@@ -908,99 +908,27 @@ export async function deleteStudentDocument(student) {
  * Dynamically adapts as future academic sessions (e.g. 2026-27) are introduced without code changes.
  */
 export function getDynamicRecentSessionCohort(sessions = []) {
-  const isBianSession = (sess) => /bian|bi-annual|private/i.test(String(sess || '')) || (/apr/i.test(String(sess || '')) && !/mar-apr/i.test(String(sess || '')));
-
-  // Parse chronological weight for regular sessions to order newest first
-  const parseRegularSessionScore = (sessStr) => {
-    const str = String(sessStr || '').trim();
-    const yearMatches = str.match(/\d{4}/g);
-    const startYear = yearMatches ? parseInt(yearMatches[0], 10) : 2000;
-    
-    let monthWeight = 0.5; // default regular session
-    if (/oct|nov/i.test(str)) {
-      monthWeight = 0.8; // Oct-Nov session occurs later in calendar cycle
-    } else if (/mar|apr/i.test(str)) {
-      monthWeight = 0.3; // Mar-Apr session occurs earlier in calendar cycle
-    }
-    return startYear + monthWeight;
-  };
-
-  const regularList = [];
-  const bianList = [];
-
-  // Always evaluate recent canonical cycles
-  const candidateSessions = new Set([
-    ...(Array.isArray(sessions) ? sessions : []),
-    '2025-26',
-    '2024-25 (Oct-Nov)',
-    '2024-25 (Mar-Apr)',
-    '2023-24'
-  ]);
-
-  candidateSessions.forEach(sess => {
-    const s = String(sess || '').trim();
-    if (!s || s === '—' || s === 'ALL' || s === '__NONE__' || s === '2024-25' || s === '2024–25') return;
-    if (isBianSession(s)) {
-      bianList.push(s);
-    } else {
-      regularList.push(s);
-    }
-  });
-
-  // Sort regular sessions descending by chronological weight
-  regularList.sort((a, b) => parseRegularSessionScore(b) - parseRegularSessionScore(a));
-
-  // Deduplicate regular sessions (excluding bare '2024-25')
-  const uniqueRegular = Array.from(new Set(regularList)).filter(s => s !== '2024-25' && s !== '2024–25');
-
-  // Top 4 regular sessions: 2025-26, 2024-25 (Oct-Nov), 2024-25 (Mar-Apr), and 2023-24
-  let latestRegularSessions = uniqueRegular.slice(0, 4);
-  if (latestRegularSessions.length === 0) {
-    latestRegularSessions = ['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2023-24'];
-  }
-
-  // Extract all 4-digit years involved in the top 3 regular sessions
-  const involvedYears = new Set();
-  latestRegularSessions.forEach(sess => {
-    const yrs = String(sess).match(/\d{4}/g) || [];
-    yrs.forEach(y => involvedYears.add(parseInt(y, 10)));
-    const twoDigitEnd = String(sess).match(/\d{4}-(\d{2})/);
-    if (twoDigitEnd && twoDigitEnd[1]) {
-      involvedYears.add(2000 + parseInt(twoDigitEnd[1], 10));
-    }
-  });
-
-  // Find all BIAN sessions corresponding to these years
-  const matchingBianSessions = [];
-  bianList.forEach(sess => {
-    const yrs = String(sess).match(/\d{4}/g) || [];
-    const hasMatch = yrs.some(y => involvedYears.has(parseInt(y, 10)));
-    if (hasMatch) {
-      matchingBianSessions.push(sess);
-    }
-  });
-
-  const defaultRecentCohort = Array.from(new Set([...latestRegularSessions, ...matchingBianSessions]));
+  const currentSession = (typeof getCurrentAcademicSession === 'function' ? getCurrentAcademicSession() : null) || '2025-26';
+  const defaultRecentCohort = [currentSession];
   
-  const defaultRecentLowerSet = new Set(defaultRecentCohort.map(s => String(s).trim().toLowerCase()));
-  defaultRecentCohort.forEach(s => {
-    const low = String(s).trim().toLowerCase();
-    defaultRecentLowerSet.add(low);
-    const base = low.split('(')[0].trim();
-    if (base) defaultRecentLowerSet.add(base);
-  });
+  const defaultRecentLowerSet = new Set();
+  const low = String(currentSession).trim().toLowerCase();
+  defaultRecentLowerSet.add(low);
+  defaultRecentLowerSet.add(low.replace(/[^a-z0-9]/g, ''));
+  const base = low.split('(')[0].trim();
+  if (base) defaultRecentLowerSet.add(base);
 
   const isDefaultSession = (sess) => {
     if (!sess) return false;
-    const low = String(sess).trim().toLowerCase();
-    if (defaultRecentLowerSet.has(low)) return true;
-    const base = low.split('(')[0].trim();
-    return defaultRecentLowerSet.has(base);
+    const sLow = String(sess).trim().toLowerCase();
+    if (defaultRecentLowerSet.has(sLow)) return true;
+    const sBase = sLow.split('(')[0].trim();
+    return defaultRecentLowerSet.has(sBase);
   };
 
   return {
-    latestRegularSessions,
-    matchingBianSessions,
+    latestRegularSessions: [currentSession],
+    matchingBianSessions: [],
     defaultRecentCohort,
     defaultRecentLowerSet,
     isDefaultSession
@@ -1221,7 +1149,7 @@ function MultiSelectCheckboxDropdown({
           {hasDefaultScoping && (
             <div className="space-y-1">
               <div className="px-2 py-1 text-[9.5px] font-bold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/50 rounded-lg border border-amber-200/80 dark:border-amber-900/60 leading-tight">
-                ⚡ Recent 3 cycles (+BIAN) active by default. Checking an archive session will prompt to load data.
+                ⚡ Current session active by default. Checking an archive session will prompt to load data on-demand.
               </div>
               {!isArchiveLoaded && onLoadAllArchive && (
                 <button
@@ -1267,7 +1195,7 @@ function MultiSelectCheckboxDropdown({
                         ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700'
                     }`}>
-                      {isDefault ? 'Recent' : 'Archive'}
+                      {isDefault ? 'Current' : 'Archive'}
                     </span>
                   )}
                 </button>
@@ -13806,7 +13734,7 @@ function AdvancedReports({
                 isDefaultSession={isDefaultSession}
                 onHistoricalLimitExceeded={handleHistoricalLimitExceeded}
                 onRequestConfirmArchive={handleConfirmArchiveSession}
-                isArchiveLoaded={Boolean(window._hssMasterRegistersIsFull || masterHistoricalRecords.length > 0)}
+                isArchiveLoaded={Boolean(window._hssMasterRegistersIsFull)}
                 onLoadAllArchive={handleConfirmLoadAllArchive}
               />
             </div>
@@ -13877,7 +13805,7 @@ function AdvancedReports({
                   </span>
                 ) : (
                   <span className="hidden lg:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[9.5px] font-extrabold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs">
-                    Scope: Recent 3 Cycles
+                    Scope: Current Session
                   </span>
                 )}
               </div>
@@ -13992,7 +13920,7 @@ function AdvancedReports({
                 isDefaultSession={isDefaultSession}
                 onHistoricalLimitExceeded={handleHistoricalLimitExceeded}
                 onRequestConfirmArchive={handleConfirmArchiveSession}
-                isArchiveLoaded={Boolean(window._hssMasterRegistersIsFull || masterHistoricalRecords.length > 0)}
+                isArchiveLoaded={Boolean(window._hssMasterRegistersIsFull)}
                 onLoadAllArchive={handleConfirmLoadAllArchive}
               />
             </div>
