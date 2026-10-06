@@ -16,7 +16,7 @@ import { collection, getDocs, addDoc, doc, getDoc, onSnapshot, query, where, lim
 import { getCurrentAcademicSession, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
 import { printIndividualAwardRoll, printMarksRecordAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll, getCurrentOfficialExamRoll, isValidExamRollForClass } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
-import { isStudentExamDropped } from '../../utils/studentApprovalStatus';
+import { getAssignedClassRollNumber, isLikelyOfficialExamRollNumber, isStudentExamDropped } from '../../utils/studentApprovalStatus';
 import { checkIsStudentDropped } from '../../services/examineeDropService';
 import {
   getSubjectMarksConfig,
@@ -490,34 +490,7 @@ export function extractStudentClass(st) {
 
 // Helper: Check if student has assigned Class Roll No
 export function hasAssignedClassRoll(st) {
-  if (!st) return false;
-  const roll = String(
-    st['Class Roll No'] ||
-    st['Class Roll No.'] ||
-    st['Class R.No.'] ||
-    st['Class R.No'] ||
-    st['Class R. No.'] ||
-    st['Class R. No'] ||
-    st.classRollNo ||
-    st.rollNo ||
-    st['Roll No.'] ||
-    st['Roll No'] ||
-    st.roll_no ||
-    st['RL. NO.'] ||
-    st['RL. NO'] ||
-    st.assignedRollNo ||
-    st.currentRollNo ||
-    st.crNo ||
-    st.class_roll ||
-    st.ClassRoll ||
-    st.ClassRollNo ||
-    ''
-  ).trim();
-
-  if (!roll || roll === '—' || roll === '-' || roll === '0' || roll === 'N/A' || roll.toLowerCase() === 'undefined' || roll.toLowerCase() === 'null') {
-    return false;
-  }
-  return true;
+  return Boolean(getAssignedClassRollNumber(st));
 }
 
 // Helper: Extract Student Name from any potential schema key
@@ -1808,15 +1781,16 @@ export default function PracticalsPage() {
           if (Array.isArray(data.records) && !dId.startsWith('history_')) {
             data.records.forEach(r => {
               if (checkIsStudentDropped(r) || isStudentExamDropped(r)) return;
-              const rRoll = String(r.rollNo || r.classRollNo || '').trim();
-              const rBoard = String(r.boardRollNo || r.boardRoll || '').trim();
+              const rRoll = getAssignedClassRollNumber(r);
+              const legacyRoll = String(r.rollNo || '').trim();
+              const rBoard = String(r.examRollNo || r.boardRollNo || r.boardRoll || (isLikelyOfficialExamRollNumber(legacyRoll) ? legacyRoll : '')).trim();
               const rForm = String(r.formNo || '').trim();
               const rName = String(r.name || r.studentName || '').toLowerCase().trim();
               const rReg = String(r.regNo || r.boardRegNo || r.registrationNo || r['Board Reg. No.'] || '').trim();
 
               const recObj = {
-                rollNo: rRoll || rBoard,
-                classRollNo: rRoll || rBoard,
+                rollNo: rRoll,
+                classRollNo: rRoll,
                 boardRoll: rBoard,
                 boardRollNo: rBoard,
                 regNo: rReg,
@@ -1887,15 +1861,16 @@ export default function PracticalsPage() {
         if (foundPending && Array.isArray(foundPending.records)) {
           foundPending.records.forEach(r => {
             if (checkIsStudentDropped(r) || isStudentExamDropped(r)) return;
-            const rRoll = String(r.rollNo || r.classRollNo || '').trim();
-            const rBoard = String(r.boardRollNo || r.boardRoll || '').trim();
+            const rRoll = getAssignedClassRollNumber(r);
+            const legacyRoll = String(r.rollNo || '').trim();
+            const rBoard = String(r.examRollNo || r.boardRollNo || r.boardRoll || (isLikelyOfficialExamRollNumber(legacyRoll) ? legacyRoll : '')).trim();
             const rForm = String(r.formNo || '').trim();
             const rName = String(r.name || r.studentName || '').toLowerCase().trim();
             const rReg = String(r.regNo || r.boardRegNo || r.registrationNo || r['Board Reg. No.'] || '').trim();
 
             const recObj = {
-              rollNo: rRoll || rBoard,
-              classRollNo: rRoll || rBoard,
+              rollNo: rRoll,
+              classRollNo: rRoll,
               boardRoll: rBoard,
               boardRollNo: rBoard,
               regNo: rReg,
@@ -2060,7 +2035,7 @@ export default function PracticalsPage() {
           setIfBetter(richByForm, rForm, it);
 
           // 3. Class Roll No (Strictly restrict to matching class to prevent cross-class roll number collisions)
-          const rRoll = String(it.classRollNo || it.rollNo || it['Class Roll No'] || it['Roll No'] || '').trim();
+          const rRoll = getAssignedClassRollNumber(it);
           if (isMatchCls) {
             setIfBetter(richByRoll, rRoll, it);
           }
@@ -2124,7 +2099,8 @@ export default function PracticalsPage() {
               ...st,
               studentName: getStudentName(st),
               formNo: st.formNo || st['Form No.'] || st['Form Number'] || '',
-              classRollNo: st.classRollNo || st.rollNo || st['Class Roll No'] || '',
+              classRollNo: getAssignedClassRollNumber(st),
+              rollNo: getAssignedClassRollNumber(st),
               admNo: extractRawAdmNo(st),
               regNo: getRegNo(st),
               rawSubjects: extractRawSubjectsString(st, selectedClass) || st.subjects || '',
@@ -2143,7 +2119,7 @@ export default function PracticalsPage() {
             if (seenMarksKeys.has(uKey)) return;
             seenMarksKeys.add(uKey);
 
-            const rRoll  = String(rec.classRollNo || rec.rollNo || idx + 1).trim();
+            const rRoll  = getAssignedClassRollNumber(rec);
             const rName  = String(rec.name || rec.studentName || '').toLowerCase().trim();
             const rBoard = String(rec.boardRoll || rec.boardRollNo || '').trim();
             const rForm  = String(rec.formNo || rec.formNumber || '').trim();
@@ -2213,8 +2189,8 @@ export default function PracticalsPage() {
             allDiscoveredStudents.push({
               id: rec.boardRoll || rec.rollNo || richSt.id || `saved_${idx}`,
               ...richSt,
-              classRollNo: richSt.classRollNo || richSt['Class Roll No'] || richSt['Class R.No.'] || richSt['Class R.No'] || rec.classRollNo || rec.rollNo,
-              rollNo: richSt.classRollNo || richSt['Class Roll No'] || richSt['Class R.No.'] || richSt['Class R.No'] || rec.classRollNo || rec.rollNo,
+              classRollNo: getAssignedClassRollNumber(richSt) || getAssignedClassRollNumber(rec),
+              rollNo: getAssignedClassRollNumber(richSt) || getAssignedClassRollNumber(rec),
               studentName: finalName,
               parentName: rec.parentName || richSt.parentName || richSt["Father's Name"] || richSt['Father Name'] || '',
               boardRollNo: rBoard || richSt.boardRollNo || richSt['Board Roll No'] || '',
@@ -2246,10 +2222,7 @@ export default function PracticalsPage() {
           const sesScope = getSessionEndYear(String(st.session || st.Session || yearSuffix || '')) || yearSuffix;
 
           // Class Roll No is best dedup key — assigned per-session per-class
-          const rollKey = String(
-            st['Class Roll No'] || st['Class Roll No.'] || st['Class R.No.'] || st['Class R.No'] ||
-            st['Class R. No.'] || st.classRollNo || st.rollNo || ''
-          ).trim();
+          const rollKey = getAssignedClassRollNumber(st);
 
           let key;
           if (rollKey) {
@@ -2330,19 +2303,7 @@ export default function PracticalsPage() {
       const formatted = subjectFiltered
         .filter(st => hasAssignedClassRoll(st))
         .map((st, sIdx) => {
-          const roll = String(
-            st['Class Roll No'] ||
-            st['Class Roll No.'] ||
-            st['Class R.No.'] ||
-            st['Class R.No'] ||
-            st['Class R. No.'] ||
-            st.classRollNo ||
-            st.rollNo ||
-            st['Roll No.'] ||
-            st['Roll No'] ||
-            st.roll_no ||
-            ''
-          ).trim();
+          const roll = getAssignedClassRollNumber(st);
 
           const name = getStudentName(st);
           const examRollVal = st._examRollNo || getExamRoll(st, selectedClass);
@@ -2384,6 +2345,7 @@ export default function PracticalsPage() {
             _uid: uniqueId,
             id: st.id || uniqueId,
             rollNo: roll,
+            classRollNo: roll,
             name: name,
             examRollNo: examRollVal,
             subjectsAbbr: subsAbbr,
@@ -2504,7 +2466,7 @@ export default function PracticalsPage() {
               if (!prev || prev.length === 0) return prev;
               const marksMap = new Map();
               cData.records.forEach(r => {
-                const rRoll = String(r.rollNo || r.classRollNo || '').trim();
+                const rRoll = getAssignedClassRollNumber(r);
                 const rForm = String(r.formNo || '').trim();
                 const rName = String(r.name || r.studentName || '').toLowerCase().trim();
                 const rReg = String(r.regNo || r.boardRegNo || '').trim().toUpperCase();
@@ -2519,7 +2481,7 @@ export default function PracticalsPage() {
               });
 
               return prev.map(st => {
-                const rRoll = String(st.rollNo || st.classRollNo || '').trim();
+                const rRoll = getAssignedClassRollNumber(st);
                 const rForm = String(st.formNo || '').trim();
                 const rName = String(st.name || st.studentName || '').toLowerCase().trim();
                 const rReg = String(st.regNo || '').trim().toUpperCase();
@@ -2620,7 +2582,7 @@ export default function PracticalsPage() {
       const marksByName = new Map();
 
       item.records.forEach(r => {
-        const rRoll = String(r.rollNo || r.classRollNo || '').trim();
+        const rRoll = getAssignedClassRollNumber(r);
         const rForm = String(r.formNo || '').trim();
         const rName = String(r.name || r.studentName || '').toLowerCase().trim();
         const mObj = {
@@ -2641,7 +2603,7 @@ export default function PracticalsPage() {
       setStudentMarks(prev => {
         if (Array.isArray(prev) && prev.length > 0) {
           return prev.map(st => {
-            const rollKey = String(st.rollNo || '').trim();
+            const rollKey = getAssignedClassRollNumber(st);
             const formKey = String(st.formNo || '').trim();
             const nameKey = String(st.name || '').toLowerCase().trim();
             const rollKeyNum = rollKey && !isNaN(parseInt(rollKey, 10)) ? String(parseInt(rollKey, 10)) : '';
@@ -2661,11 +2623,13 @@ export default function PracticalsPage() {
           });
         }
         return item.records.map((r, rIdx) => {
-          const uId = r._uid || r.id || `rec_${r.rollNo || r.classRollNo || 'noroll'}_${r.formNo || 'noform'}_${rIdx}`;
+          const classRollNo = getAssignedClassRollNumber(r);
+          const uId = r._uid || r.id || `rec_${classRollNo || 'noroll'}_${r.formNo || 'noform'}_${rIdx}`;
           return {
             _uid: uId,
             id: r.id || uId,
-            rollNo: String(r.rollNo || r.classRollNo || ''),
+            classRollNo,
+            rollNo: classRollNo,
             name: r.name || r.studentName || '',
             examRollNo: r.examRollNo || r.boardRollNo || '',
             subjectsAbbr: r.subjectsAbbr || subj,
@@ -3116,7 +3080,8 @@ export default function PracticalsPage() {
         }
 
         return {
-          rollNo: String(s.rollNo || '').trim(),
+          classRollNo: getAssignedClassRollNumber(s),
+          rollNo: getAssignedClassRollNumber(s),
           name: String(s.name || '').trim().slice(0, 120),
           formNo: String(s.formNo || '').trim().slice(0, 50),
           regNo: String(s.regNo || s.boardRegNo || '').trim().slice(0, 50),
@@ -3401,7 +3366,8 @@ export default function PracticalsPage() {
         }
 
         return {
-          rollNo: String(s.rollNo || '').trim(),
+          classRollNo: getAssignedClassRollNumber(s),
+          rollNo: getAssignedClassRollNumber(s),
           name: String(s.name || '').trim().slice(0, 120),
           formNo: String(s.formNo || '').trim().slice(0, 50),
           regNo: String(s.regNo || s.boardRegNo || '').trim().slice(0, 50),
@@ -3593,8 +3559,8 @@ export default function PracticalsPage() {
       const cleanExam = getRecordExamRoll(st);
       return {
         sno: i + 1,
-        classRollNo: st.classRollNo || st.rollNo || '',
-        rollNo: cleanExam || st.classRollNo || st.rollNo || '',
+        classRollNo: getAssignedClassRollNumber(st),
+        rollNo: cleanExam || getAssignedClassRollNumber(st),
         examRollNo: cleanExam,
         centreNo: st.centreNo || '',
         name: st.name || st.studentName || '',

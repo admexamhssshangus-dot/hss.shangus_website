@@ -109,22 +109,7 @@ export const isClassMatch = (stc, trc) => {
 };
 
 export const getRollNo = (st) => {
-  if (!st) return '';
-  const keys = [
-    'Class Roll No', 'Class Roll No.', 'classRollNo', 'Class Roll', 'Class R.No.', 'Class R.No', 'Class R. No.',
-    'rollNo', 'RollNo', 'Roll No', 'Roll No.', 'roll_no', 'roll', 'ClassRoll', 'ClassRollNo', 'class_roll_no',
-    'RollNumber', 'Roll_No', 'classRoll', 'crNo', 'class_roll', 'assignedRollNo', 'currentRollNo',
-    'Class Roll No (Class 12th)', 'Class Roll No (Class 11th)', 'Class Roll No (Class 10th)', 'Class Roll No.', 'Roll_Number'
-  ];
-  for (const k of keys) {
-    if (st[k] !== undefined && st[k] !== null) {
-      const val = String(st[k]).trim();
-      if (val && val !== '—' && val !== '-' && val !== 'N/A' && val !== 'null' && val !== 'undefined') {
-        if (!/^\d{8,}$/.test(val)) return val;
-      }
-    }
-  }
-  return '';
+  return getAssignedClassRollNumber(st);
 };
 
 export function getStudentSession(st) {
@@ -642,7 +627,7 @@ export const parsePracticalsSnap = (snap) => {
         // Permanently filter out dropped examinees (e.g. Seher Un Nisa, Wanhar Ahmad Malik)
         if (checkIsStudentDropped(r) || isStudentExamDropped(r)) return false;
 
-        const rollStr = String(r.rollNo || r.classRollNo || r.examRoll || '').trim();
+        const rollStr = getAssignedClassRollNumber(r);
         const regStr = String(r.regNo || r.boardRegNo || r.registrationNo || '').trim();
         const formStr = String(r.formNo || r.form || '').trim();
         const targetClass = String(data.className || data.class || '').trim();
@@ -1618,9 +1603,17 @@ function AdminPracticals({ isActive = true }) {
       const adminEmail = auth.currentUser?.email || 'Administrator';
       const nowIso = new Date().toISOString();
 
+      // Administrative edits must retain the canonical Class Roll No separately
+      // from the official examination roll. Rows that cannot be resolved are
+      // preserved unchanged so historical marks are never discarded.
+      const normalizedRecords = updatedRecords.map(record => {
+        const classRollNo = getAssignedClassRollNumber(record);
+        return classRollNo ? { ...record, classRollNo, rollNo: classRollNo } : record;
+      });
+
       const updatedPayload = sanitizeForFirestore({
         ...submissionDoc,
-        records: updatedRecords,
+        records: normalizedRecords,
         updatedByAdmin: true,
         updatedBy: adminEmail,
         updatedAt: nowIso,
@@ -1644,7 +1637,7 @@ function AdminPracticals({ isActive = true }) {
       logAdminActivity({
         actionType: 'admin_submission_edit',
         actionTitle: `Admin Edited Marks for ${submissionDoc.subjectName || submissionDoc.subject || 'Practical'} (${submissionDoc.className || submissionDoc.class || ''})`,
-        details: `Administrator updated student marks directly in ${isPending ? 'pending submission' : 'approved award'} (${updatedRecords.length} student records).`,
+        details: `Administrator updated student marks directly in ${isPending ? 'pending submission' : 'approved award'} (${normalizedRecords.length} student records).`,
         metadata: { docId, isPending }
       });
 
@@ -2337,7 +2330,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
           if (!matchesSess) return false;
         }
 
-        const roll = getAssignedClassRollNumber(st) || st.rollNo || st.classRollNo;
+        const roll = getAssignedClassRollNumber(st);
         if (roll && String(roll).trim() && !/^(?:0|n\/?a|na|none|nil|null|undefined|—|-)$/i.test(String(roll).trim())) {
           const normRoll = String(roll).trim();
           if (seenRolls.has(normRoll)) return false;
@@ -2375,7 +2368,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
         }
         const isDropped = isStudentExamDropped(st) || checkIsStudentDropped(st);
         if (!isDropped) return false;
-        const roll = getAssignedClassRollNumber(st) || st.rollNo || st.classRollNo || st.id || st.docId;
+        const roll = getAssignedClassRollNumber(st) || st.id || st.docId;
         if (seenDropped.has(roll)) return false;
         seenDropped.add(roll);
         return true;
@@ -2474,9 +2467,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
         st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.regNo || ''
       ).toUpperCase();
       const stExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim().toUpperCase();
-      const stClassRoll = String(
-        st['Class R.No.'] || st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || st.RollNo || st.roll_no || ''
-      ).trim();
+      const stClassRoll = getAssignedClassRollNumber(st);
       const stForm = String(st.admissionNo || st.formNo || st['Admission Form No.'] || st['Form No.'] || '').trim();
       const stName = toTitleCase(
         st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || ''
@@ -2489,7 +2480,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
         if (!r) return false;
         const rBoardReg = cleanRegistrationNumber(r.boardRegNo || r['Board Reg. No.'] || r.regNo || '').toUpperCase();
         const rExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
-        const rClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.rollNo || r.roll || r.sNo || '').trim();
+        const rClassRoll = getAssignedClassRollNumber(r);
         const rForm = String(r.formNo || r.admissionNo || r['Form No.'] || '').trim();
         const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
         const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || '').trim().toLowerCase();
@@ -4202,9 +4193,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
   const getCleanForm = useCallback((r) => String(
     r.formNo || r.fNo || r['Form No'] || r.admissionNo || ''
   ).trim().toLowerCase(), []);
-  const getCleanClassRoll = useCallback((r) => String(
-    r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || ''
-  ).trim(), []);
+  const getCleanClassRoll = useCallback((r) => getAssignedClassRollNumber(r), []);
   const getCleanName = useCallback((r) => toTitleCase(
     r.name || r.studentName || r["Student's Name"] || ''
   ).trim().toLowerCase(), []);
@@ -4516,7 +4505,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                                (rName && rFather && studentByName.get(`${rName}_${rFather}`)) ||
                                (rName && studentByName.get(rName));
 
-                  const classRoll = r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || (dbSt ? getRollNo(dbSt) : '') || '—';
+                  const classRoll = getAssignedClassRollNumber(r) || (dbSt ? getAssignedClassRollNumber(dbSt) : '') || '—';
                   const examRoll = cleanExam || (dbSt ? (dbSt['Exam R.No. (Current)'] || dbSt.examRollNo) : '') || '—';
 
                   const cleanExamVal = (examRoll && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(examRoll).trim())) ? String(examRoll).trim() : '';
@@ -6142,7 +6131,7 @@ function FacultySubmissionsView({
                                   {(v.records || []).map((r, rIdx) => (
                                     <tr key={rIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                                       <td className="p-2 text-center font-mono text-slate-400">{rIdx + 1}</td>
-                                      <td className="p-2 font-mono font-bold text-indigo-600">{r.rollNo || r.classRollNo || '—'}</td>
+                                      <td className="p-2 font-mono font-bold text-indigo-600">{getAssignedClassRollNumber(r) || '—'}</td>
                                       <td className="p-2 font-bold text-slate-800 dark:text-slate-200">{r.name || r.studentName || '—'}</td>
                                       <td className="p-2 text-center font-mono">{r.practicalMarks ?? '—'}</td>
                                       <td className="p-2 text-center font-mono font-bold text-emerald-600">{r.totalMarks ?? r.practicalMarks ?? '—'}</td>

@@ -48,6 +48,12 @@ describe('studentApprovalStatus unit & cohort invariant tests', () => {
   });
 
   describe('checkStudentApprovalState', () => {
+    test('never treats a generic official exam roll as a class roll', () => {
+      expect(getAssignedClassRollNumber({ classRollNo: '27', rollNo: '301234567' })).toBe('27');
+      expect(getAssignedClassRollNumber({ rollNo: '301234567' })).toBe('');
+      expect(getAssignedClassRollNumber({ rollNo: '27' })).toBe('27');
+    });
+
     test('enforces that Session 2025-26 examinees require an assigned Class Roll Number', () => {
       const studentWithRoll = {
         session: '2025-26',

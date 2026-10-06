@@ -1,6 +1,7 @@
 'use strict';
 const { requireStaff, roleKey } = require('./access');
 const { key, sessionKey, classKey, studentForm, studentReg, loadCohort } = require('./academicData');
+const { getAssignedClassRollNumber } = require('./admissionStatus');
 const { getSubjectMarksConfig } = require('./marksPolicy');
 const subjectDefinitions = require('./subjectDefinitions.json');
 
@@ -72,11 +73,14 @@ module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCa
         if (!form && !reg) throw new Error('Every row needs a form or registration number.');
         const matches = roster.filter(student => (!form || studentForm(student) === form) && (!reg || studentReg(student) === reg));
         if (matches.length !== 1) throw new Error('A student is missing from this cohort or has a duplicate identity. Refresh the roster.');
-        const identity = studentForm(matches[0]) || studentReg(matches[0]);
+        const rosterStudent = matches[0];
+        const identity = studentForm(rosterStudent) || studentReg(rosterStudent);
         if (identities.has(identity)) throw new Error('A student appears more than once.');
         identities.add(identity);
+        const classRollNo = getAssignedClassRollNumber(rosterStudent);
+        if (!classRollNo) throw new Error('A student in this cohort has no assigned class roll number. Refresh the roster after assigning the roll.');
         const clean = { formNo: String(row.formNo || ''), regNo: String(row.regNo || row.boardRegNo || ''), name: String(row.name || '').slice(0, 100),
-          rollNo: String(row.rollNo || '').slice(0, 40), examRollNo: String(row.examRollNo || '').slice(0, 40) };
+          classRollNo: String(classRollNo).slice(0, 40), rollNo: String(classRollNo).slice(0, 40), examRollNo: String(row.examRollNo || '').slice(0, 40) };
         if (type === 'attendance') {
           if (!['P', 'A', 'L', 'H', 'E'].includes(row.status)) throw new Error('Invalid attendance status.');
           clean.status = row.status;

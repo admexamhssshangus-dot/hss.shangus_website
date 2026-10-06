@@ -2,44 +2,39 @@
 
 ## Commit Message
 
-`perf(student-directory): share current-session reads`
+`fix(practicals): preserve authoritative class rolls`
 
 ## Summary
 
-- Replaced the default all-session student loading path with a private, in-memory current-session directory. The session is read from cached site settings when configured, with the school's November academic rollover as a fallback.
-- Added one-query sharing for concurrent requests to both admissions cohorts and individual master-register cohorts. A module opening while another module requests the same session now awaits the same Firestore request instead of creating another read.
-- Kept student data in authenticated memory only; current and historical student records are not persisted in browser storage by this directory layer.
-- Scoped the Admin Dashboard's admissions listener to the current session and releases it outside live-edit workspaces. It no longer subscribes to the entire admissions collection across all academic years.
-- Migrated the main admin, teacher, attendance, assessment, practicals, funds, reports, bulk-ingestion, admission-register, result-ingestion, analytics, and public GK lookup paths to reuse the shared scoped directory or exact identity queries.
-- Removed full student-collection scans from funds, bulk ingestion, result ingestion, and public GK candidate lookup. Historical archive reads remain explicit actions in archival/export tools.
-- Added regression checks to prevent a future return of whole-admissions listeners, duplicate scoped requests, full bulk-ingestion archive loads, or public full-directory scans.
+- Introduced one authoritative class-roll resolver for the browser and Cloud Functions. Named class-roll fields always take priority, while generic legacy `rollNo` fields are rejected when they look like official examination-roll numbers.
+- Removed the legacy Apps Script attendance-roster fallback. Attendance now uses the scoped Firestore admissions/master-register directory only.
+- Updated practical roster construction, saved-award reconciliation, attendance, manual marks records, award/attendance print generators, practical exports, imports, and admin editing to use the authoritative class roll.
+- Future teacher drafts, submissions, imports, admin edits, and generated attendance records now retain `classRollNo` separately from `examRollNo`. The compatible `rollNo` is set to the same authoritative class roll.
+- The callable backend also independently derives that value from the server-authorised roster, so browser-supplied roll values cannot corrupt records when the Cloud Function is deployed.
+- Admin edits preserve existing historical rows when no trustworthy class roll is available, preventing any marks or legacy data from being discarded.
+- Added focused browser and server tests covering explicit class-roll precedence and rejection of a generic official exam roll.
 
 ## Files Changed
 
-1. `scripts/admin-performance-regression-check.js`
-2. `src/pages/GkTestRegistration.jsx`
-3. `src/portal/admin/AdminDashboard.jsx`
+1. `functions/academicRecords.js`
+2. `functions/admissionStatus.js`
+3. `functions/admissionStatus.test.js`
 4. `src/portal/admin/AdminPracticals.jsx`
-5. `src/portal/admin/AdmissionRegisterSuite.jsx`
-6. `src/portal/admin/AnalyticsSuiteModal.jsx`
-7. `src/portal/admin/BulkFieldOverwriteModal.jsx`
-8. `src/portal/admin/FundDistribution.jsx`
-9. `src/portal/admin/ResultIngestionModal.jsx`
-10. `src/portal/teacher/AttendancePage.jsx`
-11. `src/portal/teacher/PracticalsPage.jsx`
-12. `src/portal/teacher/TeacherAssessmentsPage.jsx`
-13. `src/services/dbCache.js`
-14. `src/utils/studentDataFetcher.js`
-15. `CHANGES_SINCE_LAST_COMMIT.md`
+5. `src/portal/teacher/AttendancePage.jsx`
+6. `src/portal/teacher/PracticalsPage.jsx`
+7. `src/utils/practicalsCsvManager.js`
+8. `src/utils/practicalsPdfGenerator.js`
+9. `src/utils/studentApprovalStatus.js`
+10. `src/utils/studentApprovalStatus.test.js`
+11. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- `npm run build`: completed successfully. Existing unrelated ESLint warnings remain warnings only; no build errors occurred.
-- `npm run performance:check`: passed.
-- `node --check src/services/dbCache.js`: passed.
-- `node --check src/utils/studentDataFetcher.js`: passed.
-- Focused `src/utils/studentDataFetcher.test.js`: 5 tests passed. Firebase Auth logged an existing test-environment assertion to the console, but the suite passed.
+- `node --test functions/admissionStatus.test.js`: passed (2 tests).
+- Focused `src/utils/studentApprovalStatus.test.js`: passed (8 tests).
+- `npm run build`: passed (optimized production build, 11 public HTML pages, and SEO regression checks).
 - `git diff --check`: passed with no whitespace errors.
+- Production Cloud Function deployment: attempted for `submitAcademicRecord`, but not completed. Firebase reported that Cloud Build and Artifact Registry are disabled for project `hsssdb` and timed out while trying to enable them. The client-side safeguards are ready; enable those required Google Cloud APIs and deploy this function before relying on the server-side enforcement.
 
 ## Instructions for the User
 

@@ -23,7 +23,7 @@ import {
   HeightRule
 } from 'docx';
 import { findStudentMarkRecord, resolveAwardRollTitles, isStudentEnrolledInPracticalSubject, getAbbreviatedSubjects, hasSubjectPracticalSubmission, getCurrentOfficialExamRoll } from './practicalsPdfGenerator';
-import { isStudentExamDropped } from './studentApprovalStatus';
+import { getAssignedClassRollNumber, isStudentExamDropped } from './studentApprovalStatus';
 import { getSubjectDisplayName, normalizePracticalSession, isMatchingSubjectCode } from './practicalsSettingsManager';
 
 export const CSV_COLUMNS = [
@@ -253,7 +253,7 @@ export function exportCurrentRosterToExcel({
     const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st.regNo || st.boardRegNo || '';
     const regNo = cleanRegistrationNumber(rawReg);
     const examRoll = getCurrentOfficialExamRoll(st, className) || String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || '').trim();
-    const classRoll = String(st['Class Roll No'] || st.classRollNo || st.rollNo || (idx + 1)).trim();
+    const classRoll = getAssignedClassRollNumber(st) || String(idx + 1);
     const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').trim();
     const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').trim();
     const stream = isSecondary ? 'General' : String(st.stream || st.Stream || 'Science').trim();
@@ -419,14 +419,14 @@ export function exportConsolidatedAwardsToExcel({
         let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
         if (!hasSub && submissions && submissions.length > 0) {
-          const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || '').trim();
+          const rNo = getAssignedClassRollNumber(st);
           const subDoc = submissions.find(s => {
             if (!isSubDocMatch(s)) return false;
             const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
             return isMatchingSubjectCode(codeStr, sub.code);
           });
           if (subDoc && subDoc.records && rNo) {
-            const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || '').trim() === rNo);
+            const hasRec = subDoc.records.some(r => getAssignedClassRollNumber(r) === rNo);
             if (hasRec) hasSub = true;
           }
         }
@@ -492,7 +492,7 @@ export function exportConsolidatedAwardsToExcel({
   ];
 
   const matrixDataRows = students.map((st, idx) => {
-    const classRoll = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1)).trim();
+    const classRoll = getAssignedClassRollNumber(st) || String(idx + 1);
     const rawExam = getCurrentOfficialExamRoll(st, className) || String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
     const examRoll = (rawExam && rawExam !== '—' && rawExam !== 'N/A' && rawExam !== 'NA') ? rawExam : '—';
     const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '';
@@ -691,14 +691,14 @@ export async function exportConsolidatedAwardsToDocx({
         let hasSub = isStudentEnrolledInPracticalSubject(st, sub.code, className);
 
         if (!hasSub && submissions && submissions.length > 0) {
-          const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
+          const rNo = getAssignedClassRollNumber(st);
           const subDoc = submissions.find(s => {
             if (!isSubDocMatch(s)) return false;
             const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
             return isMatchingSubjectCode(codeStr, sub.code);
           });
           if (subDoc && subDoc.records && rNo) {
-            const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || r.roll || '').trim() === rNo);
+            const hasRec = subDoc.records.some(r => getAssignedClassRollNumber(r) === rNo);
             if (hasRec) hasSub = true;
           }
         }
@@ -1507,6 +1507,7 @@ export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true)
     docObj.records.push({
       sNo: docObj.records.length + 1,
       classRollNo: classRoll || '—',
+      rollNo: classRoll || '—',
       examRollNo: examRoll || '—',
       boardRegNo: regNo || '—',
       name: stName,

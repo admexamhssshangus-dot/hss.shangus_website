@@ -9,7 +9,7 @@
 
 import { getSubjectMarksConfig, isTeacherSubjectMatch, getSubjectDisplayName, normalizePracticalSession, isMatchingSubjectCode } from './practicalsSettingsManager';
 import { toTitleCase } from './textFormatting';
-import { isStudentExamDropped, checkStudentApprovalState, isStudentApprovedForPracticals } from './studentApprovalStatus';
+import { getAssignedClassRollNumber, isStudentExamDropped, checkStudentApprovalState, isStudentApprovedForPracticals } from './studentApprovalStatus';
 
 export { checkStudentApprovalState, isStudentApprovedForPracticals };
 
@@ -368,25 +368,7 @@ export function getRecordExamRoll(r, targetClass = '') {
  * Extracts a clean Class Roll Number from a record or student object.
  */
 export function getRecordClassRoll(r) {
-  if (!r) return '';
-  const candidates = [
-    r.classRollNo,
-    r.classRoll,
-    r['Class Roll No'],
-    r['Class Roll No.'],
-    r['Class Roll'],
-    r.rollNo,
-    r.roll
-  ];
-  for (const c of candidates) {
-    if (c !== undefined && c !== null) {
-      const s = String(c).trim();
-      if (s && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s) && !/^\d{7,}$/.test(s)) {
-        return s;
-      }
-    }
-  }
-  return '';
+  return getAssignedClassRollNumber(r);
 }
 
 /**
@@ -460,10 +442,7 @@ export function findStudentMarkRecord(subDoc, student) {
     student['Exam R.No. (Current)'] || student.examRollNo || student['Exam Roll No'] ||
     student['Exam Roll No.'] || student['Exam Roll Number'] || student['Board Roll'] || ''
   ).trim().toUpperCase();
-  const stClassRoll = String(
-    student['Class R.No.'] || student['Class Roll No'] || student['Class Roll No.'] ||
-    student.classRollNo || student.rollNo || student.RollNo || student.roll || ''
-  ).trim();
+  const stClassRoll = getRecordClassRoll(student);
   const stForm = String(student.admissionNo || student.formNo || student['Admission Form No.'] || student['Form No.'] || '').trim();
   const stName = toTitleCase(
     student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || student.name || ''
@@ -475,7 +454,7 @@ export function findStudentMarkRecord(subDoc, student) {
   return subDoc.records.find(r => {
     const rBoardReg = cleanRegistrationNumber(r.boardRegNo || r['Board Reg. No.'] || r.regNo || r['Registration No.'] || '');
     const rExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
-    const rClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.rollNo || r.roll || r.sNo || '').trim();
+    const rClassRoll = getRecordClassRoll(r);
     const rForm = String(r.formNo || r.admissionNo || r['Form No.'] || '').trim();
     const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
     const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || '').trim().toLowerCase();
@@ -1151,7 +1130,7 @@ export function printIndividualWorkSheet({
     html += `
       <tr>
         <td>${idx + 1}</td>
-        <td>${r.classRollNo || r.rollNo || '—'}</td>
+        <td>${getRecordClassRoll(r) || '—'}</td>
         <td><strong>${displayExamRoll}</strong></td>
         <td style="text-align: left; padding-left: 8px;"><strong>${toTitleCase(r.name || r.studentName || '—')}</strong></td>
         <td>${r.pracMarks ?? r.practicalMarks ?? '—'}</td>
@@ -1250,14 +1229,14 @@ export function printConsolidatedAwardRoll({
 
       // Also check if this student has an actual submitted mark for this subject!
       if (!hasSub && submissions && submissions.length > 0) {
-        const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
+        const rNo = getRecordClassRoll(st);
         const subDoc = submissions.find(s => {
           if (!isSubDocMatch(s)) return false;
           const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
           return isMatchingSubjectCode(codeStr, sub.code);
         });
         if (subDoc && subDoc.records && rNo) {
-          const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || r.roll || '').trim() === rNo);
+          const hasRec = subDoc.records.some(r => getRecordClassRoll(r) === rNo);
           if (hasRec) hasSub = true;
         }
       }
@@ -1926,7 +1905,7 @@ export function printAttendanceSheet({
       `;
 
       subStudents.forEach((st, idx) => {
-        const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
+        const classRoll = getRecordClassRoll(st) || (idx + 1);
         const rawExam = getRecordExamRoll(st, className) || getStudentExamRoll(st);
         const examRoll = (rawExam && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExam).trim())) ? String(rawExam).trim() : '—';
         const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
@@ -2002,7 +1981,7 @@ export function printAttendanceSheet({
   `;
 
   printStudents.forEach((st, idx) => {
-    const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
+    const classRoll = getRecordClassRoll(st) || (idx + 1);
     const rawExam = getRecordExamRoll(st, className) || getStudentExamRoll(st);
     const examRoll = (rawExam && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExam).trim())) ? String(rawExam).trim() : '—';
     const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
@@ -2145,7 +2124,7 @@ export function printMarksRecordAwardRoll({
     `;
 
     subStudents.forEach((st, idx) => {
-      const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
+      const classRoll = getRecordClassRoll(st) || (idx + 1);
       const rawExam = getRecordExamRoll(st, className) || getStudentExamRoll(st);
       const examRoll = (rawExam && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExam).trim())) ? String(rawExam).trim() : '—';
       const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
@@ -2596,7 +2575,7 @@ export function printFailList({
   students.forEach((st) => {
     const rawExamRoll = getRecordExamRoll(st, className) || getStudentExamRoll(st);
     const examRoll = (rawExamRoll && !/^(N\/A|—|-|null|undefined)$/i.test(String(rawExamRoll).trim())) ? String(rawExamRoll).trim() : '—';
-    const classRoll = String(st['Class R.No.'] || st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || st.roll || '—').trim();
+    const classRoll = getRecordClassRoll(st) || '—';
     const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
     const fatherName = st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || st.parentage || '—';
 
@@ -2882,7 +2861,8 @@ export function printHistoricalSubmission(item) {
     const isAbsent = rawP.toUpperCase() === 'AB' || rawTot.toUpperCase() === 'AB' || rawP.toUpperCase() === 'A';
 
     return {
-      rollNo: String(st.rollNo || st.classRollNo || st.roll || '').trim(),
+      rollNo: getRecordClassRoll(st),
+      classRollNo: getRecordClassRoll(st),
       name: String(st.name || st.studentName || '').trim(),
       formNo: String(st.formNo || st.form || '').trim(),
       regNo: String(st.regNo || st.boardRegNo || '').trim(),
@@ -2982,5 +2962,4 @@ export function isSubmissionOwnedByTeacher(item, user, authUser) {
 
   return false;
 }
-
 

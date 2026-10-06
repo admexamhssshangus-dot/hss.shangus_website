@@ -1,4 +1,4 @@
-const CLASS_ROLL_NUMBER_KEYS = Object.freeze([
+const AUTHORITATIVE_CLASS_ROLL_NUMBER_KEYS = Object.freeze([
   'classRollNo',
   'Class Roll No',
   'Class Roll No.',
@@ -8,17 +8,28 @@ const CLASS_ROLL_NUMBER_KEYS = Object.freeze([
   'Class R. No.',
   'Class R. No',
   'Class Roll',
+  'classRoll',
+  'ClassRoll',
+  'ClassRollNo',
   'class_roll',
+  'currentRollNo',
+  'assignedRoll',
+  'crNo',
   'RL. NO.',
   'RL. NO',
+  'assignedRollNo',
+  'class_roll_no',
+  'Class_Roll_No',
+  'Class Roll No (Class 12th)',
+  'Class Roll No (Class 11th)',
+  'Class Roll No (Class 10th)'
+]);
+
+const LEGACY_CLASS_ROLL_NUMBER_KEYS = Object.freeze([
   'rollNo',
   'Roll No.',
   'Roll No',
-  'assignedRollNo',
-  'assignedRoll',
-  'class_roll_no',
   'roll_no',
-  'Class_Roll_No',
   'roll',
   'R.No.',
   'R.No',
@@ -29,6 +40,17 @@ const CLASS_ROLL_NUMBER_KEYS = Object.freeze([
 
 const INVALID_CLASS_ROLL_VALUES = /^(?:0|n\/?a|na|none|nil|null|undefined|unknown|pending|not\s*assigned|unassigned|—|-)$/i;
 
+function isLikelyOfficialExamRollNumber(value) {
+  return /^\d{7,}$/.test(String(value == null ? '' : value).trim());
+}
+
+function getUsableRollValue(student, raw, key) {
+  const rawValue = student[key] !== undefined && student[key] !== null ? student[key] : raw[key];
+  if (rawValue === undefined || rawValue === null) return '';
+  const value = String(rawValue).trim();
+  return value && !INVALID_CLASS_ROLL_VALUES.test(value) ? value : '';
+}
+
 /**
  * Returns the authoritative assigned Class Roll No. across the supported
  * Firestore admission schemas. Board/examination roll numbers are deliberately
@@ -38,12 +60,13 @@ function getAssignedClassRollNumber(student) {
   if (!student || typeof student !== 'object') return '';
 
   const raw = student.raw || student._rawStudent || student;
-  for (const key of CLASS_ROLL_NUMBER_KEYS) {
-    const rawValue = student[key] !== undefined && student[key] !== null ? student[key] : raw[key];
-    if (rawValue === undefined || rawValue === null) continue;
-
-    const value = String(rawValue).trim();
-    if (value && !INVALID_CLASS_ROLL_VALUES.test(value)) return value;
+  for (const key of AUTHORITATIVE_CLASS_ROLL_NUMBER_KEYS) {
+    const value = getUsableRollValue(student, raw, key);
+    if (value) return value;
+  }
+  for (const key of LEGACY_CLASS_ROLL_NUMBER_KEYS) {
+    const value = getUsableRollValue(student, raw, key);
+    if (value && !isLikelyOfficialExamRollNumber(value)) return value;
   }
 
   return '';
@@ -95,4 +118,10 @@ function isStudentAdmissionApproved(student) {
   return resolveStudentAdmissionStatus(student) === 'Approved';
 }
 
-module.exports = { CLASS_ROLL_NUMBER_KEYS, getAssignedClassRollNumber, hasAssignedClassRollNumber, resolveStudentAdmissionStatus, isStudentAdmissionApproved };
+module.exports = {
+  CLASS_ROLL_NUMBER_KEYS: Object.freeze([...AUTHORITATIVE_CLASS_ROLL_NUMBER_KEYS, ...LEGACY_CLASS_ROLL_NUMBER_KEYS]),
+  getAssignedClassRollNumber,
+  hasAssignedClassRollNumber,
+  resolveStudentAdmissionStatus,
+  isStudentAdmissionApproved
+};

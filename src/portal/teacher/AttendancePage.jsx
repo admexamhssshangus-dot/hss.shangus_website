@@ -5,13 +5,13 @@ import { ArrowLeft, Save, CheckCircle2, AlertCircle, AlertTriangle, RefreshCw, P
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, getDoc, deleteDoc, query, where, onSnapshot } from 'firebase/firestore';
-import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
 import { getAdmissionsBySession, getCachedCollection, getCurrentAcademicSession, getMasterRegistersScoped } from '../../services/dbCache';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import ModernLoader from '../../components/ModernLoader';
 import { toLocalDateKey, toLocalMonthKey } from '../../utils/localDate';
 import { isBootstrapAdminEmail, isBootstrapSuperAdminEmail } from '../../utils/authRoles';
+import { getAssignedClassRollNumber } from '../../utils/studentApprovalStatus';
 
 // Master List of Official School Subjects with Codes
 const MASTER_SUBJECTS = [
@@ -104,25 +104,7 @@ function isSessionMatch(stSession, targetYearSuffix) {
 
 // Helper: Check if student has assigned Class Roll No
 function hasAssignedClassRoll(st) {
-  if (!st) return false;
-  const roll = String(
-    st['Class Roll No'] ||
-    st['Class Roll No.'] ||
-    st['Class R.No.'] ||
-    st['Class R.No'] ||
-    st['Class R. No.'] ||
-    st.classRollNo ||
-    st.rollNo ||
-    st['Roll No.'] ||
-    st['Roll No'] ||
-    st.roll_no ||
-    ''
-  ).trim();
-
-  if (!roll || roll === '—' || roll === 'N/A' || roll.toLowerCase() === 'undefined' || roll.toLowerCase() === 'null') {
-    return false;
-  }
-  return true;
+  return Boolean(getAssignedClassRollNumber(st));
 }
 
 // Helper: Convert string to Title / Proper Case (e.g. "ahmad", "AHMAD", "sapna shabir" → "Ahmad", "Sapna Shabir")
@@ -802,7 +784,7 @@ export default function AttendancePage() {
     }
 
     setStudents(prev => prev.map(s => {
-      const rKey = String(s.classRollNo || s.rollNo || s.roll_no || s['Class Roll No'] || '').trim();
+      const rKey = getAssignedClassRollNumber(s);
       const isTarget = rollSet.has(rKey);
       return {
         ...s,
@@ -1095,7 +1077,8 @@ export default function AttendancePage() {
           }
 
           return {
-            rollNo: s.rollNo,
+            classRollNo: getAssignedClassRollNumber(s),
+            rollNo: getAssignedClassRollNumber(s),
             formNo: s.formNo || '',
             name: s.name,
             status: assignedStatus,
@@ -1273,22 +1256,6 @@ export default function AttendancePage() {
           } catch (e) { console.warn('Users lookup note:', e); }
         }
 
-        // D. Last-resort: Apps Script API
-        if (allDiscoveredStudents.length === 0) {
-          try {
-            const res = await appsScriptApi.call('getAttendanceStudentList', { className: selectedClass, date: selectedDate, subjectFilter: '' });
-            const masterList = Array.isArray(res) ? res : res?.students || [];
-            allDiscoveredStudents = masterList.filter(st => hasAssignedClassRoll(st)).map(st => ({
-              id: st.formNo || st.rollNo,
-              classRollNo: st.rollNo || st['Class Roll No'] || st.roll_no,
-              studentName: getStudentName(st),
-              formNo: st.formNo || st['Form Number'],
-              regNo: getRegNo(st),
-              subjects: st.subjects || st['Subjects'] || '',
-              examRollBadges: getExamRollBadges(st),
-            }));
-          } catch (e) { console.warn('Master roster API note:', e); }
-        }
       } else {
         // Historical session: masterRegisters — strict isSessionMatch filtering
         try {
@@ -1320,7 +1287,7 @@ export default function AttendancePage() {
         const stCls = st.class || st.Class || st['Class'] || selectedClass;
         const clsDigits = String(stCls).replace(/\D/g, '') || String(selectedClass).replace(/\D/g, '');
         const sesScope = getSessionEndYear(String(st.session || st.Session || selectedSession || '')) || selectedSession;
-        const rollKey = String(st['Class Roll No'] || st['Class Roll No.'] || st['Class R.No.'] || st['Class R.No'] || st.classRollNo || st.rollNo || '').trim();
+        const rollKey = getAssignedClassRollNumber(st);
         const key = rollKey
           ? `${clsDigits}_${sesScope}_${rollKey.toLowerCase()}`
           : `${clsDigits}_${sesScope}_${String(st.formNo || st['Form No.'] || st.id || '').toLowerCase()}`;
@@ -1329,7 +1296,7 @@ export default function AttendancePage() {
 
       // Format roster (without attendance status — overlaid separately)
       const formatted = Array.from(uniqueMap.values()).map((st, idx) => ({
-        rollNo: st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || st['Roll No'] || `${idx + 1}`,
+        rollNo: getAssignedClassRollNumber(st),
         name: getStudentName(st),
         regNo: getRegNo(st),
         examRollBadges: getExamRollBadges(st),
@@ -1458,7 +1425,7 @@ export default function AttendancePage() {
         setStudents(prev => {
           const base = (roster && roster.length > 0) ? roster.map(s => ({ ...s, status: 'P' })) : (prev.length > 0 ? prev : []);
           return base.map(s => {
-            const rKey = String(s.classRollNo || s.rollNo || s.roll_no || s['Class Roll No'] || '').trim();
+            const rKey = getAssignedClassRollNumber(s);
             const fKey = String(s.formNo || s['Form No.'] || s.id || '').trim();
             const nKey = String(s.studentName || s.name || '').toLowerCase().trim();
             const matchedStatus = statusMap[rKey] || statusMap[fKey] || statusMap[nKey] || 'A';
@@ -1509,7 +1476,7 @@ export default function AttendancePage() {
           setStudents(prev => {
             if (!prev || prev.length === 0) return prev;
             return prev.map(s => {
-              const rKey = String(s.classRollNo || s.rollNo || s.roll_no || s['Class Roll No'] || '').trim();
+              const rKey = getAssignedClassRollNumber(s);
               const fKey = String(s.formNo || s['Form No.'] || s.id || '').trim();
               const nKey = String(s.studentName || s.name || '').toLowerCase().trim();
               const matchedStatus = statusMap[rKey] || statusMap[fKey] || statusMap[nKey] || 'A';
@@ -1855,7 +1822,7 @@ export default function AttendancePage() {
           cleanStatus = 'A';
         }
         return {
-          rollNo: String(s.rollNo || '').trim(),
+          rollNo: getAssignedClassRollNumber(s),
           name: String(s.name || '').trim().slice(0, 120),
           formNo: String(s.formNo || '').trim().slice(0, 50),
           regNo: String(s.regNo || '').trim().slice(0, 50),
@@ -3767,11 +3734,11 @@ export default function AttendancePage() {
                   if (!categorySearchQuery) return true;
                   const q = categorySearchQuery.toLowerCase();
                   const name = String(st.studentName || st.name || '').toLowerCase();
-                  const roll = String(st.classRollNo || st.rollNo || '');
+                  const roll = getAssignedClassRollNumber(st);
                   return name.includes(q) || roll.includes(q);
                 })
                 .map((st, idx) => {
-                  const rollNo = st.classRollNo || st.rollNo || idx + 1;
+                  const rollNo = getAssignedClassRollNumber(st) || idx + 1;
                   const stName = st.studentName || st.name || `Student ${rollNo}`;
                   const stStatus = st.status || 'A';
 
@@ -3891,7 +3858,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
 
         const uniqueMap = new Map();
         list.forEach(st => {
-          const rollKey = String(st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || '').trim();
+          const rollKey = getAssignedClassRollNumber(st);
           if (rollKey && !uniqueMap.has(rollKey)) {
             uniqueMap.set(rollKey, {
               rollNo: rollKey,
