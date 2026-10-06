@@ -52,7 +52,7 @@ function createHandler(dependencies = {}) {
       if (headers['x-firebase-appcheck']) {
         try { appToken = await services.verifyAppCheck(headers['x-firebase-appcheck']); }
         catch (_) { return response(401, { error: 'App verification failed. Check the App Check configuration.' }); }
-      } else if (!headers.authorization) {
+      } else if (!headers.authorization && body.command !== 'approveAdminVerification') {
         return response(401, { error: 'App verification is required.' });
       }
       let auth;

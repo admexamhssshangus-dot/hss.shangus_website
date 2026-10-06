@@ -1162,6 +1162,7 @@ export default function LoginPage() {
                     if (emailLinkSentState) handleCancel2Step();
                     setSelectedRole(isSuperAdmin ? 'admin' : 'superadmin');
                     setCaptchaToken(null);
+                    setAlert(null);
                   }}
                   title={isSuperAdmin ? 'Switch to Standard Admin' : 'System Mode'}
                   className="group relative flex-shrink-0 p-1.5 rounded-xl opacity-30 hover:opacity-100 transition-opacity cursor-pointer text-slate-400 hover:text-purple-500"
@@ -1188,6 +1189,7 @@ export default function LoginPage() {
                   if (emailLinkSentState) handleCancel2Step();
                   setSelectedRole('student');
                   setCaptchaToken(null);
+                  setAlert(null);
                 }}
                 className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'student'
@@ -1205,6 +1207,7 @@ export default function LoginPage() {
                   if (emailLinkSentState) handleCancel2Step();
                   setSelectedRole('teacher');
                   setCaptchaToken(null);
+                  setAlert(null);
                 }}
                 className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'teacher'
@@ -1222,6 +1225,7 @@ export default function LoginPage() {
                   if (emailLinkSentState) handleCancel2Step();
                   setSelectedRole(isSuperAdmin ? 'superadmin' : 'admin');
                   setCaptchaToken(null);
+                  setAlert(null);
                 }}
                 className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'admin' || isSuperAdmin
@@ -1255,6 +1259,7 @@ export default function LoginPage() {
                   onClick={() => {
                     setSelectedRole('teacher');
                     setCaptchaToken(null);
+                    setAlert(null);
                   }}
                   className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] tracking-wide transition-all shrink-0 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1"
                 >
@@ -1536,7 +1541,7 @@ export default function LoginPage() {
                       type="email"
                       placeholder="name@example.com"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => { setEmail(e.target.value); if (alert) setAlert(null); }}
                       required
                       className={`w-full pl-8 sm:pl-9 pr-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-[13px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none ${activeTheme.inputFocus} transition-all duration-150`}
                     />
@@ -1555,7 +1560,7 @@ export default function LoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => { setPassword(e.target.value); if (alert) setAlert(null); }}
                       required
                       className={`w-full pl-8 sm:pl-9 pr-8 sm:pr-9 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-[13px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none ${activeTheme.inputFocus} transition-all duration-150`}
                     />

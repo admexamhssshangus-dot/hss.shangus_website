@@ -28,8 +28,10 @@ test('invalid attestation or revoked authentication blocks operations', async ()
     assert.equal((await handler(request())).statusCode, 401); assert.equal(ran, false);
   }
 });
-test('only inbox-proof approval can reach business validation without a login token', async () => {
-  const r = request('approveAdminVerification'); delete r.headers.authorization;
+test('only inbox-proof approval can reach business validation without a login token or app check token', async () => {
+  const r = request('approveAdminVerification');
+  delete r.headers.authorization;
+  delete r.headers['x-firebase-appcheck'];
   assert.equal((await createHandler(valid)(r)).statusCode, 200);
   r.body = JSON.stringify({command:'beginAdminVerification',data:{}});
   assert.equal((await createHandler(valid)(r)).statusCode, 401);
