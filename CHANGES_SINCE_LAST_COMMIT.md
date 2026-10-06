@@ -2,28 +2,46 @@
 
 ## Commit Message
 
-`fix(auth): exempt email approval from auth header and clear login alerts on tab switch`
+`fix(practicals-auth): hydrate class 10th practicals cohort and optimize admin rules`
 
 ## Summary
 
-- **Exempted `approveAdminVerification` from Missing Authorization Header Check**: In `netlify/functions/staff-command.js`, the unauthenticated email verification link handler (`approveAdminVerification`) was blocked when neither an `Authorization` header nor an `X-Firebase-AppCheck` header was present, resulting in `401: {"error": "App verification is required."}`. Updated line 55 to exempt `approveAdminVerification` from the authorization header requirement (matching line 64), allowing one-time cryptographic email approval links to complete successfully.
-- **Added Regression Unit Test for Unauthenticated Link Approval**: Updated `scripts/staff-command.test.cjs` to verify that `approveAdminVerification` successfully dispatches to business logic even when both `Authorization` and `X-Firebase-AppCheck` headers are omitted.
-- **Synchronized Cloud Firestore `site/settings` Document**: Directly updated Cloud Firestore document `/site/settings` to set `enableAdmin2StepVerification: false`, aligning it with `public/slides/settings.json` and allowing direct administrator sign-in without forced 2SV link dispatch loops.
-- **Cleared Stale Error Alerts on Login Role Tab Switches**: In `src/portal/LoginPage.jsx`, added `setAlert(null)` when switching between Student, Teacher, and Admin/SuperAdmin tabs and when typing credentials, preventing stale errors (such as previous verification failures) from persisting across different login roles.
+- **Populated Class 10th in Practicals Portals**:
+  - In `src/portal/admin/AdminPracticals.jsx`, updated `loadData()` to fetch `admissionsData` via `getAdmissionsBySession({ session: getCurrentAcademicSession(), forceRefresh: force })` alongside `getMasterRegistersScoped`.
+  - Ingested `admissionsData` into `studentsMap` via `addOrMergeStudent` so that all 64 enrolled Class 10th students (as well as Class 9th) are fully rendered in `AwardsSummaryView` and practical award rolls rather than showing up empty.
+  - In `src/portal/teacher/PracticalsPage.jsx`, updated `loadInitialPracticalsData()` to fetch `getAdmissionsBySession({ session: yearSuffix, className: selectedClass })` in `Promise.all` and populated `admDocs` instead of setting it to an empty array.
+- **Fixed Firestore Rules 10-Read Limit Abort for Standard Admins**:
+  - In `firestore.rules`, streamlined `isSuperAdmin()`, `isBootstrapAdmin()`, `isStandardAdmin()`, `canUseAny()`, `isTeacher()`, and `canReadStudents()` to read only cached UID-based `staffProfile()` (`users/$(request.auth.uid)`) and evaluate `canUseAny(...)` before `isTeacher()`.
+  - Removed duplicate calls to `exists(/databases/$(database)/documents/users/$(authEmail()))` that previously triggered Cloud Firestore's strict limit of 10 `get()`/`exists()` calls per request, which had resulted in `permission-denied` errors when standard admins queried the `/admissions` collection.
+  - Deployed updated security rules to Cloud Firestore (`firebase deploy --only firestore:rules`).
+  - Tested live client SDK queries with custom tokens to verify that standard admins (`e.educational.24@gmail.com`) can query admissions without permission errors (returning all 551 documents).
+- **Updated Cloud Storage Security Rules for 2SV Flexibility**:
+  - In `storage.rules`, added `admin2StepRequired()` and `validAdminSession()` helpers to ensure standard admins and super administrators can upload documents and photos without requiring an `adminSessions` verification document when 2-Step Verification is disabled.
+  - Deployed updated storage rules to Firebase Storage (`firebase deploy --only storage`).
+- **Clarified 2SV Admin Controls UI & Synchronized Session Defaults**:
+  - In `src/portal/admin/ControlsAndSubjects.jsx`, updated the 2SV badge to `Super Admin & Controls Module` and clarified that by default Standard and Super Admins sign in directly with Email & Password or Google without 2SV verification, unless 2SV is enabled by a Super Admin or a Standard Admin with the `controls` module permission.
+  - In `src/utils/settingsLoader.js` (`DEFAULT_SETTINGS`) and `public/slides/settings.json`, explicitly declared default academic session fields (`session: "2025-26"`, `currentSession: "2025-26"`).
 
 ## Files Changed
 
-1. `netlify/functions/staff-command.js`
-2. `scripts/staff-command.test.cjs`
-3. `src/portal/LoginPage.jsx`
-4. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `firestore.rules`
+2. `storage.rules`
+3. `src/portal/admin/AdminPracticals.jsx`
+4. `src/portal/teacher/PracticalsPage.jsx`
+5. `src/portal/admin/ControlsAndSubjects.jsx`
+6. `src/utils/settingsLoader.js`
+7. `public/slides/settings.json`
+8. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- `node --test scripts/staff-command.test.cjs`: passed (7/7 tests, including unauthenticated link approval without App Check).
-- `node --test scripts/public-records.test.cjs`: passed (10/10 tests, including 2SV conditional enforcement).
-- Cloud Firestore REST verification: confirmed `/site/settings` has `enableAdmin2StepVerification: false`.
-- `npm run build`: completed with exit code 0; production bundle, 11 public HTML pages, and SEO checks passed.
+- `npm run test:public`: 10/10 tests passed (including 2SV conditional enforcement).
+- `npm run security:check`: Security regression checks passed.
+- `npm run admission:check`: Admission regression checks passed.
+- Firebase Firestore Security Rules: Compiled and released to `cloud.firestore`.
+- Firebase Storage Security Rules: Compiled and released to `firebase.storage`.
+- Live Firestore query test with client SDK and custom token: Verified Standard Admin (`e.educational.24@gmail.com`) queries `/admissions` with 551 documents returned.
+- `npm run build`: Production build completed with Exit Code 0 and zero breaking errors.
 
 ## Instructions for the User
 

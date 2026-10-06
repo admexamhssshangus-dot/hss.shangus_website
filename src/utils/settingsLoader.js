@@ -145,6 +145,8 @@ export function preservePublishedSocialLinks(existingLinks = {}, incomingLinks =
 }
 
 export const DEFAULT_SETTINGS = {
+  session: '2025-26',
+  currentSession: '2025-26',
   globalAdmissionsClosed: false,
   practicalsSubmissionOpen: true,
   attendanceSubmissionOpen: true,

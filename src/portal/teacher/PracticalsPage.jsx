@@ -13,7 +13,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, addDoc, doc, getDoc, onSnapshot, query, where, limit } from 'firebase/firestore';
-import { getCurrentAcademicSession, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
+import { getCurrentAcademicSession, invalidateCollectionCache, getMasterRegistersScoped, getAdmissionsBySession } from '../../services/dbCache';
 import { printIndividualAwardRoll, printMarksRecordAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher, sortRecordsForAwardRoll, getRecordExamRoll, getCurrentOfficialExamRoll, isValidExamRollForClass } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import { getAssignedClassRollNumber, isLikelyOfficialExamRollNumber, isStudentExamDropped } from '../../utils/studentApprovalStatus';
@@ -1649,15 +1649,14 @@ export default function PracticalsPage() {
           doc(db, 'practicalsData', pendingDocId),
           legacyDocId ? doc(db, 'practicalsData', legacyDocId) : null
         ].filter(Boolean);
-        const [masterRes, ...awardSnaps] = await Promise.all([
+        const [masterRes, admRes, ...awardSnaps] = await Promise.all([
           getMasterRegistersScoped({ session: yearSuffix, className: selectedClass }).catch(() => []),
+          getAdmissionsBySession({ session: yearSuffix, className: selectedClass }).catch(() => []),
           ...awardRefs.map(ref => getDoc(ref).catch(() => null))
         ]);
 
         masterDocs = Array.isArray(masterRes) ? masterRes : [];
-        // Master registers are the authoritative roster after the individual-
-        // document migration. Avoid downloading the entire admissions collection.
-        admDocs = [];
+        admDocs = Array.isArray(admRes) ? admRes : [];
         const docItems = awardSnaps
           .filter(snap => snap?.exists())
           .map(snap => ({ id: snap.id, ...snap.data() }));

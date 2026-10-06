@@ -666,7 +666,7 @@ function ControlsAndSubjects({ applications = [] } = {}) {
                   Admin Security & 2-Step Verification
                 </span>
                 <span className="text-[9px] sm:text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full">
-                  Super Admin Control
+                  Super Admin & Controls Module
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
@@ -680,7 +680,7 @@ function ControlsAndSubjects({ applications = [] } = {}) {
                     <span className="text-[9.5px] sm:text-[10px] opacity-80 block font-normal">
                       {enableAdmin2StepVerification
                         ? 'Active: All admins require a 15-minute verification link sent to their email.'
-                        : 'Disabled (Default): Admins sign in directly with Email & Password without link verification.'}
+                        : 'Disabled (Default): Standard and Super Admins sign in directly with Email & Password without 2SV verification.'}
                     </span>
                   </div>
                   <input

@@ -13,7 +13,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot } from 
 import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
 import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
-import { getCurrentAcademicSession, invalidateCollectionCache, getMasterRegistersScoped } from '../../services/dbCache';
+import { getCurrentAcademicSession, invalidateCollectionCache, getMasterRegistersScoped, getAdmissionsBySession } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import { saveVersionToBin, getVersionsForDoc, restoreVersionFromBin, moveSubmissionToRecycleBin } from '../../services/practicalsBinService';
@@ -845,18 +845,21 @@ function AdminPracticals({ isActive = true }) {
             return { docs: [], empty: true };
           });
 
-      const [ssRaw, setDocSnap, ts, masterRegistersData, dropOverrides] = await Promise.all([
+      const [ssRaw, setDocSnap, ts, masterRegistersData, admissionsData, dropOverrides] = await Promise.all([
         fetchPracticals,
         fetchSettings,
         getStaffDirectory().catch(err => {
           console.warn('getStaffDirectory error handled:', err?.message || err);
           return { docs: [], empty: true, forEach: () => {} };
         }),
-        // The individual master-register documents are now the authoritative
-        // cohort. Fetch only the live academic session instead of both the
-        // full admissions collection and the old 2023-24 register scope.
+        // The individual master-register documents provide permanent records.
         getMasterRegistersScoped({ session: getCurrentAcademicSession(), forceRefresh: force }).catch(err => {
           console.warn('masterRegisters fetch note:', err?.message || err);
+          return [];
+        }),
+        // Live admissions cohort provides all enrolled students (including Class 10th & 9th cohorts).
+        getAdmissionsBySession({ session: getCurrentAcademicSession(), forceRefresh: force }).catch(err => {
+          console.warn('admissions fetch note:', err?.message || err);
           return [];
         }),
         fetchExamineeDropOverrides().catch(err => {
@@ -1051,7 +1054,23 @@ function AdminPracticals({ isActive = true }) {
       setSubmissions(canonicalSubmissions);
       setPendingApprovals(pendingSubmissions);
 
-      // 1. Ingest individual master-register documents for the live cohort.
+      // 1a. Ingest live admissions documents (essential for Class 10th & 9th cohorts stored in admissions collection).
+      (admissionsData || []).forEach(d => {
+        const docSession = d.Session || d.session || d['Academic Session'] || '2025-26';
+        const canonicalDocSess = normalizePracticalSession(docSession);
+        const docClass = d.class || d.Class || d.className || d['Admission sought for class'] || '';
+        if (d.StudentName || d["Student's Name"] || d["Student's Name (as per school records)"] || d.studentName || d.name) {
+          addOrMergeStudent({
+            ...d,
+            session: canonicalDocSess,
+            Session: canonicalDocSess,
+            class: docClass || d.class || d.Class,
+            _source: 'admissions'
+          }, 'admissions');
+        }
+      });
+
+      // 1b. Ingest individual master-register documents for the live cohort.
       (masterRegistersData || []).forEach(d => {
         const docSession = d.Session || d.session || d['Academic Session'] || '2025-26';
         const canonicalDocSess = normalizePracticalSession(docSession);
