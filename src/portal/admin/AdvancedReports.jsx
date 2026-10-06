@@ -5380,8 +5380,7 @@ const COLUMN_DEFS = [
   {
     key: 'status', label: 'Status', className: 'text-center whitespace-nowrap', render: (val, student) => {
       return (
-        <div className="inline-flex flex-col items-center justify-center gap-0.5">
-        <StatusActionDropdown
+        <StatusActionDropdown
           student={student}
           onViewEdit={(s) => {
             if (student && typeof student._setEditingStudent === 'function') {
@@ -5394,8 +5393,8 @@ const COLUMN_DEFS = [
           onDeleteRecord={student?._onDeleteRecord}
           onTriggerDelete={student?._onTriggerDelete}
         />
-          <ExamDropBadge student={student} minimal />
-        </div>
+
+
       );
     }
   },

@@ -2,45 +2,21 @@
 
 ## Commit Message
 
-`feat(examinee-drop): add compact label with interactive floating tooltip for students dropped from JKBOSE exams`
+`fix(examinee-drop): render drop label only once per student in name column`
 
 ## Summary
 
-- **Created `ExamDropBadge` Component (`src/portal/admin/ExamDropBadge.jsx`)**:
-  - Implemented a compact, prominent badge (`EXAM DROPPED` / `DROPPED`) featuring an animated rose pulsing indicator dot and subtle micro-interactions (`hover:scale-105 active:scale-95`).
-  - Utilizes a window-responsive floating portal tooltip rendered directly into `document.body` via `createPortal`. This completely prevents CSS clipping inside table `overflow-x-auto` / `overflow-y-auto` containers and maintains correct positioning across desktop viewports, mobile screens, and table scroll states.
-  - Interactive tooltip displays:
-    - **Header Bar**: Status pill (`Examinee Dropped • JKBOSE Regular • Excluded`).
-    - **Student Demographics**: Name, Class, Roll Number, Form Number, and Board Registration Number.
-    - **Drop Comment & Order Details**: Dedicated high-contrast quote card displaying the full administrative reason/comment for the drop.
-    - **Institutional Policy Note**: Explicit warning that the candidate is excluded from regular JKBOSE exams returns, award rolls, and practicals.
-    - **Order Metadata**: Responsible authority (`Administration / Examination Cell`), academic session (`2025-26`), and recorded timestamp.
-
-- **Centralized Drop Details Helper (`src/utils/studentApprovalStatus.js`)**:
-  - Added and exported `getStudentExamDropDetails(student)`:
-    - Identifies if a student is dropped using authoritative institutional invariants (e.g., Class 10th Roll 46 Suhaib Yousuf, Class 11th Roll 72 Seher Un Nisa & Roll 186 Wanhar Ahmad Malik, generic flags `isExamDropped`, `examDropped`, `status: 'dropped' / 'discharged'`).
-    - Resolves specific administrative comments and reasons, falling back to authoritative institutional descriptions where applicable.
-
-- **Integrated into Admin Portal Data Tables & Modals**:
-  - `src/portal/admin/AdvancedReports.jsx`:
-    - Mounted `<ExamDropBadge student={student} />` in the `STUDENT'S NAME` column right beside the student name, gender badge, and JKBOSE field badges.
-    - Mounted `<ExamDropBadge student={student} minimal />` in the `STATUS` column under the status action dropdown.
-    - Added JKBOSE Exam Status and reason to the "View Activity History" dialog modal (`handleViewHistory`).
-  - `src/portal/admin/ApplicationsTable.jsx`: Mounted `ExamDropBadge` beside student names in application rows.
-  - `src/portal/admin/ApplicationReviewModal.jsx`: Mounted `ExamDropBadge` in the header review title next to form number and examinee name.
-
-- **Unit & Cohort Invariant Testing (`src/utils/studentApprovalStatus.test.js`)**:
-  - Added unit tests for `getStudentExamDropDetails`: verified `null` for active students, and verified full details extraction for Class 10th and 11th dropped examinees.
+- **Enforced Single Placement for Drop Label**:
+  - Removed the duplicate `<ExamDropBadge minimal />` from the `status` column in `src/portal/admin/AdvancedReports.jsx`.
+  - The compact `EXAM DROPPED` badge with its interactive floating portal tooltip is now rendered **only once** per examinee record, positioned cleanly in the `STUDENT'S NAME` column alongside the student's name, gender indicator, and JKBOSE field badges.
+- **Updated School Achievements Architecture Plan (`achievements_page_plan.md`)**:
+  - Updated the approved plan to prominently spotlight students achieving top performance or positions across Jammu & Kashmir UT (UT Toppers, Top 10 UT Rankers, District Positions) in the JKBOSE Board Results section.
+  - Added dedicated fields (`isUtPositionHolder: boolean`, `utPositionOrRank: string`) to the `/siteAchievements` schema and integrated an elite UT Hall of Fame spotlight banner into the page layout.
 
 ## Files Changed
 
-1. `src/portal/admin/ExamDropBadge.jsx` (New)
-2. `src/utils/studentApprovalStatus.js`
-3. `src/utils/studentApprovalStatus.test.js`
-4. `src/portal/admin/AdvancedReports.jsx`
-5. `src/portal/admin/ApplicationsTable.jsx`
-6. `src/portal/admin/ApplicationReviewModal.jsx`
-7. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `src/portal/admin/AdvancedReports.jsx`
+2. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
