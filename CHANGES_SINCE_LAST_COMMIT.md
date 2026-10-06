@@ -2,39 +2,44 @@
 
 ## Commit Message
 
-`fix(practicals): preserve authoritative class rolls`
+`fix(security): delegate staff access safely`
 
 ## Summary
 
-- Introduced one authoritative class-roll resolver for the browser and Cloud Functions. Named class-roll fields always take priority, while generic legacy `rollNo` fields are rejected when they look like official examination-roll numbers.
-- Removed the legacy Apps Script attendance-roster fallback. Attendance now uses the scoped Firestore admissions/master-register directory only.
-- Updated practical roster construction, saved-award reconciliation, attendance, manual marks records, award/attendance print generators, practical exports, imports, and admin editing to use the authoritative class roll.
-- Future teacher drafts, submissions, imports, admin edits, and generated attendance records now retain `classRollNo` separately from `examRollNo`. The compatible `rollNo` is set to the same authoritative class roll.
-- The callable backend also independently derives that value from the server-authorised roster, so browser-supplied roll values cannot corrupt records when the Cloud Function is deployed.
-- Admin edits preserve existing historical rows when no trustworthy class roll is available, preventing any marks or legacy data from being discarded.
-- Added focused browser and server tests covering explicit class-roll precedence and rejection of a generic official exam roll.
+- Standard Admins assigned the **Staff** module can now create, edit, deactivate, and reset Teacher or Standard Admin accounts. They can assign only modules that are already assigned to their own account; only the Super Admin can create, alter, or target Super Admin accounts or grant the wildcard permission.
+- Replaced browser-side staff account provisioning and direct permission writes with the authoritative server-side `manageStaffAccount` workflow. This prevents a browser from elevating a role or permission by changing client data.
+- Made the module catalog, launcher, and staff-permissions interface reflect the same delegated-access boundaries as the backend. A Standard Admin can use every module explicitly assigned to them, with the same end-to-end capability as Super Admin for that module.
+- Tightened Firestore access controls: staff permissions are server-managed, photos and practical configuration are no longer public, session documents have an allowlisted schema, and login-handshake records are backend-only.
+- Bound administrator sign-in verification to a server-created, expiry-checked session. All Admin and Super Admin login routes now use that same verification path when two-step verification is enabled.
+- Removed the public-result page's embedded student/practical fallback data and restricted the public endpoint to approved school-based assessment result types. Practical/internal/external awards are not returned publicly.
+- Added regression assertions for the staff delegation limits, private practical/photo paths, backend-only handshakes, and public result filtering.
 
 ## Files Changed
 
-1. `functions/academicRecords.js`
-2. `functions/admissionStatus.js`
-3. `functions/admissionStatus.test.js`
-4. `src/portal/admin/AdminPracticals.jsx`
-5. `src/portal/teacher/AttendancePage.jsx`
-6. `src/portal/teacher/PracticalsPage.jsx`
-7. `src/utils/practicalsCsvManager.js`
-8. `src/utils/practicalsPdfGenerator.js`
-9. `src/utils/studentApprovalStatus.js`
-10. `src/utils/studentApprovalStatus.test.js`
-11. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `firestore.rules`
+2. `functions/staffDirectory.js`
+3. `functions/staffSecurity.js`
+4. `netlify/functions/public-result.js`
+5. `scripts/security-behavior.test.cjs`
+6. `scripts/security-regression-check.js`
+7. `src/pages/PublicResultLookup.jsx`
+8. `src/portal/LoginPage.jsx`
+9. `src/portal/admin/AdminToolsDropdown.jsx`
+10. `src/portal/admin/StaffPermissionsManager.jsx`
+11. `src/portal/admin/adminModuleCatalog.js`
+12. `src/services/staffAuthService.js`
+13. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- `node --test functions/admissionStatus.test.js`: passed (2 tests).
-- Focused `src/utils/studentApprovalStatus.test.js`: passed (8 tests).
-- `npm run build`: passed (optimized production build, 11 public HTML pages, and SEO regression checks).
+- `npm run security:check`: passed.
+- `node --check functions/staffSecurity.js`, `node --check functions/staffDirectory.js`, and `node --check netlify/functions/public-result.js`: passed.
+- `npm run test:public`: passed (9 tests).
+- `npm run build`: passed with exit code 0 (production bundle, public pages, and SEO checks completed). Existing non-blocking lint warnings remain in the project.
+- `npm run deploy:rules`: passed; the Firestore rules were compiled and released to the `hsssdb` production project.
+- `node scripts/security-behavior.test.cjs`: requires a running local Firestore emulator on port 8089 and could not connect because no emulator was running.
+- `npm run test:integrity`: could not start locally because the Firebase emulator now requires Java JDK 21 and this workstation has an older Java runtime. No emulator security result was produced; install/configure JDK 21 before rerunning that suite.
 - `git diff --check`: passed with no whitespace errors.
-- Production Cloud Function deployment: attempted for `submitAcademicRecord`, but not completed. Firebase reported that Cloud Build and Artifact Registry are disabled for project `hsssdb` and timed out while trying to enable them. The client-side safeguards are ready; enable those required Google Cloud APIs and deploy this function before relying on the server-side enforcement.
 
 ## Instructions for the User
 

@@ -4,16 +4,11 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen, Award, X, Search, Calculator, Trash2, History, Users, Sparkles
+  GitMerge, BookOpen, Award, X, Search, Calculator, History, Users, Sparkles
 } from 'lucide-react';
-import {
-  ADMIN_MODULE_CATALOG,
-  getModuleMaturity,
-} from './adminModuleCatalog';
+import { ADMIN_MODULE_CATALOG } from './adminModuleCatalog';
 import { 
   isBootstrapSuperAdminEmail, 
-  isStandardAdminEmail, 
-  isBootstrapAdminEmail 
 } from '../../services/staffAuthService';
 import { searchAdminModules, getHighlightedSegments } from './adminModuleSearchEngine';
 
@@ -77,15 +72,11 @@ export const isUserPermittedForModule = (user, moduleId) => {
   const role = String(user.role || '').toLowerCase().trim();
   const email = String(user.email || '').toLowerCase().trim();
 
-  // SuperAdmin and Admins have global unrestricted operational access to every administrative module
+  // Only the Super Admin has global access. Standard Admins are deliberately
+  // module-scoped, exactly like the backend and Firestore rules.
   if (
     role === 'superadmin' ||
-    role === 'admin' ||
-    role === 'administrator' ||
-    user.isAdmin === true ||
-    isBootstrapSuperAdminEmail(email) ||
-    isStandardAdminEmail(email) ||
-    isBootstrapAdminEmail(email)
+    isBootstrapSuperAdminEmail(email)
   ) {
     return true;
   }
@@ -111,8 +102,10 @@ export const isUserPermittedForModule = (user, moduleId) => {
     }
   }
 
-  // 3. Backward-compatibility: if an admin had 'controls' in the past, they inherit access for 'curriculum' and 'staff' as well
-  if ((moduleId === 'curriculum' || moduleId === 'staff') && (perms.includes('controls') || perms.includes('systemControls') || perms.includes('admissionControls'))) {
+  // 3. Backward-compatibility: controls historically included curriculum.
+  // Staff management is deliberately excluded: it requires an explicit staff
+  // grant so the UI matches the server-side delegation boundary.
+  if (moduleId === 'curriculum' && (perms.includes('controls') || perms.includes('systemControls') || perms.includes('admissionControls'))) {
     return true;
   }
 

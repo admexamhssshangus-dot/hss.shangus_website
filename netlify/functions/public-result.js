@@ -1,10 +1,31 @@
 'use strict';
 const { createHandler, findStudent, normalize, classKey, sessionKey, first, FIELDS } = require('./lib/publicRecords');
 const { expectedSubjectCodes, gradeAssessment } = require('../../src/shared/assessment');
+
+// A public result can only ever be a School Based Assessment result.  Practical
+// awards (Internal/External, viva, lab and award rolls) remain confidential even
+// when an old, mixed legacy document is accidentally marked as published.
+const PRACTICAL_EVALUATION = /practical|internal|external|viva|lab|award/;
+const SCHOOL_ASSESSMENT_EVALUATION = /preboard|golden|midterm|unit|termend|competitive|omr|schoolbased/;
+function isPublishedSchoolAssessment(item) {
+  const key = normalize(item?.evalType || item?.title || item?.id || '');
+  return Boolean(key) && SCHOOL_ASSESSMENT_EVALUATION.test(key) && !PRACTICAL_EVALUATION.test(key);
+}
+async function publishedSchoolEvaluations(db) {
+  // New authoritative settings live with the School Based Assessment suite.
+  // Filtered legacy fallback maintains existing published school results while
+  // a production installation completes its data migration.
+  const school = await db.collection('schoolAssessmentSettings').doc('config').get();
+  const legacy = school.exists ? null : await db.collection('adminPracticalsSettings').doc('config').get();
+  const settings = school.exists ? school.data() : legacy?.data();
+  return (settings?.customEvaluations || []).filter(item =>
+    item?.isPublishedForStudents === true && isPublishedSchoolAssessment(item)
+  );
+}
+
 async function lookupResult(db, body) {
   if (body.action === 'config') {
-    const snapshot = await db.collection('adminPracticalsSettings').doc('config').get();
-    const evaluations = (snapshot.data()?.customEvaluations || []).filter(item => item.isPublishedForStudents === true)
+    const evaluations = (await publishedSchoolEvaluations(db))
       .map(({ id, title, evalType, session, classes, biologyDisplayMode, maxMarks, minMarks, subjectOverrides, normalizeTo50, allowedStatuses, description }) => ({
         id, title, evalType, session, classes, biologyDisplayMode, maxMarks, minMarks, subjectOverrides, normalizeTo50, allowedStatuses, description
       }));
@@ -14,16 +35,20 @@ async function lookupResult(db, body) {
       !/^20\d{2}-\d{2}$/.test(body.session || '') || typeof body.evaluation !== 'string' || body.evaluation.length > 100) {
     throw Object.assign(new Error('Enter a valid student identifier, class, session and assessment.'), { status: 400 });
   }
-  const settings = await db.collection('adminPracticalsSettings').doc('config').get();
-  const evaluation = (settings.data()?.customEvaluations || []).find(item =>
+  const evaluation = (await publishedSchoolEvaluations(db)).find(item =>
     normalize(item.evalType || item.title) === normalize(body.evaluation) && item.session === body.session &&
     Array.isArray(item.classes) && item.classes.includes(body.className));
   if (!evaluation || evaluation.isPublishedForStudents !== true) throw Object.assign(new Error('Results for this assessment are not published.'), { status: 404 });
   const { data, student } = await findStudent(db, body);
   // One bounded class query, then exact assessment/session matching. No full
   // collection downloads and no sample data presented as student results.
-  // Query practical evaluation documents for the cohort class
-  const snapshot = await db.collection('practicalsData').limit(1000).get();
+  // School assessments are read from their own collection. A temporary,
+  // bounded legacy fallback is filtered by the classifier below so a practical
+  // award can never be projected through this public endpoint.
+  let snapshot = await db.collection('schoolAssessmentsData').where('className', '==', body.className).limit(500).get();
+  if (snapshot.empty) {
+    snapshot = await db.collection('practicalsData').where('className', '==', body.className).limit(500).get();
+  }
 
   // 1. Identify and deduplicate matching sections (prioritize latest pending_ or newer submission per subject)
   const sectionsBySubj = new Map();
@@ -45,12 +70,11 @@ async function lookupResult(db, body) {
       (body.session === '2024-25' && (docSess === '2025' || String(rawSess).includes('2025') || String(rawSess).includes('2024-25')));
     if (!isSessionMatched) continue;
 
-    // Evaluation matching - strictly school-based assessments (Pre-board, golden test, unit test, etc.)
+    // Evaluation matching - strictly school-based assessments (Pre-board,
+    // golden test, unit test, etc.). Never project practical awards.
     const targetEval = normalize(body.evaluation);
     const docEval = normalize(section.practicalType || section.evaluationType || section.examTitle || section.type || section.docId || snap.id || '');
-    // Practicals are strictly confidential institutional data and never queried publicly
-    if (docEval.includes('internal') && !docEval.includes('unit') && !docEval.includes('preboard')) continue;
-    if (docEval.includes('external')) continue;
+    if (!isPublishedSchoolAssessment({ evalType: docEval })) continue;
 
     const isEvalMatched = docEval === targetEval ||
       docEval.includes(targetEval) || targetEval.includes(docEval) ||

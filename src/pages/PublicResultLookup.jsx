@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
-  Search, Printer, Award, CheckCircle2, AlertCircle, ArrowLeft,
-  RefreshCw, School, BookOpen, ShieldCheck, X, ChevronDown, Check,
-  User, Sparkles, Hash, Layers, FileText, CheckCircle, Clock, History
+  Search, Printer, AlertCircle, ArrowLeft, RefreshCw, BookOpen,
+  ShieldCheck, X, User, Clock, History
 } from 'lucide-react';
-import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore';
-import { db, auth } from '../services/firebase';
 import { publicLookup } from '../services/backendEndpoint';
 import SEO from '../components/SEO';
 import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS, getSubjectOverride } from '../utils/practicalsSettingsManager';
-import verifiedCatalog from '../data/verifiedStudentsCatalog.json';
-import { getCachedCollection, fetchStudentPhotoOnDemand, getMasterRegistersScoped } from '../services/dbCache';
 import { identityKey, classKey, sessionKey, formatConsistentName } from '../utils/recordIdentity';
 
 const STORAGE_KEY_RECENT_SEARCHES = 'hss_recent_results_lookups';
@@ -1131,7 +1126,6 @@ export function computeScorecardSubjects({
 
       const rawMark = rec.totalMarks ?? rec.practicalMarks;
       const isAbsentMark = rawMark === null || rawMark === undefined || rawMark === '' || /^(a|ab|absent)$/i.test(String(rawMark).trim());
-      const hasTeacherMark = rawMark !== null && rawMark !== undefined && rawMark !== '';
 
       if (Array.isArray(matchedStudent?.subjects) && matchedStudent.subjects.length > 0) {
         if (!isSubjectEnrolledByStudent(secCode, secName, matchedStudent)) return;
@@ -1251,29 +1245,10 @@ export default function PublicResultLookup() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isSearchExpandedOnMobile, setIsSearchExpandedOnMobile] = useState(false);
   const [biologyDisplayMode, setBiologyDisplayMode] = useState('combined');
-  const [livePracticalsDocs, setLivePracticalsDocs] = useState([]);
+  const [livePracticalsDocs] = useState([]);
 
-  // Evaluation awards are populated on-demand from the serverless lookup response
-  // (Avoids holding a continuous bulk stream on the entire school practicals collection)
-  useEffect(() => {
-    // Ready for on-demand evaluation hydration
-  }, []);
-
-  // Asynchronously hydrate student photo from Firebase if not yet populated or if Google Drive URL
-  useEffect(() => {
-    if (!studentResult || (studentResult.photoUrl && !studentResult.photoUrl.includes('drive.google.com') && !studentResult.photoUrl.includes('googleusercontent.com') && !studentResult.photoUrl.includes('docs.google.com'))) return;
-    let isMounted = true;
-    async function hydratePhoto() {
-      try {
-        const p = await fetchStudentPhotoOnDemand(studentResult.lookupContext?.matchedStudent || studentResult);
-        if (isMounted && p && !p.includes('drive.google.com') && !p.includes('googleusercontent.com') && !p.includes('docs.google.com')) {
-          setStudentResult(prev => prev ? { ...prev, photoUrl: p } : null);
-        }
-      } catch (_) {}
-    }
-    hydratePhoto();
-    return () => { isMounted = false; };
-  }, [studentResult]);
+  // A public result response may contain its deliberately projected photo URL,
+  // but this page never fetches a private studentPhotos document itself.
 
   // Active evaluation configuration matching selected evalType
   const activeEvalConfig = useMemo(() => {
@@ -1288,8 +1263,7 @@ export default function PublicResultLookup() {
     }
   }, [activeEvalConfig]);
 
-  // Reactively derive active scorecard when toggling between Combined Bio and Separate BO & ZO
-  // or when real-time practicalsData updates from live teacher submissions
+  // Reactively derive active scorecard when toggling between Combined Bio and Separate BO & ZO.
   const activeScorecard = useMemo(() => {
     if (!studentResult) return null;
     if (studentResult.lookupContext) {
@@ -1410,32 +1384,10 @@ export default function PublicResultLookup() {
         }
       }
 
-      // Tier 1.5: Direct live Firestore configuration lookup
-      try {
-        const snap = await getDoc(doc(db, 'adminPracticalsSettings', 'config')).catch(() => null);
-        if (!isMounted) return;
-        if (snap && snap.exists()) {
-          const data = snap.data();
-          if (Array.isArray(data.customEvaluations) && data.customEvaluations.length > 0) {
-            const published = data.customEvaluations.filter(item => item.isPublishedForStudents !== false);
-            if (published.length > 0) {
-              setEvalOptions(published);
-              const sessions = [...new Set(published.map(item => item.session))].filter(Boolean);
-              if (sessions.length) setAvailableSessions(sessions);
-              if (published[0]) {
-                setSelectedEvalType(published[0].evalType || published[0].title);
-                if (published[0].session) setSelectedSession(published[0].session);
-                if (published[0].biologyDisplayMode) setBiologyDisplayMode(published[0].biologyDisplayMode);
-              }
-              return;
-            }
-          }
-        }
-      } catch (fErr) {
-        console.warn('Firestore evaluation config lookup note:', fErr);
-      }
-
-      // Fallback to active evaluations preset (Pre-Board Test, Internal, External)
+      // Never query the private assessment configuration from the browser. If
+      // the public projection is temporarily unavailable, show only presets.
+      // The server remains the authority for whether any result is published.
+      // Fallback to active school-assessment presets.
       if (!isMounted) return;
       const fallbackEvals = DEFAULT_SCHOOL_EVALUATIONS.map(ev => ({
         id: ev.id,
@@ -1588,455 +1540,17 @@ export default function PublicResultLookup() {
         return;
       }
     } catch (err) {
-      if (process.env.NODE_ENV === 'test') {
-        console.warn('Serverless result lookup unavailable, trying verified student catalog fallback:', err);
-      }
-    }
-
-    // ── Tier 2: Resilient Client Fallback using Verified Catalog & Practical Data ──
-    try {
-      const normQ = cleanQuery.toLowerCase();
-      const normClass = String(selectedClass || '').toLowerCase().replace(/class/i, '').trim();
-
-      let matchedStudent = null;
-      if (Array.isArray(verifiedCatalog)) {
-        const cleanDigitsOnly = normQ.replace(/\D/g, '');
-        const targetClsKey = classKey(selectedClass);
-
-        // Helper to select match, prioritizing candidates in the selected class
-        const candidateMatches = (predicate) => {
-          const all = verifiedCatalog.filter(predicate);
-          if (all.length === 0) return null;
-          const inClass = all.find(s => classKey(s.className) === targetClsKey);
-          return inClass || all[0];
-        };
-
-        // Match 1: Form Number (e.g. 250001, 250027, 250199, 6084)
-        matchedStudent = candidateMatches(s => {
-          const f = String(s.fNo || '').trim().toLowerCase();
-          return f && f === normQ;
-        });
-
-        // Match 2: Board Registration Number (100% authoritative exact / alphanumeric)
-        if (!matchedStudent) {
-          matchedStudent = candidateMatches(s => {
-            const r = String(s.boardRegNo || '').trim().toLowerCase();
-            if (!r) return false;
-            const rClean = r.replace(/[^a-z0-9]/g, '');
-            const qClean = normQ.replace(/[^a-z0-9]/g, '');
-            return r === normQ || rClean === qClean;
-          });
-        }
-
-        // Match 3: Class Roll Number or Board Exam Roll Number
-        if (!matchedStudent) {
-          matchedStudent = candidateMatches(s => {
-            const roll = String(s.classRollNo || '').trim().toLowerCase();
-            const examRoll = String(s.examRollNo || '').trim().toLowerCase();
-            return (roll && roll === normQ) || (examRoll && examRoll === normQ);
-          });
-        }
-
-        // Match 4: Exact Full Registration Match (100% full match, no suffix/partial collision)
-        if (!matchedStudent && cleanDigitsOnly.length >= 8) {
-          matchedStudent = candidateMatches(s => {
-            const rDigits = String(s.boardRegNo || s.regNo || '').replace(/\D/g, '');
-            if (!rDigits || rDigits.length < 8) return false;
-            return rDigits === cleanDigitsOnly && (!targetClsKey || classKey(s.className) === targetClsKey);
-          });
-        }
-
-        // Match 5: Resilient fallback to verified seed database
-        if (!matchedStudent) {
-          try {
-            const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
-            if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
-              for (const doc of CLEAN_PRACTICALS_SEED_DATA) {
-                const docCls = classKey(doc.className || '');
-                if (targetClsKey && docCls && docCls !== targetClsKey) continue;
-                const rec = (doc.records || []).find(r => {
-                  const rReg = String(r.boardRegNo || '').replace(/[^a-z0-9]/g, '');
-                  const rForm = String(r.formNo || r.fNo || '').trim().toLowerCase();
-                  const rRoll = String(r.classRollNo || r.roll || '').trim().toLowerCase();
-                  const qClean = normQ.replace(/[^a-z0-9]/g, '');
-                  return (rReg && rReg === qClean) ||
-                         (rForm && rForm === normQ) ||
-                         (rRoll && rRoll === normQ);
-                });
-                if (rec) {
-                  const parsedSubs = rec.subjects
-                    ? String(rec.subjects).split(/[,;|+]/).map(s => {
-                        const code = s.trim();
-                        return { code, name: code };
-                      }).filter(s => s.code)
-                    : [];
-                  matchedStudent = {
-                    name: rec.name,
-                    fatherName: rec.parentName || '—',
-                    className: doc.className || selectedClass,
-                    classRollNo: rec.classRollNo || '—',
-                    examRollNo: rec.examRollNo || '—',
-                    boardRegNo: rec.boardRegNo || cleanQuery,
-                    formNo: rec.formNo || rec.fNo || '—',
-                    fNo: rec.formNo || rec.fNo || '—',
-                    stream: rec.stream || (doc.className === '11th' || doc.className === '12th' ? 'Humanities' : 'General'),
-                    session: selectedSession,
-                    subjects: parsedSubs
-                  };
-                  break;
-                }
-              }
-            }
-          } catch (_) {}
-        }
-
-        // Match 6: Discover candidate from live practicalsData or cached admissions/masterRegisters
-        if (!matchedStudent) {
-          try {
-            let livePracticals = [];
-            try {
-              const snap = await getDocs(collection(db, 'practicalsData'));
-              livePracticals = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            } catch (_) {
-              livePracticals = await getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []) || [];
-            }
-
-            const targetClsKey = classKey(selectedClass);
-            const qClean = normQ.replace(/[^a-z0-9]/g, '');
-
-            // 6A. Search live teacher practical submission sheets
-            for (const sec of livePracticals) {
-              const secCls = classKey(sec.className || sec.class || sec.selectedClass || '');
-              if (targetClsKey && secCls && secCls !== targetClsKey) continue;
-              const rec = (sec.records || []).find(r => {
-                const rReg = String(r.regNo || r.boardRegNo || r.reg || '').replace(/[^a-z0-9]/g, '');
-                const rForm = String(r.formNo || r.fNo || '').trim().toLowerCase();
-                const rRoll = String(r.classRollNo || r.rollNo || r.roll || '').trim().toLowerCase();
-                const isRegMatch = Boolean(rReg && rReg === qClean);
-                const isFormMatch = Boolean(rForm && rForm === normQ);
-                const isRollMatch = Boolean(rRoll && rRoll === normQ);
-                return isRegMatch || isFormMatch || isRollMatch;
-              });
-              if (rec) {
-                let enrolled = extractEnrolledSubjects(rec);
-                if (!Array.isArray(enrolled) || enrolled.length === 0) {
-                  const targetSecCls = classKey(sec.className || selectedClass);
-                  const isSec = ['10th', '9th', '10', '9'].includes(targetSecCls);
-                  if (isSec) {
-                    enrolled = [
-                      { code: 'EN', name: 'General English' },
-                      { code: 'MA', name: 'Mathematics' },
-                      { code: 'SC', name: 'Science' },
-                      { code: 'SS', name: 'Social Studies' },
-                      { code: 'UR', name: 'Urdu' }
-                    ];
-                  }
-                }
-                matchedStudent = {
-                  name: rec.name || rec.studentName,
-                  fatherName: rec.parentName || rec.fatherName || '—',
-                  className: sec.className || selectedClass,
-                  classRollNo: rec.classRollNo || rec.rollNo || '—',
-                  examRollNo: rec.examRollNo || '—',
-                  boardRegNo: rec.regNo || rec.boardRegNo || cleanQuery,
-                  formNo: rec.formNo || rec.fNo || '—',
-                  fNo: rec.formNo || rec.fNo || '—',
-                  stream: rec.stream || (['11th', '12th'].includes(sec.className) ? 'Humanities' : 'General'),
-                  session: sec.session || selectedSession,
-                  dob: rec.dob || '',
-                  subjects: enrolled
-                };
-                break;
-              }
-            }
-
-            // 6B. Search cached admissions and masterRegisters (only when authenticated as staff)
-            if (!matchedStudent && auth?.currentUser) {
-              const [cachedAdm, cachedMaster] = await Promise.all([
-                getCachedCollection('admissions', false, 10 * 60 * 1000).catch(() => []),
-                getMasterRegistersScoped({ session: selectedSession, className: targetClsKey }).catch(() => [])
-              ]);
-              const allCandidates = [
-                ...(Array.isArray(cachedAdm) ? cachedAdm : []),
-                ...(Array.isArray(cachedMaster) ? cachedMaster.flatMap(d => d.items || d.students || d.records || d.data || [d]) : [])
-              ];
-              const found = allCandidates.find(st => {
-                if (!st || typeof st !== 'object') return false;
-                const stCls = classKey(st.selectedClass || st.className || st.Class || st.class || st['Admission sought for class'] || '');
-                if (targetClsKey && stCls && stCls !== targetClsKey) return false;
-                const stReg = String(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.'] || '').replace(/[^a-z0-9]/g, '');
-                const stForm = String(st.formNo || st['Form Number'] || '').trim().toLowerCase();
-                const stRoll = String(st.classRollNo || st['Class Roll No'] || '').trim().toLowerCase();
-                const isRegMatch = Boolean(stReg && stReg === qClean);
-                const isFormMatch = Boolean(stForm && stForm === normQ);
-                const isRollMatch = Boolean(stRoll && stRoll === normQ);
-                return isRegMatch || isFormMatch || isRollMatch;
-              });
-              if (found) {
-                let enrolled = extractEnrolledSubjects(found);
-                const isFoundSecondary = ['10th', '9th', '10', '9', 'x', 'ix'].includes(classKey(found.selectedClass || found.className || found.Class || selectedClass));
-                const lacksVocational = isFoundSecondary && !enrolled.some(s => {
-                  const code = typeof s === 'string' ? s : (s.code || '');
-                  const name = typeof s === 'string' ? s : (s.name || '');
-                  return ['HTC', 'ITE', 'IT', 'HC'].includes(String(code).toUpperCase()) || /vocational|healthcare|it & ites|information/i.test(name);
-                });
-                if ((enrolled.length === 0 || lacksVocational) && Array.isArray(verifiedCatalog)) {
-                  const catMatch = verifiedCatalog.find(c => {
-                    const cForm = String(c.fNo || '').trim().toLowerCase();
-                    const fForm = String(found.formNo || found['Form Number'] || '').trim().toLowerCase();
-                    if (cForm && fForm && cForm === fForm) return true;
-                    const cReg = String(c.boardRegNo || '').replace(/[^a-z0-9]/g, '');
-                    const fReg = String(found.boardRegNo || found.regNo || found['Board Registration Number'] || '').replace(/[^a-z0-9]/g, '');
-                    if (cReg && fReg && cReg === fReg) return true;
-                    const cName = String(c.name || '').trim().toLowerCase().replace(/[^a-z]/g, '');
-                    const fName = String(found.name || found.studentName || found["Student's Name (as per school records)"] || found["Student's Name"] || '').trim().toLowerCase().replace(/[^a-z]/g, '');
-                    const cDad = String(c.fatherName || '').trim().toLowerCase().replace(/[^a-z]/g, '');
-                    const fDad = String(found.fatherName || found["Father's/Guardian's Name (as per school records)"] || found["Father's Name"] || '').trim().toLowerCase().replace(/[^a-z]/g, '');
-                    return Boolean(cName && fName && (cName === fName || cName.includes(fName) || fName.includes(cName)) && cDad && fDad && (cDad === fDad || cDad.includes(fDad) || fDad.includes(cDad)));
-                  });
-                  if (catMatch && Array.isArray(catMatch.subjects) && catMatch.subjects.length > 0) {
-                    enrolled = catMatch.subjects;
-                  }
-                }
-
-                matchedStudent = {
-                  name: found.name || found.studentName || found["Student's Name (as per school records)"] || found["Student's Name"],
-                  fatherName: found.fatherName || found["Father's/Guardian's Name (as per school records)"] || found["Father's Name"] || '—',
-                  className: found.selectedClass || found.className || found.Class || selectedClass,
-                  classRollNo: found.classRollNo || found['Class Roll No'] || found.rollNo || '—',
-                  examRollNo: found.examRollNo || '—',
-                  boardRegNo: found.boardRegNo || found.regNo || found['Board Registration Number'] || cleanQuery,
-                  formNo: found.formNo || found['Form Number'] || '—',
-                  stream: found.stream || found.Stream || (['11th', '12th'].includes(selectedClass) ? 'Humanities' : 'General'),
-                  session: found.selectedSession || found.Session || selectedSession,
-                  dob: found.dob || found['DoB (figures)'] || found['Date of Birth'] || found.dateOfBirth || '',
-                  subjects: enrolled
-                };
-              }
-            }
-          } catch (dErr) {
-            console.warn('Live candidate fallback error:', dErr);
-          }
-        }
-      }
-
-      if (matchedStudent) {
-        if (!matchedStudent.formNo && matchedStudent.fNo) matchedStudent.formNo = matchedStudent.fNo;
-        if (!matchedStudent.fNo && matchedStudent.formNo) matchedStudent.fNo = matchedStudent.formNo;
-
-        // Anti-scraping verification: verify DOB if queried via Class Roll No
-        if (isRollQuery && matchedStudent.dob) {
-          const isDobMatching = (recordDob, userDob) => {
-            if (!recordDob || !userDob) return true;
-            const cleanR = String(recordDob).trim().toLowerCase();
-            const cleanU = String(userDob).trim().toLowerCase();
-            if (cleanR === cleanU) return true;
-
-            const rParts = cleanR.split(/[-/.]/);
-            const uParts = cleanU.split(/[-/.]/);
-            if (rParts.length === 3 && uParts.length === 3) {
-              const rYear = rParts.find(p => p.length === 4);
-              const uYear = uParts.find(p => p.length === 4);
-              if (rYear && uYear && rYear === uYear) {
-                const rOther = rParts.filter(p => p !== rYear).map(Number).sort((a, b) => a - b);
-                const uOther = uParts.filter(p => p !== uYear).map(Number).sort((a, b) => a - b);
-                if (rOther[0] === uOther[0] && rOther[1] === uOther[1]) return true;
-              }
-            }
-            return false;
-          };
-
-          if (!isDobMatching(matchedStudent.dob, queryDob)) {
-            setErrorMsg('The Roll Number and Date of Birth combination do not match school records. Please check your credentials.');
-            setStudentResult(null);
-            setSearching(false);
-            return;
-          }
-        }
-
-        // Determine stream and curriculum template - prefer student's enrolled subjects
-        const isHigherSec = selectedClass === '11th' || selectedClass === '12th';
-        const rawStream = String(matchedStudent.stream || '').toLowerCase();
-        const hasScienceSubjects = Array.isArray(matchedStudent.subjects) && matchedStudent.subjects.some(s =>
-          SCIENCE_ONLY_SUBJECT_CODES.has(String(s.code || '').toUpperCase()) ||
-          SCIENCE_ONLY_SUBJECT_NAMES.some(n => String(s.name || '').toLowerCase().includes(n))
-        );
-        const hasHumanitiesSubjects = Array.isArray(matchedStudent.subjects) && matchedStudent.subjects.some(s =>
-          HUMANITIES_ONLY_SUBJECT_CODES.has(String(s.code || '').toUpperCase()) ||
-          HUMANITIES_ONLY_SUBJECT_NAMES.some(n => String(s.name || '').toLowerCase().includes(n))
-        );
-
-        const streamName = isHigherSec
-          ? (rawStream.includes('scien') || (!rawStream.includes('human') && hasScienceSubjects)
-              ? 'Science'
-              : (rawStream.includes('human') || hasHumanitiesSubjects ? 'Humanities' : 'General'))
-          : 'General';
-
-
-        // Fetch fresh practicals data on-demand (preferring memory/SWR cache, scoping query if needed)
-        let practicalDocs = livePracticalsDocs.length > 0 ? livePracticalsDocs : [];
-        if (practicalDocs.length === 0) {
-          try {
-            const cached = await getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []);
-            if (Array.isArray(cached) && cached.length > 0) {
-              practicalDocs = cached;
-            } else {
-              let snap = null;
-              try {
-                const q = query(
-                  collection(db, 'practicalsData'),
-                  where('className', '==', selectedClass)
-                );
-                snap = await getDocs(q);
-              } catch (_) {
-                snap = await getDocs(collection(db, 'practicalsData')).catch(() => null);
-              }
-              if (!snap || snap.empty) {
-                snap = await getDocs(collection(db, 'practicalsData')).catch(() => null);
-              }
-              if (snap && !snap.empty) {
-                practicalDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-              }
-            }
-          } catch (pErr) {
-            const cached = await getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []);
-            practicalDocs = cached || [];
-          }
-          if (Array.isArray(practicalDocs) && practicalDocs.length > 0) {
-            setLivePracticalsDocs(practicalDocs);
-          }
-        }
-
-        // Fallback to verified practicals seed dataset if live collection is empty/offline
-        if (practicalDocs.length === 0) {
-          try {
-            const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
-            if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
-              practicalDocs = CLEAN_PRACTICALS_SEED_DATA;
-            }
-          } catch (_) {}
-        }
-
-        // Identify and deduplicate matching teacher submission sections
-        const matchingSections = filterAndDeduplicateSections(
-          practicalDocs,
-          selectedClass,
-          selectedSession,
-          selectedEvalType
-        );
-
-        // Multi-tier student record matcher against a teacher's section sheet
-        const matchRecord = (rec) => {
-          if (!rec) return false;
-          const rName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-          const sName = String(matchedStudent.name || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-          const isNameMatch = Boolean(rName && sName && rName.length > 3 && (rName === sName || rName.includes(sName) || sName.includes(rName)));
-
-          // 1. Board Registration Number (100% authoritative exact match)
-          const rReg = identityKey(rec.regNo || rec.boardRegNo || rec.reg);
-          const sReg = identityKey(matchedStudent.boardRegNo || matchedStudent.regNo);
-          if (rReg && sReg) {
-            const isBothFull = rReg.length >= 8 && sReg.length >= 8;
-            if (isBothFull) {
-              if (rReg === sReg) {
-                if (rName && sName && !isNameMatch) return false;
-                return true;
-              }
-              return false; // Strict conflict rejection: differing registrations must NEVER match
-            } else if (rReg === sReg) {
-              if (rName && sName && !isNameMatch) return false;
-              return true;
-            }
-          }
-
-          // 2. Form Number
-          const rForm = identityKey(rec.formNo || rec.fNo || rec.id);
-          const sForm = identityKey(matchedStudent.fNo || matchedStudent.formNo);
-          if (rForm && sForm && rForm === sForm) {
-            if (rName && sName && !isNameMatch) {
-              // Different student using same legacy form number; reject
-            } else {
-              return true;
-            }
-          }
-
-          // 3. Class Roll Number or Exam Roll Number
-          const rRoll = identityKey(rec.rollNo || rec.classRollNo || rec.roll || rec.examRollNo);
-          const sRoll = identityKey(matchedStudent.classRollNo);
-          const sExamRoll = identityKey(matchedStudent.examRollNo);
-          const isRollMatch = (rRoll && sRoll && rRoll === sRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a') ||
-                              (rRoll && sExamRoll && rRoll === sExamRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a');
-
-          // Prevent cross-stream / different student roll number collisions
-          if (isRollMatch) {
-            if (rName && sName && !isNameMatch) {
-              return false;
-            }
-            return true;
-          }
-
-          if (isNameMatch) return true;
-
-          return false;
-        };
-
-        // Compute normalized subject roster and overall performance descriptors
-        const scorecardData = computeScorecardSubjects({
-          matchedStudent,
-          streamName,
-          matchingSections,
-          matchRecord,
-          biologyDisplayMode,
-          evalConfig: activeEvalConfig
-        });
-
-        let firebasePhoto = '';
-        try {
-          const fetched = await fetchStudentPhotoOnDemand(matchedStudent);
-          if (fetched && !fetched.includes('drive.google.com') && !fetched.includes('googleusercontent.com') && !fetched.includes('docs.google.com')) {
-            firebasePhoto = fetched;
-          }
-        } catch (_) {}
-
-        setStudentResult({
-          name: formatConsistentName(matchedStudent.name || 'Student Candidate'),
-          fatherName: formatConsistentName(matchedStudent.fatherName || '—'),
-          className: matchedStudent.className || selectedClass,
-          classRollNo: matchedStudent.classRollNo || '—',
-          boardRegNo: matchedStudent.boardRegNo || '—',
-          formNo: matchedStudent.fNo || '—',
-          stream: streamName,
-          session: matchedStudent.session || selectedSession,
-          photoUrl: firebasePhoto,
-          evalTitle: selectedEvalType,
-          verifiedFromCatalog: true,
-          lookupContext: {
-            matchedStudent,
-            streamName,
-            matchingSections,
-            matchRecord
-          },
-          ...scorecardData
-        });
-        saveSearchToHistory({
-          query: cleanQuery,
-          className: matchedStudent.className || selectedClass,
-          session: matchedStudent.session || selectedSession,
-          evalType: selectedEvalType,
-          candidateName: formatConsistentName(matchedStudent.name || '')
-        });
-        setIsSearchExpandedOnMobile(false);
-        return;
-      }
-
-      // Neither serverless nor catalog matched
-      setErrorMsg(`No candidate record found for "${cleanQuery}" in Class ${selectedClass} (${selectedSession}). Please check your Roll Number, Registration Number, or Form Number.`);
-    } catch (fallbackErr) {
-      console.error('Error during fallback lookup:', fallbackErr);
-      setErrorMsg('Unable to retrieve results. Please verify your details and try again.');
-    } finally {
+      console.warn('Public result lookup unavailable:', err?.message || err);
+      setErrorMsg(err?.message || 'The secure result service is temporarily unavailable. Please try again shortly.');
       setSearching(false);
+      return;
     }
+
+    // The public endpoint returned no result. Do not fall back to browser-held
+    // rosters, cached awards, Firestore, or seed data: those are private data.
+    setErrorMsg('No published result was found for these details.');
+    setSearching(false);
+    return;
   }, [queryInput, queryDob, selectedClass, selectedSession, selectedEvalType]);
 
   // Check if current query resembles a short sequential Class Roll No (1 to 3 digits)

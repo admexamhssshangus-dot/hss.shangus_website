@@ -89,8 +89,15 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
       return { success: true };
     }),
     manageStaffAccount: call(async (data, context) => {
-      const actor = await requireStaff(db, tokenFor(context), { adminOnly: true });
-      if (roleKey(actor.role) !== 'superadmin') throw Object.assign(new Error('Only the Super Admin can manage staff access.'), { status: 403 });
+      // A Standard Admin may manage staff only when explicitly assigned the
+      // Staff module.  The checks below keep that delegated authority bounded:
+      // no Super Admin target/role and no permission they do not already hold.
+      const actor = await requireStaff(db, tokenFor(context), { adminOnly: true, module: 'staff' });
+      const actorIsSuperAdmin = roleKey(actor.role) === 'superadmin';
+      const actorPerms = Array.isArray(actor.perms) ? actor.perms : [];
+      if (!actorIsSuperAdmin && !actorPerms.includes('*') && !actorPerms.includes('staff')) {
+        throw Object.assign(new Error('This account is not assigned to staff management.'), { status: 403 });
+      }
       const email = String(data.newEmail || data.email || '').trim().toLowerCase();
       const oldEmail = String(data.oldEmail || data.email || email).trim().toLowerCase();
       const action = data.action;
@@ -102,16 +109,40 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
       catch (error) { if (error.code !== 'auth/user-not-found') throw error; }
       if (!user && action !== 'create') throw new Error('No authentication account exists for this email.');
       if (user && action === 'create') throw new Error('This account already exists. Use Edit to assign its role.');
+      // New profiles are UID-keyed.  Check the legacy email-keyed record too,
+      // otherwise a historical Super Admin profile could evade the target-role
+      // guard while accounts are being migrated.
+      const [uidProfile, emailProfile] = user
+        ? await Promise.all([
+          db.collection('users').doc(user.uid).get(),
+          db.collection('users').doc(oldEmail).get()
+        ])
+        : [null, null];
+      const existingRole = roleKey(uidProfile?.data()?.role || emailProfile?.data()?.role || user?.customClaims?.role);
+      const requestedRole = String(data.role || 'Teacher');
+      const requestedPerms = [...new Set((Array.isArray(data.perms) ? data.perms : [])
+        .filter(p => typeof p === 'string' && /^[a-zA-Z][a-zA-Z0-9*]{0,63}$/.test(p)))].slice(0, 50);
+      if (!actorIsSuperAdmin) {
+        if (isRoot || existingRole === 'superadmin' || requestedRole === 'SuperAdmin') {
+          throw Object.assign(new Error('Only the Super Admin can manage Super Admin access.'), { status: 403 });
+        }
+        if (action !== 'deactivate' && !['Teacher', 'Admin'].includes(requestedRole)) {
+          throw Object.assign(new Error('Standard Admins may create or update only Teacher or Admin accounts.'), { status: 403 });
+        }
+        if (requestedPerms.includes('*') || requestedPerms.some(permission => !actorPerms.includes(permission))) {
+          throw Object.assign(new Error('You can assign only modules already assigned to your own account.'), { status: 403 });
+        }
+      }
       if (action === 'reset') {
         const mailer = transport();
         await sendSetup(mailer, email, user.emailVerified);
         return { success: true, email };
       }
-      const role = isRoot ? 'SuperAdmin' : (data.role || 'Teacher');
+      const role = isRoot ? 'SuperAdmin' : requestedRole;
       const name = String(data.name || '').trim();
       if (action !== 'deactivate' && (!['Teacher', 'Admin', 'SuperAdmin'].includes(role) || !name || name.length > 100)) throw new Error('Choose a name and an approved staff role.');
       if (data.password && (typeof data.password !== 'string' || data.password.length < 6 || data.password.length > 128)) throw new Error('Use a password between 6 and 128 characters.');
-      const perms = isRoot ? ['*'] : [...new Set((Array.isArray(data.perms) ? data.perms : []).filter(p => typeof p === 'string' && /^[a-zA-Z][a-zA-Z0-9*]{0,63}$/.test(p)))].slice(0, 50);
+      const perms = isRoot ? ['*'] : requestedPerms;
       const sendEmail = action === 'create' ? data.sendSetupEmail !== false : data.sendResetEmail === true;
       if (!user) user = await admin.auth().createUser({ email, displayName: name,
         password: data.password || crypto.randomBytes(32).toString('base64url'), disabled: false });
@@ -136,6 +167,10 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
         role: action === 'deactivate' ? 'Student' : role,
         perms: action === 'deactivate' ? [] : (isRoot ? ['*'] : perms),
         active: action !== 'deactivate',
+        isStaff: action !== 'deactivate',
+        isAdmin: action !== 'deactivate' && (role === 'Admin' || isRoot),
+        isSuperAdmin: action !== 'deactivate' && isRoot,
+        isTeacher: action !== 'deactivate' && role === 'Teacher',
         designation: String(data.designation || '').trim().slice(0, 100),
         subject: String(data.subject || '').trim().slice(0, 100),
         teachingSubject: String(data.teachingSubject || data.subject || '').trim().slice(0, 100),

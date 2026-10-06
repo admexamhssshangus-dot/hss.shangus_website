@@ -79,11 +79,12 @@ service cloud.firestore {
     }
     function canUseAny(modules) {
       let profile = staffProfile();
-      return isAdmin() || (
-        isTeacher() && (
+      return isSuperAdmin() || (
+        (isStandardAdmin() || isTeacher()) && (
           profile.get('perms', []).hasAny(modules) ||
           (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
-           get(/databases/$(database)/documents/users/$(authEmail())).data.get('perms', []).hasAny(modules))
+           get(/databases/$(database)/documents/users/$(authEmail())).data.get('perms', []).hasAny(modules)) ||
+          (isBootstrapAdmin() && modules.hasAny(['reports']))
         )
       );
     }
@@ -101,10 +102,10 @@ service cloud.firestore {
       );
     }
     function canReadStudents() {
-      return isTeacher() || isAdmin();
+      return isTeacher() || canUseAny(['reports', 'admRegisterSuite', 'customRoster', 'boardSync', 'analyticsReports', 'idCards', 'practicals', 'attendanceMgmt', 'gkTest']);
     }
     function canEditStudents() {
-      return isAdmin();
+      return canUseAny(['reports', 'admRegisterSuite', 'customRoster', 'boardSync', 'directEntry']);
     }
     function settingsModule(documentId) {
       return documentId in ['certificateRegistry', 'certificateStudio'] ? 'certStudio' :
@@ -426,6 +427,19 @@ service cloud.firestore {
           (data.photoUrl is string && data.photoUrl.size() <= 2048));
     }
 
+    function validUserSession(data) {
+      return data is map &&
+        data.keys().hasOnly(['sessionId', 'deviceId', 'updatedAt', 'timestamp', 'email', 'role', 'deviceInfo']) &&
+        data.keys().hasAll(['sessionId', 'deviceId', 'updatedAt']) &&
+        data.sessionId is string && data.sessionId.size() <= 128 &&
+        data.deviceId is string && data.deviceId.size() <= 128 &&
+        (data.updatedAt is string || data.updatedAt is timestamp) &&
+        (!('timestamp' in data) || (data.timestamp is int || data.timestamp is number)) &&
+        (!('email' in data) || (validEmail(data.email) && data.email.lower() == authEmail())) &&
+        (!('role' in data) || (data.role is string && data.role.size() <= 30)) &&
+        (!('deviceInfo' in data) || (data.deviceInfo is string && data.deviceInfo.size() <= 100));
+    }
+
     // Public, non-sensitive website content.
     match /site/{documentId} {
       allow get: if documentId in ['settings', 'notices', 'facultySummary', 'slideshow', 'pages'] ||
@@ -454,16 +468,14 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isAdmin() || isOwner(userId) || ownsEmailDocument(userId);
-      allow list: if isAdmin();
-      allow create: if isSuperAdmin() ||
-        (isAdmin() && userId != 'adm.exam.hss.shangus@gmail.com' && validAdminManagedUser(request.resource.data)) ||
-        (isOwner(userId) && validSelfUser(request.resource.data));
-      allow update: if isSuperAdmin() ||
-        (isAdmin() && userId != 'adm.exam.hss.shangus@gmail.com' && validAdminManagedUser(request.resource.data)) ||
-        (isOwner(userId) && validSelfUserUpdate(request.resource.data));
-      allow delete: if isSuperAdmin() ||
-        (isAdmin() && userId != 'adm.exam.hss.shangus@gmail.com');
+      // Roles and permissions are written only by manageStaffAccount (Admin SDK).
+      // Clients can read their own profile; the Staff module can list staff for
+      // management but cannot grant itself additional authority by direct write.
+      allow get: if canUse('staff') || isOwner(userId) || ownsEmailDocument(userId);
+      allow list: if canUse('staff');
+      allow create: if isOwner(userId) && validSelfUser(request.resource.data);
+      allow update: if isOwner(userId) && validSelfUserUpdate(request.resource.data);
+      allow delete: if false;
     }
 
     match /messages/{messageId} {
@@ -509,26 +521,28 @@ service cloud.firestore {
       allow read: if isTeacher() || canUseAny(['practicals', 'gkTest']);
       // Teachers submit only through the verified server workflow. This keeps
       // roster and marks validation authoritative and blocks stale clients.
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update: if isAdmin() && canUseAny(['practicals', 'gkTest']) && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin() && canUseAny(['practicals', 'gkTest']);
     }
 
     match /practicalsBin/{documentId} {
       allow read: if isTeacher() || canUseAny(['practicals', 'gkTest']);
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update: if isAdmin() && canUseAny(['practicals', 'gkTest']) && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin() && canUseAny(['practicals', 'gkTest']);
     }
 
     // Practicals Submission Recycle Bin — soft-deleted award submissions awaiting
     // restoration or permanent purge. Strictly admin-only write access.
     match /practicalsRecycleBin/{documentId} {
-      allow read: if isAdmin() || canUseAny(['practicals', 'gkTest']);
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if canUseAny(['practicals', 'gkTest']);
+      allow create, update: if isAdmin() && canUseAny(['practicals', 'gkTest']) && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin() && canUseAny(['practicals', 'gkTest']);
     }
 
     match /activityLogs/{documentId} {
-      allow create: if (isTeacher() || isAuthenticated()) && validStaffDocument(request.resource.data);
+      // Audit events are institutional records. Students and anonymous callers
+      // cannot create misleading or quota-consuming entries.
+      allow create: if (isTeacher() || isAdmin()) && validStaffDocument(request.resource.data);
       allow read, delete: if isAdmin();
       allow update: if false;
     }
@@ -594,13 +608,6 @@ service cloud.firestore {
       allow delete: if canUse('funds');
     }
 
-    match /studentPhotos/{documentId} {
-      // Central photos are published on official admit cards, ID cards, and result sheets.
-      allow read: if true;
-      allow create, update: if canUse('reports') && validStaffDocument(request.resource.data);
-      allow delete: if canUse('reports');
-    }
-
     match /admissionHistory/{documentId} {
       allow read: if canUse('reports');
       allow create, update: if canUse('reports') && validStaffDocument(request.resource.data);
@@ -608,17 +615,19 @@ service cloud.firestore {
     }
 
     match /adminPracticalsSettings/{documentId} {
-      allow read: if isTeacher() || isAdmin() || (documentId == 'config');
-      allow create, update: if isAdmin() && hasNoCredentialFields(request.resource.data);
-      allow delete: if isAdmin();
+      // Includes teacher assignments and submission controls. Published result
+      // metadata is projected by the server-side public lookup endpoint.
+      allow read: if isTeacher() || canUse('practicals');
+      allow create, update: if isAdmin() && canUse('practicals') && hasNoCredentialFields(request.resource.data);
+      allow delete: if isAdmin() && canUse('practicals');
     }
 
     // School-Based Assessment module settings (Pre-Board, Unit Tests, Golden Tests).
     // Kept strictly separate from practicals in its own dedicated document/collection (Rule 8).
     match /schoolAssessmentSettings/{documentId} {
-      allow read: if isTeacher() || isAdmin() || (documentId == 'config');
-      allow create, update: if (isTeacher() || isAdmin()) && hasNoCredentialFields(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if isTeacher() || canUse('gkTest');
+      allow create, update: if (isTeacher() || canUse('gkTest')) && hasNoCredentialFields(request.resource.data);
+      allow delete: if canUse('gkTest');
     }
 
     match /masterRegisters/{documentId} {
@@ -663,11 +672,11 @@ service cloud.firestore {
         'adminActivityLogs', 'feeRates', 'recycleBin', 'deletedFormsHistory', 'docStudioTemplates'] && canUse(collectionModule(collectionName));
     }
     match /adminSettings/{documentId} {
-      allow read: if isAdmin() || (documentId == 'admission_register_layout' && canUse('admRegisterSuite'));
-      allow create, update: if isSuperAdmin() ||
-        (documentId == 'admission_register_layout' && isAdmin() && validStaffDocument(request.resource.data)) ||
-        (documentId == 'permissions' && isAdmin() && hasNoCredentialFields(request.resource.data));
-      allow delete: if isSuperAdmin();
+      allow read: if (documentId == 'permissions' && canUse('staff')) ||
+        (documentId == 'admission_register_layout' && canUse('admRegisterSuite')) ||
+        (documentId != 'permissions' && documentId != 'admission_register_layout' && canUse('controls'));
+      allow create, update: if documentId == 'admission_register_layout' && canUse('admRegisterSuite') && validStaffDocument(request.resource.data);
+      allow delete: if documentId == 'admission_register_layout' && canUse('admRegisterSuite');
     }
     match /adminActivityLogs/{documentId} {
       allow create: if isAdmin() && validStaffDocument(request.resource.data);
@@ -713,20 +722,9 @@ service cloud.firestore {
     }
 
     match /adminAuthHandshakes/{handshakeId} {
-      allow get: if true;
-      allow list: if isAdmin();
-      allow create: if request.resource.data.keys().hasAll(['id', 'email', 'status', 'createdAt', 'expiresAt'])
-        && request.resource.data.id == handshakeId
-        && request.resource.data.email is string
-        && validEmail(request.resource.data.email)
-        && request.resource.data.status == 'pending';
-      allow update: if isAuthenticated()
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.status in ['approved', 'consumed']
-        && (authEmail() == resource.data.email.lower() || isAdmin());
-      allow delete: if isAuthenticated() &&
-        (authEmail() == resource.data.email.lower() || isAdmin() || isOwner(resource.data.get('uid', '')));
+      // One-time proof documents are backend-only; browser access would expose
+      // approval state and permit client-side replay attempts.
+      allow read, write: if false;
     }
     match /adminSessions/{userId} {
       allow get: if isOwner(userId);
@@ -735,10 +733,7 @@ service cloud.firestore {
     match /userSessions/{userId} {
       allow get: if isOwner(userId) || isSuperAdmin();
       allow list: if isSuperAdmin();
-      allow create, update: if isOwner(userId) &&
-        request.resource.data.keys().hasAll(['sessionId', 'deviceId', 'updatedAt']) &&
-        request.resource.data.sessionId is string && request.resource.data.sessionId.size() <= 128 &&
-        request.resource.data.deviceId is string && request.resource.data.deviceId.size() <= 128;
+      allow create, update: if isOwner(userId) && validUserSession(request.resource.data);
       allow delete: if isOwner(userId) || isSuperAdmin();
     }
     match /issuedDocuments/{documentId} {

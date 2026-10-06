@@ -18,14 +18,19 @@ async function main() {
         'site/settings': { session: '2025-26', practicalsSubmissionOpen: false },
         'users/reporter': { uid: 'reporter', email: 'reporter@example.test', name: 'Reporter', role: 'Admin', perms: ['reports'], active: true },
         'users/finance': { uid: 'finance', email: 'finance@example.test', name: 'Finance', role: 'Admin', perms: ['funds'], active: true },
+        'users/staffAdmin': { uid: 'staffAdmin', email: 'staff@example.test', name: 'Staff Admin', role: 'Admin', perms: ['staff'], active: true },
         'users/teacher': { uid: 'teacher', email: 'teacher@example.test', name: 'Teacher', role: 'Teacher', perms: ['practicals'], active: true },
         'users/disabled': { uid: 'disabled', email: 'disabled@example.test', role: 'Admin', perms: ['reports'], active: false },
         'users/legacy@example.test': { email: 'legacy@example.test', role: 'Admin', perms: ['*'] },
         'admissions/example': { ownerUid: 'student', studentName: 'Synthetic Student', Status: 'Approved' },
         'admissions/legacy': { emailNormalized: 'legacy@example.test', studentName: 'Synthetic Legacy', Status: 'Approved' },
+        'studentPhotos/private-photo': { photoUrl: 'https://example.test/private-photo.jpg', studentName: 'Synthetic Student' },
+        'adminPracticalsSettings/config': { submissionWindows: { '11th': false } },
+        'adminSettings/permissions': { users: [] },
         'adminAuthHandshakes/challenge': { uid: 'reporter', email: 'reporter@example.test', status: 'pending', expiresAt: Date.now() + 60000 },
         'adminSessions/reporter': { authTime, expiresAt: Timestamp.fromMillis(Date.now() + 60000) },
         'adminSessions/finance': { authTime, expiresAt: Timestamp.fromMillis(Date.now() + 60000) },
+        'adminSessions/staffAdmin': { authTime, expiresAt: Timestamp.fromMillis(Date.now() + 60000) },
         'adminSessions/disabled': { authTime, expiresAt: Timestamp.fromMillis(Date.now() + 60000) }
       })) await setDoc(doc(db, path), data);
     });
@@ -33,6 +38,8 @@ async function main() {
     const reporter = environment.authenticatedContext('reporter', token('reporter@example.test')).firestore();
     const teacher = environment.authenticatedContext('teacher', token('teacher@example.test')).firestore();
     const finance = environment.authenticatedContext('finance', token('finance@example.test')).firestore();
+    const staffAdmin = environment.authenticatedContext('staffAdmin', token('staff@example.test')).firestore();
+    const student = environment.authenticatedContext('student', token('student@example.test')).firestore();
     const unverified = environment.authenticatedContext('unknown', { ...token('legacy@example.test'), email_verified: false }).firestore();
     const legacy = environment.authenticatedContext('legacy-user', token('legacy@example.test')).firestore();
     const disabled = environment.authenticatedContext('disabled', { ...token('disabled@example.test'), admin: true, role: 'Admin' }).firestore();
@@ -46,6 +53,8 @@ async function main() {
     await check('public CMS remains available', assertSucceeds(getDoc(doc(anonymous, 'site/settings'))));
     await check('anonymous employee trash is private', assertFails(getDoc(doc(anonymous, 'site/recycle_bin'))));
     await check('anonymous admission reads denied', assertFails(getDoc(doc(anonymous, 'admissions/example'))));
+    await check('anonymous student-photo reads denied', assertFails(getDoc(doc(anonymous, 'studentPhotos/private-photo'))));
+    await check('anonymous practical settings reads denied', assertFails(getDoc(doc(anonymous, 'adminPracticalsSettings/config'))));
     await check('unverified legacy-email admission reads denied', assertFails(getDoc(doc(unverified, 'admissions/legacy'))));
     await check('legacy email profile cannot grant staff privileges', assertFails(getDoc(doc(legacy, 'admissions/example'))));
     await check('administrator with current proof and assigned module succeeds', assertSucceeds(getDoc(doc(reporter, 'admissions/example'))));
@@ -54,9 +63,13 @@ async function main() {
     await check('staff cannot approve their own handshake', assertFails(updateDoc(doc(reporter, 'adminAuthHandshakes/challenge'), { status: 'approved' })));
     await check('anonymous handshake approval denied', assertFails(updateDoc(doc(anonymous, 'adminAuthHandshakes/challenge'), { status: 'approved' })));
     await check('another user cannot read a pending handshake', assertFails(getDoc(doc(teacher, 'adminAuthHandshakes/challenge'))));
+    await check('staff module administrator can read the staff permission matrix', assertSucceeds(getDoc(doc(staffAdmin, 'adminSettings/permissions'))));
+    await check('non-staff administrator cannot read the staff permission matrix', assertFails(getDoc(doc(reporter, 'adminSettings/permissions'))));
+    await check('staff permission matrix cannot be written directly by a Standard Admin', assertFails(setDoc(doc(staffAdmin, 'adminSettings/permissions'), { users: [{ role: 'Admin', perms: ['*'] }] })));
     await check('admin cannot mint their own proof', assertFails(setDoc(doc(reporter, 'adminSessions/reporter'), { authTime, expiresAt: Timestamp.fromMillis(Date.now() + 86400000) })));
     await check('administrator cannot elevate own role', assertFails(updateDoc(doc(reporter, 'users/reporter'), { role: 'SuperAdmin', perms: ['*'] })));
     await check('teacher cannot change own assigned subject', assertFails(updateDoc(doc(teacher, 'users/teacher'), { subject: 'Physics' })));
+    await check('session documents reject unrecognised fields', assertFails(setDoc(doc(student, 'userSessions/student'), { sessionId: 's', deviceId: 'd', updatedAt: 'now', injected: true })));
     await check('funds-only administrator cannot edit admissions', assertFails(updateDoc(doc(finance, 'admissions/example'), { studentName: 'Changed' })));
     await check('reports-only administrator cannot change school settings', assertFails(updateDoc(doc(reporter, 'site/settings'), { session: '2026-27' })));
     await check('teacher cannot write practical awards directly while the portal is closed', assertFails(setDoc(doc(teacher, 'practicalsData/forged'), { records: [], status: 'submitted' })));

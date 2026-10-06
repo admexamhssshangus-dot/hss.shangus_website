@@ -18,9 +18,7 @@ import {
   browserSessionPersistence,
   signInWithEmailAndPassword, 
   signOut, 
-  fetchSignInMethodsForEmail,
-  isSignInWithEmailLink,
-  signInWithEmailLink
+  fetchSignInMethodsForEmail
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { 
@@ -29,7 +27,6 @@ import {
   createAdminLoginHandshake,
   approveAdminLoginHandshake,
   consumeAdminLoginHandshake,
-  sendAdminSignInVerificationLink,
   incrementTeacherLoginCount,
   recordTeacher2StepVerification,
   isBootstrapSuperAdminEmail,
@@ -183,15 +180,9 @@ export default function LoginPage() {
   // Permanent flag for this tab: if opened via verification link, NEVER redirect to dashboard
   const isEmailVerificationTabRef = useRef(
     !isAuthActionUrl && (
-      window.location.hash.includes('staff_challenge=') ||
-      isSignInWithEmailLink(auth, window.location.href) || 
-      window.location.search.includes('email_link_verify') || 
-      window.location.search.includes('oobCode') ||
-      window.location.search.includes('apiKey')
+      window.location.hash.includes('staff_challenge=')
     )
   );
-  // Ref guard to prevent double-execution in React StrictMode
-  const emailLinkProcessingRef = useRef(false);
 
   // Status & loading
   const [isLoading, setIsLoading] = useState(false);
@@ -432,9 +423,6 @@ export default function LoginPage() {
           await recordTeacher2StepVerification(cleanEmail);
         }
 
-        if (handshakeId) {
-          await consumeAdminLoginHandshake(handshakeId).catch(() => {});
-        }
         localStorage.removeItem('emailForSignIn');
         localStorage.removeItem('hss_pending_admin_login');
         localStorage.removeItem('hss_admin_auth_approved');
@@ -445,24 +433,6 @@ export default function LoginPage() {
         }, 400);
       } catch (err) {
         console.error('Real-time handshake unlock error:', err);
-        // Fallback: If auth.currentUser exists and is verified, establish session directly
-        if (auth.currentUser) {
-          try {
-            const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
-            const fallbackSession = {
-              user: {
-                email: cleanEmail,
-                name: staffProfile?.name || cleanEmail.split('@')[0],
-                role: staffProfile?.role || 'Admin',
-                perms: staffProfile?.perms || (isSuperAdminEmail(cleanEmail) ? ['*'] : ['reports']),
-                uid: auth.currentUser.uid,
-              },
-              token: await auth.currentUser.getIdToken().catch(() => 'verified_token'),
-            };
-            onLoginSuccess(fallbackSession, true);
-            return;
-          } catch (_) {}
-        }
         setAlert({ 
           type: 'error', 
           text: 'Verified handshake received, but session resolution failed. Please refresh or sign in.' 
@@ -470,177 +440,33 @@ export default function LoginPage() {
       }
     };
 
-    // 1. BroadcastChannel Listener (Instant 0ms sync when verified in another tab on the same browser)
-    let bc = null;
-    try {
-      bc = new BroadcastChannel('hss_admin_auth_sync');
-      bc.onmessage = (event) => {
-        const data = event.data;
-        if (data?.type === 'ADMIN_AUTH_APPROVED') {
-          if (!cleanEmail || String(data.email || '').trim().toLowerCase() === cleanEmail) {
-            handleAuthApproved({ source: 'BroadcastChannel' });
-          }
+    // Server-managed challenges are approved by writing an admin session bound
+    // to this exact Firebase UID and sign-in auth_time. Do not trust browser
+    // storage, BroadcastChannel messages, or a client-readable handshake.
+    if (emailLinkSentState.serverManaged) {
+      const expectedUid = emailLinkSentState.uid || auth.currentUser?.uid;
+      const expectedAuthTime = Number(emailLinkSentState.authTime || 0);
+      if (!expectedUid || !expectedAuthTime) return undefined;
+      return onSnapshot(doc(db, 'adminSessions', expectedUid), (snap) => {
+        const data = snap.exists() ? snap.data() : null;
+        const expiresAt = data?.expiresAt?.toMillis?.() ?? Number(data?.expiresAt || 0);
+        if (data && Number(data.authTime) === expectedAuthTime && expiresAt > Date.now()) {
+          handleAuthApproved({ uid: expectedUid, source: 'ServerVerifiedSession' });
         }
-      };
-    } catch (_) {}
-
-    // 2. Storage event listener (Cross-tab sync within same origin)
-    const handleStorageChange = (e) => {
-      if (e.key === 'hss_admin_auth_approved' && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue);
-          if (!cleanEmail || String(parsed.email || '').trim().toLowerCase() === cleanEmail) {
-            handleAuthApproved({ source: 'StorageEvent' });
-          }
-        } catch (_) {}
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
-    // 3. Polling fallback for localStorage (In case storage event was dropped)
-    const storagePollInterval = setInterval(() => {
-      try {
-        const approved = localStorage.getItem('hss_admin_auth_approved');
-        if (approved) {
-          const parsed = JSON.parse(approved);
-          if (Date.now() - parsed.ts < 10 * 60 * 1000) {
-            if (!cleanEmail || String(parsed.email || '').trim().toLowerCase() === cleanEmail) {
-              handleAuthApproved({ source: 'StoragePolling' });
-            }
-          }
-        }
-      } catch (_) {}
-    }, 600);
-
-    // 4. Real-Time Firestore Handshake Listener (For Mobile Phone & Cross-Device email link clicks!)
-    let unsubDoc = null;
-    if (handshakeId) {
-      try {
-        unsubDoc = onSnapshot(doc(db, 'adminAuthHandshakes', handshakeId), (snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data.status === 'approved' && String(data.email || '').trim().toLowerCase() === cleanEmail) {
-              handleAuthApproved({ uid: data.uid, source: 'FirestoreHandshake' });
-            }
-          }
-        }, (err) => {
-          console.warn('Handshake snapshot note:', err);
-        });
-      } catch (fsErr) {
-        console.warn('Firestore onSnapshot handshake error:', fsErr);
-      }
+      }, (err) => console.warn('Verified admin session listener note:', err));
     }
 
-    return () => {
-      if (bc) {
-        try { bc.close(); } catch (_) {}
-      }
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(storagePollInterval);
-      if (unsubDoc) unsubDoc();
-    };
+    // All active challenges are server-managed. No browser-only fallback may
+    // convert a storage or broadcast message into an administrator session.
+    return undefined;
   }, [emailLinkSentState, onLoginSuccess]);
 
   // WINDOW 2 VERIFIER: Check on mount if current URL is an Email Sign-In verification link
   const proofStartedRef = useRef(false);
   useEffect(() => {
     if (isAuthActionUrl) return;
-    // 1. Standard Firebase Auth Email Sign-In Link (Free on Spark Plan)
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      if (emailLinkProcessingRef.current) return;
-      emailLinkProcessingRef.current = true;
-
-      setIsLoading(true);
-      const searchParams = new URLSearchParams(window.location.search);
-      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
-      if (!emailForSignIn) {
-        emailForSignIn = searchParams.get('admin_email');
-      }
-      if (!emailForSignIn) {
-        emailForSignIn = window.prompt('Please confirm your Admin email address to complete 2-Step Login:');
-      }
-
-      const handshakeId = searchParams.get('handshake');
-
-      if (emailForSignIn) {
-        const cleanEmail = emailForSignIn.trim().toLowerCase();
-        signInWithEmailLink(auth, cleanEmail, window.location.href)
-          .then(async (userCred) => {
-            const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
-            const roleName = staffProfile?.role || 'Admin';
-            if (roleName === 'Teacher' || roleName === 'Faculty') {
-              await recordTeacher2StepVerification(cleanEmail);
-            }
-
-            // Approve handshake in Firestore (Unlocks Window 1 on desktop or phone immediately!)
-            if (handshakeId) {
-              await approveAdminLoginHandshake(handshakeId, cleanEmail, userCred.user);
-            }
-
-            // Clean URL immediately so page refreshes/pull-to-refresh on phones do not re-run with expired code
-            try {
-              window.history.replaceState(null, '', window.location.pathname);
-            } catch (_) {}
-
-            // Save approval to localStorage for same-origin cross-tab sync
-            try {
-              localStorage.setItem('hss_admin_auth_approved', JSON.stringify({
-                email: cleanEmail,
-                uid: userCred.user.uid,
-                handshakeId,
-                ts: Date.now()
-              }));
-            } catch (_) {}
-
-            // Broadcast approval to all same-browser tabs
-            try {
-              const bc = new BroadcastChannel('hss_admin_auth_sync');
-              bc.postMessage({
-                type: 'ADMIN_AUTH_APPROVED',
-                email: cleanEmail,
-                uid: userCred.user.uid,
-                handshakeId,
-                ts: Date.now()
-              });
-              bc.close();
-            } catch (_) {}
-
-            // Build verified session so this window can directly open the dashboard
-            const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
-            const redirectPath = (roleName === 'Teacher' || roleName === 'Faculty') ? '/portal/teacher' : '/portal/admin';
-            verifiedSession.redirectPath = redirectPath;
-
-            // Immediately clear pending login locks so neither Window 1 nor Window 2 gets blocked
-            localStorage.removeItem('hss_pending_admin_login');
-            localStorage.removeItem('emailForSignIn');
-            sessionStorage.removeItem('hss_auth_handshake_id');
-
-            setWindow2VerifiedState({
-              email: cleanEmail,
-              role: roleName,
-              time: new Date().toLocaleTimeString(),
-              handshakeId,
-              verifiedSession,
-              redirectPath,
-            });
-          })
-          .catch((err) => {
-            console.error('Window 2 Email Link sign-in error:', err);
-            emailLinkProcessingRef.current = false;
-            setAlert({
-              type: 'error',
-              text: 'The 2-step verification link is invalid, expired, or has already been used. Please sign in again.'
-            });
-          })
-          .finally(() => {
-            setIsLoading(false);
-          });
-      } else {
-        emailLinkProcessingRef.current = false;
-        setIsLoading(false);
-      }
-      return;
-    }
+    // Browser-generated Firebase email links were retired. Only the random
+    // server proof in #staff_challenge is accepted below.
 
     // 2. Fallback: Hash fragment challenge proof
     const parameters = new URLSearchParams(window.location.hash.slice(1));
@@ -663,55 +489,33 @@ export default function LoginPage() {
     const isSuper = strictRole === ROLES.SUPER_ADMIN || profile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
     const isAdmin = isSuper || strictRole === ROLES.STANDARD_ADMIN || profile?.isAdmin || profile?.role === 'Admin';
     if (!isAdmin) return false;
-    // Align selected role to admin/superadmin mode
     setSelectedRole(isSuper ? 'superadmin' : 'admin');
     try {
       const handshakeResult = await createAdminLoginHandshake(cleanEmail);
-      const handshakeId = typeof handshakeResult === 'string' ? handshakeResult : handshakeResult.handshakeId;
-      const isExisting = Boolean(handshakeResult?.isExisting);
-      const remainingMinutes = handshakeResult?.remainingMinutes || 15;
-      const remainingMs = handshakeResult?.remainingMs || 15 * 60 * 1000;
-      const expiresAt = handshakeResult?.expiresAt || (Date.now() + 15 * 60 * 1000);
-
-      if (isExisting) {
-        setEmailLinkSentState({ 
-          email: cleanEmail, 
-          handshakeId, 
-          sentAt: Date.now() - (15 * 60 * 1000 - remainingMs), 
-          expiresAt, 
-          role: profile.role 
-        });
-        setResendCooldown(Math.min(60, Math.ceil(remainingMs / 1000)));
-        setAlert({ 
-          type: 'info', 
-          text: `ℹ️ A 2-Step verification link was already sent to ${cleanEmail} and remains valid for ~${remainingMinutes} more minute${remainingMinutes === 1 ? '' : 's'}. Please check your inbox or spam folder.` 
-        });
-        setIsLoading(false);
-        return true;
-      }
-
-      await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
-      setEmailLinkSentState({ email: cleanEmail, handshakeId, sentAt: Date.now(), expiresAt, role: profile.role });
+      const handshakeId = handshakeResult?.handshakeId;
+      const expiresAt = handshakeResult?.expiresAt || (Date.now() + 10 * 60 * 1000);
+      const tokenResult = await getIdTokenResult(firebaseUser, true);
+      setEmailLinkSentState({
+        email: cleanEmail,
+        handshakeId,
+        sentAt: Date.now(),
+        expiresAt,
+        role: profile.role,
+        uid: firebaseUser.uid,
+        authTime: Number(tokenResult.claims?.auth_time || 0),
+        serverManaged: true
+      });
       setResendCooldown(60);
-      setAlert({ type: 'success', text: `🛡️ Verification link dispatched to ${cleanEmail}. Check your inbox to complete sign-in (valid for 15 minutes).` });
+      setAlert({ type: 'success', text: `🛡️ Verification link dispatched to ${cleanEmail}. Check your inbox to complete sign-in (valid for 10 minutes).` });
       setIsLoading(false);
       return true;
     } catch (err) {
       console.error('Admin 2SV dispatch error:', err);
       try {
         localStorage.removeItem('hss_pending_admin_login');
-        localStorage.removeItem('emailForSignIn');
         sessionStorage.removeItem('hss_auth_handshake_id');
       } catch (_) {}
-      let errorMsg = 'Failed to dispatch verification link.';
-      if (err.code === 'auth/unauthorized-continue-uri') {
-        errorMsg = 'This URL is not authorized for verification links in Firebase Console. Please whitelist it in Authorized Domains.';
-      } else if (err.code === 'auth/quota-exceeded') {
-        errorMsg = 'Daily email verification quota reached. Please try again later or contact support.';
-      } else if (err.message) {
-        errorMsg = err.message;
-      }
-      setAlert({ type: 'error', text: errorMsg });
+      setAlert({ type: 'error', text: err.message || 'Failed to dispatch verification link.' });
       setIsLoading(false);
       return true;
     }
@@ -792,21 +596,19 @@ export default function LoginPage() {
           return;
         }
 
-        // Direct entry for all authorized administrative accounts signing in with Google OAuth
-        const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
-        verifiedSession.redirectPath = '/portal/admin';
-        const roleLabel = isSuper ? 'Super Admin' : (verifiedSession.user.name || 'Administrator');
-        setAlert({ type: 'success', text: `Welcome back, ${roleLabel}! Unlocking Admin Portal...` });
-        onLoginSuccess(verifiedSession, keepLoggedIn);
+        // Every administrator sign-in, including Google OAuth, completes the
+        // server-bound email proof before an admin session is created.
+        await beginAdminLogin(fbUser, staffProfile);
         return;
       }
 
       // --- 3. STUDENT TAB (DEFAULT / AUTO-ROUTE STRICT ROLE) ---
-      const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
       if (isAdmin) {
-        verifiedSession.redirectPath = '/portal/admin';
-        setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Administrator. Redirecting to Admin Portal...` });
-      } else if (isTeacher) {
+        await beginAdminLogin(fbUser, staffProfile);
+        return;
+      }
+      const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
+      if (isTeacher) {
         incrementTeacherLoginCount(cleanEmail).catch(() => {});
         verifiedSession.redirectPath = '/portal/teacher';
         setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Faculty/Teacher. Redirecting to Teacher Portal...` });
@@ -836,32 +638,20 @@ export default function LoginPage() {
     try {
       const cleanEmail = emailLinkSentState.email;
       const handshakeResult = await createAdminLoginHandshake(cleanEmail);
-      const handshakeId = typeof handshakeResult === 'string' ? handshakeResult : handshakeResult.handshakeId;
-      const isExisting = Boolean(handshakeResult?.isExisting);
-      const remainingMinutes = handshakeResult?.remainingMinutes || 15;
-      const remainingMs = handshakeResult?.remainingMs || 15 * 60 * 1000;
-      const expiresAt = handshakeResult?.expiresAt || (Date.now() + 15 * 60 * 1000);
-
-      if (isExisting) {
-        setResendCooldown(Math.min(60, Math.ceil(remainingMs / 1000)));
-        setAlert({ 
-          type: 'info', 
-          text: `ℹ️ A verification link for ${cleanEmail} is already active and valid for ~${remainingMinutes} more minute${remainingMinutes === 1 ? '' : 's'}. Check your email inbox or spam folder.` 
-        });
-        return;
-      }
-
-      await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
-      setEmailLinkSentState(prev => ({ ...(prev || {}), handshakeId, sentAt: Date.now(), expiresAt }));
+      const handshakeId = handshakeResult?.handshakeId;
+      const expiresAt = handshakeResult?.expiresAt || (Date.now() + 10 * 60 * 1000);
+      const tokenResult = await getIdTokenResult(auth.currentUser, true);
+      setEmailLinkSentState(prev => ({
+        ...(prev || {}), email: cleanEmail, handshakeId, sentAt: Date.now(), expiresAt,
+        uid: auth.currentUser?.uid || prev?.uid,
+        authTime: Number(tokenResult.claims?.auth_time || prev?.authTime || 0),
+        serverManaged: true
+      }));
       setResendCooldown(60);
-      setAlert({ type: 'success', text: `Fresh 2-step verification link sent to ${cleanEmail}! (Valid for 15 minutes)` });
+      setAlert({ type: 'success', text: `Fresh 2-step verification link sent to ${cleanEmail}! (Valid for 10 minutes)` });
     } catch (err) {
       console.error('Resend verification link error:', err);
-      if (err.code === 'auth/quota-exceeded') {
-        setAlert({ type: 'error', text: 'Email dispatch quota exceeded. Please try again later or contact administrator.' });
-      } else {
-        setAlert({ type: 'error', text: 'Failed to resend link. Please try again in a moment.' });
-      }
+      setAlert({ type: 'error', text: err.message || 'Failed to resend link. Please try again in a moment.' });
     } finally {
       setIsLoading(false);
     }
@@ -926,20 +716,9 @@ export default function LoginPage() {
           return;
         }
 
-        // Check if 2-Step Verification is required for admin email/password login
-        const siteSettings = await loadSiteSettings().catch(() => null);
-        const require2Step = siteSettings?.enableAdmin2StepVerification ?? false;
-
-        // If 2-Step Verification is enabled, all admins logging in with password require 2SV verification link
-        if (require2Step) {
-          if (await beginAdminLogin(userCred.user, staffProfile)) return;
-        }
-
-        // Direct verified admin sign-in with authenticated credentials
-        const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
-        verifiedSession.redirectPath = '/portal/admin';
-        setAlert({ type: 'success', text: 'Login successful! Redirecting to Admin Portal...' });
-        onLoginSuccess(verifiedSession, keepLoggedIn);
+        // Administrators always need the server-bound email proof. This keeps
+        // the browser, rules, and callable backends on one session boundary.
+        await beginAdminLogin(userCred.user, staffProfile);
         return;
       }
 
@@ -966,18 +745,7 @@ export default function LoginPage() {
 
       // --- AUTO-RECOGNIZE ADMIN / SUPERADMIN ACCOUNT (On Student Tab) ---
       if (isAdmin && selectedRole === 'student') {
-        const siteSettings = await loadSiteSettings().catch(() => null);
-        const require2Step = siteSettings?.enableAdmin2StepVerification ?? false;
-        if (require2Step) {
-          if (await beginAdminLogin(userCred.user, staffProfile)) return;
-        }
-        const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
-        verifiedSession.redirectPath = '/portal/admin';
-        setAlert({ 
-          type: 'success', 
-          text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Administrator. Redirecting to Admin Portal...` 
-        });
-        onLoginSuccess(verifiedSession, keepLoggedIn);
+        await beginAdminLogin(userCred.user, staffProfile);
         return;
       }
 

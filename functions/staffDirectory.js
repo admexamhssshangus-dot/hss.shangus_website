@@ -4,11 +4,14 @@ module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCa
   requireAppCheck(context);
   const db = admin.firestore();
   try {
-    await requireStaff(db, { ...context.auth?.token, uid: context.auth?.uid }, { adminOnly: true, module: 'practicals' });
+    const actor = await requireStaff(db, { ...context.auth?.token, uid: context.auth?.uid }, { adminOnly: true, module: 'staff' });
     if (data?.action === 'phone') {
       if (!/^[a-zA-Z0-9_-]{1,128}$/.test(data.uid || '') || !/^(\d{10})?$/.test(data.phone || '')) throw new Error('Valid staff ID and mobile number are required.');
       const ref = db.collection('users').doc(data.uid); const profile = await ref.get();
       if (!profile.exists || !['Teacher', 'Admin', 'SuperAdmin'].includes(profile.data().role)) throw new Error('Staff profile not found.');
+      if (String(actor.role || '').toLowerCase().replace(/\s+/g, '') !== 'superadmin' && profile.data().role === 'SuperAdmin') {
+        throw Object.assign(new Error('Only the Super Admin can change a Super Admin profile.'), { status: 403 });
+      }
       await ref.update({ mobile: data.phone, phone: data.phone, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       return { success: true };
     }

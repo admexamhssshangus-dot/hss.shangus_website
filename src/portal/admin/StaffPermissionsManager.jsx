@@ -5,14 +5,15 @@ import {
   SlidersHorizontal, ChevronDown, Eye, EyeOff, Check, Users, BookOpen
 } from 'lucide-react';
 import { auth, db } from '../../services/firebase';
-import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import ConfirmModal from '../components/ConfirmModal';
 import { 
   createStaffAccount, 
   updateStaffAccount, 
   sendStaffPasswordReset, 
   deleteStaffAccount,
-  clearStaffProfileCache
+  clearStaffProfileCache,
+  resolveStaffRoleAndPerms
 } from '../../services/staffAuthService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import {
@@ -23,8 +24,7 @@ import {
 import {
   normalizeTeacherClasses,
   getTeacherClassSubjectPermissions,
-  normalizeSubjectIdentity,
-  isTeacherSubjectMatch
+  normalizeSubjectIdentity
 } from '../../utils/practicalsSettingsManager';
 import {
   ROLES,
@@ -135,6 +135,8 @@ const DEFAULT_ADMIN_USERS = [
 export default function StaffPermissionsManager() {
   const currentAuthEmail = String(auth?.currentUser?.email || '').trim().toLowerCase();
   const isCurrentSuperAdmin = isSuperAdminEmail(currentAuthEmail);
+  const [actorPerms, setActorPerms] = useState([]);
+  const canDelegateModule = (moduleCode) => isCurrentSuperAdmin || actorPerms.includes('*') || actorPerms.includes(moduleCode);
 
   const [adminUsers, setAdminUsers] = useState(DEFAULT_ADMIN_USERS);
   const [staffRoleFilter, setStaffRoleFilter] = useState('all'); // 'all' | 'superadmin' | 'admin' | 'teacher'
@@ -153,7 +155,7 @@ export default function StaffPermissionsManager() {
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [editingAdminEmail, setEditingAdminEmail] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
-  const [subjectTierTab, setSubjectTierTab] = useState('11th-12th'); // '9th-10th' | '11th-12th'
+  const [, setSubjectTierTab] = useState('11th-12th'); // '9th-10th' | '11th-12th'
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [modalModuleSearch, setModalModuleSearch] = useState('');
 
@@ -176,6 +178,16 @@ export default function StaffPermissionsManager() {
     password: '',
     sendSetupEmail: true
   });
+
+  useEffect(() => {
+    let active = true;
+    resolveStaffRoleAndPerms(auth.currentUser).then((profile) => {
+      if (active) setActorPerms(Array.isArray(profile?.perms) ? profile.perms : []);
+    }).catch(() => {
+      if (active) setActorPerms([]);
+    });
+    return () => { active = false; };
+  }, []);
 
   // Load Staff Accounts from Firestore (adminSettings/permissions & users collections)
   useEffect(() => {
@@ -419,6 +431,10 @@ export default function StaffPermissionsManager() {
   // Toggle Module Permission for an individual account
   const togglePermission = (userEmail, moduleCode) => {
     const cleanEmail = String(userEmail || '').trim().toLowerCase();
+    if (!canDelegateModule(moduleCode)) {
+      setAlert({ type: 'error', text: 'You can assign only modules already assigned to your own administrator account.' });
+      return;
+    }
     if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' && !isCurrentSuperAdmin) {
       setAlert({
         type: 'error',
@@ -474,7 +490,6 @@ export default function StaffPermissionsManager() {
         const strictRole = getStrictCanonicalRole(clean, account);
         const isSuper = strictRole === ROLES.SUPER_ADMIN;
         const isTeacher = strictRole === ROLES.TEACHER;
-
         return enforceStrictRoleAttributes({
           ...account,
           email: clean,
@@ -486,67 +501,45 @@ export default function StaffPermissionsManager() {
           assignedClasses: isTeacher ? (account.assignedClasses || []) : [],
         });
       });
-
-      // Save to adminSettings/permissions
-      const permDocRef = doc(db, 'adminSettings', 'permissions');
-      await setDoc(permDocRef, { users: sanitizedList, updatedAt: new Date().toISOString() }, { merge: true });
-      try {
-        localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(sanitizedList));
-      } catch (_) {}
-
-      // Synchronize each user doc in users/{email} and users/{uid}
-      await Promise.all(sanitizedList.map(async (account) => {
-        const cleanEmail = String(account.email || '').trim().toLowerCase();
-        if (!cleanEmail) return;
-
-        // Standard admins cannot modify the SuperAdmin user document in Firestore
-        if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' && !isCurrentSuperAdmin) {
-          return;
-        }
-
-        const payload = enforceStrictRoleAttributes({
-          name: account.name,
-          email: cleanEmail,
+      const manageableAccounts = sanitizedList.filter((account) => {
+        const isSuperTarget = getStrictCanonicalRole(account.email, account) === ROLES.SUPER_ADMIN;
+        return isCurrentSuperAdmin || !isSuperTarget;
+      });
+      const settled = await Promise.allSettled(manageableAccounts.map((account) =>
+        updateStaffAccount({
+          oldEmail: account.email,
+          newEmail: account.email,
+          name: account.name || String(account.email || '').split('@')[0],
           role: account.role,
           designation: account.designation || '',
           perms: account.perms || [],
-          subject: account.subject || '',
-          teachingSubject: account.teachingSubject || '',
+          subject: account.subject || account.teachingSubject || '',
           assignedSubjects: account.assignedSubjects || [],
           assignedClasses: account.assignedClasses || [],
+          tierSubjects: account.tierSubjects || null,
+          classSubjectMap: account.classSubjectMap || null,
           mobile: account.mobile || '',
-          active: true,
-          updatedAt: new Date().toISOString(),
-        });
-
-        try {
-          await setDoc(doc(db, 'users', cleanEmail), payload, { merge: true });
-        } catch (syncErr) {
-          console.warn(`Sync user ${cleanEmail} note:`, syncErr);
-        }
-
-        if (account.uid) {
-          try {
-            await setDoc(doc(db, 'users', account.uid), {
-              ...payload,
-              uid: account.uid,
-            }, { merge: true });
-          } catch (syncErr) {
-            console.warn(`Sync user UID ${account.uid} note:`, syncErr);
-          }
-        }
-      }));
-
+          sendResetEmail: false,
+        })
+      ));
+      const failures = settled.filter(result => result.status === 'rejected');
+      if (failures.length) {
+        throw new Error(failures[0].reason?.message || `${failures.length} account update(s) were not permitted.`);
+      }
+      setAdminUsers(sanitizedList);
       clearStaffProfileCache();
       try {
         window.dispatchEvent(new CustomEvent('hss-permissions-updated'));
       } catch (_) {}
-      setAlert({ type: 'success', text: '✨ Staff permissions and accounts successfully synchronized in Database!' });
+      setAlert({
+        type: 'success',
+        text: `Staff permissions were saved through the secure server workflow for ${manageableAccounts.length} account(s).`
+      });
       logAdminActivity({
         actionType: 'update',
         actionTitle: 'Updated Staff Account Permissions',
-        details: `Updated administrative permissions and module access matrix for ${sanitizedList.length} staff accounts`,
-        metadata: { staffCount: sanitizedList.length }
+        details: `Updated delegated staff module access for ${manageableAccounts.length} staff accounts`,
+        metadata: { staffCount: manageableAccounts.length }
       });
     } catch (err) {
       console.error('Failed to save staff permissions:', err);
@@ -563,7 +556,7 @@ export default function StaffPermissionsManager() {
       email: '', 
       role: 'Teacher', 
       designation: '',
-      perms: ['attendanceMgmt', 'practicals'],
+      perms: ['attendanceMgmt', 'practicals'].filter(canDelegateModule),
       subject: '',
       assignedSubjects: [],
       assignedClasses: [],
@@ -712,7 +705,7 @@ export default function StaffPermissionsManager() {
         const isSec = cls === '9th' || cls === '10th';
         const tierKey = isSec ? '9th-10th' : '11th-12th';
         const tierSubs = Array.isArray(tierSubjects[tierKey]) && tierSubjects[tierKey].length > 0
-          ? tierSubs[tierKey]
+          ? tierSubjects[tierKey]
           : cleanSubjects.filter(sub => {
               const norm = normalizeSubjectIdentity(sub);
               if (isSec && norm?.code === 'SC') return true;
@@ -922,7 +915,7 @@ export default function StaffPermissionsManager() {
 
           {/* Action Buttons Toolbar with Standardized Consistent [Save Changes] */}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap self-end sm:self-auto">
-            <button
+            {isCurrentSuperAdmin && <button
               type="button"
               onClick={() => {
                 const allCodes = ALL_ADMIN_MODULES.map((m) => m.code);
@@ -944,7 +937,7 @@ export default function StaffPermissionsManager() {
               <Sparkles size={11} className="text-indigo-600 dark:text-indigo-400" />
               <span className="sm:hidden">Upgrade ({ALL_ADMIN_MODULES.length})</span>
               <span className="hidden sm:inline">Upgrade All Admins ({ALL_ADMIN_MODULES.length})</span>
-            </button>
+            </button>}
 
             <button
               type="button"
@@ -1131,7 +1124,7 @@ export default function StaffPermissionsManager() {
 
                   {/* Actions & Modules Controls */}
                   <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-wrap justify-end">
-                    {hasOutdatedStatus && canModifyTarget && (
+                    {hasOutdatedStatus && canModifyTarget && isCurrentSuperAdmin && (
                       <button
                         type="button"
                         onClick={() => setAllPermissionsForUser(user.email, true)}

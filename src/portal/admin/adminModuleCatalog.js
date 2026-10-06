@@ -350,10 +350,10 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     id: 'staff',
     label: 'Staff & Permissions',
     shortLabel: 'Staff Access',
-    description: 'Manage Admins, SuperAdmins, Faculty roles, designations & module access permissions',
+    description: 'Manage Teachers and Standard Admins, their designations, and module-scoped access; Super Admin authority remains protected',
     category: 'Operations & Automation',
     maturity: 'optimized',
-    maturityNote: 'Role governance, designation management, credential issuance, and protected deletion workflows are in place.',
+    maturityNote: 'Server-enforced role governance: delegated Standard Admins can manage only Teacher/Admin accounts and only modules assigned to themselves.',
     launcher: true,
     isNew: true,
     aliases: ['staff', 'staffPermissions', 'permissions', 'adminMgmt'],
@@ -456,4 +456,3 @@ export function getModulesByCategory(categoryKey) {
 export function getAllAdminModuleIds() {
   return ADMIN_MODULE_CATALOG.map(module => module.id);
 }
-

@@ -1,16 +1,6 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where } from 'firebase/firestore';
-import { initializeApp, deleteApp } from 'firebase/app';
-import { 
-  sendSignInLinkToEmail, 
-  sendPasswordResetEmail, 
-  getAuth, 
-  createUserWithEmailAndPassword, 
-  updatePassword, 
-  updateEmail, 
-  signOut as secondarySignOut 
-} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { staffCallable } from './staffCommand';
-import { auth, db, firebaseConfig } from './firebase';
+import { auth, db } from './firebase';
 import { 
   ROLES,
   SUPERADMIN_EMAIL, 
@@ -422,551 +412,155 @@ export async function requireVerifiedAdminSession(user = auth.currentUser) {
     error.code = 'staff/verification-required';
     throw error;
   }
+  const token = await user.getIdTokenResult();
+  const session = await getDoc(doc(db, 'adminSessions', user.uid));
+  const data = session.exists() ? session.data() : null;
+  const expiresAt = data?.expiresAt?.toMillis?.() ?? Number(data?.expiresAt || 0);
+  if (!data || Number(data.authTime) !== Number(token.claims?.auth_time) || expiresAt <= Date.now()) {
+    const error = new Error('Complete administrator email verification to access this function.');
+    error.code = 'staff/verification-required';
+    throw error;
+  }
 }
 
 /**
- * Direct client-side and Spark-compatible staff management.
+ * Teacher login telemetry is maintained by the authenticated session workflow.
  */
 export const incrementTeacherLoginCount = async () => 1;
 export const recordTeacher2StepVerification = async () => {};
 
 /**
- * Creates a unique one-time login handshake for cross-window / cross-device 2-step verification.
- * Runs 100% on the Spark plan by creating a Firestore document in `adminAuthHandshakes`.
+ * Begins a server-managed, one-time administrator verification challenge.
  */
 export async function createAdminLoginHandshake(email) {
-  const cleanEmail = String(email || '').trim().toLowerCase();
-  const handshakeDocId = 'hsk_' + cleanEmail.replace(/[^a-z0-9]/g, '_');
-
-  // Check if an unexpired active pending handshake already exists for this admin
-  try {
-    const existingSnap = await getDoc(doc(db, 'adminAuthHandshakes', handshakeDocId));
-    if (existingSnap.exists()) {
-      const data = existingSnap.data();
-      const expiresAt = Number(data.expiresAt) || 0;
-      if (data.status === 'pending' && expiresAt > Date.now()) {
-        const remainingMs = expiresAt - Date.now();
-        try {
-          sessionStorage.setItem('hss_auth_handshake_id', handshakeDocId);
-          localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: cleanEmail, handshakeId: handshakeDocId, ts: Date.now(), expiresAt }));
-        } catch (_) {}
-        return {
-          handshakeId: handshakeDocId,
-          isExisting: true,
-          remainingMs,
-          expiresAt,
-          remainingMinutes: Math.ceil(remainingMs / 60000)
-        };
-      }
-    }
-  } catch (checkErr) {
-    console.warn('Note checking existing active handshake:', checkErr);
+  const signedInEmail = String(auth.currentUser?.email || '').trim().toLowerCase();
+  const requestedEmail = String(email || '').trim().toLowerCase();
+  if (!auth.currentUser || !signedInEmail || (requestedEmail && requestedEmail !== signedInEmail)) {
+    throw new Error('Sign in with the administrator account before requesting verification.');
   }
-
-  // Otherwise, create a fresh handshake with strict 15-minute validity
-  const expiresAt = Date.now() + 15 * 60 * 1000;
-  const handshakeData = {
-    id: handshakeDocId,
-    email: cleanEmail,
-    status: 'pending',
-    createdAt: new Date().toISOString(),
-    expiresAt, // 15 minutes validity
-  };
-
+  const result = await staffCallable('beginAdminVerification')({});
+  const handshakeId = result?.data?.handshakeId || result?.handshakeId;
+  if (!handshakeId) throw new Error('The secure verification service did not return a challenge.');
+  const expiresAt = Date.now() + 10 * 60 * 1000;
   try {
-    await setDoc(doc(db, 'adminAuthHandshakes', handshakeDocId), handshakeData);
-  } catch (err) {
-    console.warn('Error writing admin auth handshake document:', err);
-  }
-
-  try {
-    sessionStorage.setItem('hss_auth_handshake_id', handshakeDocId);
-    localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: cleanEmail, handshakeId: handshakeDocId, ts: Date.now(), expiresAt }));
+    sessionStorage.setItem('hss_auth_handshake_id', handshakeId);
+    localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: signedInEmail, handshakeId, ts: Date.now(), expiresAt }));
   } catch (_) {}
-
-  return {
-    handshakeId: handshakeDocId,
-    isExisting: false,
-    remainingMs: 15 * 60 * 1000,
-    expiresAt,
-    remainingMinutes: 15
-  };
+  return { handshakeId, expiresAt, remainingMs: 10 * 60 * 1000, remainingMinutes: 10, serverManaged: true };
 }
 
 /**
- * Approves a login handshake when the email verification link is opened.
+ * Approves a signed server challenge when its email proof is opened.
  */
-export async function approveAdminLoginHandshake(handshakeId, email, firebaseUser) {
-  if (!handshakeId) return;
-  const cleanEmail = String(email || '').trim().toLowerCase();
-  const nowIso = new Date().toISOString();
-  try {
-    await setDoc(doc(db, 'adminAuthHandshakes', handshakeId), {
-      status: 'approved',
-      email: cleanEmail,
-      verifiedAt: nowIso,
-      uid: firebaseUser?.uid || null,
-    }, { merge: true });
-  } catch (err) {
-    console.warn('Error approving admin auth handshake:', err);
+export async function approveAdminLoginHandshake(handshakeId, proof) {
+  if (!/^[a-zA-Z0-9]{20}$/.test(handshakeId || '') || !/^[a-zA-Z0-9_-]{43}$/.test(proof || '')) {
+    throw new Error('Invalid or expired verification link. Request a fresh link from the sign-in screen.');
   }
-
-  const verificationPayload = {
-    google2StepVerified: true,
-    last2StepVerificationDate: nowIso,
-    updatedAt: nowIso,
-  };
-
-  if (firebaseUser?.uid) {
-    try {
-      await setDoc(doc(db, 'users', firebaseUser.uid), verificationPayload, { merge: true });
-    } catch (_) {}
-  }
-  if (cleanEmail) {
-    try {
-      await setDoc(doc(db, 'users', cleanEmail), verificationPayload, { merge: true });
-      localStorage.setItem('hss_admin_google_verified_' + cleanEmail, 'true');
-    } catch (_) {}
-  }
+  const result = await staffCallable('approveAdminVerification')({ handshakeId, proof });
+  return result?.data || result;
 }
 
 /**
- * Consumes / deletes a login handshake after successful sign-in.
+ * Cancels a pending server challenge when the requester abandons sign-in.
  */
 export async function consumeAdminLoginHandshake(handshakeId) {
-  if (!handshakeId) return;
+  if (!handshakeId) return { success: true };
   try {
-    await deleteDoc(doc(db, 'adminAuthHandshakes', handshakeId));
-  } catch (_) {}
-  try {
-    sessionStorage.removeItem('hss_auth_handshake_id');
-  } catch (_) {}
-}
-
-/**
- * Sends a native Firebase Auth email sign-in link to an Admin's email inbox.
- * Completely free, built into Firebase Authentication, and runs on the Spark plan.
- */
-export async function sendAdminSignInVerificationLink(email, handshakeId = '') {
-  const cleanEmail = String(email || '').trim().toLowerCase();
-  let effectiveHandshake = handshakeId;
-  if (!effectiveHandshake) {
-    try {
-      effectiveHandshake = sessionStorage.getItem('hss_auth_handshake_id') || '';
-    } catch (_) {}
+    const result = await staffCallable('cancelAdminVerification')({ handshakeId });
+    return result?.data || result;
+  } finally {
+    try { sessionStorage.removeItem('hss_auth_handshake_id'); } catch (_) {}
   }
-
-  const actionCodeSettings = {
-    url: `${window.location.origin}/portal/login?email_link_verify=1&admin_email=${encodeURIComponent(cleanEmail)}${effectiveHandshake ? `&handshake=${encodeURIComponent(effectiveHandshake)}` : ''}`,
-    handleCodeInApp: true,
-  };
-
-  await sendSignInLinkToEmail(auth, cleanEmail, actionCodeSettings);
-
-  try {
-    localStorage.setItem('emailForSignIn', cleanEmail);
-    localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: cleanEmail, handshakeId: effectiveHandshake, ts: Date.now() }));
-  } catch (_) {}
-
-  return { success: true, handshakeId: effectiveHandshake };
 }
 
 /**
- * Sends a password reset email to a staff member using native Firebase Auth.
+ * Kept as an explicit error for obsolete callers; email is sent by the server
+ * while creating the challenge, never from the browser.
+ */
+export async function sendAdminSignInVerificationLink() {
+  throw new Error('Verification links are dispatched only by the secure server challenge.');
+}
+
+/**
+ * Sends a password reset only after the server verifies staff-management scope.
  */
 export async function sendStaffPasswordReset(email) {
   const cleanEmail = String(email || '').trim().toLowerCase();
-  const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://hssshangus.in';
-  await sendPasswordResetEmail(auth, cleanEmail, {
-    url: `${origin}/portal/auth/action`,
-    handleCodeInApp: false,
-  });
-  return { success: true, message: `✨ Password reset email successfully sent to ${cleanEmail}.` };
+  if (!cleanEmail) throw new Error('A staff email address is required.');
+  const result = await staffCallable('manageStaffAccount')({ action: 'reset', email: cleanEmail });
+  return result?.data || result;
 }
 
 /**
- * Deletes or revokes a staff account.
- * Updates Firestore permissions and removes user documents directly.
+ * Deactivates a staff account through the authoritative server workflow.
  */
 export async function deleteStaffAccount(email) {
   const cleanEmail = String(email || '').trim().toLowerCase();
   if (!cleanEmail) return { success: false };
-
-  // 1. Remove from adminSettings/permissions
-  try {
-    const permDocRef = doc(db, 'adminSettings', 'permissions');
-    const permSnap = await getDoc(permDocRef);
-    if (permSnap.exists() && Array.isArray(permSnap.data().users)) {
-      const filtered = permSnap.data().users.filter(u => String(u.email || '').trim().toLowerCase() !== cleanEmail);
-      await setDoc(permDocRef, { users: filtered, updatedAt: new Date().toISOString() }, { merge: true });
-      try {
-        localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(filtered));
-      } catch (_) {}
-    }
-  } catch (fsErr) {
-    console.warn('Delete admin from permissions note:', fsErr);
-  }
-
-  // 2. Remove from users/{cleanEmail} and purge any matching users/{uid}
-  try {
-    await deleteDoc(doc(db, 'users', cleanEmail));
-    const userQuery = query(collection(db, 'users'), where('email', '==', cleanEmail));
-    const userSnaps = await getDocs(userQuery);
-    for (const snap of userSnaps.docs) {
-      await deleteDoc(snap.ref);
-    }
-  } catch (userErr) {
-    console.warn('Purge user documents note:', userErr);
-  }
-
-  // 3. Optional background invocation to staff-command if backend is reachable
-  try {
-    staffCallable('manageStaffAccount')({ email: cleanEmail, action: 'deactivate' }).catch(() => {});
-  } catch (_) {}
-
+  const result = await staffCallable('manageStaffAccount')({ action: 'deactivate', email: cleanEmail });
   clearStaffProfileCache(cleanEmail);
-  return { success: true };
+  return result?.data || result;
 }
 
 /**
- * Creates a staff account on the Spark plan.
+ * Creates a staff account through the authoritative server workflow.
  */
-export async function createStaffAccount({ 
-  name, 
-  email, 
-  role = 'Admin', 
+export async function createStaffAccount({
+  name,
+  email,
+  role = 'Admin',
   designation = '',
-  perms = ['reports'], 
-  subject = '', 
+  perms = ['reports'],
+  subject = '',
   assignedSubjects = [],
-  assignedClasses = [], 
+  assignedClasses = [],
   tierSubjects = null,
   classSubjectMap = null,
-  mobile = '', 
-  password = '', 
-  sendSetupEmail = true 
+  mobile = '',
+  password = '',
+  sendSetupEmail = true
 }) {
   const cleanEmail = String(email || '').trim().toLowerCase();
   const cleanName = String(name || '').trim();
   if (!cleanEmail || !cleanName) throw new Error('Name and valid email are required.');
-
-  const cleanClasses = normalizeTeacherClasses(assignedClasses);
-
-  const cleanSubjects = Array.isArray(assignedSubjects) && assignedSubjects.length > 0
-    ? assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
-    : (String(subject || '').trim() ? [String(subject).trim()] : []);
-  const primarySubject = cleanSubjects.join(', ') || String(subject || '').trim();
-  const isSuper = isSuperAdminEmail(cleanEmail);
-  const strictRole = isSuper 
-    ? ROLES.SUPER_ADMIN 
-    : (String(role).toLowerCase() === 'teacher' ? ROLES.TEACHER : ROLES.STANDARD_ADMIN);
-  const isStdAdmin = strictRole === ROLES.STANDARD_ADMIN;
-  const isTeacher = strictRole === ROLES.TEACHER;
-
-  const newAdminEntry = {
-    name: cleanName,
-    email: cleanEmail,
-    role: strictRole,
-    isAdmin: isSuper || isStdAdmin,
-    isSuperAdmin: isSuper,
-    isTeacher: isTeacher,
-    isStudent: false,
-    isStaff: true,
-    designation: String(designation || '').trim(),
-    perms: isSuper ? ['*'] : (isTeacher ? (perms.length ? perms : ['attendanceMgmt', 'practicals']) : perms),
-    subject: isTeacher ? primarySubject : '',
-    teachingSubject: isTeacher ? primarySubject : '',
-    assignedSubjects: isTeacher ? cleanSubjects : [],
-    assignedClasses: isTeacher ? cleanClasses : [],
-    tierSubjects: isTeacher ? (tierSubjects || null) : null,
-    classSubjectMap: isTeacher ? (classSubjectMap || null) : null,
-    mobile: mobile.trim(),
-    active: true,
-  };
-
-  // 1. If an initial password is provided (>= 6 chars), create the Firebase Auth account
-  // using a temporary secondary app instance so the current active admin is not logged out!
-  let createdAuthUid = null;
-  if (password && password.length >= 6) {
-    try {
-      const secondaryAppName = `StaffCreationApp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
-      const secondaryAuth = getAuth(secondaryApp);
-      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, cleanEmail, password);
-      createdAuthUid = userCredential.user.uid;
-      await secondarySignOut(secondaryAuth).catch(() => {});
-      await deleteApp(secondaryApp).catch(() => {});
-    } catch (authErr) {
-      if (authErr?.code === 'auth/email-already-in-use') {
-        console.log('Account exists in Auth; updating credentials via backend callable...');
-        try {
-          await staffCallable('manageStaffAccount')({
-            action: 'update',
-            email: cleanEmail,
-            oldEmail: cleanEmail,
-            name: cleanName,
-            role: strictRole,
-            password,
-            perms: newAdminEntry.perms,
-            subject: isTeacher ? primarySubject : '',
-            assignedSubjects: isTeacher ? cleanSubjects : [],
-            assignedClasses: isTeacher ? cleanClasses : [],
-            mobile
-          });
-        } catch (bErr) {
-          console.warn('Backend password sync error for existing Auth account:', bErr?.message || bErr);
-        }
-      } else {
-        console.warn('Direct Auth user creation note (may already exist in Auth):', authErr?.message || authErr);
-      }
-    }
-  }
-
-  // 2. Update adminSettings/permissions
-  try {
-    const permDocRef = doc(db, 'adminSettings', 'permissions');
-    const permSnap = await getDoc(permDocRef);
-    let users = permSnap.exists() && Array.isArray(permSnap.data().users) ? [...permSnap.data().users] : [];
-    const idx = users.findIndex(u => String(u.email || '').trim().toLowerCase() === cleanEmail);
-    if (idx >= 0) {
-      users[idx] = newAdminEntry;
-    } else {
-      users.push(newAdminEntry);
-    }
-    await setDoc(permDocRef, { users, updatedAt: new Date().toISOString() }, { merge: true });
-    try {
-      localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(users));
-    } catch (_) {}
-  } catch (err) {
-    console.warn('Error saving to adminSettings/permissions:', err);
-  }
-
-  // 3. Update users/{cleanEmail}
-  try {
-    await setDoc(doc(db, 'users', cleanEmail), {
-      ...newAdminEntry,
-      uid: createdAuthUid || null,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-  } catch (err) {
-    console.warn('Error saving to users/{cleanEmail}:', err);
-  }
-
-  // 4. Also initialize users/{createdAuthUid} if UID is available
-  if (createdAuthUid) {
-    try {
-      await setDoc(doc(db, 'users', createdAuthUid), {
-        ...newAdminEntry,
-        uid: createdAuthUid,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-    } catch (err) {
-      console.warn('Error saving to users/{uid}:', err);
-    }
-  }
-
-  // 5. Send setup/reset link if requested (or if no password was provided)
-  if (sendSetupEmail || !password) {
-    try {
-      const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://hssshangus.in';
-      await sendPasswordResetEmail(auth, cleanEmail, {
-        url: `${origin}/portal/auth/action`,
-        handleCodeInApp: false,
-      });
-    } catch (e) {
-      console.warn('Password reset dispatch note:', e);
-    }
-  }
-
+  const result = await staffCallable('manageStaffAccount')({
+    action: 'create', name: cleanName, email: cleanEmail, role, designation,
+    perms, subject, assignedSubjects, assignedClasses, tierSubjects,
+    classSubjectMap, mobile, password, sendSetupEmail
+  });
   clearStaffProfileCache(cleanEmail);
-  return { 
-    success: true, 
-    email: cleanEmail,
-    message: password 
-      ? `Staff account for ${cleanName} created with login credentials!` 
-      : `Staff account for ${cleanName} registered! Password setup link sent to ${cleanEmail}.`
-  };
+  return result?.data || result;
 }
 
 /**
  * Updates an existing staff account.
  */
-export async function updateStaffAccount({ 
-  oldEmail, 
-  newEmail, 
-  name, 
-  role = 'Admin', 
+export async function updateStaffAccount({
+  oldEmail,
+  newEmail,
+  name,
+  role = 'Admin',
   designation = '',
-  perms = [], 
-  subject = '', 
-  assignedSubjects = [], 
-  assignedClasses = [], 
+  perms = [],
+  subject = '',
+  assignedSubjects = [],
+  assignedClasses = [],
   tierSubjects = null,
   classSubjectMap = null,
-  mobile = '', 
+  mobile = '',
   password = '',
-  sendResetEmail = false 
+  sendResetEmail = false
 }) {
   const cleanOld = String(oldEmail || '').trim().toLowerCase();
   const cleanNew = String(newEmail || '').trim().toLowerCase();
   const cleanName = String(name || '').trim();
-
   if (!cleanNew || !cleanName) throw new Error('Name and valid email are required.');
-
-  const isSuper = isSuperAdminEmail(cleanNew);
-  const strictRole = isSuper 
-    ? ROLES.SUPER_ADMIN 
-    : (String(role).toLowerCase() === 'teacher' ? ROLES.TEACHER : ROLES.STANDARD_ADMIN);
-  const isStdAdmin = strictRole === ROLES.STANDARD_ADMIN;
-  const isTeacher = strictRole === ROLES.TEACHER;
-
-  const cleanClasses = isTeacher ? normalizeTeacherClasses(assignedClasses) : [];
-
-  const cleanSubjects = isTeacher
-    ? (Array.isArray(assignedSubjects) && assignedSubjects.length > 0
-        ? assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
-        : (subject ? String(subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []))
-    : [];
-  const primarySubject = cleanSubjects.join(', ') || String(subject || '').trim();
-
-  const updatedEntry = {
-    name: cleanName,
-    email: cleanNew,
-    role: strictRole,
-    isAdmin: isSuper || isStdAdmin,
-    isSuperAdmin: isSuper,
-    isTeacher: isTeacher,
-    isStudent: false,
-    isStaff: true,
-    designation: String(designation || '').trim(),
-    perms: isSuper ? ['*'] : (isTeacher ? (perms.length ? perms : ['attendanceMgmt', 'practicals']) : perms),
-    subject: isTeacher ? primarySubject : '',
-    teachingSubject: isTeacher ? primarySubject : '',
-    assignedSubjects: isTeacher ? cleanSubjects : [],
-    assignedClasses: isTeacher ? cleanClasses : [],
-    tierSubjects: isTeacher ? (tierSubjects || null) : null,
-    classSubjectMap: isTeacher ? (classSubjectMap || null) : null,
-    mobile: mobile.trim(),
-    active: true,
-  };
-
-  // 1. Update adminSettings/permissions
-  try {
-    const permDocRef = doc(db, 'adminSettings', 'permissions');
-    const permSnap = await getDoc(permDocRef);
-    if (permSnap.exists() && Array.isArray(permSnap.data().users)) {
-      let users = [...permSnap.data().users];
-      const matchIdx = users.findIndex(u => String(u.email || '').trim().toLowerCase() === cleanOld);
-      if (matchIdx >= 0) {
-        users[matchIdx] = updatedEntry;
-      } else {
-        users.push(updatedEntry);
-      }
-      await setDoc(permDocRef, { users, updatedAt: new Date().toISOString() }, { merge: true });
-      try {
-        localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(users));
-      } catch (_) {}
-    }
-  } catch (err) {
-    console.warn('Update permissions doc note:', err);
-  }
-
-  // 2. Update users/{cleanNew}
-  try {
-    await setDoc(doc(db, 'users', cleanNew), {
-      ...updatedEntry,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-
-    if (cleanOld !== cleanNew) {
-      await deleteDoc(doc(db, 'users', cleanOld));
-    }
-  } catch (err) {
-    console.warn('Update users document note:', err);
-  }
-
-  // 3. If password was set, update it in Firebase Auth so user can immediately log in
-  let passwordUpdatedInAuth = false;
-  if (password && password.length >= 6) {
-    const isCurrentActiveUser = Boolean(
-      auth.currentUser &&
-      [cleanOld, cleanNew].includes(String(auth.currentUser.email || '').toLowerCase().trim())
-    );
-
-    // 3a. If the account being edited is the active logged-in user, update password directly via client SDK
-    if (isCurrentActiveUser && auth.currentUser) {
-      try {
-        await updatePassword(auth.currentUser, password);
-        passwordUpdatedInAuth = true;
-        console.log('Firebase Auth password updated directly for active user.');
-      } catch (clientErr) {
-        console.warn('Direct updatePassword note:', clientErr?.message || clientErr);
-      }
-      if (cleanOld !== cleanNew) {
-        try {
-          await updateEmail(auth.currentUser, cleanNew);
-        } catch (_) {}
-      }
-    }
-
-    // 3b. Call backend manageStaffAccount to update password for any staff/admin in Firebase Auth via Admin SDK
-    try {
-      await staffCallable('manageStaffAccount')({
-        action: 'update',
-        email: cleanNew,
-        oldEmail: cleanOld,
-        name: cleanName,
-        role,
-        password,
-        perms: updatedEntry.perms,
-        subject: primarySubject,
-        assignedSubjects: cleanSubjects,
-        assignedClasses: cleanClasses,
-        mobile
-      });
-      passwordUpdatedInAuth = true;
-      console.log('Firebase Auth password synchronized via backend manageStaffAccount.');
-    } catch (backendErr) {
-      console.warn('Backend manageStaffAccount update note:', backendErr?.message || backendErr);
-    }
-
-    // 3c. If account did not exist in Firebase Auth yet, provision it now
-    if (!passwordUpdatedInAuth) {
-      try {
-        const secondaryAppName = `StaffUpdateApp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
-        const secondaryAuth = getAuth(secondaryApp);
-        await createUserWithEmailAndPassword(secondaryAuth, cleanNew, password);
-        await secondarySignOut(secondaryAuth).catch(() => {});
-        await deleteApp(secondaryApp).catch(() => {});
-        passwordUpdatedInAuth = true;
-      } catch (authErr) {
-        if (authErr?.code === 'auth/email-already-in-use') {
-          if (!isCurrentActiveUser) {
-            sendResetEmail = true;
-          }
-        } else {
-          console.warn('Secondary auth user update note:', authErr?.message || authErr);
-        }
-      }
-    }
-  }
-
-  if (sendResetEmail) {
-    try {
-      const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://hssshangus.in';
-      await sendPasswordResetEmail(auth, cleanNew, {
-        url: `${origin}/portal/auth/action`,
-        handleCodeInApp: false,
-      });
-    } catch (e) {
-      console.warn('Password reset dispatch note:', e);
-    }
-  }
-
+  const result = await staffCallable('manageStaffAccount')({
+    action: 'update', oldEmail: cleanOld, newEmail: cleanNew, name: cleanName,
+    role, designation, perms, subject, assignedSubjects, assignedClasses,
+    tierSubjects, classSubjectMap, mobile, password, sendResetEmail
+  });
   clearStaffProfileCache(cleanOld);
-  if (cleanOld !== cleanNew) {
-    clearStaffProfileCache(cleanNew);
-  }
-  return { success: true, email: cleanNew };
+  if (cleanOld !== cleanNew) clearStaffProfileCache(cleanNew);
+  return result?.data || result;
 }

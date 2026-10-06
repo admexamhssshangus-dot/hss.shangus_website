@@ -31,6 +31,10 @@ const admissionForm = read('src/portal/student/AdmissionForm.jsx');
 const studentDashboard = read('src/portal/student/StudentDashboard.jsx');
 const publicStudentLookup = read('netlify/functions/lookup-student.js');
 const legacyApiFacade = read('src/services/appsScriptApi.js');
+const publicResultPage = read('src/pages/PublicResultLookup.jsx');
+const publicResultFunction = read('netlify/functions/public-result.js');
+const staffAuth = read('src/services/staffAuthService.js');
+const staffSecurity = read('functions/staffSecurity.js');
 
 assert(!/allow\s+(write|create|update|delete)(?:\s*,\s*\w+)*\s*:\s*if\s+true\b/.test(rules), 'Firestore contains an unconditional write');
 assert(/match \/\{document=\*\*\}[\s\S]*allow read, write: if false;/.test(rules), 'Firestore default deny is missing');
@@ -39,6 +43,11 @@ assert(/function verifiedStaffIdentity\(\)[\s\S]{0,160}email_verified == true/.t
 assert(/match \/admissions\/\{documentId\}[\s\S]{0,240}ownsAdmission\(resource\.data\)/.test(rules), 'Student admission reads are not owner-scoped');
 assert(/allow create: if canEditStudents\(\)/.test(rules), 'Admission creation requires assigned staff authority');
 assert(/match \/studentPhotos\/\{documentId\}[\s\S]{0,280}allow read: if canReadStudents\(\)/.test(rules), 'Student photos require staff access');
+assert.equal((rules.match(/match \/studentPhotos\/\{documentId\}/g) || []).length, 1, 'Student photos have conflicting rule matches');
+assert(!/match \/studentPhotos\/\{documentId\}[\s\S]{0,280}allow read: if true/.test(rules), 'Student photos are publicly readable');
+assert(/match \/adminAuthHandshakes\/\{handshakeId\}[\s\S]{0,240}allow read, write: if false/.test(rules), 'Admin verification challenges must remain backend-only');
+assert(/match \/adminSettings\/\{documentId\}[\s\S]{0,760}documentId == 'permissions' && canUse\('staff'\)/.test(rules), 'Staff permission records are not staff-module scoped');
+assert(!/documentId == 'permissions' && isAdmin\(\)/.test(rules), 'Any Standard Admin can directly write the permission matrix');
 assert(/match \/admissionHistory\/\{documentId\}[\s\S]{0,260}canUse\('reports'\)/.test(rules), 'Admission history requires the reports module');
 assert(/match \/systemSettings\/\{documentId\}[\s\S]{0,430}hasNoAiSecretFields\(request\.resource\.data\)/.test(rules), 'System settings reject AI secrets');
 assert(/match \/certificateNumberLocks\/\{certificateNo\}[\s\S]{0,420}validCertificateNumberLock/.test(rules), 'Certificate-number ownership locks are missing');
@@ -49,6 +58,14 @@ assert(/validContactMessage\(request\.resource\.data\)/.test(rules), 'Public mes
 assert(/allow read, write: if false;/.test(storage), 'Storage default deny is missing');
 assert(/request\.resource\.size/.test(storage) && /contentType/.test(storage), 'Storage upload validation is missing');
 assert(!/PasswordPlain|passwordPlain|createUserWithEmailAndPassword|firestoreUserData/.test(login), 'Legacy client password fallback returned');
+assert(!/adminAuthHandshakes/.test(login), 'Login page still reads browser-visible admin verification challenges');
+assert(/adminSessions/.test(login) && /authTime/.test(login), 'Login page does not bind 2-step approval to auth time');
+assert(!/createUserWithEmailAndPassword|initializeApp\(|sendPasswordResetEmail|setDoc\(doc\(db, 'adminSettings', 'permissions'/.test(staffAuth), 'Staff service still mutates staff authority in the browser');
+assert(/manageStaffAccount/.test(staffAuth), 'Staff service does not use the authoritative backend');
+assert(/module: 'staff'/.test(staffSecurity) && /actorIsSuperAdmin/.test(staffSecurity), 'Delegated staff management is not server scoped');
+assert(/requestedPerms\.some\(permission => !actorPerms\.includes\(permission\)\)/.test(staffSecurity), 'Standard Admin permission delegation can exceed the actor scope');
+assert(/PRACTICAL_EVALUATION/.test(publicResultFunction) && /schoolAssessmentSettings/.test(publicResultFunction), 'Public results do not exclude practical awards or use School Assessment settings');
+assert(!/verifiedStudentsCatalog|cleanPracticalsSeedData|practicalsData/.test(publicResultPage), 'Public result page still bundles or reads private student/practical data');
 assert(!/REACT_APP_SAVE_SECRET/.test(read('src/pages/AdminPortal.jsx')), 'Browser-exposed save secret returned');
 assert(!settings.paymentGatewayConfig?.cashfree?.secretKey, 'Cashfree secret is present in public settings');
 assert(!settings.paymentGatewayConfig?.razorpay?.keySecret, 'Razorpay secret is present in public settings');
