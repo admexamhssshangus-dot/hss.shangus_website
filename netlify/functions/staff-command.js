@@ -65,8 +65,9 @@ function createHandler(dependencies = {}) {
       const data = await services.run(body.command, body.data, { auth, app: appToken });
       return response(200, { data });
     } catch (error) {
+      console.error('Staff command failed:', error);
       const status = STATUS[error.code] || (error.status === 403 ? 403 : 503);
-      return response(status, { error: status === 503 ? 'The staff service is unavailable. Check server configuration.' : error.message,
+      return response(status, { error: error.message || 'The staff service is unavailable. Check server configuration.',
         code: error.code || 'unavailable' });
     }
   };

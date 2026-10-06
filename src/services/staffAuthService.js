@@ -13,6 +13,7 @@ import {
   enforceStrictRoleAttributes
 } from '../utils/authRoles';
 import { normalizeTeacherClasses } from '../utils/practicalsSettingsManager';
+import { loadSiteSettings } from '../utils/settingsLoader';
 
 export { 
   ROLES,
@@ -412,14 +413,17 @@ export async function requireVerifiedAdminSession(user = auth.currentUser) {
     error.code = 'staff/verification-required';
     throw error;
   }
-  const token = await user.getIdTokenResult();
-  const session = await getDoc(doc(db, 'adminSessions', user.uid));
-  const data = session.exists() ? session.data() : null;
-  const expiresAt = data?.expiresAt?.toMillis?.() ?? Number(data?.expiresAt || 0);
-  if (!data || Number(data.authTime) !== Number(token.claims?.auth_time) || expiresAt <= Date.now()) {
-    const error = new Error('Complete administrator email verification to access this function.');
-    error.code = 'staff/verification-required';
-    throw error;
+  const siteSettings = await loadSiteSettings().catch(() => null);
+  if (siteSettings?.enableAdmin2StepVerification) {
+    const token = await user.getIdTokenResult();
+    const session = await getDoc(doc(db, 'adminSessions', user.uid));
+    const data = session.exists() ? session.data() : null;
+    const expiresAt = data?.expiresAt?.toMillis?.() ?? Number(data?.expiresAt || 0);
+    if (!data || Number(data.authTime) !== Number(token.claims?.auth_time) || expiresAt <= Date.now()) {
+      const error = new Error('Complete administrator email verification to access this function.');
+      error.code = 'staff/verification-required';
+      throw error;
+    }
   }
 }
 

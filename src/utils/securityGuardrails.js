@@ -1,30 +1,42 @@
-import { isSuperAdminEmail } from './authRoles';
+import { isSuperAdminEmail, isBootstrapAdminEmail, isStandardAdminEmail } from './authRoles';
+import { auth } from '../services/firebase';
 
 /**
- * Authoritatively checks if a Super Admin is currently logged in.
- * When Super Admin is authenticated, all developer tools, shortcuts,
- * and context menus are fully unlocked.
+ * Authoritatively checks if a Super Admin or Standard Admin is currently logged in,
+ * or if an admin account is active in this tab/browser session.
+ * When an Admin or Super Admin is recognized, all developer tools, shortcuts (F12),
+ * inspect elements, and context menus are fully unlocked.
  */
 export function isSuperAdminLoggedIn() {
   if (typeof window === 'undefined') return false;
 
   try {
+    // 0. Check Firebase Auth currentUser directly
+    const fbEmail = String(auth?.currentUser?.email || '').trim().toLowerCase();
+    if (fbEmail && (isSuperAdminEmail(fbEmail) || isBootstrapAdminEmail(fbEmail) || isStandardAdminEmail(fbEmail))) {
+      return true;
+    }
+
     // 1. Check Session Manager stored user
     const rawUser = sessionStorage.getItem('hss_session_user') || localStorage.getItem('hss_session_user');
     if (rawUser) {
       const user = JSON.parse(rawUser);
-      if (user.role === 'SuperAdmin' || user.isSuperAdmin || user.role === 'superadmin') return true;
-      if (user.email && isSuperAdminEmail(user.email)) return true;
+      const role = String(user.role || '').toLowerCase();
+      if (['superadmin', 'admin', 'administrator'].includes(role) || user.isSuperAdmin || user.isAdmin) return true;
+      if (user.email && (isSuperAdminEmail(user.email) || isBootstrapAdminEmail(user.email) || isStandardAdminEmail(user.email))) return true;
     }
 
     // 2. Check Admin Portal legacy storage session
     if (sessionStorage.getItem('isAdminAuthenticated') === 'true') {
-      const rawAdmin = sessionStorage.getItem('adminUser');
-      if (rawAdmin) {
-        const admin = JSON.parse(rawAdmin);
-        if (admin.role === 'SuperAdmin' || admin.isSuperAdmin || (admin.email && isSuperAdminEmail(admin.email))) {
-          return true;
-        }
+      return true;
+    }
+    const rawAdmin = sessionStorage.getItem('adminUser');
+    if (rawAdmin) {
+      const admin = JSON.parse(rawAdmin);
+      const role = String(admin.role || '').toLowerCase();
+      if (['superadmin', 'admin', 'administrator'].includes(role) || admin.isSuperAdmin || admin.isAdmin) return true;
+      if (admin.email && (isSuperAdminEmail(admin.email) || isBootstrapAdminEmail(admin.email) || isStandardAdminEmail(admin.email))) {
+        return true;
       }
     }
 
@@ -32,8 +44,25 @@ export function isSuperAdminLoggedIn() {
     const authState = localStorage.getItem('hss_auth_state');
     if (authState) {
       const parsed = JSON.parse(authState);
-      if (parsed.email && isSuperAdminEmail(parsed.email)) return true;
-      if (parsed.role === 'SuperAdmin') return true;
+      const role = String(parsed.role || '').toLowerCase();
+      if (['superadmin', 'admin', 'administrator'].includes(role) || parsed.isSuperAdmin || parsed.isAdmin) return true;
+      if (parsed.email && (isSuperAdminEmail(parsed.email) || isBootstrapAdminEmail(parsed.email) || isStandardAdminEmail(parsed.email))) return true;
+    }
+
+    // 4. Check pending admin login or email for sign-in
+    const pendingAdmin = localStorage.getItem('hss_pending_admin_login');
+    if (pendingAdmin) {
+      const parsed = JSON.parse(pendingAdmin);
+      if (parsed.email && isBootstrapAdminEmail(parsed.email)) return true;
+    }
+    const emailForSignIn = localStorage.getItem('emailForSignIn');
+    if (emailForSignIn && isBootstrapAdminEmail(emailForSignIn)) return true;
+
+    // 5. Check if user has focused an input with an admin email on page
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+      const val = String(activeEl.value || '').trim().toLowerCase();
+      if (val && isBootstrapAdminEmail(val)) return true;
     }
   } catch (_) {}
 

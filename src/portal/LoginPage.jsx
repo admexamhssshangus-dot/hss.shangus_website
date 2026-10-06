@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useLocation, Link, useNavigate } from 'react-router-dom';
-import { 
-  ShieldCheck, Eye, EyeOff, Lock, User, GraduationCap, UserCheck, 
-  AlertCircle, CheckCircle, ArrowRight, RefreshCw, Crown, Sparkles, 
+import {
+  ShieldCheck, Eye, EyeOff, Lock, User, GraduationCap, UserCheck,
+  AlertCircle, CheckCircle, ArrowRight, RefreshCw, Crown, Sparkles,
   KeyRound, Mail, School, Award, CheckCircle2, ChevronRight, Compass,
   Send, ExternalLink, ArrowLeft, ShieldAlert, X, Globe, FileText,
   Layers, Search, Building2, QrCode, BookOpen, ChevronDown, ChevronUp, Check
@@ -10,20 +10,20 @@ import {
 import SEO from '../components/SEO';
 import ModernLoader from '../components/ModernLoader';
 import { auth, db, googleProvider } from '../services/firebase';
-import { 
-  getIdTokenResult, 
+import {
+  getIdTokenResult,
   signInWithPopup,
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
-  signInWithEmailAndPassword, 
-  signOut, 
+  signInWithEmailAndPassword,
+  signOut,
   fetchSignInMethodsForEmail
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { 
+import {
   requireVerifiedAdminSession,
-  resolveStaffRoleAndPerms, 
+  resolveStaffRoleAndPerms,
   createAdminLoginHandshake,
   approveAdminLoginHandshake,
   consumeAdminLoginHandshake,
@@ -34,7 +34,7 @@ import {
   isSuperAdminEmail,
   FALLBACK_STAFF_PROFILES
 } from '../services/staffAuthService';
-import { 
+import {
   ROLES,
   getStrictCanonicalRole,
   enforceStrictRoleAttributes,
@@ -311,13 +311,14 @@ export default function LoginPage() {
     const tokenResult = await getIdTokenResult(activeUser, false);
     const claims = tokenResult.claims || {};
     const emailLower = String(activeUser?.email || overrideEmail || '').toLowerCase().trim();
-    
+
     // Resolve role from Firestore permissions & users collection & bootstrap (force fresh on login)
     // Resolve role from Firestore permissions & users collection & bootstrap (force fresh on login)
     const staffProfile = cachedStaffProfile || await resolveStaffRoleAndPerms(emailLower, true);
     const strictRole = getStrictCanonicalRole(emailLower, staffProfile);
 
-    if (strictRole === ROLES.SUPER_ADMIN || strictRole === ROLES.STANDARD_ADMIN) {
+    const siteSettings = await loadSiteSettings().catch(() => null);
+    if (siteSettings?.enableAdmin2StepVerification && (strictRole === ROLES.SUPER_ADMIN || strictRole === ROLES.STANDARD_ADMIN)) {
       await requireVerifiedAdminSession(activeUser);
     }
 
@@ -394,13 +395,13 @@ export default function LoginPage() {
     const handleAuthApproved = async (sourceInfo = {}) => {
       if (isHandled) return;
       isHandled = true;
-      
+
       const isTeacher = emailLinkSentState?.role === 'Teacher';
-      setAlert({ 
-        type: 'success', 
-        text: isTeacher 
-          ? '🛡️ 2-Step Verification Completed! Unlocking Teacher Portal...' 
-          : '🛡️ 2-Step Verification Completed! Unlocking Admin Portal...' 
+      setAlert({
+        type: 'success',
+        text: isTeacher
+          ? '🛡️ 2-Step Verification Completed! Unlocking Teacher Portal...'
+          : '🛡️ 2-Step Verification Completed! Unlocking Admin Portal...'
       });
 
       try {
@@ -418,7 +419,7 @@ export default function LoginPage() {
 
         const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
         const verifiedSession = await createVerifiedSession(currentUser, cleanEmail, staffProfile);
-        
+
         if (cleanEmail && (staffProfile?.role === 'Teacher' || staffProfile?.role === 'Faculty')) {
           await recordTeacher2StepVerification(cleanEmail);
         }
@@ -433,9 +434,9 @@ export default function LoginPage() {
         }, 400);
       } catch (err) {
         console.error('Real-time handshake unlock error:', err);
-        setAlert({ 
-          type: 'error', 
-          text: 'Verified handshake received, but session resolution failed. Please refresh or sign in.' 
+        setAlert({
+          type: 'error',
+          text: 'Verified handshake received, but session resolution failed. Please refresh or sign in.'
         });
       }
     };
@@ -568,7 +569,7 @@ export default function LoginPage() {
       if (selectedRole === 'teacher') {
         if (!isTeacher) {
           await signOut(auth).catch(() => {});
-          const hint = isAdmin 
+          const hint = isAdmin
             ? 'Access Denied: This account is registered strictly as Administrator. One email can only have one role. Please use the Admin Login tab.'
             : 'Access Denied: This account is registered strictly as Student. One email can only have one role.';
           setAlert({ type: 'error', text: hint });
@@ -596,15 +597,38 @@ export default function LoginPage() {
           return;
         }
 
-        // Every administrator sign-in, including Google OAuth, completes the
-        // server-bound email proof before an admin session is created.
-        await beginAdminLogin(fbUser, staffProfile);
+        const siteSettings = await loadSiteSettings().catch(() => null);
+        const require2Step = siteSettings?.enableAdmin2StepVerification ?? false;
+
+        if (require2Step) {
+          await beginAdminLogin(fbUser, staffProfile);
+          return;
+        }
+
+        // Direct entry for all authorized administrative accounts signing in with Google OAuth
+        const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/admin';
+        const roleLabel = isSuper ? 'Super Admin' : (verifiedSession.user.name || 'Administrator');
+        setAlert({ type: 'success', text: `Welcome back, ${roleLabel}! Unlocking Admin Portal...` });
+        onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
       }
 
       // --- 3. STUDENT TAB (DEFAULT / AUTO-ROUTE STRICT ROLE) ---
       if (isAdmin) {
-        await beginAdminLogin(fbUser, staffProfile);
+        const siteSettings = await loadSiteSettings().catch(() => null);
+        const require2Step = siteSettings?.enableAdmin2StepVerification ?? false;
+        if (require2Step) {
+          await beginAdminLogin(fbUser, staffProfile);
+          return;
+        }
+        const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/admin';
+        setAlert({
+          type: 'success',
+          text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Administrator. Redirecting to Admin Portal...`
+        });
+        onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
       }
       const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
@@ -694,7 +718,7 @@ export default function LoginPage() {
       // 1. Authenticate credentials against Firebase Auth
       await setPersistence(auth, browserLocalPersistence);
       const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
-      
+
       // 2. Resolve account profile from Firestore (configured strictly by Super Admin)
       const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
       const strictRole = getStrictCanonicalRole(cleanEmail, staffProfile);
@@ -716,9 +740,19 @@ export default function LoginPage() {
           return;
         }
 
-        // Administrators always need the server-bound email proof. This keeps
-        // the browser, rules, and callable backends on one session boundary.
-        await beginAdminLogin(userCred.user, staffProfile);
+        // Check if 2-Step Verification is required for admin email/password login
+        const siteSettings = await loadSiteSettings().catch(() => null);
+        const require2Step = siteSettings?.enableAdmin2StepVerification ?? false;
+
+        if (require2Step) {
+          if (await beginAdminLogin(userCred.user, staffProfile)) return;
+        }
+
+        // Direct verified admin sign-in with authenticated credentials
+        const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/admin';
+        setAlert({ type: 'success', text: 'Login successful! Redirecting to Admin Portal...' });
+        onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
       }
 
@@ -745,7 +779,18 @@ export default function LoginPage() {
 
       // --- AUTO-RECOGNIZE ADMIN / SUPERADMIN ACCOUNT (On Student Tab) ---
       if (isAdmin && selectedRole === 'student') {
-        await beginAdminLogin(userCred.user, staffProfile);
+        const siteSettings = await loadSiteSettings().catch(() => null);
+        const require2Step = siteSettings?.enableAdmin2StepVerification ?? false;
+        if (require2Step) {
+          if (await beginAdminLogin(userCred.user, staffProfile)) return;
+        }
+        const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/admin';
+        setAlert({
+          type: 'success',
+          text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Administrator. Redirecting to Admin Portal...`
+        });
+        onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
       }
 
@@ -754,9 +799,9 @@ export default function LoginPage() {
         incrementTeacherLoginCount(cleanEmail).catch(() => {});
         const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
         verifiedSession.redirectPath = '/portal/teacher';
-        setAlert({ 
-          type: 'success', 
-          text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Faculty/Teacher. Redirecting to Teacher Portal...` 
+        setAlert({
+          type: 'success',
+          text: `Welcome back, ${verifiedSession.user.name}! Your account is strictly Faculty/Teacher. Redirecting to Teacher Portal...`
         });
         onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
@@ -948,7 +993,7 @@ export default function LoginPage() {
 
         {/* LEFT COLUMN: HERO SHOWCASE (Visible on lg+ screens, stacked cleanly on tablet/mobile) */}
         <div className="lg:col-span-6 space-y-3 text-left hidden md:block px-2 sm:px-3">
-          
+
           {/* Institution Header Badge */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-slate-900/5 dark:bg-white/10 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-md">
             <School size={13} className="text-teal-600 dark:text-teal-400" />
@@ -982,8 +1027,8 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowcaseTab(tab.id)}
                   className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    isActive 
-                      ? 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 shadow-xs font-black border border-slate-200/70 dark:border-slate-700/70' 
+                    isActive
+                      ? 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 shadow-xs font-black border border-slate-200/70 dark:border-slate-700/70'
                       : 'text-slate-500 hover:text-slate-900 dark:hover:text-white font-extrabold'
                   }`}
                 >
@@ -1072,14 +1117,14 @@ export default function LoginPage() {
 
         {/* RIGHT COLUMN: MAIN LOGIN GLASS CARD (Fully Responsive 100% width on mobile, 6-col on lg) */}
         <div className="lg:col-span-6 w-full max-w-[420px] mx-auto lg:max-w-none">
-          
+
           <div className={`portal-auth-card rounded-2xl sm:rounded-3xl p-3.5 xs:p-4 sm:p-5.5 border shadow-lg sm:shadow-xl transition-all duration-300 relative overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl ${
             activeTheme.cardBorder
           }`}>
 
             {/* Loading blur overlay with full theme contrast support */}
             {isLoading && (
-              <div 
+              <div
                 className="portal-loading-overlay absolute inset-0 z-50 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center p-4 animate-fadeIn bg-white/95 dark:bg-slate-950/95 backdrop-blur-md"
               >
                 <ModernLoader
@@ -1093,7 +1138,7 @@ export default function LoginPage() {
 
             {/* Card Header: School Crest + Title + SuperAdmin Quick Toggle */}
             <div className="relative z-10 space-y-1.5 sm:space-y-2 mb-2 sm:mb-2.5">
-              
+
               {/* Crest Logo */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1150,7 +1195,7 @@ export default function LoginPage() {
                     : `text-slate-600 dark:text-slate-400 ${ROLE_THEMES.student.tabHover} font-extrabold`
                 }`}
               >
-                <GraduationCap size={13} className="shrink-0" /> 
+                <GraduationCap size={13} className="shrink-0" />
                 <span className="truncate text-[11px] sm:text-xs">Student</span>
               </button>
 
@@ -1167,7 +1212,7 @@ export default function LoginPage() {
                     : `text-slate-600 dark:text-slate-400 ${ROLE_THEMES.teacher.tabHover} font-extrabold`
                 }`}
               >
-                <UserCheck size={13} className="shrink-0" /> 
+                <UserCheck size={13} className="shrink-0" />
                 <span className="truncate text-[11px] sm:text-xs">Teacher</span>
               </button>
 
@@ -1191,7 +1236,7 @@ export default function LoginPage() {
                   </>
                 ) : (
                   <>
-                    <Lock size={13} className="shrink-0" /> 
+                    <Lock size={13} className="shrink-0" />
                     <span className="truncate text-[11px] sm:text-xs">Admin</span>
                   </>
                 )}
@@ -1222,8 +1267,8 @@ export default function LoginPage() {
             {/* Alert Banner (Suppressed during clean waiting / confirmed states unless error) */}
             {alert && !emailLinkSentState && !window2VerifiedState && (
               <div className={`p-3.5 rounded-2xl text-xs font-bold flex flex-col gap-2.5 mb-4 animate-fadeIn relative z-10 ${
-                alert.type === 'error' 
-                  ? 'bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400' 
+                alert.type === 'error'
+                  ? 'bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400'
                   : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
               }`}>
                 <div className="flex items-start gap-2.5">
@@ -1293,7 +1338,7 @@ export default function LoginPage() {
                 <div className="rounded-2xl bg-gradient-to-b from-slate-50 to-white dark:from-slate-800/80 dark:to-slate-800/40 border border-slate-200/80 dark:border-slate-700/50 p-4 text-left text-xs space-y-0 overflow-hidden relative">
                   {/* Subtle top accent */}
                   <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400"></div>
-                  
+
                   <div className="flex items-center justify-between py-2.5 border-b border-slate-200/60 dark:border-slate-700/40">
                     <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
                       <Mail size={12} /> Account
@@ -1478,7 +1523,7 @@ export default function LoginPage() {
               <>
                 {/* == == == == == == == == MAIN LOGIN FORM == == == == == == == == */}
                 <form onSubmit={handleSubmit} className="space-y-2 sm:space-y-2.5 relative z-10">
-                
+
                 {/* Email Input */}
                 <div className="space-y-0.5 sm:space-y-1 text-left">
                   <label htmlFor="login-email" className="block text-[10.5px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
@@ -1633,8 +1678,8 @@ export default function LoginPage() {
                         type="button"
                         onClick={() => setShowcaseTab(tab.id)}
                         className={`py-1.5 px-0.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                          isActive 
-                            ? 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 shadow-xs font-black border border-slate-200/70 dark:border-slate-700/70' 
+                          isActive
+                            ? 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 shadow-xs font-black border border-slate-200/70 dark:border-slate-700/70'
                             : 'text-slate-500 hover:text-slate-900 dark:hover:text-white font-extrabold'
                         }`}
                       >

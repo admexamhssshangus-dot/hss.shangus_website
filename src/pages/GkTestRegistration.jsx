@@ -10,6 +10,7 @@ import { generateGkTestAdmitCardPdf } from '../utils/pdfGenerator';
 import { showToast } from '../components/common/GlobalToast';
 import ConfirmModal from '../portal/components/ConfirmModal';
 import { getCurrentAcademicSession } from '../services/dbCache';
+import { isAdminLoggedIn } from '../utils/securityGuardrails';
 
 const APPS_SCRIPT_URL = process.env.REACT_APP_APPS_SCRIPT_URL;
 const DRIVE_FOLDER_ID = '15YOPlfh2WHmXn7HEAoZEpSJbRCNZYaOF';
@@ -197,6 +198,7 @@ export default function GkTestRegistration() {
   // 🛡️ Security Lockdown: Block right-click, clipboard copy, and devtools shortcuts
   useEffect(() => {
     const handleContextMenu = (e) => {
+      if (isAdminLoggedIn()) return true;
       e.preventDefault();
       setSecurityToast('🔒 Content Protected: Copying, saving images, and right-click are restricted for student data privacy.');
       setTimeout(() => setSecurityToast(''), 3500);
@@ -204,6 +206,7 @@ export default function GkTestRegistration() {
     };
 
     const handleCopyCut = (e) => {
+      if (isAdminLoggedIn()) return true;
       e.preventDefault();
       setSecurityToast('🔒 Copying Restricted: Candidate credentials and exam transcripts are protected against copying.');
       setTimeout(() => setSecurityToast(''), 3500);
@@ -211,6 +214,7 @@ export default function GkTestRegistration() {
     };
 
     const handleKeyDown = (e) => {
+      if (isAdminLoggedIn()) return true;
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
 
