@@ -336,7 +336,7 @@ export default function Footer() {
               </span>
               <div className="flex items-center gap-1">
                 <a 
-                  href="https://nexliftech.netlify.app/" 
+                  href="https://nexliftech.space/"
                   target="_blank" 
                   rel="noopener noreferrer" 
                   className="dev-badge-brand font-bold text-xs tracking-tight underline underline-offset-4 transition-colors"
@@ -600,7 +600,7 @@ export default function Footer() {
                   {/* Action Footer */}
                   <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
                     <a
-                      href="https://nexliftech.netlify.app/"
+                      href="https://nexliftech.space/"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"

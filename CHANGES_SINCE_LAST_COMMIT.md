@@ -2,29 +2,23 @@
 
 ## Commit Message
 
-`fix(settings): preserve cloud social links`
+`chore(footer): update developer website link`
 
 ## Summary
 
-- Diagnosed the missing footer icons: the deployed static fallback contains Facebook, YouTube, and X, but an older partial Cloud `site/settings.socialLinks` value can hide YouTube and X after it is cached.
-- Made Firestore the authoritative first read when the local settings cache is absent. The public JSON file is now used only for offline/recovery fallback, while the cached Cloud document is retained for 20 minutes to control reads.
-- Restored the official YouTube and X links as safe recovery values for legacy partial Cloud settings, without replacing any non-placeholder URL already stored in Firestore.
-- Protected generic Admin Portal saves from replacing a saved social URL with stale empty or `#` placeholders. Intentional admin saves now merge the latest Cloud social-link values before writing settings.
-- Confirmed the Netlify build configuration does not perform a Firebase write; deployments themselves do not overwrite Firestore content.
+- Updated both developer attribution links in the public footer from the former Netlify address to the canonical NexLif Technologies website.
+- Kept all existing developer branding, contact links, and footer behavior unchanged.
+- Confirmed no remaining source references point to the former `nexliftech.netlify.app` address.
 
 ## Files Changed
 
 1. `src/components/Footer.jsx`
-2. `src/pages/AdminPortal.jsx`
-3. `src/utils/settingsLoader.js`
-4. `CHANGES_SINCE_LAST_COMMIT.md`
+2. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- `npm run security:check`: passed.
-- `npm run performance:check`: passed.
-- `npm run test:public`: passed (9 tests).
-- `npm run build`: passed with exit code 0 (production bundle, public pages, and SEO checks completed). Existing non-blocking lint warnings remain in the project.
+- `npm run build`: passed with exit code 0; the production bundle, generated public pages, and SEO regression checks completed successfully.
+- Existing non-blocking lint warnings remain elsewhere in the project; this change introduced no build error.
 - `git diff --check`: passed with no whitespace errors.
 
 ## Instructions for the User
