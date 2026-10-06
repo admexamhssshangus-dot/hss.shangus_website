@@ -2,31 +2,27 @@
 
 ## Commit Message
 
-`fix(auth): resolve serverless firestore credential mismatch and restore direct admin login`
+`fix(auth): align backend requireStaff with authoritative 2SV settings`
 
 ## Summary
 
-- **Resolved Firestore Credential Instance Mismatch**: Exported `cert` and `getApp` from `functions/firebaseAdmin.js` and updated `netlify/functions/staff-command.js` to initialize `businessAdmin` using `(businessAdmin.cert || cert)(...)`. This ensures `credential instanceof ServiceAccountCredential` evaluates successfully inside the Firestore client SDK across distinct `node_modules` installations, fixing the `"Failed to initialize Google Cloud Firestore client with the available credentials"` runtime error.
-- **Synchronized Default Admin 2-Step Verification**: Changed `"enableAdmin2StepVerification"` to `false` in `public/slides/settings.json` to match `DEFAULT_SETTINGS` in `settingsLoader.js`. This allows authorized administrators (such as `e.educational.24@gmail.com`) to sign in directly with their verified credentials without being forced into an unconfigured email challenge.
-- **Added Regression Verification**: Added a dedicated test in `scripts/staff-command.test.cjs` ensuring `businessAdmin` exports `cert` matching its internal runtime.
+- **Synchronized Backend `requireStaff` with Authoritative 2SV Settings**: Updated `functions/access.js` to inspect `site/settings` in Firestore for `enableAdmin2StepVerification` before enforcing `adminSessions` session token verification. When 2-Step Verification is disabled, authorized administrators who sign in directly are permitted to execute staff commands without a missing `adminSessions` rejection. When 2-Step Verification is enabled, the server-bound proof is strictly required with zero password-only bypass.
+- **Added Comprehensive Unit Tests**: Added unit tests in `scripts/public-records.test.cjs` verifying that `requireStaff` cleanly permits direct administrator commands when 2SV is disabled and strictly enforces `adminSessions` when 2SV is enabled.
 
 ## Files Changed
 
-1. `functions/firebaseAdmin.js`
-2. `netlify/functions/staff-command.js`
-3. `public/slides/settings.json`
-4. `scripts/staff-command.test.cjs`
-5. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `functions/access.js`
+2. `scripts/public-records.test.cjs`
+3. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- `node scripts/staff-command.test.cjs`: passed (7 tests).
-- `npm run test:public`: passed (9 tests).
+- `npm run test:public`: passed (10/10 tests, including new `requireStaff` 2SV check).
+- `node scripts/staff-command.test.cjs`: passed (7/7 tests).
 - `npm run security:check`: passed.
 - `npm run admission:check`: passed (83 schema fields classified).
 - `npm run performance:check`: passed.
 - `npm run build`: completed with exit code 0; production bundle, 11 public HTML pages, and SEO checks passed.
-- Verified in Node.js that `businessAdmin.firestore()` initializes with `db: true` without throwing `invalid-credential`.
 
 ## Instructions for the User
 

@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { verifyStudent } = require('../netlify/functions/lookup-student');
-const { authority, hasAdminSession } = require('../functions/access');
+const { authority, hasAdminSession, requireStaff } = require('../functions/access');
 const { issueKey } = require('../netlify/functions/lib/publicRecords');
 function fakeDb(entries) {
   const snapshot = path => ({ exists: Object.hasOwn(entries, path), data: () => entries[path] });
@@ -58,3 +58,26 @@ test('archival follows one master-register locator without exposing trash', asyn
 test('a changed class or session cannot validate an older issuance', async () => {
   await assert.rejects(verifyStudent(fakeDb({ 'certificateNumberLocks/1368': lock, 'admissions/physical': { ...source, Session: '2026-27' } }), request), /unavailable/);
 });
+test('requireStaff enforces 2SV adminSession only when enableAdmin2StepVerification is enabled', async () => {
+  const token = { uid: 'admin-1', email: 'adm.exam.hss.shangus@gmail.com', email_verified: true, auth_time: 100 };
+  const userDoc = { role: 'SuperAdmin', perms: ['*'], active: true };
+
+  // Case A: 2SV disabled -> succeeds directly without adminSessions
+  const dbWithout2SV = fakeDb({ 'users/admin-1': userDoc, 'site/settings': { enableAdmin2StepVerification: false } });
+  const staff = await requireStaff(dbWithout2SV, token);
+  assert.equal(staff.role, 'SuperAdmin');
+
+  // Case B: 2SV enabled -> fails without valid adminSessions
+  const dbWith2SV = fakeDb({ 'users/admin-1': userDoc, 'site/settings': { enableAdmin2StepVerification: true } });
+  await assert.rejects(requireStaff(dbWith2SV, token), /Complete email verification/);
+
+  // Case C: 2SV enabled with valid adminSessions -> succeeds
+  const dbWithValid2SV = fakeDb({
+    'users/admin-1': userDoc,
+    'site/settings': { enableAdmin2StepVerification: true },
+    'adminSessions/admin-1': { authTime: 100, expiresAt: Date.now() + 60000 }
+  });
+  const verifiedStaff = await requireStaff(dbWithValid2SV, token);
+  assert.equal(verifiedStaff.role, 'SuperAdmin');
+});
+

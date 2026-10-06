@@ -64,9 +64,18 @@ async function requireStaff(db, token, { module, adminOnly = false, challenge = 
   const isAdmin = staff && ['admin', 'superadmin'].includes(roleKey(staff.role));
   if (!staff || (adminOnly && !isAdmin)) throw Object.assign(new Error('Verified, active staff access is required.'), { status: 403 });
   if (isAdmin && !challenge) {
-    const session = await db.collection('adminSessions').doc(token.uid).get();
-    if (!hasAdminSession(token, session.exists ? session.data() : null)) {
-      throw Object.assign(new Error('Complete email verification for this administrator sign-in.'), { status: 403 });
+    let require2Step = false;
+    try {
+      const siteSettingsSnap = await db.collection('site').doc('settings').get();
+      if (siteSettingsSnap.exists) {
+        require2Step = Boolean(siteSettingsSnap.data()?.enableAdmin2StepVerification);
+      }
+    } catch (_) {}
+    if (require2Step) {
+      const session = await db.collection('adminSessions').doc(token.uid).get();
+      if (!hasAdminSession(token, session.exists ? session.data() : null)) {
+        throw Object.assign(new Error('Complete email verification for this administrator sign-in.'), { status: 403 });
+      }
     }
   }
   if (module && isAdmin && roleKey(staff.role) !== 'superadmin' && !staff.perms.includes('*') && !staff.perms.includes(module)) {
