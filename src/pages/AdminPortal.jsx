@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail, CreditCard, QrCode, RotateCcw, ExternalLink, Compass, Database, Sparkles } from 'lucide-react';
-import { DEFAULT_SETTINGS, DEFAULT_HERO_BUTTONS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
+import { DEFAULT_SETTINGS, DEFAULT_HERO_BUTTONS, loadSiteSettings, mergeSiteSettings, preservePublishedSocialLinks } from '../utils/settingsLoader';
 import HeroButtonsManager from '../portal/admin/HeroButtonsManager';
 import { db, storage, auth } from '../firebase';
 import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -79,6 +79,23 @@ function sanitizePublicSettings(settings) {
     delete safe.paymentGatewayConfig.razorpay.secretKey;
     delete safe.paymentGatewayConfig.razorpay.secret;
   }
+  return safe;
+}
+
+// A generic admin save must not replace a cloud-published social URL with a
+// stale #/empty value from a screen that does not own social-link editing.
+// This read happens only on an intentional admin save, never on deployment.
+async function prepareSettingsForCloudSave(settings) {
+  const safe = sanitizePublicSettings(settings);
+  const settingsRef = doc(db, 'site', 'settings');
+  const current = await getDoc(settingsRef);
+  const storedLinks = current.exists() ? current.data()?.socialLinks : {};
+  const incomingLinks = safe.socialLinks || {};
+  safe.socialLinks = {
+    ...(storedLinks && typeof storedLinks === 'object' ? storedLinks : {}),
+    ...(incomingLinks && typeof incomingLinks === 'object' ? incomingLinks : {}),
+    ...preservePublishedSocialLinks(storedLinks, incomingLinks)
+  };
   return safe;
 }
 
@@ -192,7 +209,7 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
 
   // 3. FAST-PATH: Target Admissions Tab
   if (targetTab === 'admissions') {
-    const cleanSettings = sanitizePublicSettings(settings);
+    const cleanSettings = await prepareSettingsForCloudSave(settings);
     await setDoc(doc(db, 'site', 'settings'), cleanSettings, { merge: true });
     return;
   }
@@ -209,7 +226,7 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
   }
 
   // 5. Full sync or Faculty Tab (requires processing faculty members and collections)
-  const cleanSettings = sanitizePublicSettings(settings);
+  const cleanSettings = await prepareSettingsForCloudSave(settings);
   const privateFaculty = (faculty || []).map(({ id, ...record }, idx) => ({
     ...record,
     order: typeof record.order === 'number' ? record.order : idx

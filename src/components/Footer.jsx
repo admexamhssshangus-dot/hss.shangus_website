@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, X, Mail, Info, Lock, Unlock, Code, Terminal, Sparkles, Cpu, GraduationCap, Plane, Wallet, Zap, Globe, ExternalLink, ShieldCheck, MapPin, Layers, Building2, FileText, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { loadSiteSettings, DEFAULT_SETTINGS, getCachedSiteSettings } from '../utils/settingsLoader';
+import { loadSiteSettings, getCachedSiteSettings } from '../utils/settingsLoader';
 
 
 // Social Media Custom SVG Icons (since brand icons are not exported in this Lucide version)

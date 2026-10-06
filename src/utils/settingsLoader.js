@@ -93,6 +93,57 @@ export const DEFAULT_HERO_BUTTONS = [
   }
 ];
 
+// These are recovery values for the official institutional channels.  Cloud
+// settings remain authoritative whenever they contain an actual URL; the
+// recovery values prevent an old partial settings document from hiding a
+// channel that has already been published.
+export const OFFICIAL_SOCIAL_LINKS = {
+  facebook: 'https://www.facebook.com/p/Govt-Higher-Secondary-School-Shangus-100083269956258/',
+  youtube: 'https://www.youtube.com/channel/UC0UeaKFSv9CcAGlnuf5uxug',
+  twitter: 'https://x.com/@hssshangus',
+  instagram: '#'
+};
+
+const isConfiguredSocialLink = (value) => {
+  const link = String(value || '').trim();
+  return Boolean(link && link !== '#');
+};
+
+/**
+ * Preserve Cloud-configured URLs, while recovering a known official channel
+ * when a legacy document omitted the field or stored a placeholder.
+ */
+export function normalizeSocialLinks(rawLinks = {}) {
+  const source = rawLinks && typeof rawLinks === 'object' ? rawLinks : {};
+  return Object.keys(OFFICIAL_SOCIAL_LINKS).reduce((links, platform) => {
+    const stored = String(source[platform] || '').trim();
+    links[platform] = isConfiguredSocialLink(stored)
+      ? stored
+      : OFFICIAL_SOCIAL_LINKS[platform];
+    return links;
+  }, {});
+}
+
+/**
+ * Generic settings saves must never replace an existing published link with a
+ * stale empty/# value from a different admin screen.  A real URL in the new
+ * payload still wins; otherwise the existing Cloud URL is retained.
+ */
+export function preservePublishedSocialLinks(existingLinks = {}, incomingLinks = {}) {
+  const existing = existingLinks && typeof existingLinks === 'object' ? existingLinks : {};
+  const incoming = incomingLinks && typeof incomingLinks === 'object' ? incomingLinks : {};
+  return Object.keys(OFFICIAL_SOCIAL_LINKS).reduce((links, platform) => {
+    const candidate = String(incoming[platform] || '').trim();
+    const stored = String(existing[platform] || '').trim();
+    links[platform] = isConfiguredSocialLink(candidate)
+      ? candidate
+      : isConfiguredSocialLink(stored)
+        ? stored
+        : OFFICIAL_SOCIAL_LINKS[platform];
+    return links;
+  }, {});
+}
+
 export const DEFAULT_SETTINGS = {
   globalAdmissionsClosed: false,
   practicalsSubmissionOpen: true,
@@ -119,12 +170,7 @@ export const DEFAULT_SETTINGS = {
     "9th": 1800,
     "10th": 1100
   },
-  socialLinks: {
-    facebook: 'https://www.facebook.com/p/Govt-Higher-Secondary-School-Shangus-100083269956258/',
-    youtube: '#',
-    twitter: '#',
-    instagram: '#'
-  },
+  socialLinks: OFFICIAL_SOCIAL_LINKS,
   taxConfig: DEFAULT_TAX_CONFIG,
   paymentGatewayConfig: DEFAULT_PAYMENT_GATEWAY_CONFIG,
   heroButtons: DEFAULT_HERO_BUTTONS
@@ -160,7 +206,7 @@ export function mergeSiteSettings(parsed = {}) {
     enable3dHeroAssetsMobile: parsed.enable3dHeroAssetsMobile !== undefined ? Boolean(parsed.enable3dHeroAssetsMobile) : false,
     admissionsClosed: { ...DEFAULT_SETTINGS.admissionsClosed, ...(parsed.admissionsClosed || {}) },
     fees: { ...DEFAULT_SETTINGS.fees, ...(parsed.fees || {}) },
-    socialLinks: { ...DEFAULT_SETTINGS.socialLinks, ...(parsed.socialLinks || {}) },
+    socialLinks: normalizeSocialLinks(parsed.socialLinks),
     taxConfig: {
       financialYearLabel: parsedTax.financialYearLabel || DEFAULT_SETTINGS.taxConfig.financialYearLabel,
       assessmentYearLabel: parsedTax.assessmentYearLabel || DEFAULT_SETTINGS.taxConfig.assessmentYearLabel,
@@ -236,6 +282,35 @@ export async function loadSiteSettings({ forceFirestore = false } = {}) {
   const isBotOrSpeedTest = typeof navigator !== 'undefined' && 
     /Lighthouse|GTmetrix|PageSpeed|HeadlessChrome|bot|crawl|spider/i.test(navigator.userAgent || '');
 
+  const cache = (value) => {
+    try {
+      localStorage.setItem('site_settings', JSON.stringify(value));
+      localStorage.setItem(timestampKey, Date.now().toString());
+    } catch (_) {}
+    return value;
+  };
+
+  // Cloud Firestore is the authoritative source. The CDN JSON remains an
+  // offline/recovery fallback only; a Netlify build never writes Firebase data.
+  const readCloudSettings = async () => {
+    const { db } = await import('../firebase');
+    const { doc, getDoc } = await import('firebase/firestore');
+    const docPromise = getDoc(doc(db, 'site', 'settings'));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
+    const snap = await Promise.race([docPromise, timeoutPromise]);
+    return snap && snap.exists() ? cache(mergeSiteSettings(snap.data())) : null;
+  };
+
+  const readStaticFallback = async () => {
+    try {
+      const res = await fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' });
+      if (res.ok) return cache(mergeSiteSettings(await res.json()));
+    } catch (error) {
+      console.warn('Static settings fallback check:', error);
+    }
+    return DEFAULT_SETTINGS;
+  };
+
   // 1. Instant Cache: Return cached settings if available for 0ms initial render
   if (!forceFirestore || isBotOrSpeedTest) {
     try {
@@ -248,22 +323,9 @@ export async function loadSiteSettings({ forceFirestore = false } = {}) {
         if (isFresh || isBotOrSpeedTest) {
           return cached;
         }
-        // Only refresh silently from live Firestore if cache TTL has expired and not a test bot
+        // Refresh only one small document in the background after cache expiry.
         setTimeout(() => {
-          (async () => {
-            try {
-              const { db } = await import('../firebase');
-              const { doc, getDoc } = await import('firebase/firestore');
-              const snap = await getDoc(doc(db, 'site', 'settings'));
-              if (snap && snap.exists()) {
-                const fresh = mergeSiteSettings(snap.data());
-                try {
-                  localStorage.setItem('site_settings', JSON.stringify(fresh));
-                  localStorage.setItem(timestampKey, Date.now().toString());
-                } catch (_) {}
-              }
-            } catch (_) {}
-          })();
+          readCloudSettings().catch(() => {});
         }, 1500);
         return cached;
       }
@@ -272,46 +334,19 @@ export async function loadSiteSettings({ forceFirestore = false } = {}) {
     }
   }
 
-  // 2. High-speed Static CDN JSON first (10ms response vs 5000ms Firestore roundtrip)
-  try {
-    const res = await fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' });
-    if (res.ok) {
-      const data = await res.json();
-      const merged = mergeSiteSettings(data);
-      try {
-        localStorage.setItem('site_settings', JSON.stringify(merged));
-        localStorage.setItem(timestampKey, Date.now().toString());
-      } catch (_) {}
-      if (isBotOrSpeedTest || !forceFirestore) {
-        return merged;
-      }
-    }
-  } catch (e) {
-    console.warn('Static settings fallback check:', e);
-  }
-
-  // 3. Direct Firestore Fetch (when explicitly forced and not a synthetic speed test bot)
+  // 2. Read the authoritative Cloud document when there is no usable cache.
   if (!isBotOrSpeedTest) {
     try {
-      const { db } = await import('../firebase');
-      const { doc, getDoc } = await import('firebase/firestore');
-      const docPromise = getDoc(doc(db, 'site', 'settings'));
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
-      const snap = await Promise.race([docPromise, timeoutPromise]);
-      if (snap && snap.exists()) {
-        const merged = mergeSiteSettings(snap.data());
-        try {
-          localStorage.setItem('site_settings', JSON.stringify(merged));
-          localStorage.setItem(timestampKey, Date.now().toString());
-        } catch (_) {}
-        return merged;
-      }
+      const cloudSettings = await readCloudSettings();
+      if (cloudSettings) return cloudSettings;
     } catch (e) {
       console.warn('Firestore settings fetch error:', e);
     }
   }
 
-  return DEFAULT_SETTINGS;
+  // 3. Static JSON is never treated as a deployment-time replacement for
+  // Firestore. It only keeps the public site usable during a Cloud outage.
+  return readStaticFallback();
 }
 
 export function subscribeSiteSettings(callback) {
