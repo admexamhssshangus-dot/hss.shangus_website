@@ -42,7 +42,7 @@ function createHandler(dependencies = {}) {
         const app = getApps().length ? getApp() : initializeApp({ credential: cert(parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)) });
         const businessAdmin = require('../../functions/firebaseAdmin');
         if (!businessAdmin.getApps().length) {
-          businessAdmin.initializeApp({ credential: cert(parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)) });
+          businessAdmin.initializeApp({ credential: (businessAdmin.cert || cert)(parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)) });
         }
         services = { verifyAppCheck: token => getAppCheck(app).verifyToken(token),
           verifyAuth: token => getAuth(app).verifyIdToken(token, true),

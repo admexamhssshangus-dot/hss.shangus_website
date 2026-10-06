@@ -43,3 +43,8 @@ test('business authorization failures retain their status', async () => {
   const handler = createHandler({...valid,run:async()=>{throw Object.assign(Error('Not assigned'),{code:'permission-denied'});}});
   assert.equal((await handler(request())).statusCode,403);
 });
+test('businessAdmin exports cert matching its internal admin runtime', () => {
+  const businessAdmin = require('../functions/firebaseAdmin');
+  assert.equal(typeof businessAdmin.cert, 'function');
+});
+
