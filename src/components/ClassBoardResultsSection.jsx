@@ -1,6 +1,12 @@
-import React, { useState, useMemo } from 'react';
-import { Printer } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Printer, ChevronDown, Check, GraduationCap, Calendar } from 'lucide-react';
 import { BOARD_RESULTS_BY_CLASS, CLASS_10_BOARD_RESULTS } from '../data/classBoardResults';
+
+const AVAILABLE_CLASSES = [
+  { id: '10th', label: 'Class 10th', sub: 'Matriculation' },
+  { id: '11th', label: 'Class 11th', sub: 'Higher Sec. Part-I' },
+  { id: '12th', label: 'Class 12th', sub: 'Higher Sec. Part-II' },
+];
 
 export default function ClassBoardResultsSection({ className = '', defaultClass = '10th' }) {
   const [selectedClass, setSelectedClass] = useState(defaultClass);
@@ -12,6 +18,28 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
   const [showFullRoster, setShowFullRoster] = useState(false);
   const [rosterFilter, setRosterFilter] = useState('');
 
+  const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
+  const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
+  const classDropdownRef = useRef(null);
+  const sessionDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (classDropdownRef.current && !classDropdownRef.current.contains(event.target)) {
+        setIsClassDropdownOpen(false);
+      }
+      if (sessionDropdownRef.current && !sessionDropdownRef.current.contains(event.target)) {
+        setIsSessionDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
+
   const cohort = useMemo(() => {
     return classCohorts.find(c => c.id === selectedCohortId) || classCohorts[0];
   }, [classCohorts, selectedCohortId]);
@@ -22,6 +50,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
     setSelectedCohortId(newCohorts[0]?.id || '');
     setShowFullRoster(false);
     setRosterFilter('');
+    setIsClassDropdownOpen(false);
   };
 
   const handlePrint = () => {
@@ -87,68 +116,158 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
 
   return (
     <div className={`w-full max-w-2xl mx-auto font-sans ${className}`}>
-      {/* Class Switcher — Minimal & Compact */}
-      <div className="flex items-center justify-center mb-2.5 print-hide">
-        <div className="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs">
+      {/* Side-by-Side Class & Session Dropdowns (Checkbox Selector UI to maximize on-screen space) */}
+      <div className="grid grid-cols-2 gap-2 mb-2.5 print-hide w-full">
+        {/* Class Dropdown */}
+        <div className="relative" ref={classDropdownRef}>
           <button
             type="button"
-            onClick={() => handleClassChange('10th')}
-            className={`px-3 py-1 font-semibold rounded-md transition-colors cursor-pointer ${
-              selectedClass === '10th'
-                ? 'bg-teal-700 text-white shadow-2xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            id="class-selector-dropdown-btn"
+            aria-haspopup="listbox"
+            aria-expanded={isClassDropdownOpen}
+            onClick={() => {
+              setIsClassDropdownOpen(prev => !prev);
+              setIsSessionDropdownOpen(false);
+            }}
+            className={`w-full h-9 px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-between gap-1 shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 ${
+              isClassDropdownOpen
+                ? 'bg-slate-50 dark:bg-slate-800 border-teal-600 dark:border-teal-500 ring-1 ring-teal-500/30'
+                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 text-slate-800 dark:text-slate-100'
             }`}
           >
-            Class 10th
+            <span className="flex items-center gap-1.5 min-w-0 truncate">
+              <GraduationCap size={14} className="text-teal-600 shrink-0" />
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hidden xs:inline shrink-0">Class:</span>
+              <span className="font-bold truncate text-slate-900 dark:text-white">Class {selectedClass}</span>
+            </span>
+            <ChevronDown
+              size={13}
+              className={`text-slate-400 shrink-0 transition-transform duration-200 ${isClassDropdownOpen ? 'rotate-180 text-teal-600' : ''}`}
+            />
           </button>
-          <button
-            type="button"
-            onClick={() => handleClassChange('11th')}
-            className={`px-3 py-1 font-semibold rounded-md transition-colors cursor-pointer ${
-              selectedClass === '11th'
-                ? 'bg-teal-700 text-white shadow-2xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Class 11th
-          </button>
-          <button
-            type="button"
-            onClick={() => handleClassChange('12th')}
-            className={`px-3 py-1 font-semibold rounded-md transition-colors cursor-pointer ${
-              selectedClass === '12th'
-                ? 'bg-teal-700 text-white shadow-2xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Class 12th
-          </button>
-        </div>
-      </div>
 
-      {/* Session Switcher — Standardized Session Names */}
-      <div className="flex items-center justify-center gap-1.5 mb-4 flex-wrap print-hide">
-        {classCohorts.map((item) => {
-          const isActive = item.id === cohort?.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                setSelectedCohortId(item.id);
-                setShowFullRoster(false);
-                setRosterFilter('');
-              }}
-              className={`px-3 py-1 text-xs font-semibold rounded transition-colors cursor-pointer border ${
-                isActive
-                  ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white shadow-2xs'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-              }`}
+          {isClassDropdownOpen && (
+            <div
+              role="listbox"
+              aria-label="Select Class"
+              className="absolute left-0 top-full mt-1 w-full min-w-[170px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-40 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
             >
-              {item.examPeriod}
-            </button>
-          );
-        })}
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                Select Class
+              </div>
+              {AVAILABLE_CLASSES.map((cls) => {
+                const isSelected = selectedClass === cls.id;
+                return (
+                  <button
+                    key={cls.id}
+                    role="option"
+                    aria-selected={isSelected}
+                    type="button"
+                    onClick={() => handleClassChange(cls.id)}
+                    className={`w-full px-2.5 py-2 text-left text-xs flex items-center gap-2.5 hover:bg-teal-50/70 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
+                      isSelected ? 'bg-teal-50/90 dark:bg-slate-800/90 font-bold text-teal-900 dark:text-teal-200' : 'text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 rounded shrink-0 flex items-center justify-center border transition-all ${
+                        isSelected
+                          ? 'bg-teal-600 border-teal-600 text-white shadow-2xs'
+                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
+                      }`}
+                    >
+                      {isSelected && <Check size={11} strokeWidth={3.2} />}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate leading-snug">{cls.label}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal truncate">{cls.sub}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Session Dropdown */}
+        <div className="relative" ref={sessionDropdownRef}>
+          <button
+            type="button"
+            id="session-selector-dropdown-btn"
+            aria-haspopup="listbox"
+            aria-expanded={isSessionDropdownOpen}
+            onClick={() => {
+              setIsSessionDropdownOpen(prev => !prev);
+              setIsClassDropdownOpen(false);
+            }}
+            className={`w-full h-9 px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-between gap-1 shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 ${
+              isSessionDropdownOpen
+                ? 'bg-slate-50 dark:bg-slate-800 border-teal-600 dark:border-teal-500 ring-1 ring-teal-500/30'
+                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 text-slate-800 dark:text-slate-100'
+            }`}
+          >
+            <span className="flex items-center gap-1.5 min-w-0 truncate">
+              <Calendar size={14} className="text-teal-600 shrink-0" />
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hidden xs:inline shrink-0">Session:</span>
+              <span className="font-bold truncate text-slate-900 dark:text-white">{cohort?.examPeriod || 'Select Session'}</span>
+            </span>
+            <ChevronDown
+              size={13}
+              className={`text-slate-400 shrink-0 transition-transform duration-200 ${isSessionDropdownOpen ? 'rotate-180 text-teal-600' : ''}`}
+            />
+          </button>
+
+          {isSessionDropdownOpen && (
+            <div
+              role="listbox"
+              aria-label="Select Examination Session"
+              className="absolute right-0 top-full mt-1 w-full min-w-[220px] sm:min-w-[260px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-40 py-1 overflow-hidden max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
+            >
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span>Select Examination Session</span>
+                <span className="text-[9px] font-normal text-slate-400">{classCohorts.length} sessions</span>
+              </div>
+              {classCohorts.map((item) => {
+                const isSelected = item.id === cohort?.id;
+                return (
+                  <button
+                    key={item.id}
+                    role="option"
+                    aria-selected={isSelected}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCohortId(item.id);
+                      setShowFullRoster(false);
+                      setRosterFilter('');
+                      setIsSessionDropdownOpen(false);
+                    }}
+                    className={`w-full px-2.5 py-2 text-left text-xs flex items-center gap-2.5 hover:bg-teal-50/70 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
+                      isSelected ? 'bg-teal-50/90 dark:bg-slate-800/90 font-bold text-teal-900 dark:text-teal-200' : 'text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 rounded shrink-0 flex items-center justify-center border transition-all ${
+                        isSelected
+                          ? 'bg-teal-600 border-teal-600 text-white shadow-2xs'
+                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
+                      }`}
+                    >
+                      {isSelected && <Check size={11} strokeWidth={3.2} />}
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="truncate leading-snug">{item.examPeriod}</span>
+                      {item.summaryStats?.overallPercent && (
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal flex items-center gap-2">
+                          <span>Pass: <strong className="text-emerald-700 dark:text-emerald-400 font-semibold">{item.summaryStats.overallPercent}</strong></span>
+                          <span>Appeared: {item.summaryStats.appeared}</span>
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Official Table Card — Exactly matching official institutional image layout & printable */}
@@ -174,64 +293,64 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
         </div>
 
         {/* Action Header on Screen */}
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 border-b border-slate-200 dark:border-slate-800 pb-2 print-hide">
-          <div className="text-left">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400">
-              Official Performance Gazette
+        <div className="flex items-center justify-between gap-1.5 mb-2.5 border-b border-slate-200 dark:border-slate-800 pb-2 print-hide">
+          <div className="text-left min-w-0">
+            <span className="text-[9.5px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block leading-none">
+              Gazette Statement
             </span>
-            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate mt-0.5">
               Class {cohort.class} • {cohort.examPeriod}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Multi-Column / Horizontal Layout Switcher */}
             <div className="inline-flex p-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[11px] font-medium">
               <button
                 type="button"
                 onClick={() => setSummaryLayout('multicolumn')}
-                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
                   summaryLayout === 'multicolumn'
                     ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold shadow-2xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
                 title="Multi-column structured table (2×4)"
               >
-                Multi-Column
+                Columns
               </button>
               <button
                 type="button"
                 onClick={() => setSummaryLayout('horizontal')}
-                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
                   summaryLayout === 'horizontal'
                     ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold shadow-2xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
                 title="Horizontal gazette summary"
               >
-                Horizontal
+                Row
               </button>
             </div>
 
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-2xs transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-2xs transition-colors cursor-pointer"
               title="Print clean official result sheet"
             >
-              <Printer size={13} />
-              <span>Print Clean Statement</span>
+              <Printer size={12} />
+              <span className="hidden sm:inline">Print</span>
             </button>
           </div>
         </div>
 
         {/* Header Title Section on Screen */}
-        <div className="text-center mb-3">
-          <h3 className="text-sm sm:text-base font-bold text-red-600 dark:text-red-500 tracking-tight">
+        <div className="text-center mb-2.5">
+          <h3 className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-500 tracking-tight">
             {cohort.title}
           </h3>
-          <div className="mt-1 inline-block bg-[#d1f2d9] dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 px-3 py-0.5 rounded">
-            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-emerald-200">
+          <div className="mt-0.5 inline-block bg-[#d1f2d9] dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 px-2.5 py-0.5 rounded">
+            <h4 className="text-[11px] sm:text-xs font-bold text-slate-900 dark:text-emerald-200">
               {cohort.schoolName}
             </h4>
           </div>

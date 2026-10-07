@@ -144,7 +144,7 @@ export default function Achievements() {
   };
 
   return (
-    <div className="public-page relative w-full min-h-screen py-6 sm:py-10 overflow-hidden isolate">
+    <div className="public-page relative w-full min-h-screen pt-2.5 sm:pt-6 pb-6 sm:pb-10 overflow-hidden isolate">
       <EducationalBackground variant="academics" />
       <SEO
         title="School Achievements & Hall of Fame"
@@ -153,49 +153,49 @@ export default function Achievements() {
 
       <div className="max-w-6xl mx-auto px-3 sm:px-6 relative z-10 w-full min-w-0">
         
-        {/* Header Section */}
-        <header className="text-center mb-6 sm:mb-8 px-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-white/90 text-amber-800 border border-amber-200 shadow-xs mb-3 backdrop-blur-sm">
-            <Trophy size={14} className="text-amber-600 animate-pulse" />
-            <span className="tracking-wide uppercase text-[9.5px] sm:text-[11px] font-extrabold">
+        {/* Header Section — Compact & Space Efficient */}
+        <header className="text-center mb-3 sm:mb-5 px-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-white/90 text-amber-800 border border-amber-200 shadow-xs mb-1.5 backdrop-blur-sm">
+            <Trophy size={13} className="text-amber-600 animate-pulse" />
+            <span className="tracking-wide uppercase font-extrabold">
               Hall of Fame &amp; Scholastic Honors
             </span>
           </div>
           <h1 className="ui-page-title text-xl sm:text-3xl md:text-4xl text-slate-800 dark:text-white font-extrabold">
             School Achievements &amp; Merits
           </h1>
-          <div className="h-1.5 w-24 sm:w-28 bg-gradient-to-r from-amber-500 via-teal-400 to-indigo-500 mx-auto mt-2.5 sm:mt-3 rounded-full shadow-xs" />
-          <p className="text-xs sm:text-base text-slate-700 dark:text-slate-300 font-medium mt-2.5 sm:mt-3 max-w-2xl mx-auto leading-relaxed">
+          <div className="h-1 w-20 sm:w-28 bg-gradient-to-r from-amber-500 via-teal-400 to-indigo-500 mx-auto mt-1.5 sm:mt-2 rounded-full shadow-xs" />
+          <p className="text-[11px] sm:text-sm text-slate-600 dark:text-slate-300 font-medium mt-1.5 sm:mt-2 max-w-xl mx-auto leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
             Honoring our distinguished national qualifiers (NEET-UG &amp; JEE) and J&amp;K UT state board position holders who have brought supreme institutional pride to Govt. Higher Secondary School Shangus.
           </p>
         </header>
 
         {/* ── VIEW SWITCHER TABS ── */}
-        <div className="flex items-center justify-center mb-6 px-2">
-          <div className="inline-flex p-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-w-full overflow-x-auto gap-1">
+        <div className="flex items-center justify-center mb-2.5 sm:mb-4 px-2">
+          <div className="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-w-full overflow-x-auto gap-1">
             <button
               type="button"
               onClick={() => handleTabChange('board_results')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                 activeViewTab === 'board_results'
                   ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs border border-slate-200 dark:border-slate-700'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Award size={14} className={activeViewTab === 'board_results' ? 'text-teal-600' : 'text-slate-400'} />
+              <Award size={13} className={activeViewTab === 'board_results' ? 'text-teal-600' : 'text-slate-400'} />
               <span>Class 10th, 11th &amp; 12th Results</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleTabChange('honors')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                 activeViewTab === 'honors'
                   ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs border border-slate-200 dark:border-slate-700'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Trophy size={14} className={activeViewTab === 'honors' ? 'text-amber-600' : 'text-slate-400'} />
+              <Trophy size={13} className={activeViewTab === 'honors' ? 'text-amber-600' : 'text-slate-400'} />
               <span>Honors &amp; Hall of Fame</span>
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                 {achievements.length}
