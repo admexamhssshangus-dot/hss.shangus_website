@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { Printer } from 'lucide-react';
 import { BOARD_RESULTS_BY_CLASS, CLASS_10_BOARD_RESULTS } from '../data/classBoardResults';
 
 export default function ClassBoardResultsSection({ className = '', defaultClass = '10th' }) {
@@ -23,6 +24,16 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
     setRosterFilter('');
   };
 
+  const handlePrint = () => {
+    if (typeof document !== 'undefined') {
+      document.body.classList.add('clean-print-mode', 'result-table-print-mode');
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('clean-print-mode', 'result-table-print-mode');
+      }, 1200);
+    }
+  };
+
   const filteredRoster = useMemo(() => {
     if (!cohort?.allCandidates) return [];
     if (!rosterFilter.trim()) return cohort.allCandidates;
@@ -40,7 +51,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
   return (
     <div className={`w-full max-w-2xl mx-auto font-sans ${className}`}>
       {/* Class Switcher — Minimal & Compact */}
-      <div className="flex items-center justify-center mb-2.5">
+      <div className="flex items-center justify-center mb-2.5 print-hide">
         <div className="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs">
           <button
             type="button"
@@ -79,7 +90,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
       </div>
 
       {/* Session Switcher — Standardized Session Names */}
-      <div className="flex items-center justify-center gap-1.5 mb-4 flex-wrap">
+      <div className="flex items-center justify-center gap-1.5 mb-4 flex-wrap print-hide">
         {classCohorts.map((item) => {
           const isActive = item.id === cohort?.id;
           return (
@@ -103,10 +114,51 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
         })}
       </div>
 
-      {/* Official Table Card — Exactly matching official institutional image layout */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-3 sm:p-5 shadow-2xs">
+      {/* Official Table Card — Exactly matching official institutional image layout & printable */}
+      <div className="printable-result-sheet bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-3 sm:p-5 shadow-2xs">
         
-        {/* Header Title Section */}
+        {/* Print-Only Official Letterhead Header */}
+        <div className="print-only text-center mb-4 pb-2 border-b-2 border-slate-800">
+          <h2 className="text-base font-extrabold tracking-tight uppercase text-black">
+            Government Higher Secondary School Shangus, Anantnag
+          </h2>
+          <p className="text-[11px] font-semibold text-slate-700">
+            Office of the Academic Examination Committee • Jammu &amp; Kashmir Board of School Education (JKBOSE)
+          </p>
+          <div className="mt-1.5 inline-block px-3 py-0.5 border border-black rounded text-[11px] font-bold text-black uppercase">
+            Official Board Examination Performance Statement &amp; Gazette Summary
+          </div>
+          <div className="mt-2 flex justify-between text-[11px] font-medium text-slate-800 px-1">
+            <span><strong>Class:</strong> {cohort.class}</span>
+            <span><strong>Session / Cohort:</strong> {cohort.examPeriod}</span>
+            <span><strong>Institution:</strong> {cohort.schoolName}</span>
+            <span><strong>Date of Print:</strong> {new Date().toLocaleDateString('en-GB')}</span>
+          </div>
+        </div>
+
+        {/* Action Header on Screen */}
+        <div className="flex items-center justify-between mb-3 border-b border-slate-200 dark:border-slate-800 pb-2 print-hide">
+          <div className="text-left">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400">
+              Official Performance Gazette
+            </span>
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Class {cohort.class} • {cohort.examPeriod}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-2xs transition-colors cursor-pointer"
+            title="Print clean official result sheet"
+          >
+            <Printer size={13} />
+            <span>Print Clean Statement</span>
+          </button>
+        </div>
+
+        {/* Header Title Section on Screen */}
         <div className="text-center mb-3">
           <h3 className="text-sm sm:text-base font-bold text-red-600 dark:text-red-500 tracking-tight">
             {cohort.title}
@@ -219,7 +271,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
 
         {/* Optional Gazette Roster Toggle (Compact & Minimal) */}
         {cohort.allCandidates && cohort.allCandidates.length > 0 && (
-          <div className="pt-2.5 border-t border-slate-200 dark:border-slate-800 text-xs">
+          <div className="pt-2.5 border-t border-slate-200 dark:border-slate-800 text-xs print-hide">
             <div className="flex items-center justify-between">
               <button
                 type="button"
@@ -227,13 +279,6 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
                 className="font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white underline cursor-pointer"
               >
                 {showFullRoster ? 'Hide all candidates' : `View all ${cohort.allCandidates.length} candidates roster`}
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
-              >
-                Print table
               </button>
             </div>
 
@@ -279,6 +324,28 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
             )}
           </div>
         )}
+
+        {/* Print-Only Official Endorsement & Verification Signatures */}
+        <div className="print-only mt-8 pt-4 border-t border-slate-400">
+          <div className="flex justify-between items-end text-xs font-semibold text-black px-6 pt-10">
+            <div className="text-center">
+              <div className="w-36 border-t border-black mb-1"></div>
+              <span>Incharge Examination</span>
+            </div>
+            <div className="text-center">
+              <div className="w-20 h-20 border border-dashed border-slate-400 rounded-full flex items-center justify-center text-[9px] text-slate-500 mb-2 mx-auto">
+                Official Seal
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="w-36 border-t border-black mb-1"></div>
+              <span>Principal / Head of Institution</span>
+            </div>
+          </div>
+          <p className="text-[9.5px] text-center text-slate-600 mt-4">
+            Official Institutional Record • Govt. Higher Secondary School Shangus, Anantnag • Verified Against Official JKBOSE Gazette
+          </p>
+        </div>
 
       </div>
     </div>

@@ -2183,6 +2183,56 @@ html, body, #root {
   table { border-collapse: collapse !important; width: 100% !important; }
   table td, table th { padding: 4px !important; }
 }
+
+/* Print styles: Clean Board Result Gazette & Performance Statements */
+.print-only {
+  display: none;
+}
+
+@media print {
+  body.result-table-print-mode * {
+    visibility: hidden;
+  }
+  body.result-table-print-mode .printable-result-sheet,
+  body.result-table-print-mode .printable-result-sheet * {
+    visibility: visible;
+  }
+  body.result-table-print-mode .printable-result-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 16px 20px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  body.result-table-print-mode .print-hide {
+    display: none !important;
+  }
+  body.result-table-print-mode .print-only {
+    display: block !important;
+  }
+  body.result-table-print-mode table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    color: #000000 !important;
+  }
+  body.result-table-print-mode table th,
+  body.result-table-print-mode table td {
+    border: 1px solid #475569 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    padding: 4px 8px !important;
+  }
+  body.result-table-print-mode table th {
+    background: #f1f5f9 !important;
+    font-weight: 700 !important;
+  }
+}
 .theme-light .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
   border-color: var(--border-ui) !important;
 }
