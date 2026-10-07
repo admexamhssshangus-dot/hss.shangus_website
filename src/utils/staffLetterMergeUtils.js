@@ -429,7 +429,7 @@ export function getEmployeeVariablesMap(emp = {}, extraContext = {}) {
   const subject_pg = emp.subject_pg || emp.subject || emp.customFields?.['PG Subject'] || '—';
   const bed = emp.bed || emp.customFields?.['B.ED'] || emp.customFields?.bed || '—';
   const zone_name = emp.zone_name || emp.zone || 'Shangus';
-  const ddo_code = emp.ddo_code || emp.udise_code || '1061400618';
+  const ddo_code = emp.ddo_code || emp.udise_code || '01061400618';
   const raw80c = parseFloat(emp.deduction_80c) || parseFloat(emp.tax80C) || parseFloat(emp.customFields?.['80C']) || 0;
   const deduction_80c = raw80c > 0 ? formatCurrencyInr(raw80c) : '—';
   const raw80d = parseFloat(emp.deduction_80d) || parseFloat(emp.tax80D) || parseFloat(emp.customFields?.['80D']) || 0;

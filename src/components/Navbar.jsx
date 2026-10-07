@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { Phone, Mail, X, Menu, Lock, LogOut, User } from 'lucide-react';
+import { Phone, Mail, X, Menu, Lock, LogOut, User, ChevronDown, ChevronRight, GraduationCap, UserCheck, ShieldCheck } from 'lucide-react';
 import { sessionManager } from '../services/sessionManager';
 import { showToast } from './common/GlobalToast';
 
@@ -47,6 +47,25 @@ export default function Navbar() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [loginDropdownOpen, setLoginDropdownOpen] = useState(false);
+  const loginTimeoutRef = useRef(null);
+
+  const handleLoginMouseEnter = () => {
+    if (loginTimeoutRef.current) clearTimeout(loginTimeoutRef.current);
+    setLoginDropdownOpen(true);
+  };
+
+  const handleLoginMouseLeave = () => {
+    loginTimeoutRef.current = setTimeout(() => {
+      setLoginDropdownOpen(false);
+    }, 150);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (loginTimeoutRef.current) clearTimeout(loginTimeoutRef.current);
+    };
+  }, []);
 
   const checkAuthStatus = () => {
     // 1. Check portal session via sessionManager (primary source of truth)
@@ -462,19 +481,64 @@ export default function Navbar() {
                   </Link>
                 ))}
 
-                {/* Login Button right beside Admissions when NOT logged in */}
+                {/* Login Button with Hover Submenu (Student, Teacher, Admin) when NOT logged in */}
                 {!currentUser && (
-                  <Link
-                    to="/portal/login"
-                    className="ml-2.5 px-3.5 py-1 text-xs font-black rounded-md text-white transition-all duration-200 inline-flex items-center gap-1.5 shadow-md outline-none border-0 hover:scale-[1.03] active:scale-[0.97]"
-                    style={{ backgroundColor: '#005943' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#004232'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#005943'; }}
-                    title="Student & Staff Login Portal"
+                  <div
+                    className="relative ml-2.5 inline-block text-left"
+                    onMouseEnter={handleLoginMouseEnter}
+                    onMouseLeave={handleLoginMouseLeave}
                   >
-                    <Lock size={12} className="stroke-[2.5]" />
-                    <span>Login</span>
-                  </Link>
+                    <Link
+                      to="/portal/login"
+                      className="px-3.5 py-1 text-xs font-black rounded-md text-white transition-all duration-200 inline-flex items-center gap-1.5 shadow-md outline-none border-0 hover:scale-[1.03] active:scale-[0.97]"
+                      style={{ backgroundColor: '#005943' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#004232'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#005943'; }}
+                      title="Student, Teacher & Admin Login Portal"
+                      aria-haspopup="true"
+                      aria-expanded={loginDropdownOpen}
+                    >
+                      <Lock size={12} className="stroke-[2.5]" />
+                      <span>Login</span>
+                      <ChevronDown size={11} className={`transition-transform duration-200 opacity-80 ${loginDropdownOpen ? 'rotate-180' : ''}`} />
+                    </Link>
+
+                    {/* Desktop Hover Submenu — Minimal & Compact */}
+                    <div
+                      className={`absolute right-0 top-full pt-1.5 w-48 z-50 transition-all duration-150 ${
+                        loginDropdownOpen ? 'opacity-100 visible translate-y-0 pointer-events-auto' : 'opacity-0 invisible -translate-y-1 pointer-events-none'
+                      }`}
+                    >
+                      <div className="bg-slate-900/98 backdrop-blur-md border border-slate-700/60 rounded-xl shadow-xl p-1 text-white space-y-0.5">
+                        <Link
+                          to="/portal/login?role=student"
+                          onClick={() => { setLoginDropdownOpen(false); window.scrollTo(0, 0); }}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800 transition-colors"
+                        >
+                          <GraduationCap size={15} className="text-blue-400 shrink-0" />
+                          <span className="text-xs font-semibold">Student Login</span>
+                        </Link>
+
+                        <Link
+                          to="/portal/login?role=teacher"
+                          onClick={() => { setLoginDropdownOpen(false); window.scrollTo(0, 0); }}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800 transition-colors"
+                        >
+                          <UserCheck size={15} className="text-emerald-400 shrink-0" />
+                          <span className="text-xs font-semibold">Teacher Login</span>
+                        </Link>
+
+                        <Link
+                          to="/portal/login?role=admin"
+                          onClick={() => { setLoginDropdownOpen(false); window.scrollTo(0, 0); }}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800 transition-colors"
+                        >
+                          <ShieldCheck size={15} className="text-amber-400 shrink-0" />
+                          <span className="text-xs font-semibold">Standard Admin</span>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -604,16 +668,40 @@ export default function Navbar() {
                       </button>
                     </div>
                   ) : (
-                    <Link 
-                      to="/portal/login" 
-                      onClick={() => setMobileOpen(false)} 
-                      className="w-full px-4 py-2.5 rounded-xl font-black text-sm transition-all duration-200 flex items-center justify-center gap-2"
-                      style={{ backgroundColor: '#0f766e', color: '#fff', border: '1px solid #0d9488' }}
-                      title="Student & Staff Login Portal"
-                    >
-                      <Lock size={14} className="stroke-[2.5]" />
-                      Login
-                    </Link>
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                        Portal Logins
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <Link 
+                          to="/portal/login?role=student" 
+                          onClick={() => setMobileOpen(false)} 
+                          className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-200 transition-colors"
+                          title="Student Login"
+                        >
+                          <GraduationCap size={14} className="text-blue-400" />
+                          <span className="text-[11px] font-semibold">Student</span>
+                        </Link>
+                        <Link 
+                          to="/portal/login?role=teacher" 
+                          onClick={() => setMobileOpen(false)} 
+                          className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-200 transition-colors"
+                          title="Teacher Login"
+                        >
+                          <UserCheck size={14} className="text-emerald-400" />
+                          <span className="text-[11px] font-semibold">Teacher</span>
+                        </Link>
+                        <Link 
+                          to="/portal/login?role=admin" 
+                          onClick={() => setMobileOpen(false)} 
+                          className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-200 transition-colors"
+                          title="Admin Login"
+                        >
+                          <ShieldCheck size={14} className="text-amber-400" />
+                          <span className="text-[11px] font-semibold">Admin</span>
+                        </Link>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

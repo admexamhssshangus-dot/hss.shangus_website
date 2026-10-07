@@ -25,9 +25,35 @@ export default function About() {
   });
   const [showFullGlimpse, setShowFullGlimpse] = useState(false);
   const cardRef = useRef(null);
+  const fullGlimpseRef = useRef(null);
 
   const handleToggleGlimpses = () => {
-    setShowFullGlimpse(prev => !prev);
+    setShowFullGlimpse(prev => {
+      const willOpen = !prev;
+      if (willOpen) {
+        // Automatically smoothly scroll down to the full glimpse section
+        setTimeout(() => {
+          if (fullGlimpseRef.current) {
+            const navOffset = 90;
+            const elementTop = fullGlimpseRef.current.getBoundingClientRect().top + window.scrollY;
+            window.scrollTo({
+              top: Math.max(0, elementTop - navOffset),
+              behavior: 'smooth'
+            });
+          }
+        }, 80);
+      } else {
+        if (cardRef.current) {
+          const navOffset = 110;
+          const elementTop = cardRef.current.getBoundingClientRect().top + window.scrollY;
+          window.scrollTo({
+            top: Math.max(0, elementTop - navOffset),
+            behavior: 'smooth'
+          });
+        }
+      }
+      return willOpen;
+    });
   };
 
   const handleCollapseGlimpses = () => {
@@ -101,7 +127,16 @@ export default function About() {
         
         <div className="relative z-10 px-3 sm:px-4 max-w-4xl mx-auto">
           <h1 className="ui-page-title text-xl xs:text-2xl sm:text-3xl md:text-4xl text-white mb-1.5 sm:mb-2 drop-shadow-md">About Our Institution</h1>
-          <h3 className="text-base xs:text-lg sm:text-xl md:text-2xl font-semibold text-teal-300 mb-3 sm:mb-6 drop-shadow-sm">A Beacon of Knowledge</h3>
+          <h3 className="text-base xs:text-lg sm:text-xl md:text-2xl font-semibold text-teal-300 mb-2.5 sm:mb-3 drop-shadow-sm">A Beacon of Knowledge</h3>
+          
+          {/* Institutional Credentials Badge */}
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-slate-950/85 border border-teal-500/40 backdrop-blur-md text-[11px] sm:text-xs text-slate-200 font-mono shadow-md mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true" />
+            <span>Board Reg. No.: <strong className="text-white font-bold tracking-wider">010061</strong></span>
+            <span className="text-white/40">|</span>
+            <span>UDISE code: <strong className="text-teal-300 font-bold tracking-wider">01061400618</strong></span>
+          </div>
+
           <p
             className="about-hero-desc text-xs sm:text-sm md:text-base leading-relaxed max-w-2xl mx-auto font-medium"
             style={{
@@ -138,12 +173,19 @@ export default function About() {
                 <div className="min-w-0">
                   <h3 className="text-lg xs:text-xl sm:text-2xl font-bold text-teal-950 leading-tight">Glimpse of the Institution</h3>
                   <p className="text-[11px] sm:text-xs text-slate-600 font-semibold truncate xs:whitespace-normal">A legacy of learning, scenic splendor &amp; leadership since 1917</p>
+                  <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] font-mono text-teal-900">
+                    <span className="bg-teal-50 px-2 py-0.5 rounded border border-teal-200">Board Reg. No.: <strong>010061</strong></span>
+                    <span className="text-slate-400">|</span>
+                    <span className="bg-teal-50 px-2 py-0.5 rounded border border-teal-200">UDISE code: <strong>01061400618</strong></span>
+                  </div>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={handleToggleGlimpses}
+                aria-expanded={showFullGlimpse}
+                aria-controls="full-glimpse-section"
                 className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm shadow-sm hover:shadow transition-all duration-200 cursor-pointer self-start sm:self-auto hover:scale-[1.02] active:scale-[0.98]"
               >
                 <span>{showFullGlimpse ? 'Hide Full Glimpses' : 'View Full Glimpses'}</span>
@@ -180,7 +222,11 @@ export default function About() {
 
             {/* Expandable Detailed 4 Pillar Glimpses */}
             {showFullGlimpse && (
-              <div className="space-y-3.5 pt-2 animate-fadeIn relative z-10">
+              <div
+                ref={fullGlimpseRef}
+                id="full-glimpse-section"
+                className="space-y-3.5 pt-2 animate-fadeIn relative z-10 scroll-mt-24"
+              >
                 {/* 4 Pillars Header Banner */}
                 <div className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3.5 rounded-xl bg-gradient-to-r from-teal-800 via-teal-700 to-emerald-800 text-white shadow-md border border-teal-500/40">
                   <div className="flex items-center gap-2 min-w-0">

@@ -2,54 +2,59 @@
 
 ## Commit Message
 
-`fix(security): decouple AnalyticsSuite from masterSeedData and untrack sensitive databases`
+`feat(portal): add minimal outline-free login submenu, display UDISE & Board codes on About page, and fix glimpse scroll`
 
 ## Files Changed & Remediated
 
-1. `src/portal/admin/AnalyticsSuiteModal.jsx`:
-   - Decoupled legacy fallback from `src/data/masterSeedData.json`.
-   - Connected fallback directly to authenticated `getMasterRegistersScoped({ forceAll: true })` from `src/services/dbCache`.
-   - Eliminated the 5.57 MB client bundle chunk (`1193.*.chunk.js`) containing 192,000+ lines of student PII from Webpack production builds.
-2. `public/slides/settings.json`:
-   - Sanitized test payment gateway identifiers (`cashfree.appId` and `razorpay.keyId`) to clean empty values `""`.
-3. `db_30 Jul 2026.xlsx`:
-   - Untracked from the Git index. Retained safely on local disk for offline script use, strictly ignored by `.gitignore`.
-4. `src/data/masterSeedData.json`:
-   - Completely removed from the project tree and Git index.
-5. `Git History Purge (All 1,180 Historical Commits Rewritten via git-filter-repo)`:
-   - `db_30 Jul 2026.xlsx` permanently expunged across all historical commits.
-   - `src/data/masterSeedData.json` permanently expunged across all historical commits.
-   - `public/slides/admins.json` (admin credentials) permanently expunged across all historical commits.
-   - `public/slides/faculty_roster.csv` & `faculty_roster_custom.csv` (staff PII) permanently expunged across all historical commits.
-   - `public/slides/messages.json` (contact inquiries) permanently expunged across all historical commits.
-   - Historical node_modules bloat (`netlify/functions/node_modules/`, `functions/node_modules/`) permanently expunged.
-   - Plaintext secret key string (`admin@4737`) scrubbed and replaced with `[REDACTED_SECRET]` across all historical commit diffs.
+1. `src/components/Navbar.jsx`:
+   - **Minimal & Compact Login Hover Submenu**: Redesigned the desktop hover submenu into a clean, compact (48px / 192px width), outline-free list. Removed all heavy borders, header banners, and box outlines around individual items. Each item is a sleek single row with smooth background hover highlighting and colored Lucide glyphs:
+     - 🎓 **Student Login** (`/portal/login?role=student`)
+     - 👨‍🏫 **Teacher Login** (`/portal/login?role=teacher`)
+     - 🛡️ **Standard Admin** (`/portal/login?role=admin`)
+   - **Streamlined Mobile Login Grid**: Clean, borderless 3-button quick role selector for mobile drawer navigation.
+
+2. `src/portal/LoginPage.jsx`:
+   - **Automatic Role Tab Routing**: Configured `LoginPage` to parse the `role` / `tab` URL query parameter (`?role=student|teacher|admin|superadmin`) and location state on initial render and route changes, automatically activating the corresponding workspace tab and chromatic theme.
+
+3. `src/pages/About.jsx`:
+   - **Institutional Credentials Display**: Added authentic school accreditation badge (`Board Reg. No.: 010061 | UDISE code: 01061400618`) in the hero section and the "Glimpse of the Institution" card header.
+   - **Smooth Glimpse Scroll Redirection**: Attached `fullGlimpseRef` to the expanded 4 Institutional Pillars section so clicking **"View Full Glimpses"** automatically expands and smoothly scrolls down into the full glimpses, removing the need for manual scrolling. Collapsing smoothly scrolls back to the card header.
+
+4. `src/pages/Home.jsx`:
+   - **Pristine Hero Layout**: Completely removed the pill badge from the hero section and the mobile stats card per user request, keeping the hero clean, fast, and uncluttered.
+   - **Audience Quick Action Hub**: Added 4 accessible launcher cards (Admissions, Official Notices, Board Results & Gazettes, Digital Campus ERP Portals).
+   - **Eliminated `"0+"` Stat Flicker**: Fixed `AnimatedCounter` to render verified benchmark milestone values immediately on initial paint.
+
+5. `public/index.html` & `public/search-overview.css`:
+   - **Eliminated Blocking Loader**: Replaced the blocking fullscreen overlay ("Loading School Data…") with an instant 3px top shimmer hydration bar (`.hss-hydration-indicator`).
+   - Added accessible keyboard skip navigation link (`.hss-skip-link`).
+
+6. `scripts/generate-search-pages.js` & `src/seo/siteSeo.js`:
+   - Updated pre-rendered search overview templates and structured data with authentic institutional information (`Board Reg. No.: 010061 | UDISE code: 01061400618`).
+   - Set high fetch priority on hero card media for optimal Largest Contentful Paint (LCP).
+
+7. `src/pages/AdminPortal.jsx` & `src/utils/staffLetterMergeUtils.js`:
+   - Standardized the 11-digit school UDISE code default to **`01061400618`** (preserving leading zero) across administrative exports and staff letter merges.
 
 ## Verification
 
-- `git log --all -- "db_30 Jul 2026.xlsx"` verified empty (0 commits).
-- `git log --all -- "src/data/masterSeedData.json"` verified empty (0 commits).
-- `git log --all -- "public/slides/admins.json"` verified empty (0 commits).
-- `git log -S "admin@4737"` verified empty (0 commits).
-- `npm run build` executed and completed with Exit Code 0 and all 12 public pages and SEO checks verified.
-- The 5.57 MB chunk `1193.*.chunk.js` is completely gone from the build output.
-- Full safety backup of the original `.git` directory saved at: `C:\Users\SHEIKH GULFAM\.gemini\antigravity-ide\brain\c2f99f6d-ad83-437b-9943-1af9f79cf706\scratch\git_backup`.
+- `npm run build` executed and completed with **Exit Code 0**.
+- All 12 public HTML pages generated and validated.
+- All SEO regression checks, metadata, sitemaps, and accessibility tags verified passing.
 
-## Instructions for User: Manual Remote Force-Push & Secret Rotation
+## Instructions for User: Manual Push & Inspection
 
-Because Git history has been rewritten to strip sensitive records from past commits, all commit SHAs have changed. A one-time force-push is required to update the remote repository:
-
-1. **Review local Git log**:
+1. **Inspect Commit History**:
    ```bash
-   git log -n 5 --stat
+   git log -n 1 --stat
    ```
-2. **Force push all branches to GitHub** (Run manually whenever you are ready):
+2. **If You Want to Amend or Re-commit**:
    ```bash
-   git push origin --force --all
-   git push origin --force --tags
+   git reset --soft HEAD~1
+   git commit -m "feat(portal): add minimal outline-free login submenu, display UDISE & Board codes on About page, and fix glimpse scroll"
    ```
-3. **If you ever need to restore the pre-purge state**:
-   The safety backup of the original `.git` directory is preserved in the scratch backup folder.
-4. **Secret Rotation Recommendation**:
-   Following standard NIST/OWASP security practices, rotate the admin password and any API keys that were ever committed in earlier versions of the repository.
-
+3. **Push to Remote Repository** (Run manually whenever you are ready):
+   ```bash
+   git push origin main
+   ```
+   *(Note: If you recently purged git history for sensitive file cleanup, use `git push origin --force --all`)*

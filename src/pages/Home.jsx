@@ -99,7 +99,7 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '', compact = false, activ
   return (
     <span>
       {prefix}
-      <span ref={valueSpanRef}>{formatCounterVal(active !== null ? 0 : end, end, compact)}</span>
+      <span ref={valueSpanRef}>{formatCounterVal(end, end, compact)}</span>
       {suffix}
     </span>
   );
@@ -644,38 +644,6 @@ export default function Home() {
             <Hero3DExperience hoveredAction={hoveredHeroAction} />
           </React.Suspense>
         )}
-
-        {/* Real-time Google Cloud Traffic (Visible on Desktop at bottom-right of hero; on Mobile/Tablets moved cleanly after stats) */}
-        <aside
-          className={`hidden md:block absolute ${notices.length > 0 ? 'sm:bottom-[4.2rem]' : 'sm:bottom-4'} sm:right-5 z-30 pointer-events-auto select-none`}
-          aria-label="Real-time website traffic metrics"
-        >
-          <div
-            className="inline-flex items-center gap-1.5 sm:gap-2 text-[9px] xs:text-[10px] sm:text-xs text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] cursor-default transition-opacity hover:opacity-100 opacity-90 font-medium bg-slate-950/70 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none px-2 py-0.5 sm:p-0 rounded-full border border-white/20 sm:border-0 shadow-md sm:shadow-none"
-          >
-            {/* Live Indicator Dot */}
-            <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
-            </span>
-
-            {/* Metric 1: Searches / Impressions */}
-            <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
-              <Search size={10} className="text-teal-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] sm:w-[11px] sm:h-[11px]" />
-              <AnimatedCounter end={trafficStats.searches || trafficStats.visitors || 1900} suffix="+" compact={true} />
-              <span className="text-[8px] xs:text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">searches</span>
-            </span>
-
-            <span className="text-white/40 select-none">•</span>
-
-            {/* Metric 2: Clicks */}
-            <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
-              <MousePointerClick size={10} className="text-indigo-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] sm:w-[11px] sm:h-[11px]" />
-              <AnimatedCounter end={trafficStats.clicks || trafficStats.interactions || 724} suffix="+" compact={true} />
-              <span className="text-[8px] xs:text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">clicks</span>
-            </span>
-          </div>
-        </aside>
         
         <div className="relative z-20 px-3 sm:px-4">
           <h1
@@ -823,6 +791,99 @@ export default function Home() {
           </aside>
         )}
       </div>
+
+      {/* Audience Action Hub - Direct Navigation for Students, Parents, Faculty & Community */}
+      <section className="audience-action-hub max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-5 pb-1" aria-label="Quick Access Services">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+          <Link
+            to="/admissions"
+            className="group relative flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-teal-500/50 shadow-xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/60 flex items-center justify-center text-teal-700 dark:text-teal-300 group-hover:scale-105 transition-transform">
+                <GraduationCap size={18} />
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-2 py-0.5 rounded-md">
+                Admissions
+              </span>
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-teal-700 dark:group-hover:text-teal-400 transition-colors">
+                Apply for Admission
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium line-clamp-1 mt-0.5">
+                Class 9th–12th eligibility &amp; forms
+              </p>
+            </div>
+          </Link>
+
+          <Link
+            to="/notices"
+            className="group relative flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-amber-500/50 shadow-xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 flex items-center justify-center text-amber-700 dark:text-amber-300 group-hover:scale-105 transition-transform">
+                <Bell size={18} />
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md">
+                Updates
+              </span>
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
+                Notice Board &amp; Circulars
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium line-clamp-1 mt-0.5">
+                Datesheets, orders &amp; alerts
+              </p>
+            </div>
+          </Link>
+
+          <Link
+            to="/results"
+            className="group relative flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-500/50 shadow-xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center text-indigo-700 dark:text-indigo-300 group-hover:scale-105 transition-transform">
+                <Award size={18} />
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md">
+                Results
+              </span>
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors">
+                Board Results &amp; Gazettes
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium line-clamp-1 mt-0.5">
+                JKBOSE scorecards &amp; records
+              </p>
+            </div>
+          </Link>
+
+          <Link
+            to="/portal/login"
+            className="group relative flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-emerald-500/50 shadow-xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center text-emerald-700 dark:text-emerald-300 group-hover:scale-105 transition-transform">
+                <Lock size={18} />
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                Portals
+              </span>
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                Digital Campus ERP
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium line-clamp-1 mt-0.5">
+                Student, Teacher &amp; Admin Login
+              </p>
+            </div>
+          </Link>
+        </div>
+      </section>
 
       {/* Main Content Area: Notices, Principal & Key Stats */}
       <section id="home-briefing" className="home-briefing max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-12 grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-7 lg:gap-8 items-stretch" aria-label="School updates and Principal's message">
@@ -1002,55 +1063,6 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Real-time Google Search & Live Traffic (Positioned after the stats cards on Mobile & Tablets) */}
-          <div className="md:hidden mt-3 sm:mt-4">
-            <div className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/90 dark:border-slate-800 p-3 xs:p-3.5 sm:p-4 transition-all duration-300">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-teal-500 to-indigo-500" />
-              <div className="flex flex-col xs:flex-row items-center justify-between gap-2.5 sm:gap-4">
-                <div className="flex items-center gap-2.5 text-left w-full xs:w-auto">
-                  <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/60 flex items-center justify-center shrink-0">
-                    <span className="relative flex h-2 w-2" aria-hidden="true">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                    </span>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] xs:text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                        Google Search Traffic
-                      </span>
-                      <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.2 rounded-md">
-                        LIVE
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
-                      Real-time verified search impressions &amp; clicks
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 xs:gap-2.5 w-full xs:w-auto justify-end">
-                  {/* Metric 1: Searches */}
-                  <div className="flex-1 xs:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/60 text-teal-950 dark:text-teal-100 shadow-2xs">
-                    <Search size={13} className="text-teal-600 dark:text-teal-400 stroke-[2.5] shrink-0" />
-                    <span className="text-xs sm:text-sm font-black font-slogan">
-                      <AnimatedCounter end={trafficStats.searches || trafficStats.visitors || 1900} suffix="+" compact={true} />
-                    </span>
-                    <span className="text-[10px] text-teal-700 dark:text-teal-300 font-bold lowercase">searches</span>
-                  </div>
-
-                  {/* Metric 2: Clicks */}
-                  <div className="flex-1 xs:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 text-indigo-950 dark:text-indigo-100 shadow-2xs">
-                    <MousePointerClick size={13} className="text-indigo-600 dark:text-indigo-400 stroke-[2.5] shrink-0" />
-                    <span className="text-xs sm:text-sm font-black font-slogan">
-                      <AnimatedCounter end={trafficStats.clicks || trafficStats.interactions || 724} suffix="+" compact={true} />
-                    </span>
-                    <span className="text-[10px] text-indigo-700 dark:text-indigo-300 font-bold lowercase">clicks</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
       </section>

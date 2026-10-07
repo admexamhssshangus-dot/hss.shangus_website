@@ -105,8 +105,24 @@ export default function LoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Helper to extract requested role from query params or location state
+  const getRoleFromUrl = () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const r = (params.get('role') || params.get('tab') || '').toLowerCase().trim();
+      if (['student', 'teacher', 'admin', 'superadmin'].includes(r)) return r;
+      if (location.state?.role) {
+        const sr = String(location.state.role).toLowerCase().trim();
+        if (['student', 'teacher', 'admin', 'superadmin'].includes(sr)) return sr;
+      }
+    } catch (_) {}
+    return null;
+  };
+
   // Tab role selection: 'student' | 'teacher' | 'admin' | 'superadmin'
   const [selectedRole, setSelectedRole] = useState(() => {
+    const urlRole = getRoleFromUrl();
+    if (urlRole) return urlRole;
     try {
       if (sessionStorage.getItem('hss_explicit_logout') !== 'true' && localStorage.getItem('hss_explicit_logout') !== 'true') {
         const pending = localStorage.getItem('hss_pending_admin_login');
@@ -120,6 +136,16 @@ export default function LoginPage() {
     } catch (_) {}
     return 'student';
   });
+
+  // Synchronize role tab if user navigates with a different role query param or state
+  useEffect(() => {
+    const urlRole = getRoleFromUrl();
+    if (urlRole && urlRole !== selectedRole) {
+      setSelectedRole(urlRole);
+      setCaptchaToken(null);
+      setAlert(null);
+    }
+  }, [location.search, location.state]);
 
   // Form states
   const [email, setEmail] = useState('');

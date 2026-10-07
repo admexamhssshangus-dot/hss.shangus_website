@@ -38,40 +38,28 @@ function renderHead(seo) {
 
 const link = (route) => `<a href="${route}">${escapeHtml(PUBLIC_PAGES[route]?.label || 'Open Online Portal')}</a>`;
 
-function renderInitialLoader() {
-  return `<div class="initial-app-loader" role="status" aria-label="Loading Govt HSS Shangus" aria-live="polite">
-    <div class="loader-crest-container">
-      <div class="loader-spinner-track"></div>
-      <div class="loader-pulse-glow"></div>
-      <div class="loader-crest-card">
-        <img src="/logo.png" width="48" height="48" alt="HSS Shangus school crest" class="loader-crest-img">
-      </div>
-    </div>
-    <div class="loader-brand-title">Govt. Higher Secondary School Shangus</div>
-    <span class="loader-badge">Academic Portal</span>
-    <div class="loader-status-title">Loading School Data…</div>
-    <div class="loader-status-subtext">Nurturing Minds, Shaping Futures • Estd. 1917</div>
-    <div class="loader-progress-track" aria-hidden="true">
-      <div class="loader-progress-bar"></div>
-    </div>
+function renderHydrationBar() {
+  return `<a href="#main-content" class="hss-skip-link">Skip to main content</a>
+  <div class="hss-hydration-indicator" aria-hidden="true" role="progressbar">
+    <div class="hss-hydration-bar"></div>
   </div>`;
 }
 
 function renderOverview(page) {
-  return `${renderInitialLoader()}<div class="search-overview">
+  return `${renderHydrationBar()}<div class="search-overview">
     <header class="search-overview__header">
-      <a href="/" class="search-overview__brand"><img src="/logo.png" width="64" height="64" alt="HSS Shangus school crest"><span>HSS Shangus<small>Govt. Higher Secondary School Shangus</small></span></a>
+      <a href="/" class="search-overview__brand"><img src="/logo.png" width="52" height="52" alt="Govt HSS Shangus school crest"><span>HSS Shangus<small>Govt. Higher Secondary School Shangus • Estd. 1917</small></span></a>
       <nav aria-label="Main navigation">${NAVIGATION.map(link).join(' ')}</nav>
     </header>
     <main class="search-overview__main" id="main-content">
-      <p class="search-overview__eyebrow">Shangus · Anantnag · Jammu and Kashmir</p>
+      <div class="search-overview__eyebrow">Shangus · Anantnag · Jammu and Kashmir · Estd. 1917</div>
       <h1>${escapeHtml(page.heading)}</h1>
       <figure class="search-overview__hero-media" style="margin: 0 0 24px 0; border-radius: 12px; overflow: hidden; border: 1px solid #d9e5e1; max-width: 100%;">
-        <img src="/slides/og-card.webp" width="1200" height="630" alt="${escapeHtml(page.heading)} - Govt. Higher Secondary School Shangus" style="width: 100%; height: auto; display: block; object-fit: cover;" loading="lazy" decoding="async">
+        <img src="/slides/og-card.webp" width="1200" height="630" alt="${escapeHtml(page.heading)} - Govt. Higher Secondary School Shangus" style="width: 100%; height: auto; display: block; object-fit: cover;" fetchpriority="high" decoding="async">
       </figure>
       ${page.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('\n')}
       <nav aria-label="Related pages" class="search-overview__links">${page.links.map(link).join(' ')}</nav>
-      <noscript><p class="search-overview__note">This page provides a public overview. Enable JavaScript for live updates, full page details and online services.</p></noscript>
+      <noscript><p class="search-overview__note">This page provides a public overview. Enable JavaScript for interactive services, forms and live portals.</p></noscript>
     </main>
     <footer class="search-overview__footer">${['/privacy-policy', '/terms-and-conditions', '/refund-policy', '/contact'].map(link).join(' ')}</footer>
   </div>`;

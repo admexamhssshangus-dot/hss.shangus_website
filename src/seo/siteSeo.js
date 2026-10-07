@@ -16,7 +16,7 @@ const PUBLIC_PAGES = {
     label: 'About Us', title: `About Us | ${SITE_NAME}`, heading: 'About Our Institution',
     description: 'Discover the history of Govt. Higher Secondary School Shangus since 1917, its educational mission, leadership, campus and facilities in Anantnag.',
     paragraphs: [
-      'Govt. Higher Secondary School Shangus began as a primary school in 1917. The institution progressed through upgrades in 1978–79 and attained Higher Secondary status in 2005.',
+      'Govt. Higher Secondary School Shangus (Board Reg. No.: 010061 | UDISE code: 01061400618) began as a primary school in 1917. The institution progressed through upgrades in 1978–79 and attained Higher Secondary status in 2005.',
       'Located in the Kashmir Valley near Shangus Forest Lodge, the school serves communities from Kachwan to Uttresoo. Its classrooms, science laboratories and library support learning in Science, Humanities and secondary education.'
     ], links: ['/academics', '/admissions', '/contact']
   },

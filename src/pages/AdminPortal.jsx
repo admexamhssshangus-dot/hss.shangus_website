@@ -5193,7 +5193,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
       { key: 'parentage', label: 'Parentage', getValue: (emp) => emp.parentage || '' },
       { key: 'category', label: 'Category', getValue: (emp) => emp.category || '' },
       { key: 'zone_name', label: 'Zone Name', getValue: (emp) => emp.zone_name || 'Shangus' },
-      { key: 'ddo_code', label: 'UDISE/DDO Code', getValue: (emp) => emp.ddo_code || '1061400618' },
+      { key: 'ddo_code', label: 'UDISE/DDO Code', getValue: (emp) => emp.ddo_code || '01061400618' },
       { key: 'ddo_code_hrms', label: 'DDO Code HRMS', getValue: (emp) => emp.ddo_code_hrms || 'SHGEDU0022' },
       { key: 'cadre', label: 'Cadre', getValue: (emp) => emp.cadre || 'GAZETTED' },
       { key: 'qualification', label: 'Qualification', getValue: (emp) => emp.qualification || '' },
