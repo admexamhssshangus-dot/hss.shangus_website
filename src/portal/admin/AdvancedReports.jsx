@@ -1159,7 +1159,7 @@ function MultiSelectCheckboxDropdown({
                   onClick={() => onLoadAllArchive()}
                   className="w-full py-1 px-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                 >
-                  <span>⚡ Load All Historical Data (2006–2023)</span>
+                  <span>⚡ Load All Historical Data (2006–2024, Oct–Nov)</span>
                 </button>
               )}
               {isArchiveLoaded && (
