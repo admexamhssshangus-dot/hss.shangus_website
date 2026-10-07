@@ -29,6 +29,9 @@
    git commit -m "feat(achievements): compact header subtitle to save vertical space"
    ```
 3. **Push to Remote Repository** (Run manually whenever you are ready):
+   > **Note on Push Rejection**: Because Git history was rewritten earlier to permanently purge sensitive files (`masterSeedData.json`, credentials, etc.) across historical commits, all commit hashes changed. Therefore, Git rejects a simple fast-forward push. **Do NOT run `git pull`** (as that would re-introduce the purged files). Instead, perform a force push:
    ```bash
-   git push origin main
+   git push origin main --force
    ```
+   *(or `git push origin main --force-with-lease`)*
+
