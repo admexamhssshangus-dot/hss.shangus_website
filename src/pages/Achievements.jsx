@@ -165,8 +165,8 @@ export default function Achievements() {
             School Achievements &amp; Merits
           </h1>
           <div className="h-1 w-20 sm:w-28 bg-gradient-to-r from-amber-500 via-teal-400 to-indigo-500 mx-auto mt-1.5 sm:mt-2 rounded-full shadow-xs" />
-          <p className="text-[11px] sm:text-sm text-slate-600 dark:text-slate-300 font-medium mt-1.5 sm:mt-2 max-w-xl mx-auto leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-            Honoring our distinguished national qualifiers (NEET-UG &amp; JEE) and J&amp;K UT state board position holders who have brought supreme institutional pride to Govt. Higher Secondary School Shangus.
+          <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 font-medium mt-1 max-w-lg mx-auto leading-snug">
+            Honoring our national qualifiers (NEET/JEE) and JKBOSE board position holders.
           </p>
         </header>
 
