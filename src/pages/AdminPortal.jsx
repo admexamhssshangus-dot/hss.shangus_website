@@ -2762,6 +2762,42 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
     setEditingNoticeIdx(null);
   };
 
+  const handleMoveNoticeUp = (idx) => {
+    if (idx <= 0) return;
+    setNotices((prev) => {
+      const updated = [...prev];
+      const temp = updated[idx];
+      updated[idx] = updated[idx - 1];
+      updated[idx - 1] = temp;
+      return updated;
+    });
+    if (editingNoticeIdx === idx) {
+      setEditingNoticeIdx(idx - 1);
+    } else if (editingNoticeIdx === idx - 1) {
+      setEditingNoticeIdx(idx);
+    }
+    setSaveSuccess('Notice moved up. Click "Save Notices" to make order permanent.');
+    setTimeout(() => setSaveSuccess(''), 4000);
+  };
+
+  const handleMoveNoticeDown = (idx) => {
+    if (idx >= notices.length - 1) return;
+    setNotices((prev) => {
+      const updated = [...prev];
+      const temp = updated[idx];
+      updated[idx] = updated[idx + 1];
+      updated[idx + 1] = temp;
+      return updated;
+    });
+    if (editingNoticeIdx === idx) {
+      setEditingNoticeIdx(idx + 1);
+    } else if (editingNoticeIdx === idx + 1) {
+      setEditingNoticeIdx(idx);
+    }
+    setSaveSuccess('Notice moved down. Click "Save Notices" to make order permanent.');
+    setTimeout(() => setSaveSuccess(''), 4000);
+  };
+
   // ==========================================
   // Page CMS & Content Management Handlers
   // ==========================================
@@ -7182,7 +7218,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-1 border-b border-slate-200 dark:border-slate-800 pb-2">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Latest Notices Configuration</h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Add, edit, or delete items on the school's dynamic announcement board.</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Add, edit, reorder (up/down), or delete items on the school's dynamic announcement board.</p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     {/* Inline Notice Expiry Setting */}
@@ -7291,20 +7327,21 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
                 {/* Notices List Table */}
                 <div className="overflow-x-auto custom-scrollbar pb-1 border border-slate-200 dark:border-slate-800 rounded-lg min-w-0 bg-white dark:bg-slate-900/30">
-                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '480px' }}>
+                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '540px' }}>
                     <thead>
                       <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 uppercase text-[9px] font-bold">
+                        <th className="p-1.5 px-2 w-10 text-center">#</th>
                         <th className="p-1.5 px-2 w-24">Date</th>
                         <th className="p-1.5 px-2">Notice Title</th>
                         <th className="p-1.5 px-2 w-48">Link</th>
                         <th className="p-1.5 px-2 w-20 text-center">New Days</th>
-                        <th className="p-1.5 px-2 w-24 text-center">Action</th>
+                        <th className="p-1.5 px-2 w-32 text-center">Order & Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                       {notices.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="p-3 text-center text-slate-500 italic text-[11px]">No notices configured. Add some above.</td>
+                          <td colSpan={6} className="p-3 text-center text-slate-500 italic text-[11px]">No notices configured. Add some above.</td>
                         </tr>
                       ) : (
                         notices.map((n, i) => {
@@ -7313,6 +7350,9 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                             <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-900/20">
                               {isEditing ? (
                                 <>
+                                  <td className="p-1.5 px-2 text-center font-bold text-slate-400 dark:text-slate-500 font-mono text-[10.5px]">
+                                    {i + 1}
+                                  </td>
                                   <td className="p-1 w-32">
                                     <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded focus-within:border-teal-500 transition-colors w-full h-[28px]">
                                       <input
@@ -7391,25 +7431,54 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                 </>
                               ) : (
                                 <>
+                                  <td className="p-1.5 px-2 text-center font-bold text-slate-400 dark:text-slate-500 font-mono text-[10.5px] select-none">
+                                    {i + 1}
+                                  </td>
                                   <td className="p-1.5 px-2 font-bold text-slate-900 dark:text-slate-200">{n.date}</td>
                                   <td className="p-1.5 px-2 font-medium text-slate-800 dark:text-slate-200">{n.title}</td>
                                   <td className="p-1.5 px-2 text-slate-500 font-mono text-[11px] truncate max-w-xs">{n.link || '#'}</td>
                                   <td className="p-1.5 px-2 text-center text-slate-600 dark:text-slate-400 font-mono text-[11px]">{n.days !== undefined && n.days !== '' ? `${n.days}d` : 'Default'}</td>
-                                  <td className="p-1.5 px-2 text-center flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={() => startEditNotice(i)}
-                                      className="p-1 rounded text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors"
-                                      title="Edit inline"
-                                    >
-                                      <Edit2 size={13} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteNotice(i)}
-                                      className="p-1 rounded text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                                      title="Delete"
-                                    >
-                                      <Trash2 size={13} />
-                                    </button>
+                                  <td className="p-1.5 px-2 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveNoticeUp(i)}
+                                        disabled={i === 0}
+                                        className="p-1 rounded text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 disabled:opacity-25 disabled:hover:bg-transparent transition-colors cursor-pointer disabled:cursor-not-allowed"
+                                        title={i === 0 ? "Already at top" : "Move Notice Up"}
+                                        aria-label={`Move notice "${n.title}" up`}
+                                      >
+                                        <ArrowUp size={13} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveNoticeDown(i)}
+                                        disabled={i === notices.length - 1}
+                                        className="p-1 rounded text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 disabled:opacity-25 disabled:hover:bg-transparent transition-colors cursor-pointer disabled:cursor-not-allowed"
+                                        title={i === notices.length - 1 ? "Already at bottom" : "Move Notice Down"}
+                                        aria-label={`Move notice "${n.title}" down`}
+                                      >
+                                        <ArrowDown size={13} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditNotice(i)}
+                                        className="p-1 rounded text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors cursor-pointer"
+                                        title="Edit inline"
+                                        aria-label={`Edit notice "${n.title}"`}
+                                      >
+                                        <Edit2 size={13} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteNotice(i)}
+                                        className="p-1 rounded text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                                        title="Delete"
+                                        aria-label={`Delete notice "${n.title}"`}
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
                                   </td>
                                 </>
                               )}

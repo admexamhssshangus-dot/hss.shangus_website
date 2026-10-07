@@ -858,11 +858,15 @@ export function printIndividualAwardRoll({
   examTitle = '',
   maxMarks = 10,
   minMarks = 4,
-  centreNo = ''
+  centreNo = '',
+  isBlank = false,
+  isBlankAwardRoll = false
 }) {
   if (!records || records.length === 0) return false;
   records = records.filter(r => !isStudentExamDropped(r));
   if (records.length === 0) return false;
+
+  const isBlankMode = Boolean(isBlank || isBlankAwardRoll);
 
   // Arrange records in dictionary order by exam roll number so centre numbers do not repeat
   records = sortRecordsForAwardRoll(records);
@@ -893,27 +897,29 @@ export function printIndividualAwardRoll({
       let failCount = 0;
       let hasMarksEntered = false;
 
-      colChunk.forEach(r => {
-        const rawMark = String(r.totalMarks ?? r.practicalMarks ?? r.marks ?? '').trim();
-        if (rawMark && !/^(N\/A|—|-|null|undefined)$/i.test(rawMark)) {
-          hasMarksEntered = true;
-          const upper = rawMark.toUpperCase();
-          if (upper === 'AB' || upper === 'A' || upper === 'ABSENT') {
-            absentCount++;
-            failCount++;
-          } else {
-            const num = Number(rawMark);
-            if (!isNaN(num)) {
-              presentCount++;
-              if (num >= minMarks) {
-                passCount++;
-              } else {
-                failCount++;
+      if (!isBlankMode) {
+        colChunk.forEach(r => {
+          const rawMark = String(r.totalMarks ?? r.practicalMarks ?? r.marks ?? '').trim();
+          if (rawMark && !/^(N\/A|—|-|null|undefined)$/i.test(rawMark)) {
+            hasMarksEntered = true;
+            const upper = rawMark.toUpperCase();
+            if (upper === 'AB' || upper === 'A' || upper === 'ABSENT') {
+              absentCount++;
+              failCount++;
+            } else {
+              const num = Number(rawMark);
+              if (!isNaN(num)) {
+                presentCount++;
+                if (num >= minMarks) {
+                  passCount++;
+                } else {
+                  failCount++;
+                }
               }
             }
           }
-        }
-      });
+        });
+      }
 
       let colHtml = `
         <div class="award-col-box">
@@ -998,8 +1004,8 @@ export function printIndividualAwardRoll({
           <tr>
             <td>${sno}</td>
             <td>${rollCellHtml}</td>
-            <td>${isAbs ? '<span class="absent-text">Absent</span>' : `<strong>${rawMark || '—'}</strong>`}</td>
-            <td>${isAbs ? '-' : numberToWordsInr(rawMark)}</td>
+            <td>${isBlankMode ? '&nbsp;' : (isAbs ? '<span class="absent-text">Absent</span>' : `<strong>${rawMark || '—'}</strong>`)}</td>
+            <td>${isBlankMode ? '&nbsp;' : (isAbs ? '-' : numberToWordsInr(rawMark))}</td>
           </tr>
         `;
       });
@@ -1541,6 +1547,8 @@ export function resolveStudentStream(st, className = '') {
   if (clsName.includes('9') || clsName.includes('10') || clsName.includes('ix') || clsName.includes('x')) return 'General';
 
   const rawStream = String(
+    st.stream ||
+    st.Stream ||
     st['Stream for Class 12th'] ||
     st['Stream (Class 12th)'] ||
     st['Stream in Class 12th'] ||
@@ -1554,6 +1562,10 @@ export function resolveStudentStream(st, className = '') {
     st['Selected Stream'] ||
     st['Stream (Applied)'] ||
     st['Stream for Admission'] ||
+    st.raw?.stream ||
+    st.raw?.Stream ||
+    st._rawStudent?.stream ||
+    st._rawStudent?.Stream ||
     ''
   ).trim();
 
@@ -1569,7 +1581,9 @@ export function resolveStudentStream(st, className = '') {
 
   // Infer from subjects
   const subStr = String(
-    st.subjects || st['Subjects'] || st.Subs || st['Subs'] || st.subject_combination || st.Subject || st.subs || ''
+    st.rawSubjects || st._rawSubjects || st.subjectsAbbr || st._subjectsAbbr ||
+    st.subjects || st['Subjects'] || st.Subs || st['Subs'] || st.subject_combination || st.Subject || st.subs ||
+    st.raw?.rawSubjects || st._rawStudent?.rawSubjects || ''
   ).toLowerCase();
 
   if (/\b(physics|chemistry|biology|botany|zoology|ph|ch|bi|bo|zo)\b/i.test(subStr)) {
@@ -1602,8 +1616,12 @@ function resolveStudentSubjectsRaw(st, className = '') {
 
   // Ordered candidate fields — most authoritative first
   const candidates = [
+    st.rawSubjects,
+    st._rawSubjects,
     st['Subs'],
     st['subs'],
+    st.subjectsAbbr,
+    st._subjectsAbbr,
     arraySelectedSubs,
     arraySubs,
     is12 ? st['Subjects to be taken in Class 12th'] : null,
@@ -1624,6 +1642,8 @@ function resolveStudentSubjectsRaw(st, className = '') {
     st['Subject Combination'],
     st['streamSubjects'],
     st.subjects,
+    st.raw?.rawSubjects,
+    st._rawStudent?.rawSubjects,
   ];
 
   let bestCandidate = '';
@@ -1830,9 +1850,22 @@ export function isStudentEnrolledInPracticalSubject(st, subCode, className = '')
     return false;
   }
 
+  // Direct subject code match
+  if (st.subjectCode && String(st.subjectCode).trim().toUpperCase() === code) return true;
+  if (st.subject && String(st.subject).trim().toUpperCase() === code) return true;
+
   const stStream = resolveStudentStream(st, className).toLowerCase();
   const abbrStr = getAbbreviatedSubjects(st, className);
   const abbrList = abbrStr.split(',').map(s => s.trim().toUpperCase());
+
+  // Merge direct subjectsAbbr if explicitly available on student record
+  if (st.subjectsAbbr || st._subjectsAbbr) {
+    const rawAbbr = String(st.subjectsAbbr || st._subjectsAbbr).toUpperCase();
+    rawAbbr.split(/[,;\s]+/).forEach(s => {
+      const trimmed = s.trim();
+      if (trimmed && !abbrList.includes(trimmed)) abbrList.push(trimmed);
+    });
+  }
 
   const hasMedicalSubs = abbrList.includes('BO') || abbrList.includes('ZO') || abbrList.includes('BI') || (stStream.includes('med') && !stStream.includes('non'));
   const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || hasMedicalSubs || abbrList.includes('PH') || abbrList.includes('CH');
@@ -1861,6 +1894,12 @@ export function isStudentEnrolledInPracticalSubject(st, subCode, className = '')
   // Mathematics: Non-Medical students
   if (code === 'MA' && (stStream.includes('non-med') || stStream.includes('nonmed'))) return true;
 
+  // Direct check in student's raw subjects string as fallback
+  if (st.rawSubjects || st._rawSubjects) {
+    const rawUpper = String(st.rawSubjects || st._rawSubjects).toUpperCase();
+    if (new RegExp(`\\b${code}\\b`, 'i').test(rawUpper)) return true;
+  }
+
   return false;
 }
 
@@ -1881,7 +1920,7 @@ export function printAttendanceSheet({
   selectedSubjectCodes = null
 }) {
   if (!students || students.length === 0) return false;
-  students = students.filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
+  students = students.filter(st => !isStudentExamDropped(st) && (st.isApproved === true || checkStudentApprovalState(st).isApproved));
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType, isExternal);
@@ -1974,9 +2013,16 @@ export function printAttendanceSheet({
   // 2. Single Subject or Combined Master Roster
   let printStudents = students;
   if (singleSubCode) {
-    printStudents = students.filter(st => isStudentEnrolledInPracticalSubject(st, singleSubCode, className));
+    const filtered = students.filter(st => isStudentEnrolledInPracticalSubject(st, singleSubCode, className));
+    if (filtered.length > 0) {
+      printStudents = filtered;
+    } else {
+      // Fallback if already pre-filtered (e.g. from teacher's single-subject roster)
+      printStudents = students;
+    }
     if (printStudents.length === 0) return false;
   }
+  printStudents = sortRecordsForAwardRoll(printStudents);
 
   const resolvedSubjectTitle = subjectTitle || (singleSubCode ? `${getSubjectDisplayName(singleSubCode, className) || subjectName} (${singleSubCode})` : '');
 
@@ -2072,7 +2118,7 @@ export function printMarksRecordAwardRoll({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
-  students = students.filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
+  students = students.filter(st => !isStudentExamDropped(st) && (st.isApproved === true || checkStudentApprovalState(st).isApproved));
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
@@ -2107,9 +2153,14 @@ export function printMarksRecordAwardRoll({
 
   targetSubs.forEach((sub, subIdx) => {
     // Subject-specific enrolled students sorted cleanly by roll number
-    const subStudents = sortRecordsForAwardRoll(
+    let subStudents = sortRecordsForAwardRoll(
       students.filter(st => isStudentEnrolledInPracticalSubject(st, sub.code, className))
     );
+    // When a single subject is targeted (e.g., teacher printing their assigned subject roster),
+    // if subject filtering yielded 0 but students were provided, fallback to the pre-filtered students list
+    if (subStudents.length === 0 && singleSubCode && students.length > 0) {
+      subStudents = sortRecordsForAwardRoll(students);
+    }
     if (subStudents.length === 0) return;
 
     const markCfg = getSubjectMarksConfig(printDetails?.settings || printDetails, className, isExternal ? 'external' : 'internal', sub.code);
@@ -2217,7 +2268,7 @@ export function printAllIndividualAwardRolls({
   centreNo = ''
 }) {
   if (!students || students.length === 0) return false;
-  students = students.filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
+  students = students.filter(st => !isStudentExamDropped(st) && (st.isApproved === true || checkStudentApprovalState(st).isApproved));
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || examTitle || printDetails?.practicalType, isExternal);
@@ -2490,7 +2541,7 @@ export function printFailList({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
-  students = students.filter(st => !isStudentExamDropped(st) && checkStudentApprovalState(st).isApproved);
+  students = students.filter(st => !isStudentExamDropped(st) && (st.isApproved === true || checkStudentApprovalState(st).isApproved));
   if (students.length === 0) return false;
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
