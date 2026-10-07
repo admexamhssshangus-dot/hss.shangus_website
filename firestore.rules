@@ -458,6 +458,13 @@ service cloud.firestore {
       allow delete: if canUseAny(['controls', 'cms']);
     }
 
+    // Public school achievements & Hall of Fame repository.
+    match /siteAchievements/{documentId} {
+      allow get, list: if true;
+      allow create, update: if canUseAny(['controls', 'cms']) && hasNoCredentialFields(request.resource.data) && hasNoAiSecretFields(request.resource.data);
+      allow delete: if canUseAny(['controls', 'cms']);
+    }
+
     match /users/{userId} {
       // Roles and permissions are written only by manageStaffAccount (Admin SDK).
       // Clients can read their own profile; the Staff module can list staff for

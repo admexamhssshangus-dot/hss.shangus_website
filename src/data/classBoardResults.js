@@ -238,8 +238,8 @@ export const CLASS_11_BOARD_RESULTS = [
       overallPercent: '75.77%'
     },
     toppers: [
-      { rollNo: '201002066', name: 'Zaidan Wani (Bilal Ahmad Wani)', studentName: 'Zaidan Wani', parentage: 'Bilal Ahmad Wani', result: 'Distinc', marksObt: 493, maxMarks: 500, percentage: '98.6%', resultMarksDisplay: 'Distinc/493', stream: 'Science' },
-      { rollNo: '201002067', name: 'Hadeeqa Tabasum (Imtiyaz Ahmad Itoo)', studentName: 'Hadeeqa Tabasum', parentage: 'Imtiyaz Ahmad Itoo', result: 'Distinc', marksObt: 492, maxMarks: 500, percentage: '98.4%', resultMarksDisplay: 'Distinc/492', stream: 'Science' },
+      { rollNo: '201002066', name: 'Zaidan Wani (Bilal Ahmad Wani)', studentName: 'Zaidan Wani', parentage: 'Bilal Ahmad Wani', result: 'Distinc (UT 3rd)', marksObt: 493, maxMarks: 500, percentage: '98.6%', resultMarksDisplay: 'Distinc / 493 (UT 3rd)', stream: 'Science' },
+      { rollNo: '201002067', name: 'Hadeeqa Tabasum (Imtiyaz Ahmad Itoo)', studentName: 'Hadeeqa Tabasum', parentage: 'Imtiyaz Ahmad Itoo', result: 'Distinc (UT 4th)', marksObt: 492, maxMarks: 500, percentage: '98.4%', resultMarksDisplay: 'Distinc / 492 (UT 4th)', stream: 'Science' },
       { rollNo: '201002088', name: 'Sheikh Inamulhaq (Khursheed Ahmad Sheikh)', studentName: 'Sheikh Inamulhaq', parentage: 'Khursheed Ahmad Sheikh', result: 'Distinc', marksObt: 491, maxMarks: 500, percentage: '98.2%', resultMarksDisplay: 'Distinc/491', stream: 'Science' },
       { rollNo: '201003018', name: 'Tahzeena Farooq (Farooq Ahmad Wani)', studentName: 'Tahzeena Farooq', parentage: 'Farooq Ahmad Wani', result: 'Distinc', marksObt: 459, maxMarks: 500, percentage: '91.8%', resultMarksDisplay: 'Distinc/459', stream: 'Humanities' },
       { rollNo: '201002049', name: 'Neha Majeed (Abdul Majeed Bhat)', studentName: 'Neha Majeed', parentage: 'Abdul Majeed Bhat', result: 'Distinc', marksObt: 455, maxMarks: 500, percentage: '91.0%', resultMarksDisplay: 'Distinc/455', stream: 'Humanities' },
@@ -319,8 +319,8 @@ export const CLASS_12_BOARD_RESULTS = [
       overallPercent: '67.61%'
     },
     toppers: [
-      { rollNo: '301003054', name: 'Hadeeqa Tabasum', result: 'Distinc', marksObt: 493, maxMarks: 500, percentage: '98.6%', resultMarksDisplay: 'Distinc / 493', stream: 'Science' },
-      { rollNo: '301003037', name: 'Ajvaa Ibrahim Ganie', result: 'Distinc', marksObt: 492, maxMarks: 500, percentage: '98.4%', resultMarksDisplay: 'Distinc / 492', stream: 'Science' },
+      { rollNo: '301003054', name: 'Hadeeqa Tabasum', result: 'Distinc (UT 8th)', marksObt: 493, maxMarks: 500, percentage: '98.6%', resultMarksDisplay: 'Distinc / 493 (UT 8th)', stream: 'Science' },
+      { rollNo: '301003037', name: 'Ajvaa Ibrahim Ganie', result: 'Distinc (UT 9th)', marksObt: 492, maxMarks: 500, percentage: '98.4%', resultMarksDisplay: 'Distinc / 492 (UT 9th)', stream: 'Science' },
       { rollNo: '301003053', name: 'Zaidan Wani', result: 'Distinc', marksObt: 488, maxMarks: 500, percentage: '97.6%', resultMarksDisplay: 'Distinc / 488', stream: 'Science' },
       { rollNo: '301002031', name: 'Neha Majeed', result: 'Distinc', marksObt: 474, maxMarks: 500, percentage: '94.8%', resultMarksDisplay: 'Distinc / 474', stream: 'Humanities/Arts' },
       { rollNo: '301002003', name: 'Tahzeena Farooq', result: 'Distinc', marksObt: 473, maxMarks: 500, percentage: '94.6%', resultMarksDisplay: 'Distinc / 473', stream: 'Humanities/Arts' },
