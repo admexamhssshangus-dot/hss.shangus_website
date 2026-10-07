@@ -8,6 +8,7 @@ import EducationalBackground from '../components/common/EducationalBackground';
 import SEO from '../components/SEO';
 import PublicPageSkeleton from '../components/PublicPageSkeleton';
 import ClassBoardResultsSection from '../components/ClassBoardResultsSection';
+import HonoreePhotoAvatar from '../components/HonoreePhotoAvatar';
 import { fetchPublishedAchievements } from '../services/achievementsService';
 
 // Category color mappings & metadata
@@ -335,55 +336,64 @@ export default function Achievements() {
                     <div
                       key={item.id}
                       onClick={() => setSelectedItem(item)}
-                      className={`group relative bg-white dark:bg-slate-900 rounded-xl p-4 border transition-all cursor-pointer flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md ${
+                      className={`group relative bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border transition-all duration-300 cursor-pointer flex flex-col justify-between hover:-translate-y-1 hover:shadow-xl ${
                         isTopCompetitive
-                          ? 'border-amber-300 dark:border-amber-800/80 shadow-2xs hover:border-amber-400'
-                          : 'border-slate-200 dark:border-slate-800 shadow-2xs hover:border-indigo-400/70'
+                          ? 'border-amber-300/80 dark:border-amber-800/80 shadow-xs hover:border-amber-400 hover:shadow-amber-500/10'
+                          : 'border-slate-200 dark:border-slate-800 shadow-xs hover:border-indigo-400/80 hover:shadow-indigo-500/10'
                       }`}
                     >
                       <div>
                         {/* Top: Header Badge & Session */}
-                        <div className="flex items-center justify-between gap-1.5 mb-2.5">
+                        <div className="flex items-center justify-between gap-1.5 mb-3">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-extrabold border ${
                             isTopCompetitive
-                              ? 'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800'
+                              ? 'bg-amber-50 text-amber-950 border-amber-300 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-800'
                               : meta.badgeBg
                           }`}>
                             <span>{item.badge || item.utPositionOrRank || 'Honoree'}</span>
                           </span>
 
                           {item.session && (
-                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60">
                               Session {item.session}
                             </span>
                           )}
                         </div>
 
-                        {/* Name & Academic Class */}
-                        <div className="mb-3">
-                          <h3 className="text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                            {item.studentName}
-                          </h3>
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-                            Class {item.className} {item.stream ? `• ${item.stream}` : ''}
-                          </p>
+                        {/* Hero Profile Row: Photo Avatar + Demographics */}
+                        <div className="flex items-center gap-3.5 mb-3.5">
+                          <HonoreePhotoAvatar item={item} size="md" />
+
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-base sm:text-[17px] font-black text-slate-900 dark:text-white truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors tracking-tight">
+                              {item.studentName}
+                            </h3>
+                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5 truncate">
+                              Class {item.className} {item.stream ? `• ${item.stream}` : ''}
+                            </p>
+                            {item.fatherName ? (
+                              <p className="text-[10.5px] font-medium text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                                S/D of {item.fatherName}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
 
                         {/* Minimal Key Metric Pill (Clean & Uncluttered) */}
                         <div className="space-y-1.5 mb-3">
                           {item.scoreOrMarks && (
-                            <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/60 dark:border-teal-900/40 text-xs">
-                              <span className="text-[10px] uppercase font-bold text-teal-600 dark:text-teal-400">
+                            <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/60 dark:border-teal-900/40 text-xs">
+                              <span className="text-[9.5px] uppercase font-black tracking-wider text-teal-700 dark:text-teal-400">
                                 Score / Merit
                               </span>
-                              <span className="font-black text-teal-900 dark:text-teal-200 text-xs truncate max-w-[65%] text-right font-mono">
+                              <span className="font-black text-teal-950 dark:text-teal-200 text-xs truncate max-w-[65%] text-right font-mono">
                                 {item.scoreOrMarks}
                               </span>
                             </div>
                           )}
 
                           {item.institutionOrAward && item.institutionOrAward !== 'Govt. Higher Secondary School Shangus' && (
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200/50 dark:border-indigo-900/40 text-[11px] text-indigo-950 dark:text-indigo-200 font-semibold truncate">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200/50 dark:border-indigo-900/40 text-[11px] text-indigo-950 dark:text-indigo-200 font-semibold truncate">
                               <GraduationCap size={13} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
                               <span className="truncate">{item.institutionOrAward.split('/')[0].trim()}</span>
                             </div>
@@ -396,7 +406,7 @@ export default function Achievements() {
                         <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 truncate max-w-[60%]">
                           {item.examOrEvent?.split('(')[0]?.trim() || 'Merit Record'}
                         </span>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400 group-hover:translate-x-0.5 transition-transform">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400 group-hover:translate-x-1 transition-transform">
                           <span>View Details</span>
                           <ChevronRight size={13} />
                         </span>
@@ -455,39 +465,41 @@ export default function Achievements() {
 
             {/* Modal Body */}
             <div className="p-4 sm:p-5 space-y-3.5 max-h-[75vh] overflow-y-auto text-xs">
-              {/* Demographics Card */}
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              {/* Honoree Hero Profile Header */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-white dark:from-slate-800/80 dark:to-slate-900 border border-slate-200/80 dark:border-slate-700/60 flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
+                <HonoreePhotoAvatar item={selectedItem} size="xl" />
+
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center justify-center sm:justify-between gap-2 flex-wrap">
+                    <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
                       {selectedItem.studentName}
                     </h3>
-                    {selectedItem.fatherName ? (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Son / Daughter of <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedItem.fatherName}</span>
-                      </p>
-                    ) : null}
+                    {selectedItem.session && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-bold border border-slate-200 dark:border-slate-600">
+                        Session {selectedItem.session}
+                      </span>
+                    )}
                   </div>
-                  {selectedItem.session && (
-                    <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-semibold border border-slate-200 dark:border-slate-600">
-                      Session {selectedItem.session}
-                    </span>
+                  {selectedItem.fatherName && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      Son / Daughter of <strong className="text-slate-800 dark:text-slate-200">{selectedItem.fatherName}</strong>
+                    </p>
                   )}
-                </div>
-                <div className="flex flex-wrap gap-1.5 mt-2.5">
-                  <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-semibold border border-slate-200 dark:border-slate-600">
-                    Class {selectedItem.className}
-                  </span>
-                  {selectedItem.stream && (
-                    <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-semibold border border-slate-200 dark:border-slate-600">
-                      {selectedItem.stream} Stream
+                  <div className="flex items-center justify-center sm:justify-start flex-wrap gap-1.5 pt-1.5">
+                    <span className="px-2.5 py-0.5 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 text-[11px] font-bold border border-teal-200 dark:border-teal-800">
+                      Class {selectedItem.className} {selectedItem.stream ? `(${selectedItem.stream})` : ''}
                     </span>
-                  )}
-                  {selectedItem.examRollNo && (
-                    <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-mono font-semibold border border-slate-200 dark:border-slate-600">
-                      Roll No: {selectedItem.examRollNo}
-                    </span>
-                  )}
+                    {selectedItem.examRollNo && (
+                      <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[11px] font-bold border border-slate-200 dark:border-slate-700">
+                        Exam Roll: {selectedItem.examRollNo}
+                      </span>
+                    )}
+                    {selectedItem.badge && (
+                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[11px] font-black border border-amber-300 dark:border-amber-700">
+                        {selectedItem.badge}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 

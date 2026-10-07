@@ -2,35 +2,30 @@
 
 ## Commit Message
 
-`feat(reports): prioritize active admissions student and parent names with direct edit history support in AdvancedReports`
+`feat(achievements): implement premium HonoreePhotoAvatar and animated cards for Hall of Fame`
 
 ## Summary of Changes
 
-1. **Advanced Reports & Registers Suite (`src/portal/admin/AdvancedReports.jsx`)**:
-   - **Active Admissions Name Precedence**:
-     - Synchronized student, father, and mother name resolution in active session records to prioritize data from active admissions applications over historical `masterRegisters`, preventing stale names from overriding official active 2025–26 records.
-     - Preserves non-destructive fallback to `masterRegisters` when admissions name fields are missing or empty.
-   - **Direct Edit History Support**:
-     - Upgraded `getStudentName`, `getFatherName`, and `getMotherName` to inspect `directEditHistory` and `fieldEditHistory` for real-time reflection of inline administrative corrections.
-   - **Multi-Field Cell Sync**:
-     - Hardened inline quick-cell editing in table views so that editing a student's name, father's name, or mother's name automatically syncs all canonical and legacy alias fields (`studentName`, `Student's Name`, `Student's Name (as per school records)`, `name`, `fatherName`, `Father's Name`, `Father's/Guardian's Name (as per school records)`, `motherName`, `Mother's Name`, `Mother's Name (as per school records)`), ensuring uniform display across all exports, gazettes, and tabulation registers.
-   - **Historical Records Harmonization**:
-     - Standardized historical master register records to use the unified `getStudentName`, `getFatherName`, and `getMotherName` resolution functions.
+1. **New Honoree Photo & Avatar Component (`src/components/HonoreePhotoAvatar.jsx`)**:
+   - **Rich Aesthetics & Glow Rings**: Dual-tone gradient rings (Amber/Gold for National Competitive & UT State Toppers, Royal Indigo/Blue for JKBOSE Board Positions).
+   - **Hover Micro-Animations**: Smooth portrait hover zoom (`group-hover:scale-[1.04]`), elevation, and ambient shadow blooming.
+   - **Attached Achievement Pin Badges**: Attached corner medal badges (🏆 Gold Trophy for UT 1st / State Ranks, 🎖️ Medal for Board Ranks, 🎓 Graduation Cap for NEET / JEE).
+   - **Regal Monogram Crest Fallback**: When no uploaded photo is present, renders an elegant dual-gradient monogram with candidate initials, crisp typography, and animated laurels watermark, avoiding broken image icons or blank placeholders.
+   - **Zero AI-Generated Assets**: Ready to accept and display authentic student photos by `reg no / class / session` as soon as the mapping is connected.
+
+2. **Public Achievements & Hall of Fame Page (`src/pages/Achievements.jsx`)**:
+   - **Card Grid Re-Architecture**: Transformed the plain text card into a distinguished Hall of Fame Plaque featuring a side-by-side Hero Profile Row with the `HonoreePhotoAvatar`, student name, class, stream, parentage, score metrics, and allotment pills.
+   - **Detailed Citation Popup Modal**: Integrated the large (`size="xl"`) hero honoree portrait into the citation modal alongside full official credentials and narrative citations.
 
 ## Files Changed
 
-1. `src/portal/admin/AdvancedReports.jsx`
-2. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `src/components/HonoreePhotoAvatar.jsx`
+2. `src/pages/Achievements.jsx`
+3. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- **Regression Checks**:
-  - `npm run admission:check` passed (`Exit Code 0`, 83 schema fields classified, provisional PDF 1 page, full PDF 2 pages).
-  - `npm run security:check` passed (`Exit Code 0`).
-  - `npm run performance:check` passed (`Exit Code 0`).
-  - `npm run seo:check` passed (`Exit Code 0`, 12 static landing pages verified).
-- **Production Build**: Verified locally with `npm run build` (`Exit Code 0`, clean compilation, zero breaking errors).
-- **Practicals Data Boundary (Rule 8)**: Academic evaluation boundary intact.
+- **Production Build**: Verified locally with `npm run build` (`Exit Code 0`, 12 public HTML pages generated, all SEO/sitemap/metadata checks passed).
 - **Manual Git Push Policy (Rule 5)**: Never executed automatically.
 
 ## Manual Git Push Instructions
@@ -42,7 +37,7 @@
 2. If you wish to inspect or re-execute the commit:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(reports): prioritize active admissions student and parent names with direct edit history support in AdvancedReports"
+   git commit -m "feat(achievements): implement premium HonoreePhotoAvatar and animated cards for Hall of Fame"
    ```
 3. Push changes to GitHub (strictly manual):
    ```bash
