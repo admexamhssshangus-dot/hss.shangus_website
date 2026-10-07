@@ -127,15 +127,7 @@ export const CLASS_10_BOARD_RESULTS = [
     toppers: [
       { rollNo: '101059014', name: 'Ahytisham Ishaq Ganie', result: 'Distinc', marksObt: 429, grade: 'A2', percentage: '85.8%', maxMarks: 500 },
       { rollNo: '101059016', name: 'Muneeb Tariq Allie', result: 'Distinc', marksObt: 413, grade: 'A2', percentage: '82.6%', maxMarks: 500 },
-      { rollNo: '101059002', name: 'Hamid Manzoor Bhat', result: 'Distinc', marksObt: 406, grade: 'A2', percentage: '81.2%', maxMarks: 500 },
-      { rollNo: '101059004', name: 'Muzamil Imtiyaz Bond', result: 'Distinc', marksObt: 403, grade: 'A2', percentage: '80.6%', maxMarks: 500 }
-    ],
-    allCandidates: [
-      { rollNo: '101059014', name: 'Ahytisham Ishaq Ganie', status: 'Qualified (A2)', marks: 429, division: 'Distinction', percentage: '85.8%' },
-      { rollNo: '101059016', name: 'Muneeb Tariq Allie', status: 'Qualified (A2)', marks: 413, division: 'Distinction', percentage: '82.6%' },
-      { rollNo: '101059002', name: 'Hamid Manzoor Bhat', status: 'Qualified (A2)', marks: 406, division: 'Distinction', percentage: '81.2%' },
-      { rollNo: '101059004', name: 'Muzamil Imtiyaz Bond', status: 'Qualified (A2)', marks: 403, division: 'Distinction', percentage: '80.6%' },
-      { rollNo: '101059011', name: 'Candidate 101059011', status: 'Qualified', marks: 267, division: '2nd Division', percentage: '53.4%' }
+      { rollNo: '101059002', name: 'Hamid Manzoor Bhat', result: 'Distinc', marksObt: 406, grade: 'A2', percentage: '81.2%', maxMarks: 500 }
     ]
   },
   {
@@ -288,9 +280,9 @@ export const CLASS_11_BOARD_RESULTS = [
       { rollNo: '201005020', name: 'Barq Afshan', result: 'Distinc', marksObt: 460, maxMarks: 500, percentage: '92.0%', resultMarksDisplay: 'Distinc / 460', stream: 'Arts/Humanities' },
       { rollNo: '201005028', name: 'Talib Ahmad Mir', result: 'Distinc', marksObt: 460, maxMarks: 500, percentage: '92.0%', resultMarksDisplay: 'Distinc / 460', stream: 'Arts/Humanities' },
       { rollNo: '201005023', name: 'Farzana Hassan', result: 'Distinc', marksObt: 430, maxMarks: 500, percentage: '86.0%', resultMarksDisplay: 'Distinc / 430', stream: 'Arts/Humanities' },
-      { rollNo: '201004085', name: 'Tabish Rasool', result: 'Distinc', marksObt: 454, maxMarks: 500, percentage: '90.8%', resultMarksDisplay: 'Distinc / 454', stream: 'Medical' },
-      { rollNo: '201005073', name: 'Burhan Ahmad', result: 'Distinc', marksObt: 443, maxMarks: 500, percentage: '88.6%', resultMarksDisplay: 'Distinc / 443', stream: 'Medical' },
-      { rollNo: '201005080', name: 'Umat Khan', result: 'Distinc', marksObt: 427, maxMarks: 500, percentage: '85.4%', resultMarksDisplay: 'Distinc / 427', stream: 'Medical' }
+      { rollNo: '201004085', name: 'Tabish Rasool', result: 'Distinc', marksObt: 454, maxMarks: 500, percentage: '90.8%', resultMarksDisplay: 'Distinc / 454', stream: 'Science' },
+      { rollNo: '201005073', name: 'Burhan Ahmad', result: 'Distinc', marksObt: 443, maxMarks: 500, percentage: '88.6%', resultMarksDisplay: 'Distinc / 443', stream: 'Science' },
+      { rollNo: '201005080', name: 'Umat Khan', result: 'Distinc', marksObt: 427, maxMarks: 500, percentage: '85.4%', resultMarksDisplay: 'Distinc / 427', stream: 'Science' }
     ]
   }
 ];
@@ -369,9 +361,9 @@ export const CLASS_12_BOARD_RESULTS = [
       { rollNo: '301002004', name: 'Farzana Hassan', result: 'Distinc', marksObt: 475, maxMarks: 500, percentage: '95.0%', resultMarksDisplay: 'Distinc / 475', stream: 'Arts/Humanities' },
       { rollNo: '301002005', name: 'Talib Ahmad Mir', result: 'Distinc', marksObt: 453, maxMarks: 500, percentage: '90.6%', resultMarksDisplay: 'Distinc / 453', stream: 'Arts/Humanities' },
       { rollNo: '301046025', name: 'Majid Nabi Dar', result: 'Distinc', marksObt: 447, maxMarks: 500, percentage: '89.4%', resultMarksDisplay: 'Distinc / 447', stream: 'Arts/Humanities' },
-      { rollNo: '301046053', name: 'Tabish Rasool Allie', result: 'Distinc', marksObt: 475, maxMarks: 500, percentage: '95.0%', resultMarksDisplay: 'Distinc / 475', stream: 'Medical' },
-      { rollNo: '301002042', name: 'Bismah Rahman', result: 'Distinc', marksObt: 424, maxMarks: 500, percentage: '84.8%', resultMarksDisplay: 'Distinc / 424', stream: 'Medical' },
-      { rollNo: '301002069', name: 'Shahid Mushtaq Ganie', result: 'Distinc', marksObt: 422, maxMarks: 500, percentage: '84.4%', resultMarksDisplay: 'Distinc / 422', stream: 'Medical' }
+      { rollNo: '301046053', name: 'Tabish Rasool Allie', result: 'Distinc', marksObt: 475, maxMarks: 500, percentage: '95.0%', resultMarksDisplay: 'Distinc / 475', stream: 'Science' },
+      { rollNo: '301002042', name: 'Bismah Rahman', result: 'Distinc', marksObt: 424, maxMarks: 500, percentage: '84.8%', resultMarksDisplay: 'Distinc / 424', stream: 'Science' },
+      { rollNo: '301002069', name: 'Shahid Mushtaq Ganie', result: 'Distinc', marksObt: 422, maxMarks: 500, percentage: '84.4%', resultMarksDisplay: 'Distinc / 422', stream: 'Science' }
     ]
   },
   {
@@ -408,9 +400,9 @@ export const CLASS_12_BOARD_RESULTS = [
       { rollNo: '301003011', name: 'Afreena Asif', result: 'Distinc', marksObt: 485, maxMarks: 500, percentage: '97.0%', resultMarksDisplay: 'Distinc / 485', stream: 'Arts/Humanities' },
       { rollNo: '301002030', name: 'Faizan Fayaz Bond', result: 'Distinc', marksObt: 476, maxMarks: 500, percentage: '95.2%', resultMarksDisplay: 'Distinc / 476', stream: 'Arts/Humanities' },
       { rollNo: '301003013', name: 'Mehvish Nabi', result: 'Distinc', marksObt: 473, maxMarks: 500, percentage: '94.6%', resultMarksDisplay: 'Distinc / 473', stream: 'Arts/Humanities' },
-      { rollNo: '301002046', name: 'Arbeena Khan', result: 'Distinc', marksObt: 450, maxMarks: 500, percentage: '90.0%', resultMarksDisplay: 'Distinc / 450', stream: 'Medical' },
-      { rollNo: '301002051', name: 'Mir Saniya Bilal', result: 'Distinc', marksObt: 449, maxMarks: 500, percentage: '89.8%', resultMarksDisplay: 'Distinc / 449', stream: 'Medical' },
-      { rollNo: '301002082', name: 'Areeba Iqbal', result: 'Distinc', marksObt: 448, maxMarks: 500, percentage: '89.6%', resultMarksDisplay: 'Distinc / 448', stream: 'Medical' }
+      { rollNo: '301002046', name: 'Arbeena Khan', result: 'Distinc', marksObt: 450, maxMarks: 500, percentage: '90.0%', resultMarksDisplay: 'Distinc / 450', stream: 'Science' },
+      { rollNo: '301002051', name: 'Mir Saniya Bilal', result: 'Distinc', marksObt: 449, maxMarks: 500, percentage: '89.8%', resultMarksDisplay: 'Distinc / 449', stream: 'Science' },
+      { rollNo: '301002082', name: 'Areeba Iqbal', result: 'Distinc', marksObt: 448, maxMarks: 500, percentage: '89.6%', resultMarksDisplay: 'Distinc / 448', stream: 'Science' }
     ]
   }
 ];

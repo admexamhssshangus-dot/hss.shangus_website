@@ -996,7 +996,7 @@ export default function Home() {
               { icon: Users, end: 700, suffix: "+", label: "STUDENTS", subtext: "Enrolled Scholars", colorClass: 'text-teal-700 bg-teal-50 border-teal-200 hover:shadow-teal-100/50', accentBar: 'from-teal-500 to-emerald-500', glow: 'group-hover:border-teal-500/40' },
               { icon: Award, end: 25, suffix: "+", label: "TEACHERS", subtext: "Faculty Mentors", colorClass: 'text-amber-700 bg-amber-50 border-amber-200 hover:shadow-amber-100/50', accentBar: 'from-amber-500 to-orange-500', glow: 'group-hover:border-amber-500/40' },
               { icon: BookOpen, end: 22, suffix: "+", label: "SUBJECTS", subtext: "Academic Streams", colorClass: 'text-indigo-700 bg-indigo-50 border-indigo-200 hover:shadow-indigo-100/50', accentBar: 'from-indigo-500 to-blue-500', glow: 'group-hover:border-indigo-500/40' },
-              { icon: GraduationCap, end: 90, suffix: "%+", label: "RESULT", subtext: "Board Pass Rate", colorClass: 'text-rose-700 bg-rose-50 border-rose-200 hover:shadow-rose-100/50', accentBar: 'from-rose-500 to-pink-500', glow: 'group-hover:border-rose-500/40' }
+              { icon: GraduationCap, end: 75, suffix: "%+", label: "RESULT", subtext: "Board Pass Rate", colorClass: 'text-rose-700 bg-rose-50 border-rose-200 hover:shadow-rose-100/50', accentBar: 'from-rose-500 to-pink-500', glow: 'group-hover:border-rose-500/40' }
             ].map((stat, i) => (
               <HomeStatCard key={i} stat={stat} index={i} />
             ))}

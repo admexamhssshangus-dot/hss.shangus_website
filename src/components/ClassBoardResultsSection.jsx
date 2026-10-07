@@ -198,7 +198,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
                           </td>
                           <td className="py-1.5 px-2.5 text-center font-medium text-slate-700 dark:text-slate-300">
                             <span className="inline-block px-2 py-0.5 rounded text-[11px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold">
-                              {t.stream}
+                              {t.stream === 'Medical' ? 'Science' : t.stream}
                             </span>
                           </td>
                         </>
