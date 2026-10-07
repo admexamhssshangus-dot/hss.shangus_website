@@ -2419,6 +2419,17 @@ export const extractRegNoClean = (st) => {
 
 export const getStudentName = (st) => {
   if (!st) return '';
+  const direct = st?.directEditHistory?.studentName?.newValue ||
+    st?.directEditHistory?.["Student's Name (as per school records)"]?.newValue ||
+    st?.directEditHistory?.["Student's Name"]?.newValue ||
+    st?.directEditHistory?.name?.newValue ||
+    st?.fieldEditHistory?.studentName?.newValue ||
+    st?.fieldEditHistory?.["Student's Name (as per school records)"]?.newValue ||
+    st?.fieldEditHistory?.["Student's Name"]?.newValue ||
+    st?.fieldEditHistory?.name?.newValue;
+  if (direct && String(direct).trim() && !/^(N\/A|—)$/i.test(String(direct).trim())) {
+    return String(direct).trim();
+  }
   return String(
     st["Student's Name (as per school records)"] ||
     st["Student's Name"] ||
@@ -2434,12 +2445,41 @@ export const getStudentName = (st) => {
 
 export const getFatherName = (st) => {
   if (!st) return '';
+  const direct = st?.directEditHistory?.fatherName?.newValue ||
+    st?.directEditHistory?.["Father's/Guardian's Name (as per school records)"]?.newValue ||
+    st?.directEditHistory?.["Father's Name"]?.newValue ||
+    st?.fieldEditHistory?.fatherName?.newValue ||
+    st?.fieldEditHistory?.["Father's/Guardian's Name (as per school records)"]?.newValue ||
+    st?.fieldEditHistory?.["Father's Name"]?.newValue;
+  if (direct && String(direct).trim() && !/^(N\/A|—)$/i.test(String(direct).trim())) {
+    return String(direct).trim();
+  }
   return String(
     st["Father's/Guardian's Name (as per school records)"] ||
     st["Father's Name"] ||
     st['Father Name'] ||
     st.fatherName ||
     st["Parent's Name"] ||
+    ''
+  ).replace(/^(N\/A|—)$/i, '').trim();
+};
+
+export const getMotherName = (st) => {
+  if (!st) return '';
+  const direct = st?.directEditHistory?.motherName?.newValue ||
+    st?.directEditHistory?.["Mother's Name (as per school records)"]?.newValue ||
+    st?.directEditHistory?.["Mother's Name"]?.newValue ||
+    st?.fieldEditHistory?.motherName?.newValue ||
+    st?.fieldEditHistory?.["Mother's Name (as per school records)"]?.newValue ||
+    st?.fieldEditHistory?.["Mother's Name"]?.newValue;
+  if (direct && String(direct).trim() && !/^(N\/A|—)$/i.test(String(direct).trim())) {
+    return String(direct).trim();
+  }
+  return String(
+    st["Mother's Name (as per school records)"] ||
+    st["Mother's Name"] ||
+    st['Mother Name'] ||
+    st.motherName ||
     ''
   ).replace(/^(N\/A|—)$/i, '').trim();
 };
@@ -7188,9 +7228,28 @@ function AdvancedReports({
       const isAdmNo = colKey === 'admNo' || targetFieldName === 'Adm. No.';
       const cleanedAdmNo = isAdmNo ? cleanAdmNoVal(newValue) : null;
       const isSessionEdit = colKey.toLowerCase() === 'session' || targetFieldName.toLowerCase() === 'session';
+      const isNameEdit = colKey === 'studentName' || targetFieldName === "Student's Name (as per school records)" || colKey === 'name';
+      const isFatherNameEdit = colKey === 'fatherName' || targetFieldName === "Father's/Guardian's Name (as per school records)";
+      const isMotherNameEdit = colKey === 'motherName' || targetFieldName === "Mother's Name (as per school records)";
 
       const payload = {
         [targetFieldName]: isDob ? formattedNewDob : (isAdmDate ? formattedNewAdmDate : (isAdmNo ? cleanedAdmNo : newValue)),
+        ...(isNameEdit ? {
+          studentName: newValue,
+          "Student's Name": newValue,
+          "Student's Name (as per school records)": newValue,
+          name: newValue
+        } : {}),
+        ...(isFatherNameEdit ? {
+          fatherName: newValue,
+          "Father's Name": newValue,
+          "Father's/Guardian's Name (as per school records)": newValue
+        } : {}),
+        ...(isMotherNameEdit ? {
+          motherName: newValue,
+          "Mother's Name": newValue,
+          "Mother's Name (as per school records)": newValue
+        } : {}),
         ...(isDob ? {
           dob: formattedNewDob,
           'DoB (as per school records)': formattedNewDob,
@@ -7239,6 +7298,22 @@ function AdvancedReports({
             ...st,
             [colKey]: isDob ? formattedNewDob : (isAdmDate ? formattedNewAdmDate : (isAdmNo ? cleanedAdmNo : newValue)),
             [targetFieldName]: isDob ? formattedNewDob : (isAdmDate ? formattedNewAdmDate : (isAdmNo ? cleanedAdmNo : newValue)),
+            ...(isNameEdit ? {
+              studentName: newValue,
+              "Student's Name": newValue,
+              "Student's Name (as per school records)": newValue,
+              name: newValue
+            } : {}),
+            ...(isFatherNameEdit ? {
+              fatherName: newValue,
+              "Father's Name": newValue,
+              "Father's/Guardian's Name (as per school records)": newValue
+            } : {}),
+            ...(isMotherNameEdit ? {
+              motherName: newValue,
+              "Mother's Name": newValue,
+              "Mother's Name (as per school records)": newValue
+            } : {}),
             ...(isDob ? {
               dob: formattedNewDob,
               'DoB (as per school records)': formattedNewDob,
@@ -7275,6 +7350,22 @@ function AdvancedReports({
             ...st,
             [colKey]: isDob ? formattedNewDob : newValue,
             [targetFieldName]: isDob ? formattedNewDob : newValue,
+            ...(isNameEdit ? {
+              studentName: newValue,
+              "Student's Name": newValue,
+              "Student's Name (as per school records)": newValue,
+              name: newValue
+            } : {}),
+            ...(isFatherNameEdit ? {
+              fatherName: newValue,
+              "Father's Name": newValue,
+              "Father's/Guardian's Name (as per school records)": newValue
+            } : {}),
+            ...(isMotherNameEdit ? {
+              motherName: newValue,
+              "Mother's Name": newValue,
+              "Mother's Name (as per school records)": newValue
+            } : {}),
             ...(isDob ? {
               dob: formattedNewDob,
               'DoB (as per school records)': formattedNewDob,
@@ -10283,6 +10374,17 @@ function AdvancedReports({
 
     const getStudentName = (st) => {
       if (!st) return '';
+      const direct = st?.directEditHistory?.studentName?.newValue ||
+        st?.directEditHistory?.["Student's Name (as per school records)"]?.newValue ||
+        st?.directEditHistory?.["Student's Name"]?.newValue ||
+        st?.directEditHistory?.name?.newValue ||
+        st?.fieldEditHistory?.studentName?.newValue ||
+        st?.fieldEditHistory?.["Student's Name (as per school records)"]?.newValue ||
+        st?.fieldEditHistory?.["Student's Name"]?.newValue ||
+        st?.fieldEditHistory?.name?.newValue;
+      if (direct && String(direct).trim() && !/^(N\/A|—)$/i.test(String(direct).trim())) {
+        return String(direct).trim();
+      }
       return String(
         st["Student's Name (as per school records)"] ||
         st["Student's Name"] ||
@@ -10298,12 +10400,41 @@ function AdvancedReports({
 
     const getFatherName = (st) => {
       if (!st) return '';
+      const direct = st?.directEditHistory?.fatherName?.newValue ||
+        st?.directEditHistory?.["Father's/Guardian's Name (as per school records)"]?.newValue ||
+        st?.directEditHistory?.["Father's Name"]?.newValue ||
+        st?.fieldEditHistory?.fatherName?.newValue ||
+        st?.fieldEditHistory?.["Father's/Guardian's Name (as per school records)"]?.newValue ||
+        st?.fieldEditHistory?.["Father's Name"]?.newValue;
+      if (direct && String(direct).trim() && !/^(N\/A|—)$/i.test(String(direct).trim())) {
+        return String(direct).trim();
+      }
       return String(
         st["Father's/Guardian's Name (as per school records)"] ||
         st["Father's Name"] ||
         st['Father Name'] ||
         st.fatherName ||
         st["Parent's Name"] ||
+        ''
+      ).replace(/^(N\/A|—)$/i, '').trim();
+    };
+
+    const getMotherName = (st) => {
+      if (!st) return '';
+      const direct = st?.directEditHistory?.motherName?.newValue ||
+        st?.directEditHistory?.["Mother's Name (as per school records)"]?.newValue ||
+        st?.directEditHistory?.["Mother's Name"]?.newValue ||
+        st?.fieldEditHistory?.motherName?.newValue ||
+        st?.fieldEditHistory?.["Mother's Name (as per school records)"]?.newValue ||
+        st?.fieldEditHistory?.["Mother's Name"]?.newValue;
+      if (direct && String(direct).trim() && !/^(N\/A|—)$/i.test(String(direct).trim())) {
+        return String(direct).trim();
+      }
+      return String(
+        st["Mother's Name (as per school records)"] ||
+        st["Mother's Name"] ||
+        st['Mother Name'] ||
+        st.motherName ||
         ''
       ).replace(/^(N\/A|—)$/i, '').trim();
     };
@@ -10939,9 +11070,21 @@ function AdvancedReports({
         delete sanitizedRecord[k];
       });
 
-      const sName = masterMatch?.["Student's Name"] || a["Student's Name (as per school records)"] || a["Student's Name"] || a['Account Name'] || 'Student';
-      const fName = masterMatch?.["Father's Name"] || a["Father's/Guardian's Name (as per school records)"] || a["Father's Name"] || '—';
-      const mName = masterMatch?.["Mother's Name"] || a["Mother's Name (as per school records)"] || a["Mother's Name"] || '—';
+      const rawDirectSName = getStudentName(a);
+      const rawDirectFName = getFatherName(a);
+      const rawDirectMName = getMotherName(a);
+
+      const sName = (rawDirectSName && rawDirectSName !== 'Student')
+        ? rawDirectSName
+        : (getStudentName(masterMatch) || rawDirectSName || 'Student');
+
+      const fName = (rawDirectFName && rawDirectFName !== '—')
+        ? rawDirectFName
+        : (getFatherName(masterMatch) || rawDirectFName || '—');
+
+      const mName = (rawDirectMName && rawDirectMName !== '—')
+        ? rawDirectMName
+        : (getMotherName(masterMatch) || rawDirectMName || '—');
       const directDobVal = a?.directEditHistory?.dob?.newValue || a?.directEditHistory?.['DoB (as per school records)']?.newValue || a?.fieldEditHistory?.dob?.newValue || a?.fieldEditHistory?.['DoB (as per school records)']?.newValue;
       const activeDobVal = directDobVal || getCleanDobVal(a.dob) || getCleanDobVal(a["DoB (as per school records)"]) || getCleanDobVal(a['DoB (figures)']) || getCleanDobVal(a.dateOfBirth) || getCleanDobVal(a.DoB);
       const masterDobVal = getCleanDobVal(masterMatch?.["DoB (figures)"]) || getCleanDobVal(masterMatch?.["DoB (as per school records)"]) || getCleanDobVal(masterMatch?.dob);
@@ -11224,9 +11367,9 @@ function AdvancedReports({
       const targetClass = normalizeClassVal(m['Admission sought for class'] || m['Class'] || m['class'] || m['className'] || m.className || m.class || '11th');
       const targetSession = normalizeSessionVal(m['Session'] || m['session'] || m['Academic Session'] || m.session || '2024-25');
 
-      const sName = m["Student's Name (as per school records)"] || m["Student's Name"] || m['Student Name'] || m['Name of Student'] || m['Account Name'] || m.studentName || m.name || 'Student';
-      const fName = m["Father's/Guardian's Name (as per school records)"] || m["Father's Name"] || m['Father Name'] || m.fatherName || '—';
-      const mName = m["Mother's Name (as per school records)"] || m["Mother's Name"] || m['Mother Name'] || m.motherName || '—';
+      const sName = getStudentName(m) || 'Student';
+      const fName = getFatherName(m) || '—';
+      const mName = getMotherName(m) || '—';
 
       // Skip this historical record ONLY if an identical active record is already present for the SAME CLASS and SESSION!
       const checkFNo = cleanFNo.replace(/[^a-z0-9]/g, '').toLowerCase();
