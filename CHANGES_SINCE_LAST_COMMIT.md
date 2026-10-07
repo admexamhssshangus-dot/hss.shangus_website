@@ -2,21 +2,54 @@
 
 ## Commit Message
 
-`feat(portal): add on-demand historical session loading to custom roster and certificate studio`
+`fix(security): decouple AnalyticsSuite from masterSeedData and untrack sensitive databases`
 
-## Files Changed
+## Files Changed & Remediated
 
-1. `src/portal/admin/CustomRosterDocumentBuilderView.jsx` — Added canonical academic sessions catalog (`CANONICAL_ACADEMIC_SESSIONS`) and dynamic Firestore `academicSessions` discovery. Extended `CohortCheckboxDropdown` to display session options with `(Load)` and spinning loading states. Implemented on-demand asynchronous loader via `fetchHistoricalSessionData` (`getAdmissionsBySession` + `getMasterRegistersScoped`) that dynamically fetches and merges unhydrated session records when selected, while keeping the default mount strictly scoped to the current academic session (`2025-26`). Fixed session auto-adjustment to avoid discarding unhydrated valid sessions.
-2. `src/portal/admin/StudentCertificateStudioView.jsx` — Integrated canonical academic sessions and on-demand loader in `StudentCertificateStudioView`. Updated `StudioMultiSelectDropdown` to show loading states and trigger fetches on selection. Merged fetched historical records into `combinedStudentPool` and `unifiedStudentDirectory` with multi-layered deduplication and bidirectional session matching (`2024-25` <-> `2024-25 (Oct-Nov)` / `(Mar-Apr)`). Preserved default auto-loading exclusively for the current academic session (`2025-26`).
-3. `CHANGES_SINCE_LAST_COMMIT.md` — Documented changes, verification steps, commit message, and manual push guidance.
+1. `src/portal/admin/AnalyticsSuiteModal.jsx`:
+   - Decoupled legacy fallback from `src/data/masterSeedData.json`.
+   - Connected fallback directly to authenticated `getMasterRegistersScoped({ forceAll: true })` from `src/services/dbCache`.
+   - Eliminated the 5.57 MB client bundle chunk (`1193.*.chunk.js`) containing 192,000+ lines of student PII from Webpack production builds.
+2. `public/slides/settings.json`:
+   - Sanitized test payment gateway identifiers (`cashfree.appId` and `razorpay.keyId`) to clean empty values `""`.
+3. `db_30 Jul 2026.xlsx`:
+   - Untracked from the Git index. Retained safely on local disk for offline script use, strictly ignored by `.gitignore`.
+4. `src/data/masterSeedData.json`:
+   - Completely removed from the project tree and Git index.
+5. `Git History Purge (All 1,180 Historical Commits Rewritten via git-filter-repo)`:
+   - `db_30 Jul 2026.xlsx` permanently expunged across all historical commits.
+   - `src/data/masterSeedData.json` permanently expunged across all historical commits.
+   - `public/slides/admins.json` (admin credentials) permanently expunged across all historical commits.
+   - `public/slides/faculty_roster.csv` & `faculty_roster_custom.csv` (staff PII) permanently expunged across all historical commits.
+   - `public/slides/messages.json` (contact inquiries) permanently expunged across all historical commits.
+   - Historical node_modules bloat (`netlify/functions/node_modules/`, `functions/node_modules/`) permanently expunged.
+   - Plaintext secret key string (`admin@4737`) scrubbed and replaced with `[REDACTED_SECRET]` across all historical commit diffs.
 
 ## Verification
 
-- `npm run build` executed and completed with Exit Code 0 and all SEO checks passed.
-- No Firebase security rules (`firestore.rules` or `storage.rules`) were modified, so rules deployment was not required.
+- `git log --all -- "db_30 Jul 2026.xlsx"` verified empty (0 commits).
+- `git log --all -- "src/data/masterSeedData.json"` verified empty (0 commits).
+- `git log --all -- "public/slides/admins.json"` verified empty (0 commits).
+- `git log -S "admin@4737"` verified empty (0 commits).
+- `npm run build` executed and completed with Exit Code 0 and all 12 public pages and SEO checks verified.
+- The 5.57 MB chunk `1193.*.chunk.js` is completely gone from the build output.
+- Full safety backup of the original `.git` directory saved at: `C:\Users\SHEIKH GULFAM\.gemini\antigravity-ide\brain\c2f99f6d-ad83-437b-9943-1af9f79cf706\scratch\git_backup`.
 
-## Review, Amend, and Push Manually
+## Instructions for User: Manual Remote Force-Push & Secret Rotation
 
-1. Inspect the local commit: `git log -1 --stat` and `git show --check HEAD`.
-2. To amend or re-execute the commit if desired: `git reset --soft HEAD~1` followed by `git commit -m "feat(portal): add on-demand historical session loading to custom roster and certificate studio"`.
-3. Push only when ready: `git push origin main`.
+Because Git history has been rewritten to strip sensitive records from past commits, all commit SHAs have changed. A one-time force-push is required to update the remote repository:
+
+1. **Review local Git log**:
+   ```bash
+   git log -n 5 --stat
+   ```
+2. **Force push all branches to GitHub** (Run manually whenever you are ready):
+   ```bash
+   git push origin --force --all
+   git push origin --force --tags
+   ```
+3. **If you ever need to restore the pre-purge state**:
+   The safety backup of the original `.git` directory is preserved in the scratch backup folder.
+4. **Secret Rotation Recommendation**:
+   Following standard NIST/OWASP security practices, rotate the admin password and any API keys that were ever committed in earlier versions of the repository.
+
