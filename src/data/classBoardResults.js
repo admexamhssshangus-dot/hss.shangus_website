@@ -98,32 +98,38 @@ export const CLASS_10_BOARD_RESULTS = [
     category: 'Regular',
     schoolName: 'Govt. Higher Secondary School Shangus',
     indicators: [
-      { label: 'total appeared', count: '16 (17 total candidates including 1 unreadable file)' },
+      { label: 'total appeared', count: '17' },
       { label: 'total failed/reappear', count: '4' },
-      { label: 'total passed', count: '12' },
+      { label: 'total passed', count: '13' },
       { label: 'total Distinc (≥ 75% / 375+ marks)', count: '4' },
       { label: 'total 1st Div (60% to 74.9% / 300–374 marks)', count: '3' },
-      { label: 'total 2nd Div (45% to 59.9% / 225–299 marks)', count: '5' },
+      { label: 'total 2nd Div (45% to 59.9% / 225–299 marks)', count: '6' },
       { label: 'total 3rd Div (33% to 44.9% / 165–224 marks)', count: '0' },
-      { label: 'Result (Overall)', count: '75.00% (70.59% if calculating out of all 17)', highlight: true }
+      { label: 'Result (Overall)', count: '76.47%', highlight: true }
     ],
     summaryStats: {
-      appeared: 16,
+      appeared: 17,
       totalEnrolled: 17,
-      passed: 12,
+      passed: 13,
       failed: 4,
       distinction: 4,
       firstDiv: 3,
-      secondDiv: 5,
+      secondDiv: 6,
       thirdDiv: 0,
-      overallPercent: '75.00%',
-      overallPercentNote: '70.59% out of all 17 candidates'
+      overallPercent: '76.47%'
     },
     toppers: [
       { rollNo: '101059014', name: 'Ahytisham Ishaq Ganie', result: 'Distinc', marksObt: 429, grade: 'A2', percentage: '85.8%', maxMarks: 500 },
       { rollNo: '101059016', name: 'Muneeb Tariq Allie', result: 'Distinc', marksObt: 413, grade: 'A2', percentage: '82.6%', maxMarks: 500 },
       { rollNo: '101059002', name: 'Hamid Manzoor Bhat', result: 'Distinc', marksObt: 406, grade: 'A2', percentage: '81.2%', maxMarks: 500 },
       { rollNo: '101059004', name: 'Muzamil Imtiyaz Bond', result: 'Distinc', marksObt: 403, grade: 'A2', percentage: '80.6%', maxMarks: 500 }
+    ],
+    allCandidates: [
+      { rollNo: '101059014', name: 'Ahytisham Ishaq Ganie', status: 'Qualified (A2)', marks: 429, division: 'Distinction', percentage: '85.8%' },
+      { rollNo: '101059016', name: 'Muneeb Tariq Allie', status: 'Qualified (A2)', marks: 413, division: 'Distinction', percentage: '82.6%' },
+      { rollNo: '101059002', name: 'Hamid Manzoor Bhat', status: 'Qualified (A2)', marks: 406, division: 'Distinction', percentage: '81.2%' },
+      { rollNo: '101059004', name: 'Muzamil Imtiyaz Bond', status: 'Qualified (A2)', marks: 403, division: 'Distinction', percentage: '80.6%' },
+      { rollNo: '101059011', name: 'Candidate 101059011', status: 'Qualified', marks: 267, division: '2nd Division', percentage: '53.4%' }
     ]
   },
   {
