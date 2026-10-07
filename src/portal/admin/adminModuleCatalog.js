@@ -410,7 +410,7 @@ export const ROLE_PRESETS = Object.freeze([
     name: 'Full Administrator',
     shortName: 'Full Admin',
     badgeClass: 'bg-indigo-600 text-white',
-    desc: 'Access to all 25 administrative modules, tools, and configurations.',
+    desc: 'Access to all 26 administrative modules, tools, and configurations.',
     perms: () => ADMIN_MODULE_CATALOG.map(m => m.id),
   },
   {

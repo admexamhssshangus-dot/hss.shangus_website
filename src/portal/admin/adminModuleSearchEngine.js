@@ -56,7 +56,12 @@ export const SEMANTIC_THESAURUS = Object.freeze({
   ],
   certificate: [
     'bonafide', 'character', 'provisional', 'dob', 'birth', 'slc', 'transfer', 'discharge',
-    'achievement', 'qr verification', 'school leaving'
+    'achievement certificate', 'qr verification', 'school leaving'
+  ],
+  achievements: [
+    'achievement', 'achievements', 'hall of fame', 'fame', 'topper', 'toppers', 'position', 'positions',
+    'ut positions', 'top ranks', 'rankers', 'awards', 'medals', 'honors', 'trophies', 'merit',
+    'neet', 'jee', 'cuet', 'sports', 'jkbose toppers', 'hall of fame cms'
   ],
   export: [
     'download', 'excel', 'csv', 'spreadsheet', 'sheets', 'pdf', 'print', 'word', 'docx'
@@ -74,7 +79,7 @@ export const SEMANTIC_THESAURUS = Object.freeze({
   ],
   website: [
     'cms', 'homepage', 'portal', 'slider', 'hero', 'notices', 'circular', 'gallery',
-    'news', 'public site'
+    'news', 'public site', 'achievements', 'hall of fame'
   ],
   audit: [
     'logs', 'activity', 'history', 'who did what', 'dispute', 'trail', 'timestamp',
@@ -94,6 +99,10 @@ export const SEMANTIC_THESAURUS = Object.freeze({
     'letterhead', 'official letter', 'draft', 'compose', 'ai letter', 'order', 'circular', 'memo'
   ]
 });
+
+export const STOP_WORDS = new Set([
+  'of', 'in', 'at', 'on', 'to', 'for', 'by', 'and', 'or', 'the', 'a', 'an', 'is', 'as', 'with', 'amp'
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. FUZZY STRING METRIC (DAMERAU-LEVENSHTEIN WITH TRANSPOSITION)
@@ -203,7 +212,9 @@ export function expandSemanticQuery(rawQuery) {
   const expandedConcepts = new Set();
   const searchSynonyms = new Set(tokens);
 
-  tokens.forEach(tok => {
+  const meaningfulTokens = tokens.filter(tok => !STOP_WORDS.has(tok) && tok.length > 1);
+
+  meaningfulTokens.forEach(tok => {
     // 1. Direct concept lookup
     if (SEMANTIC_THESAURUS[tok]) {
       expandedConcepts.add(tok);
@@ -212,7 +223,11 @@ export function expandSemanticQuery(rawQuery) {
 
     // 2. Reverse concept lookup (token appears inside another concept's synonyms)
     Object.entries(SEMANTIC_THESAURUS).forEach(([conceptKey, synList]) => {
-      const isSyn = synList.some(s => s === tok || s.includes(tok) || matchTokenFuzzy(tok, s).isMatch);
+      const isSyn = synList.some(s => {
+        if (s === tok) return true;
+        if (tok.length >= 3 && (s.startsWith(tok) || s.split(' ').includes(tok))) return true;
+        return matchTokenFuzzy(tok, s).isMatch;
+      });
       if (isSyn) {
         expandedConcepts.add(conceptKey);
         searchSynonyms.add(conceptKey);

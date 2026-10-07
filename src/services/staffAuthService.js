@@ -104,7 +104,7 @@ export const FALLBACK_STAFF_PROFILES = {
       'reports', 'admRegisterSuite', 'analyticsReports', 'directEntry', 'customRoster',
       'officialLetter', 'certStudio', 'idCards', 'gkTest', 'controls', 'curriculum',
       'practicals', 'attendanceMgmt', 'rollNo', 'mergeStudio', 'automations', 'funds',
-      'accounts', 'cms', 'boardSync', 'activityAudit', 'googleContacts', 'staff',
+      'accounts', 'cms', 'achievementsCms', 'boardSync', 'activityAudit', 'googleContacts', 'staff',
       'quickCellEdit', 'bulkToolsAction'
     ]
   },
@@ -346,9 +346,14 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
     uid: user?.uid || profile.uid || null,
     email,
     role: strictRole,
-    perms: isSuper
-      ? ['*']
-      : (Array.isArray(profile.perms) ? profile.perms : (isTeacher ? ['attendanceMgmt', 'practicals'] : ['reports'])),
+    perms: (() => {
+      if (isSuper) return ['*'];
+      const raw = Array.isArray(profile.perms) ? [...profile.perms] : (isTeacher ? ['attendanceMgmt', 'practicals'] : ['reports']);
+      if ((raw.includes('cms') || raw.includes('websiteCms')) && !raw.includes('achievementsCms')) {
+        raw.push('achievementsCms');
+      }
+      return raw;
+    })(),
     name: profile.name || user?.displayName || email.split('@')[0],
     subject: isTeacher ? (cleanSubjects.join(', ') || profile.subject || profile.teachingSubject || '') : '',
     teachingSubject: isTeacher ? (cleanSubjects.join(', ') || profile.teachingSubject || profile.subject || '') : '',

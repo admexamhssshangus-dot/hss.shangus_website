@@ -117,6 +117,14 @@ export const isUserPermittedForModule = (user, moduleId) => {
     return true;
   }
 
+  // 5. Backward-compatibility & CMS suite inheritance: if an admin has 'cms' or 'websiteCms', they inherit access for 'achievementsCms'
+  if (
+    (moduleId === 'achievementsCms' || moduleId === 'achievements' || moduleId === 'hallOfFame' || moduleId === 'achievements_cms') &&
+    (perms.includes('cms') || perms.includes('websiteCms') || perms.includes('achievementsCms') || perms.includes('achievements'))
+  ) {
+    return true;
+  }
+
   return false;
 };
 
