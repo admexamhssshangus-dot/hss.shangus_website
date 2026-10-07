@@ -335,16 +335,16 @@ export default function Achievements() {
                     <div
                       key={item.id}
                       onClick={() => setSelectedItem(item)}
-                      className={`group bg-white dark:bg-slate-900 rounded-xl p-4 border transition-all cursor-pointer flex flex-col justify-between ${
+                      className={`group relative bg-white dark:bg-slate-900 rounded-xl p-4 border transition-all cursor-pointer flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md ${
                         isTopCompetitive
-                          ? 'border-amber-300 dark:border-amber-800/80 shadow-2xs hover:shadow-md hover:border-amber-400'
-                          : 'border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-indigo-400/70'
+                          ? 'border-amber-300 dark:border-amber-800/80 shadow-2xs hover:border-amber-400'
+                          : 'border-slate-200 dark:border-slate-800 shadow-2xs hover:border-indigo-400/70'
                       }`}
                     >
                       <div>
-                        {/* Header Badge & Session */}
+                        {/* Top: Header Badge & Session */}
                         <div className="flex items-center justify-between gap-1.5 mb-2.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-bold border ${
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-extrabold border ${
                             isTopCompetitive
                               ? 'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800'
                               : meta.badgeBg
@@ -353,77 +353,52 @@ export default function Achievements() {
                           </span>
 
                           {item.session && (
-                            <span className="text-[10px] font-semibold text-slate-500">
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
                               Session {item.session}
                             </span>
                           )}
                         </div>
 
-                        {/* Honoree Name & Demographics */}
-                        <div className="mb-2.5">
-                          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                        {/* Name & Academic Class */}
+                        <div className="mb-3">
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                             {item.studentName}
                           </h3>
-                          {item.fatherName ? (
-                            <p className="text-[11px] text-slate-500 truncate">
-                              S/o {item.fatherName}
-                            </p>
-                          ) : null}
-                          <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mt-0.5">
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
                             Class {item.className} {item.stream ? `• ${item.stream}` : ''}
                           </p>
                         </div>
 
-                        {/* Credentials Highlight Box */}
-                        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 mb-2.5 space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                              Examination
-                            </span>
-                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate max-w-[65%] text-right">
-                              {item.examOrEvent}
-                            </span>
-                          </div>
-
+                        {/* Minimal Key Metric Pill (Clean & Uncluttered) */}
+                        <div className="space-y-1.5 mb-3">
                           {item.scoreOrMarks && (
-                            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
-                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                Merit / Score
+                            <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/60 dark:border-teal-900/40 text-xs">
+                              <span className="text-[10px] uppercase font-bold text-teal-600 dark:text-teal-400">
+                                Score / Merit
                               </span>
-                              <span className="font-extrabold text-teal-700 dark:text-teal-300 text-[11.5px]">
+                              <span className="font-black text-teal-900 dark:text-teal-200 text-xs truncate max-w-[65%] text-right font-mono">
                                 {item.scoreOrMarks}
                               </span>
                             </div>
                           )}
 
                           {item.institutionOrAward && item.institutionOrAward !== 'Govt. Higher Secondary School Shangus' && (
-                            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
-                              <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
-                                Allotment
-                              </span>
-                              <span className="text-[10.5px] font-extrabold text-indigo-900 dark:text-indigo-300 truncate max-w-[65%] text-right">
-                                {item.institutionOrAward}
-                              </span>
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200/50 dark:border-indigo-900/40 text-[11px] text-indigo-950 dark:text-indigo-200 font-semibold truncate">
+                              <GraduationCap size={13} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
+                              <span className="truncate">{item.institutionOrAward.split('/')[0].trim()}</span>
                             </div>
                           )}
                         </div>
-
-                        {/* Citation Snippet */}
-                        {item.description && (
-                          <p className="text-[11.5px] text-slate-600 dark:text-slate-300 leading-snug line-clamp-2">
-                            {item.description}
-                          </p>
-                        )}
                       </div>
 
-                      {/* Card Footer */}
-                      <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-[10.5px] text-slate-400 font-mono">
-                          {item.examRollNo ? `Roll: ${item.examRollNo}` : 'Verified Laureate'}
+                      {/* Card Footer: Clean single line with click affordance */}
+                      <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                        <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 truncate max-w-[60%]">
+                          {item.examOrEvent?.split('(')[0]?.trim() || 'Merit Record'}
                         </span>
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400 group-hover:translate-x-0.5 transition-transform">
                           <span>View Details</span>
-                          <ChevronRight size={12} />
+                          <ChevronRight size={13} />
                         </span>
                       </div>
                     </div>
@@ -482,47 +457,56 @@ export default function Achievements() {
             <div className="p-4 sm:p-5 space-y-3.5 max-h-[75vh] overflow-y-auto text-xs">
               {/* Demographics Card */}
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  {selectedItem.studentName}
-                </h3>
-                {selectedItem.fatherName ? (
-                  <p className="text-[11px] text-slate-500">
-                    Son / Daughter of {selectedItem.fatherName}
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-semibold border border-slate-200 dark:border-slate-600">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      {selectedItem.studentName}
+                    </h3>
+                    {selectedItem.fatherName ? (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Son / Daughter of <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedItem.fatherName}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                  {selectedItem.session && (
+                    <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-semibold border border-slate-200 dark:border-slate-600">
+                      Session {selectedItem.session}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2.5">
+                  <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-semibold border border-slate-200 dark:border-slate-600">
                     Class {selectedItem.className}
                   </span>
                   {selectedItem.stream && (
-                    <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-semibold border border-slate-200 dark:border-slate-600">
-                      {selectedItem.stream}
+                    <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-semibold border border-slate-200 dark:border-slate-600">
+                      {selectedItem.stream} Stream
                     </span>
                   )}
-                  {selectedItem.session && (
-                    <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-semibold border border-slate-200 dark:border-slate-600">
-                      Session {selectedItem.session}
+                  {selectedItem.examRollNo && (
+                    <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-mono font-semibold border border-slate-200 dark:border-slate-600">
+                      Roll No: {selectedItem.examRollNo}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Official Academic Details */}
-              <div className="grid grid-cols-2 gap-2">
-                {selectedItem.examRollNo && (
-                  <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Exam Roll No</span>
-                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{selectedItem.examRollNo}</span>
+              {/* Examination & Official Credentials */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {selectedItem.examOrEvent && (
+                  <div className="sm:col-span-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Examination / Qualifying Body</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{selectedItem.examOrEvent}</span>
                   </div>
                 )}
                 {selectedItem.scoreOrMarks && (
                   <div className="p-2.5 rounded-lg bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/70 dark:border-teal-900/50">
-                    <span className="text-[10px] uppercase font-bold text-teal-600 dark:text-teal-400 block">Score / Percentile</span>
-                    <span className="text-xs font-extrabold text-teal-900 dark:text-teal-200">{selectedItem.scoreOrMarks}</span>
+                    <span className="text-[10px] uppercase font-bold text-teal-600 dark:text-teal-400 block">Score / Merit</span>
+                    <span className="text-xs font-black text-teal-900 dark:text-teal-200">{selectedItem.scoreOrMarks}</span>
                   </div>
                 )}
                 {(selectedItem.utPositionOrRank || selectedItem.rankOrPosition) && (
-                  <div className="col-span-2 p-2.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-900/50">
+                  <div className="p-2.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-900/50">
                     <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 block">Official Rank / Merit</span>
                     <span className="text-xs font-bold text-amber-900 dark:text-amber-200">{selectedItem.utPositionOrRank || selectedItem.rankOrPosition}</span>
                   </div>
@@ -531,11 +515,11 @@ export default function Achievements() {
 
               {/* Selected Institution / Allotment */}
               {selectedItem.institutionOrAward && selectedItem.institutionOrAward !== 'Govt. Higher Secondary School Shangus' && (
-                <div className="p-3 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-900/50 flex items-start gap-2">
-                  <GraduationCap size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                <div className="p-3 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-900/50 flex items-start gap-2.5">
+                  <GraduationCap size={18} className="text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                   <div>
                     <span className="text-[10px] uppercase font-bold text-indigo-500 block">Allotted Institution / Selection</span>
-                    <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">{selectedItem.institutionOrAward}</span>
+                    <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200 leading-snug">{selectedItem.institutionOrAward}</span>
                   </div>
                 </div>
               )}
@@ -544,10 +528,10 @@ export default function Achievements() {
               {selectedItem.description && (
                 <div className="space-y-1">
                   <h4 className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Official Citation
+                    Official Citation &amp; Narrative
                   </h4>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800">
-                    {selectedItem.description}
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 italic">
+                    "{selectedItem.description}"
                   </p>
                 </div>
               )}

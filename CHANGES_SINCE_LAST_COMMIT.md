@@ -2,35 +2,39 @@
 
 ## Commit Message
 
-`feat(results): show board result summary in multicolumn structure and limit 10th toppers to top three`
+`feat(achievements): streamline honors cards to minimal layout and expand details modal`
 
 ## Summary of Changes
 
-1. **Multi-Column Structure for Board Result Summary Table (`src/components/ClassBoardResultsSection.jsx`)**:
-   - Transformed the single-column 8-row indicators list into a clean, balanced **Multi-Column (2×4 paired)** structure:
-     - **Left Column Pair**: Enrolment & General Outcomes (`total appeared`, `total passed`, `total failed/reappear`, `total 3rd Div`).
-     - **Right Column Pair**: Academic Divisions & Highlighted Pass Percentage (`total Distinc`, `total 1st Div`, `total 2nd Div`, `Result (Overall)`).
-   - Added an interactive layout switcher:
-     - **Multi-Column (2×4)**: Compact 4-row layout keeping `Category / Indicator` and `Count` columns side by side.
-     - **Horizontal Gazette (8-Col)**: Wide gazette summary placing all 8 indicators into columns across the table.
-   - Preserved full official print letterhead and endorsement verification signatures in `@media print`.
+1. **Minimal & Clean Honors & Hall of Fame Cards (`src/pages/Achievements.jsx`)**:
+   - Eliminated visual clutter and messy truncated content from the card front:
+     - Removed the cramped 3-row mini-table (`EXAMINATION`, `MERIT / SCORE`, `ALLOTMENT`) with truncated text (`...`).
+     - Removed parentage (`S/o ...`) and examination roll numbers from the card surface.
+     - Removed the 2-line truncated narrative citation snippet.
+   - Streamlined each card into an executive, breathable presentation:
+     - **Top**: Clean Honor Badge (`NEET AIR 124 / UT 1`, `UT 3rd Position`, etc.) + Academic Session.
+     - **Hero**: Prominent Honoree Name and Class / Stream.
+     - **Key Highlight**: Single dedicated metric chip (e.g., Score / Merit: `690 / 720 (99.98%tile)` or `492 / 500 (98.4%)`) and clean 1-line Allotment badge (e.g., `AIIMS Selection`).
+     - **Footer**: Crisp exam identifier (`NEET-UG`, `JKBOSE 12th`) and interactive `View Details →` affordance.
+     - Entire card is smoothly hoverable and clickable.
 
-2. **Class 10th Regular 2024-25 (Oct-Nov) Data Refinement (`src/data/classBoardResults.js`)**:
-   - Trimmed `toppers` list from 13 candidates down strictly to the top three institutional achievers:
-     1. **Fayiz Bilal** (Roll: `101060016`) – Marks: 485/500 (97.0%, Grade A1)
-     2. **Naveed Ul Haq** (Roll: `101060029`) – Marks: 484/500 (96.8%, Grade A1)
-     3. **Sabzar Bashir Kumar** (Roll: `101060007`) – Marks: 483/500 (96.6%, Grade A1)
-   - Completely purged the 35-candidate roster (`allCandidates`) to ensure a clean, professional, publication-ready gazette format.
+2. **Comprehensive & Authoritative Details Modal (`src/pages/Achievements.jsx`)**:
+   - Clicking any card or the "View Details" button opens the full-screen dialog displaying complete institutional records:
+     - **Student Profile**: Full Student Name, Father's Name, Exam Roll Number, Class, Stream, and Session.
+     - **Examination & Authority**: Full examination title and governing agency (e.g., `National Testing Agency (NTA) NEET-UG 2026`).
+     - **Merit & Rankings**: Detailed score, percentile, marks, and state/national ranks.
+     - **Institutional Selection**: Full allotted university/college (e.g., `AIIMS / Premier National Medical Institute Selection`).
+     - **Official Citation & Narrative**: Un-truncated, full official institutional tribute with quotation styling.
+     - **Actions**: "Share Citation" (clipboard copy with notification) and "Close".
 
 ## Files Changed
 
-1. `src/components/ClassBoardResultsSection.jsx`
-2. `src/data/classBoardResults.js`
-3. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `src/pages/Achievements.jsx`
+2. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- `npm run build`: Production build completed with Exit Code 0; all 12 public static pages and SEO checks verified with zero breaking errors.
+- `npm run build`: Production build verified with Exit Code 0; all 12 public HTML pages and SEO validation passed.
 
 ## Manual Git Push Instructions
 
@@ -41,7 +45,7 @@
 2. If you wish to amend or re-commit:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(results): show board result summary in multicolumn structure and limit 10th toppers to top three"
+   git commit -m "feat(achievements): streamline honors cards to minimal layout and expand details modal"
    ```
 3. Push changes to GitHub (strictly manual):
    ```bash
