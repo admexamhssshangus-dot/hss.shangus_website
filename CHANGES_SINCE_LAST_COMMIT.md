@@ -2,85 +2,71 @@
 
 ## Commit Message
 
-`feat(achievements): add public hall of fame page and admin cms studio with ut positions highlight`
+`feat(results): update jkbose class 10th board results across 2024, 2024-25 oct-nov, and 2025 cohorts`
 
 ## Summary
 
-- **Public School Achievements & Hall of Fame (`/achievements`)**:
-  - Built a dedicated scholastic accolades page matching the exact design language of `Academics.jsx` and `About.jsx` using `<EducationalBackground variant="academics" />` and the scholastic design token palette.
-  - **J&K UT Position Holders & Top Performers Spotlight**: High-priority golden showcase spotlighting students who achieved top positions or official ranks in Jammu & Kashmir Union Territory (UT Toppers, Top 10 Division Rankers, and State Champions).
-  - **Category Coverage**: Includes JKBOSE Board Results, Competitive Exams (NEET UG / JEE / CUET), Sports & Athletics, Co-Curricular & Arts, and Institutional Honors.
-  - **Session Scoping**: Session filter defaults strictly to the current academic session (`2025-26`) with historical sessions available on demand.
-  - **Interactive Citation Modal**: Detailed popup displaying student demographics, verified Board Reg No & Exam Roll No, institution/selection details, full institutional citation, and shareable link.
-  - **Real-Time Cross-Tab Synchronization**: Listens on `BroadcastChannel('hss_data_sync')` for immediate updates without page reloads.
+- **Authoritative JKBOSE Class 10th Board Results Integration (`src/data/classBoardResults.js`)**:
+  - Centralized official matriculation board evaluation dataset covering three cohorts:
+    1. **10th Result 2024 (Annual Regular)**:
+       - Total appeared: `34`, Total failed/reappear: `10`, Total passed: `24`.
+       - Distinctions: `9`, 1st Div: `7`, 2nd Div: `8`, 3rd Div: `0`, Overall: `70.59%`.
+       - School Toppers: Sartaj Ahmad Mir (485 / 500, Grade A1, 97.0%), Farhan Yousuf Wani (470 / 500, Grade A1, 94.0%), Wasiq Ahmad Bhat (464 / 500, Grade A1, 92.8%).
+    2. **10th Result 2024-25 (Oct-Nov Bi-Annual / Private)**:
+       - Total appeared: `35`, Total failed/reappear: `7`, Total passed: `28`.
+       - Distinctions: `13`, 1st Div: `9`, 2nd Div: `6`, 3rd Div: `0`, Overall: `80.00%`.
+       - School Toppers: Fayiz Bilal (485, A1, 97.0%), Naveed Ul Haq (484, A1, 96.8%), Sabzar Bashir Kumar (483, A1, 96.6%), Owais Ashraf Mantoo (475, A1, 95.0%), Sahil Yousuf (453, A1), Ahzan Muzaffar Beig (452, A1), Murtaza Rasool Kanth (448, A2), Rahil Ahmad Rather (444, A2), Mohammad Daniyal Sheikh (440, A2), Hamid Amin (410, A2), Tawqeer Bashir Bond (397, B1), Waseem Ahmad Khan (391, B1), Sheezan Sultan Wani (377, B1).
+       - Complete Official Gazette breakdown for all 35 candidates with roll numbers, subjects, marks, and reappear details.
+    3. **10th Result 2025 (Mar-Apr Annual Regular)**:
+       - Total appeared: `16` (`17` total candidates including 1 unreadable file), Total failed/reappear: `4`, Total passed: `12`.
+       - Distinctions: `4`, 1st Div: `3`, 2nd Div: `5`, 3rd Div: `0`, Overall: `75.00%` (`70.59%` out of 17).
+       - School Toppers: Ahytisham Ishaq Ganie (429, A2, 85.8%), Muneeb Tariq Allie (413, A2, 82.6%), Hamid Manzoor Bhat (406, A2, 81.2%), Muzamil Imtiyaz Bond (403, A2, 80.6%).
 
-- **Admin Achievements CMS Studio (`achievementsCms`)**:
-  - Full-featured CMS studio (`AchievementsCMSManager.jsx`) allowing administrators to create, edit, delete, publish, and reorder accolades.
-  - **Student Fast-Lookup Engine**: Admin can enter Board Registration Number (or Roll No / Name) + Class + Session (defaults to `2025-26`) to auto-fetch demographic records and student photograph.
-  - **UT Position Holder Flags**: Dedicated toggle and inputs for `isUtPositionHolder` and `utPositionOrRank`.
-  - Photo upload with automatic WebP/JPEG canvas compression.
+- **Dedicated Gazette UI Component (`ClassBoardResultsSection.jsx`)**:
+  - Replicates and elevates the authentic institutional evaluation table format:
+    - Institutional header badge matching official layout: `10th Result [Session]` and `Govt. Higher Secondary School Shangus`.
+    - Category / Indicator summary table with highlighted `Result (Overall)`.
+    - School toppers section with Roll No, Name, Result, Marks Obt, and Grade.
+    - Interactive cohort tab switcher (`2025 Mar-Apr`, `2024-25 Oct-Nov`, `2024 Annual Regular`).
+    - Expandable complete 35-student gazette table for the Oct-Nov cohort with live search filter and print stylesheet support.
 
-- **Module Catalog & Permissions Synchronization (Rule 7 Audit)**:
-  - Synchronized across:
-    1. `src/portal/admin/adminModuleCatalog.js`: Added `achievementsCms` (Module 25) under `Operations & Automation` category with aliases `['achievementsCms', 'achievements', 'hallOfFame', 'achievements_cms']` and updated `full_admin` & `academic_incharge` presets.
-    2. `src/portal/admin/StaffPermissionsManager.jsx`: Inherits `achievementsCms` dynamically from `ADMIN_MODULE_CATALOG`.
-    3. `src/portal/admin/AdminToolsDropdown.jsx`: Added `Trophy` icon and launcher click routing.
-    4. `src/portal/admin/AdminDashboard.jsx`: Configured `lazyWithChunkRecovery`, `MODULE_LOADERS`, initial tab resolution, and container mounting with smooth return to records.
+- **Achievements Service Integration (`achievementsService.js`)**:
+  - Replaced demo matriculation records with authentic Class 10th board toppers across sessions with accurate roll numbers and scores.
+  - Linked toppers to Hall of Fame categories with verified grades and percentages.
 
-- **Routing, Navigation & SEO Integration**:
-  - `src/App.js`: Added `/achievements` route and `/hall-of-fame` redirect.
-  - `src/components/Navbar.jsx`: Added "Achievements" link to both desktop navigation bar and mobile drawer.
-  - `src/components/Footer.jsx`: Added "Achievements & Honors" link in the Quick Links column.
-  - `src/seo/siteSeo.js` & `public/sitemap.xml`: Added canonical metadata, search snippets, and sitemap entry for static SEO pre-rendering.
-
-- **Firestore Security Rules**:
-  - Added public read and staff/admin RBAC for `/siteAchievements/{achievementId}` in `firestore.rules`.
-  - Automatically deployed to Firebase via `npm run deploy:rules` with Exit Code 0.
+- **Public Achievements Page (`Achievements.jsx`)**:
+  - Integrated top view switcher tabs between `Class 10th Board Results` (default) and `Scholastic Honors & Hall of Fame`.
+  - Preserved deep linking via URL parameter `?tab=board_results` and `?tab=honors`.
+  - Cross-promotional teasers between gazette summaries and individual honoree cards.
 
 ## Files Changed
 
-1. `firestore.rules`
-2. `public/sitemap.xml`
-3. `src/App.js`
-4. `src/components/Footer.jsx`
-5. `src/components/Navbar.jsx`
-6. `src/pages/Achievements.jsx` (New)
-7. `src/portal/admin/AchievementsCMSManager.jsx` (New)
-8. `src/portal/admin/AdminDashboard.jsx`
-9. `src/portal/admin/AdminToolsDropdown.jsx`
-10. `src/portal/admin/adminModuleCatalog.js`
-11. `src/seo/siteSeo.js`
-12. `src/services/achievementsService.js` (New)
-13. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `src/data/classBoardResults.js` (New)
+2. `src/components/ClassBoardResultsSection.jsx` (New)
+3. `src/services/achievementsService.js`
+4. `src/pages/Achievements.jsx`
+5. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- `npm run deploy:rules`: Deployed security rules to Firebase successfully with Exit Code 0.
+- `npm run build`: Production build succeeded with Exit Code 0 and 12 static pre-rendered pages.
 - `npm run test:public`: 10/10 security and public records verification tests passed.
-- `npm run security:check`: Security regression checks passed.
+- `npm run seo:check`: SEO regression checks passed.
 - `npm run admission:check`: Admission schema & PDF regression checks passed.
-- `npm run performance:check`: Admin performance regression checks passed.
-- `npm run seo:check`: 12/12 static HTML pages, metadata, sitemap, and routing validated.
-- `npm run build`: Production build completed with `Exit Code 0` and zero breaking errors.
+- `npm run security:check`: Security regression checks passed.
 
-## Instructions for the User
+## Manual Git Push Instructions
 
-1. Review the local commit:
-
+1. Inspect the local commit:
    ```bash
-   git show --stat HEAD
-   git log -1 -p
+   git log -1 --stat
    ```
-
-2. Amend or recreate the commit if you prefer another message:
-
+2. If you wish to amend or re-commit:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "Your custom commit message"
+   git commit -m "feat(results): update jkbose class 10th board results across 2024, 2024-25 oct-nov, and 2025 cohorts"
    ```
-
-3. Manually push changes to remote repository:
-
+3. Push changes to GitHub (strictly manual):
    ```bash
    git push origin main
    ```

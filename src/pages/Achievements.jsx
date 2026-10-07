@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Trophy, Award, Star, Medal, Sparkles, Building2, Search,
   GraduationCap, Calendar, User, CheckCircle2, ChevronRight,
@@ -7,6 +8,7 @@ import {
 import EducationalBackground from '../components/common/EducationalBackground';
 import SEO from '../components/SEO';
 import PublicPageSkeleton from '../components/PublicPageSkeleton';
+import ClassBoardResultsSection from '../components/ClassBoardResultsSection';
 import { fetchPublishedAchievements } from '../services/achievementsService';
 import { getCurrentAcademicSession } from '../services/dbCache';
 
@@ -55,6 +57,10 @@ const CATEGORY_META = {
 };
 
 export default function Achievements() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeViewTab, setActiveViewTab] = useState(() => {
+    return searchParams.get('tab') === 'honors' ? 'honors' : 'board_results';
+  });
   const [achievements, setAchievements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,6 +71,15 @@ export default function Achievements() {
   const [utFilterOnly, setUtFilterOnly] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleTabChange = (newTab) => {
+    setActiveViewTab(newTab);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', newTab);
+      return next;
+    }, { replace: true });
+  };
 
   // Load published achievements
   const loadData = async (force = false) => {
@@ -205,7 +220,94 @@ export default function Achievements() {
           </p>
         </header>
 
-        {/* ── HIGHLIGHT: UT TOP POSITION HOLDERS SPOTLIGHT BANNER ── */}
+        {/* ── VIEW SWITCHER TABS ── */}
+        <div className="flex items-center justify-center mb-8 px-2">
+          <div className="inline-flex p-1.5 rounded-2xl bg-slate-200/90 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 shadow-xs max-w-full overflow-x-auto gap-1">
+            <button
+              type="button"
+              onClick={() => handleTabChange('board_results')}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap ${
+                activeViewTab === 'board_results'
+                  ? 'bg-white dark:bg-slate-900 text-teal-800 dark:text-teal-300 shadow-sm border border-teal-200 dark:border-teal-700/80'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Award size={16} className={activeViewTab === 'board_results' ? 'text-teal-600' : 'text-slate-400'} />
+              <span>Class 10th Board Results</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-extrabold uppercase">
+                Gazettes &amp; Toppers
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('honors')}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap ${
+                activeViewTab === 'honors'
+                  ? 'bg-white dark:bg-slate-900 text-amber-900 dark:text-amber-300 shadow-sm border border-amber-200 dark:border-amber-700/80'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Trophy size={16} className={activeViewTab === 'honors' ? 'text-amber-600' : 'text-slate-400'} />
+              <span>Scholastic Honors &amp; Hall of Fame</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-extrabold">
+                {achievements.length} Accolades
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {activeViewTab === 'board_results' ? (
+          <div className="space-y-6">
+            <ClassBoardResultsSection />
+
+            {/* Teaser link banner to Individual Hall of Fame */}
+            <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-100/50 to-teal-500/10 dark:from-amber-950/30 dark:via-slate-800 dark:to-teal-950/30 border border-amber-300/80 dark:border-amber-800/60 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Trophy size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                    Looking for individual student citations &amp; UT state rank holders?
+                  </h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                    Browse {achievements.length} verified citations, student photographs, and competitive selections (NEET-UG, JEE, Sports).
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange('honors')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer shrink-0"
+              >
+                <span>Explore Hall of Fame</span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            {/* Quick banner linking to Class Board Results */}
+            <div className="p-3.5 rounded-xl bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 flex items-center justify-between gap-3 text-xs mb-6">
+              <div className="flex items-center gap-2">
+                <Award size={16} className="text-teal-600 shrink-0" />
+                <span className="font-semibold text-teal-950 dark:text-teal-200">
+                  Official Class 10th Board evaluation tables and statistical summaries are available in the Gazette tab.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleTabChange('board_results')}
+                className="font-bold text-teal-700 dark:text-teal-300 hover:underline shrink-0 flex items-center gap-1 cursor-pointer"
+              >
+                <span>View 10th Results</span>
+                <ChevronRight size={12} />
+              </button>
+            </div>
+
+            {/* ── HIGHLIGHT: UT TOP POSITION HOLDERS SPOTLIGHT BANNER ── */}
         {utPositionHolders.length > 0 && (
           <div className="relative mb-8 rounded-3xl p-5 sm:p-7 overflow-hidden border-2 border-amber-400/80 bg-gradient-to-br from-amber-500/10 via-amber-50/70 to-white dark:from-amber-950/40 dark:via-slate-900 dark:to-slate-950 shadow-md">
             {/* Top decorative ribbon */}
@@ -626,6 +728,8 @@ export default function Achievements() {
                 </div>
               );
             })}
+          </div>
+        )}
           </div>
         )}
 
