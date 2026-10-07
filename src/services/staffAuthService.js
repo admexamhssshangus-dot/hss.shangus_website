@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { staffCallable } from './staffCommand';
 import { auth, db } from './firebase';
 import { 
@@ -350,7 +350,10 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
   }
 
   if (!profile) return null;
-  if (profile.active === false) throw new Error('This staff account is inactive.');
+  if (profile.active === false || profile.deactivated === true || profile.status === 'deactivated' || profile.status === 'inactive') {
+    const reason = profile.deactivatedReason ? ` (Reason: ${profile.deactivatedReason})` : '';
+    throw new Error(`This staff account has been deactivated / transferred${reason}. Please contact the school administration.`);
+  }
 
   // Strict Institutional Rule: EXACTLY ONE STRICT ROLE per email
   // (SuperAdmin, Admin, Teacher, Student)
@@ -538,12 +541,49 @@ export async function sendStaffPasswordReset(email) {
 /**
  * Deactivates a staff account through the authoritative server workflow.
  */
-export async function deleteStaffAccount(email) {
+export async function deactivateStaffAccount(email, reason = 'Transferred / Relieved') {
   const cleanEmail = String(email || '').trim().toLowerCase();
   if (!cleanEmail) return { success: false };
-  const result = await staffCallable('manageStaffAccount')({ action: 'deactivate', email: cleanEmail });
+  const result = await staffCallable('manageStaffAccount')({ 
+    action: 'deactivate', 
+    email: cleanEmail,
+    reason: String(reason || 'Transferred / Relieved').trim()
+  });
   clearStaffProfileCache(cleanEmail);
+  try {
+    const configRef = doc(db, 'adminPracticalsSettings', 'config');
+    await setDoc(configRef, {
+      deactivatedTeachers: arrayUnion(cleanEmail)
+    }, { merge: true });
+  } catch (_) {}
   return result?.data || result;
+}
+
+/**
+ * Reactivates a previously deactivated staff account through the authoritative server workflow.
+ */
+export async function reactivateStaffAccount(email) {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanEmail) return { success: false };
+  const result = await staffCallable('manageStaffAccount')({ 
+    action: 'reactivate', 
+    email: cleanEmail 
+  });
+  clearStaffProfileCache(cleanEmail);
+  try {
+    const configRef = doc(db, 'adminPracticalsSettings', 'config');
+    await setDoc(configRef, {
+      deactivatedTeachers: arrayRemove(cleanEmail)
+    }, { merge: true });
+  } catch (_) {}
+  return result?.data || result;
+}
+
+/**
+ * Deactivates or removes a staff account through the authoritative server workflow.
+ */
+export async function deleteStaffAccount(email, reason = 'Transferred / Relieved') {
+  return deactivateStaffAccount(email, reason);
 }
 
 /**

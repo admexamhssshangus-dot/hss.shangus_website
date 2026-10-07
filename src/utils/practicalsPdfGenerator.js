@@ -2892,7 +2892,7 @@ export function printHistoricalSubmission(item) {
  * Checks whether an evaluation submission document was created by the currently authenticated teacher.
  * Strictly prevents non-admin teachers from viewing or claiming awards belonging to other faculty.
  */
-export function isSubmissionOwnedByTeacher(item, user, authUser) {
+export function isSubmissionOwnedByTeacher(item, user, authUser, practicalsSettings = null) {
   if (!item) return false;
 
   const currentEmail = String(user?.email || authUser?.email || '').toLowerCase().trim();
@@ -2942,7 +2942,25 @@ export function isSubmissionOwnedByTeacher(item, user, authUser) {
     if (normalizedCurrentEmail && resolvedItemEmail === normalizedCurrentEmail) {
       return true;
     }
-    // Item carries an explicit email of a different teacher — strictly reject!
+
+    // Check if the previous submitter was deactivated / transferred:
+    // If deactivated, AND current teacher is active and assigned to this item's subject, allow seamless adoption
+    const isPreviousDeactivated = Boolean(
+      (practicalsSettings?.deactivatedTeachers && Array.isArray(practicalsSettings.deactivatedTeachers) && practicalsSettings.deactivatedTeachers.includes(resolvedItemEmail)) ||
+      item.isTransferredFaculty === true ||
+      item.isPreviousTeacherDeactivated === true
+    );
+
+    if (isPreviousDeactivated && user?.active !== false && !user?.deactivated) {
+      const itemSubj = String(item.subjectName || item.subject || item.subjectCode || item.teachingSubject || item.teacherRegisteredSubject || '').toLowerCase().trim();
+      const assigned = Array.isArray(user?.assignedSubjects) ? user.assignedSubjects : (user?.assignedSubjects ? [user.assignedSubjects] : []);
+      const candidateSubjects = [currentSubject, ...assigned].filter(Boolean);
+      if (itemSubj && candidateSubjects.some(s => isTeacherSubjectMatch(String(s).toLowerCase().trim(), itemSubj))) {
+        return true;
+      }
+    }
+
+    // Item carries an explicit email of a different active teacher — strictly reject!
     return false;
   }
 

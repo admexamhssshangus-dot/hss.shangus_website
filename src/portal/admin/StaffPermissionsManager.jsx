@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   ShieldCheck, Lock, UserCheck, Key, Edit3, Trash2, UserPlus, 
   Sparkles, Save, RefreshCw, CheckCircle2, AlertCircle, X, Search,
-  SlidersHorizontal, ChevronDown, Eye, EyeOff, Check, Users, BookOpen
+  SlidersHorizontal, ChevronDown, Eye, EyeOff, Check, Users, BookOpen,
+  UserX, RotateCcw, Ban
 } from 'lucide-react';
 import { auth, db } from '../../services/firebase';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
@@ -12,6 +13,8 @@ import {
   updateStaffAccount, 
   sendStaffPasswordReset, 
   deleteStaffAccount,
+  deactivateStaffAccount,
+  reactivateStaffAccount,
   clearStaffProfileCache,
   resolveStaffRoleAndPerms
 } from '../../services/staffAuthService';
@@ -173,6 +176,10 @@ export default function StaffPermissionsManager() {
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [editingAdminEmail, setEditingAdminEmail] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [staffStatusFilter, setStaffStatusFilter] = useState('active'); // 'active' | 'deactivated' | 'all'
+  const [userToDeactivate, setUserToDeactivate] = useState(null);
+  const [deactivateReason, setDeactivateReason] = useState('Transferred to another institution');
+  const [userToReactivate, setUserToReactivate] = useState(null);
   const [, setSubjectTierTab] = useState('11th-12th'); // '9th-10th' | '11th-12th'
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [modalModuleSearch, setModalModuleSearch] = useState('');
@@ -187,6 +194,8 @@ export default function StaffPermissionsManager() {
     name: '', 
     email: '', 
     role: 'Admin', 
+    active: true,
+    deactivatedReason: '',
     designation: '',
     perms: ['reports'],
     subject: '',
@@ -230,8 +239,13 @@ export default function StaffPermissionsManager() {
             ? u.assignedSubjects
             : (u.subject || u.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean);
 
+          const isActive = u.active !== false && !u.deactivated;
           let updatedUser = {
             ...u,
+            active: isActive,
+            deactivated: !isActive,
+            deactivatedAt: u.deactivatedAt || null,
+            deactivatedReason: u.deactivatedReason || null,
             assignedClasses: cleanClasses,
             assignedSubjects,
           };
@@ -263,9 +277,14 @@ export default function StaffPermissionsManager() {
           if (!k) return;
           if (dedupedStaffMap.has(k)) {
             const prev = dedupedStaffMap.get(k);
+            const isMergedActive = (prev.active !== false && !prev.deactivated) && (u.active !== false && !u.deactivated);
             dedupedStaffMap.set(k, {
               ...prev,
               ...u,
+              active: isMergedActive,
+              deactivated: !isMergedActive,
+              deactivatedReason: u.deactivatedReason || prev.deactivatedReason || null,
+              deactivatedAt: u.deactivatedAt || prev.deactivatedAt || null,
               assignedClasses: [...new Set([...(prev.assignedClasses || []), ...(u.assignedClasses || [])])],
               assignedSubjects: [...new Set([...(prev.assignedSubjects || []), ...(u.assignedSubjects || [])])],
             });
@@ -309,11 +328,16 @@ export default function StaffPermissionsManager() {
                     ? data.assignedSubjects
                     : (data.subject || data.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean);
 
+                  const isStaffActive = data.active !== false && !data.deactivated;
                   extraStaff.push({
                     name: data.name || data.displayName || cleanE.split('@')[0],
                     email: cleanE,
                     uid: (d.id !== cleanE) ? d.id : (data.uid || null),
                     role: isTeacher ? 'Teacher' : 'Admin',
+                    active: isStaffActive,
+                    deactivated: !isStaffActive,
+                    deactivatedAt: data.deactivatedAt || null,
+                    deactivatedReason: data.deactivatedReason || null,
                     designation: data.designation || data.label || '',
                     perms: data.perms || (isTeacher ? ['attendanceMgmt', 'practicals'] : ['reports', 'analyticsReports']),
                     subject: data.subject || data.teachingSubject || '',
@@ -601,6 +625,8 @@ export default function StaffPermissionsManager() {
       name: '', 
       email: '', 
       role: 'Teacher', 
+      active: true,
+      deactivatedReason: '',
       designation: '',
       perms: ['attendanceMgmt', 'practicals'].filter(canDelegateModule),
       subject: '',
@@ -666,6 +692,8 @@ export default function StaffPermissionsManager() {
       name: user.name || '', 
       email: user.email || '', 
       role: isSuperTarget ? 'SuperAdmin' : (user.role === 'Teacher' ? 'Teacher' : 'Admin'), 
+      active: user.active !== false && !user.deactivated,
+      deactivatedReason: user.deactivatedReason || '',
       designation: user.designation || user.label || '',
       perms: Array.isArray(user.perms) ? [...user.perms] : ['reports'],
       subject: existingSubjects.join(', '),
@@ -781,6 +809,15 @@ export default function StaffPermissionsManager() {
           password: adminForm.password,
         });
 
+        if (adminForm.active === false) {
+          await deactivateStaffAccount(cleanEmail, adminForm.deactivatedReason || 'Transferred to another institution');
+        } else {
+          const prevUser = adminUsers.find(u => u.email.toLowerCase() === editingAdminEmail.toLowerCase());
+          if (prevUser && (prevUser.active === false || prevUser.deactivated === true)) {
+            await reactivateStaffAccount(cleanEmail);
+          }
+        }
+
         const updated = adminUsers.map((u) =>
           u.email.toLowerCase() === editingAdminEmail.toLowerCase()
             ? enforceStrictRoleAttributes({ 
@@ -788,6 +825,9 @@ export default function StaffPermissionsManager() {
                 name: adminForm.name.trim(), 
                 email: cleanEmail, 
                 role: resolvedRole, 
+                active: adminForm.active !== false,
+                deactivated: adminForm.active === false,
+                deactivatedReason: adminForm.active === false ? (adminForm.deactivatedReason || 'Transferred to another institution') : null,
                 designation: adminForm.designation?.trim() || '',
                 perms: adminForm.perms,
                 subject: primarySubject,
@@ -863,6 +903,54 @@ export default function StaffPermissionsManager() {
     }
   };
 
+  const handleDeactivateStaff = async (email, reason) => {
+    const cleanEmail = email.toLowerCase();
+    if (cleanEmail === 'adm.exam.hss.shangus@gmail.com') {
+      setAlert({ type: 'error', text: 'Security Protection: Master Super Administrator account cannot be deactivated.' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await deactivateStaffAccount(cleanEmail, reason);
+      const updated = adminUsers.map((u) => 
+        u.email.toLowerCase() === cleanEmail 
+          ? { ...u, active: false, deactivated: true, deactivatedAt: new Date().toISOString(), deactivatedReason: reason }
+          : u
+      );
+      setAdminUsers(updated);
+      setUserToDeactivate(null);
+      try { window.dispatchEvent(new CustomEvent('hss-permissions-updated')); } catch (_) {}
+      setAlert({ type: 'success', text: `✨ Account for ${email} has been deactivated and moved to Deactivated / Transferred category.` });
+    } catch (err) {
+      console.error('Error deactivating staff account:', err);
+      setAlert({ type: 'error', text: 'Failed to deactivate account: ' + (err.message || err) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReactivateStaff = async (email) => {
+    const cleanEmail = email.toLowerCase();
+    setSaving(true);
+    try {
+      await reactivateStaffAccount(cleanEmail);
+      const updated = adminUsers.map((u) => 
+        u.email.toLowerCase() === cleanEmail 
+          ? { ...u, active: true, deactivated: false, deactivatedAt: null, deactivatedReason: null }
+          : u
+      );
+      setAdminUsers(updated);
+      setUserToReactivate(null);
+      try { window.dispatchEvent(new CustomEvent('hss-permissions-updated')); } catch (_) {}
+      setAlert({ type: 'success', text: `✨ Account for ${email} has been successfully reactivated.` });
+    } catch (err) {
+      console.error('Error reactivating staff account:', err);
+      setAlert({ type: 'error', text: 'Failed to reactivate account: ' + (err.message || err) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDeleteAdmin = async (email) => {
     const cleanEmail = email.toLowerCase();
     if (cleanEmail === 'adm.exam.hss.shangus@gmail.com') {
@@ -885,7 +973,7 @@ export default function StaffPermissionsManager() {
     }
   };
 
-  // Filter staff by category and search query
+  // Filter staff by category, status, and search query
   const filteredStaff = useMemo(() => {
     return adminUsers.filter(u => {
       const cleanEmail = String(u.email || '').toLowerCase();
@@ -893,7 +981,13 @@ export default function StaffPermissionsManager() {
       const isSuper = cleanEmail === 'adm.exam.hss.shangus@gmail.com' || r === 'superadmin';
       const isTeacher = r === 'teacher' || r === 'faculty' || r === 'staff';
       const isAdmin = !isTeacher && !isSuper;
+      const isActive = u.active !== false && !u.deactivated;
 
+      // Status filter
+      if (staffStatusFilter === 'active' && !isActive) return false;
+      if (staffStatusFilter === 'deactivated' && isActive) return false;
+
+      // Role filter
       if (staffRoleFilter === 'superadmin' && !isSuper) return false;
       if (staffRoleFilter === 'admin' && !isAdmin) return false;
       if (staffRoleFilter === 'teacher' && !isTeacher) return false;
@@ -904,12 +998,15 @@ export default function StaffPermissionsManager() {
         const emailMatch = cleanEmail.includes(q);
         const desigMatch = (u.designation || '').toLowerCase().includes(q);
         const subjMatch = (u.subject || '').toLowerCase().includes(q);
-        if (!nameMatch && !emailMatch && !desigMatch && !subjMatch) return false;
+        const reasonMatch = (u.deactivatedReason || '').toLowerCase().includes(q);
+        if (!nameMatch && !emailMatch && !desigMatch && !subjMatch && !reasonMatch) return false;
       }
       return true;
     });
-  }, [adminUsers, staffRoleFilter, searchQuery]);
+  }, [adminUsers, staffStatusFilter, staffRoleFilter, searchQuery]);
 
+  const activeStaffCount = adminUsers.filter(u => u.active !== false && !u.deactivated).length;
+  const deactivatedStaffCount = adminUsers.filter(u => u.active === false || u.deactivated === true).length;
   const superAdminCount = adminUsers.filter(u => String(u.email || '').toLowerCase() === 'adm.exam.hss.shangus@gmail.com' || String(u.role || '').toLowerCase() === 'superadmin').length;
   const adminCount = adminUsers.filter(u => {
     const clean = String(u.email || '').toLowerCase();
@@ -1008,47 +1105,78 @@ export default function StaffPermissionsManager() {
         </div>
 
         {/* Filter Pills & Search Bar Row */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 sm:gap-2 pt-0.5">
-          <div className="inline-flex p-0.5 sm:p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl sm:rounded-2xl text-[9.5px] sm:text-[10.5px] font-bold gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar">
-            {[
-              { id: 'all', label: `All (${adminUsers.length})` },
-              { id: 'superadmin', label: `SuperAdmin (${superAdminCount})` },
-              { id: 'admin', label: `Admins (${adminCount})` },
-              { id: 'teacher', label: `Teachers (${teacherCount})` },
-            ].map(f => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setStaffRoleFilter(f.id)}
-                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl cursor-pointer transition-all whitespace-nowrap ${
-                  staffRoleFilter === f.id
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex flex-col gap-2 pt-0.5">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* Account Status Filter */}
+              <div className="inline-flex p-0.5 sm:p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl sm:rounded-2xl text-[9.5px] sm:text-[10.5px] font-bold gap-0.5 sm:gap-1">
+                {[
+                  { id: 'active', label: `Active (${activeStaffCount})` },
+                  { id: 'deactivated', label: `Deactivated / Transferred (${deactivatedStaffCount})` },
+                  { id: 'all', label: `All Status (${adminUsers.length})` },
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setStaffStatusFilter(f.id)}
+                    className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl cursor-pointer transition-all whitespace-nowrap ${
+                      staffStatusFilter === f.id
+                        ? f.id === 'deactivated'
+                          ? 'bg-rose-600 text-white shadow-2xs font-black'
+                          : f.id === 'active'
+                          ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                          : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
 
-          <div className="relative sm:w-72">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, email, designation..."
-              className="w-full pl-7 pr-6 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-              >
-                <X size={11} />
-              </button>
-            )}
+              {/* Role Filter */}
+              <div className="inline-flex p-0.5 sm:p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl sm:rounded-2xl text-[9.5px] sm:text-[10.5px] font-bold gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar">
+                {[
+                  { id: 'all', label: 'All Roles' },
+                  { id: 'teacher', label: `Teachers (${teacherCount})` },
+                  { id: 'admin', label: `Admins (${adminCount})` },
+                  { id: 'superadmin', label: `SuperAdmin (${superAdminCount})` },
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setStaffRoleFilter(f.id)}
+                    className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl cursor-pointer transition-all whitespace-nowrap ${
+                      staffRoleFilter === f.id
+                        ? 'bg-indigo-600 text-white shadow-2xs font-black'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative lg:w-72">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, email, designation, reason..."
+                className="w-full pl-7 pr-6 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1060,6 +1188,7 @@ export default function StaffPermissionsManager() {
             const isSuper = cleanEmail === 'adm.exam.hss.shangus@gmail.com' || roleStr === 'superadmin';
             const canModifyTarget = isCurrentSuperAdmin || !isSuper;
             const isTeacher = roleStr === 'teacher' || roleStr === 'faculty' || roleStr === 'staff';
+            const isDeactivated = user.active === false || user.deactivated === true;
             const userPerms = Array.isArray(user.perms) ? user.perms : [];
             const activeCount = isSuper ? ALL_ADMIN_MODULES.length : userPerms.length;
             const isSendingReset = sendingResetFor === cleanEmail;
@@ -1070,20 +1199,45 @@ export default function StaffPermissionsManager() {
             return (
               <div 
                 key={idx} 
-                className="p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 hover:border-indigo-500/40 transition-all space-y-1.5 sm:space-y-2"
+                className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl border transition-all space-y-1.5 sm:space-y-2 ${
+                  isDeactivated
+                    ? 'bg-rose-50/20 dark:bg-rose-950/15 border-rose-200/60 dark:border-rose-900/40 opacity-90'
+                    : 'bg-slate-50/50 dark:bg-slate-950/40 border-slate-200/80 dark:border-slate-800/80 hover:border-indigo-500/40'
+                }`}
               >
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 sm:gap-2">
                   {/* User Profile Column */}
                   <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
                     <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center font-black shrink-0 ${
-                      isSuper 
+                      isDeactivated
+                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                        : isSuper 
                         ? 'bg-purple-500/20 text-purple-600 border border-purple-500/30' 
                         : isTeacher
                         ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30'
                         : 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
                     }`}>
-                      {isSuper ? <ShieldCheck size={14} className="sm:hidden" /> : isTeacher ? <UserCheck size={14} className="sm:hidden" /> : <Lock size={13} className="sm:hidden" />}
-                      {isSuper ? <ShieldCheck size={16} className="hidden sm:inline" /> : isTeacher ? <UserCheck size={16} className="hidden sm:inline" /> : <Lock size={15} className="hidden sm:inline" />}
+                      {isDeactivated ? (
+                        <>
+                          <UserX size={14} className="sm:hidden" />
+                          <UserX size={16} className="hidden sm:inline" />
+                        </>
+                      ) : isSuper ? (
+                        <>
+                          <ShieldCheck size={14} className="sm:hidden" />
+                          <ShieldCheck size={16} className="hidden sm:inline" />
+                        </>
+                      ) : isTeacher ? (
+                        <>
+                          <UserCheck size={14} className="sm:hidden" />
+                          <UserCheck size={16} className="hidden sm:inline" />
+                        </>
+                      ) : (
+                        <>
+                          <Lock size={13} className="sm:hidden" />
+                          <Lock size={15} className="hidden sm:inline" />
+                        </>
+                      )}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -1094,10 +1248,24 @@ export default function StaffPermissionsManager() {
                         
                         {/* Category Badge */}
                         <span className={`px-1.5 py-0.5 rounded-full font-black text-[8px] sm:text-[9px] uppercase tracking-wider shrink-0 ${
-                          isSuper ? 'bg-purple-600 text-white' : isTeacher ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                          isDeactivated
+                            ? 'bg-slate-600 text-white'
+                            : isSuper 
+                            ? 'bg-purple-600 text-white' 
+                            : isTeacher 
+                            ? 'bg-emerald-600 text-white' 
+                            : 'bg-amber-600 text-white'
                         }`}>
                           {isSuper ? (isCurrentSuperAdmin ? 'SuperAdmin' : 'SuperAdmin (Master Protected)') : isTeacher ? 'Teacher' : 'Standard Admin'}
                         </span>
+
+                        {/* Deactivated / Transferred Status Badge */}
+                        {isDeactivated && (
+                          <span className="px-1.5 py-0.5 rounded-full font-black text-[8px] sm:text-[9px] uppercase tracking-wider bg-rose-600 text-white flex items-center gap-1 shrink-0 shadow-2xs">
+                            <Ban size={9} />
+                            <span>Transferred / Deactivated</span>
+                          </span>
+                        )}
 
                         {/* Special Designation Label (Principal, Clerk, etc.) */}
                         {desig && (
@@ -1155,22 +1323,27 @@ export default function StaffPermissionsManager() {
                           })()
                         )}
 
-                        {hasOutdatedStatus && (
+                        {hasOutdatedStatus && !isDeactivated && (
                           <span className="px-1.5 py-0.2 rounded text-[8px] sm:text-[8.5px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shrink-0">
                             Partial Access ({activeCount}/{ALL_ADMIN_MODULES.length})
                           </span>
                         )}
                       </div>
 
-                      <div className="text-[9.5px] sm:text-[10px] text-slate-400 font-mono truncate pt-0.5">
-                        {user.email}
+                      <div className="text-[9.5px] sm:text-[10px] text-slate-400 font-mono truncate pt-0.5 flex items-center gap-1.5 flex-wrap">
+                        <span>{user.email}</span>
+                        {isDeactivated && user.deactivatedReason && (
+                          <span className="text-[9px] text-rose-600 dark:text-rose-400 font-semibold italic">
+                            • Reason: {user.deactivatedReason}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Actions & Modules Controls */}
                   <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-wrap justify-end">
-                    {hasOutdatedStatus && canModifyTarget && isCurrentSuperAdmin && (
+                    {hasOutdatedStatus && canModifyTarget && isCurrentSuperAdmin && !isDeactivated && (
                       <button
                         type="button"
                         onClick={() => setAllPermissionsForUser(user.email, true)}
@@ -1181,7 +1354,7 @@ export default function StaffPermissionsManager() {
                       </button>
                     )}
 
-                    {!isTeacher && (
+                    {!isTeacher && !isDeactivated && (
                       canModifyTarget ? (
                         <button
                           type="button"
@@ -1207,14 +1380,42 @@ export default function StaffPermissionsManager() {
                       )
                     )}
 
+                    {/* Deactivate / Reactivate Account Action */}
+                    {!isSuper && canModifyTarget && (
+                      isDeactivated ? (
+                        <button
+                          type="button"
+                          onClick={() => setUserToReactivate(user)}
+                          title="Reactivate staff account"
+                          className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                        >
+                          <RotateCcw size={10} />
+                          <span>Reactivate</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserToDeactivate(user);
+                            setDeactivateReason('Transferred to another institution');
+                          }}
+                          title="Deactivate account (Transferred / Relieved faculty)"
+                          className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10px] font-bold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900 border border-rose-200/70 dark:border-rose-800/70 transition-colors flex items-center gap-1 cursor-pointer active:scale-95"
+                        >
+                          <UserX size={10} />
+                          <span>Deactivate</span>
+                        </button>
+                      )
+                    )}
+
                     {/* Reset Password Email */}
                     <button
                       type="button"
                       onClick={() => handleSendPasswordReset(user.email)}
-                      disabled={isSendingReset || (!canModifyTarget && isSuper)}
-                      title={(!canModifyTarget && isSuper) ? "Password reset for Master SuperAdmin must be initiated by SuperAdmin" : "Send Password Reset Email"}
+                      disabled={isSendingReset || (!canModifyTarget && isSuper) || isDeactivated}
+                      title={isDeactivated ? "Account is deactivated" : (!canModifyTarget && isSuper) ? "Password reset for Master SuperAdmin must be initiated by SuperAdmin" : "Send Password Reset Email"}
                       className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10px] font-bold border flex items-center gap-1 transition-colors ${
-                        (!canModifyTarget && isSuper)
+                        isDeactivated || (!canModifyTarget && isSuper)
                           ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 text-slate-400 border-slate-300 dark:border-slate-800'
                           : 'bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900 border-teal-200 dark:border-teal-800 cursor-pointer'
                       }`}
@@ -1854,6 +2055,66 @@ export default function StaffPermissionsManager() {
                   </div>
                 )}
 
+                {/* Account Active / Deactivated Status (for Existing Staff) */}
+                {editingAdminEmail && (
+                  <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800 space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-black text-[11px]">
+                          <Users size={12} className="text-indigo-600 dark:text-indigo-400" />
+                          <span>Operational Account Status</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                          Transferring or deactivating faculty safely locks login while preserving records & allowing successors to submit.
+                        </p>
+                      </div>
+                      <div className="inline-flex p-0.5 bg-slate-200 dark:bg-slate-800 rounded-xl text-[10.5px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setAdminForm(prev => ({ ...prev, active: true }))}
+                          className={`px-3 py-1 rounded-lg cursor-pointer transition-all ${
+                            adminForm.active
+                              ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          Active
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAdminForm(prev => ({ 
+                            ...prev, 
+                            active: false, 
+                            deactivatedReason: prev.deactivatedReason || 'Transferred to another institution' 
+                          }))}
+                          className={`px-3 py-1 rounded-lg cursor-pointer transition-all ${
+                            !adminForm.active
+                              ? 'bg-rose-600 text-white shadow-2xs font-black'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          Transferred / Deactivated
+                        </button>
+                      </div>
+                    </div>
+
+                    {!adminForm.active && (
+                      <div className="pt-1.5 space-y-1 animate-fadeIn">
+                        <label className="text-[10.5px] font-bold text-rose-700 dark:text-rose-300">
+                          Transfer / Deactivation Reason:
+                        </label>
+                        <input
+                          type="text"
+                          value={adminForm.deactivatedReason || ''}
+                          onChange={(e) => setAdminForm(prev => ({ ...prev, deactivatedReason: e.target.value }))}
+                          placeholder="e.g. Transferred to another institution / Relieved"
+                          className="w-full px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-950/20 text-slate-900 dark:text-white text-xs outline-none focus:ring-1 focus:ring-rose-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Password / Activation Link Settings */}
                 <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex-1 max-w-sm">
@@ -2118,6 +2379,119 @@ export default function StaffPermissionsManager() {
           onConfirm={() => handleDeleteAdmin(userToDelete.email)}
           onCancel={() => setUserToDelete(null)}
           onClose={() => setUserToDelete(null)}
+        />
+      )}
+
+      {/* ── DEACTIVATE / TRANSFER CONFIRMATION MODAL ── */}
+      {userToDeactivate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 flex items-center justify-center text-rose-600 dark:text-rose-400">
+                  <UserX size={16} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                    Deactivate Account / Staff Transfer
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    {userToDeactivate.name} ({userToDeactivate.email})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUserToDeactivate(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+              <p>
+                Deactivating this account will immediately disable login credentials and move the user to the <strong>Deactivated / Transferred</strong> category.
+              </p>
+              
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-amber-950 dark:text-amber-100">
+                  <ShieldCheck size={13} />
+                  <span>Prevents Duplicate Award Submissions</span>
+                </div>
+                <div>
+                  When a new teacher takes over this subject, they will be able to submit awards and update canonical records without lockout or accidental duplicates. Historical submissions by this teacher remain permanently preserved.
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                  Reason for Deactivation / Transfer:
+                </label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {[
+                    'Transferred to another institution',
+                    'Relieved from duties / Retired',
+                    'Subject reallocated to new faculty',
+                    'Contract / Assignment ended'
+                  ].map(r => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setDeactivateReason(r)}
+                      className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-semibold border transition-all cursor-pointer ${
+                        deactivateReason === r
+                          ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-400 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-bold'
+                          : 'bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={deactivateReason}
+                  onChange={(e) => setDeactivateReason(e.target.value)}
+                  placeholder="Or enter custom reason..."
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setUserToDeactivate(null)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => handleDeactivateStaff(userToDeactivate.email, deactivateReason)}
+                className="px-4 py-1.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {saving ? <RefreshCw size={12} className="animate-spin" /> : <UserX size={12} />}
+                <span>Deactivate Account</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── REACTIVATE CONFIRMATION DIALOG ── */}
+      {userToReactivate && (
+        <ConfirmModal
+          isOpen={true}
+          type="info"
+          title={`Reactivate Staff Account?`}
+          message={`Are you sure you want to reactivate the account for ${userToReactivate.name} (${userToReactivate.email})? Their portal access and assigned roles will be restored.`}
+          confirmText="Yes, Reactivate Account"
+          onConfirm={() => handleReactivateStaff(userToReactivate.email)}
+          onCancel={() => setUserToReactivate(null)}
+          onClose={() => setUserToReactivate(null)}
         />
       )}
     </div>

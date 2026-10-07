@@ -7,7 +7,7 @@ import {
   ArrowLeft, ArrowRight, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock, Search,
   Bookmark, Send, ChevronDown, ChevronRight, Check, SlidersHorizontal, Zap, X, Info, Sparkles, Award,
-  AlertTriangle, ShieldAlert, Lock, Unlock
+  AlertTriangle, ShieldAlert, Lock, Unlock, UserCheck
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
@@ -1551,8 +1551,8 @@ export default function PracticalsPage() {
   const [historySearch, setHistorySearch] = useState('');
 
   const filteredSubmissions = useMemo(() => {
-    // Strictly restrict to only the current teacher's submissions
-    const list = submissionHistory.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
+    // Strictly restrict to only the current teacher's submissions (including adopted awards from transferred faculty)
+    const list = submissionHistory.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser, practicalsSettings));
 
     if (!historySearch.trim()) return list;
     const q = historySearch.toLowerCase().trim();
@@ -1773,7 +1773,7 @@ export default function PracticalsPage() {
 
           // Check if this document belongs to another session and has examinees (for 1-click suggestion banner)
           const docSess = String(data.yearSuffix || data.Session || data.session || (dId.includes('_') ? dId.split('_').pop().replace(/_/g, ' ') : '') || '').trim();
-          const isDocOwned = isSubmissionOwnedByTeacher(data, user, auth.currentUser);
+          const isDocOwned = isSubmissionOwnedByTeacher(data, user, auth.currentUser, practicalsSettings);
           if (isDocOwned && Array.isArray(data.records) && data.records.length > 0 && !isSessionMatch(docSess, yearSuffix)) {
             if (!alternateSessionMatch) {
               alternateSessionMatch = docSess.includes('Oct-Nov') ? '2024-25 (Oct-Nov)' : (docSess || '2024-25 (Oct-Nov)');
@@ -2493,7 +2493,7 @@ export default function PracticalsPage() {
     unsubPending = onSnapshot(doc(db, 'practicalsData', pendingDocId), (pendingSnap) => {
       if (pendingSnap.exists()) {
         const pData = { id: pendingSnap.id, ...pendingSnap.data() };
-        const isOwned = isSubmissionOwnedByTeacher(pData, user, auth.currentUser);
+        const isOwned = isSubmissionOwnedByTeacher(pData, user, auth.currentUser, practicalsSettings);
         if (isOwned) {
           setExistingAwardInfo(prev => ({
             ...prev,
@@ -2534,7 +2534,7 @@ export default function PracticalsPage() {
     unsubCanonical = onSnapshot(doc(db, 'practicalsData', docId), (canonicalSnap) => {
       if (canonicalSnap.exists()) {
         const cData = { id: canonicalSnap.id, ...canonicalSnap.data() };
-        const isOwned = isSubmissionOwnedByTeacher(cData, user, auth.currentUser);
+        const isOwned = isSubmissionOwnedByTeacher(cData, user, auth.currentUser, practicalsSettings);
         if (isOwned) {
           const cleanData = { ...cData };
           delete cleanData.rejectionReason;
@@ -2627,8 +2627,8 @@ export default function PracticalsPage() {
   const handleLoadSubmissionRecord = useCallback((item) => {
     if (!item) return;
 
-    // Strict access control: teacher cannot load another teacher's award
-    if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+    // Strict access control: teacher cannot load another active teacher's award
+    if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser, practicalsSettings)) {
       triggerNotification({
         type: 'error',
         title: 'Access Restricted',
@@ -2754,7 +2754,7 @@ export default function PracticalsPage() {
   // Synchronize submission if navigated with loadedRecord from Dashboard
   useEffect(() => {
     if (location.state?.loadedRecord) {
-      if (!isSubmissionOwnedByTeacher(location.state.loadedRecord, user, auth.currentUser)) {
+      if (!isSubmissionOwnedByTeacher(location.state.loadedRecord, user, auth.currentUser, practicalsSettings)) {
         triggerNotification({
           type: 'error',
           title: 'Access Restricted',
@@ -2863,7 +2863,7 @@ export default function PracticalsPage() {
           }
         }
 
-        const ownedList = deduped.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
+        const ownedList = deduped.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser, practicalsSettings));
         setSubmissionHistory(ownedList);
       } else {
         setSubmissionHistory([]);
@@ -3071,6 +3071,17 @@ export default function PracticalsPage() {
 
   // 1. Save Evaluation Draft (Cloud Database + LocalStorage fallback)
   const handleSaveDraft = async () => {
+    if (user?.active === false || user?.deactivated === true) {
+      triggerNotification({
+        type: 'error',
+        title: 'Account Deactivated',
+        badge: 'Transferred / Inactive',
+        text: 'This staff account has been deactivated or transferred. Submitting or editing evaluation records is restricted. Please contact administration.',
+        primaryButtonText: 'Dismiss'
+      });
+      return;
+    }
+
     if (existingAwardInfo?.lockedOtherTeacherAward) {
       triggerNotification({
         type: 'error',
@@ -3254,6 +3265,17 @@ export default function PracticalsPage() {
 
   // 2. Data Validation & Initiate Final Submit
   const handleInitiateFinalSubmit = () => {
+    if (user?.active === false || user?.deactivated === true) {
+      triggerNotification({
+        type: 'error',
+        title: 'Account Deactivated',
+        badge: 'Transferred / Inactive',
+        text: 'This staff account has been deactivated or transferred. Submitting or editing evaluation records is restricted. Please contact administration.',
+        primaryButtonText: 'Dismiss'
+      });
+      return;
+    }
+
     if (!isSubmissionOpen || !isClassPracticalSubmissionEnabled(practicalsSettings, selectedClass)) {
       triggerNotification({
         type: 'error',
@@ -3398,6 +3420,17 @@ export default function PracticalsPage() {
 
   // 3. Execute Final Submission to Firestore
   const executeFinalSubmit = async (autoMarkAbsentForUnfilled = true) => {
+    if (user?.active === false || user?.deactivated === true) {
+      triggerNotification({
+        type: 'error',
+        title: 'Account Deactivated',
+        badge: 'Transferred / Inactive',
+        text: 'This staff account has been deactivated or transferred. Submitting or editing evaluation records is restricted. Please contact administration.',
+        primaryButtonText: 'Dismiss'
+      });
+      return;
+    }
+
     if (!isSubmissionOpen || !isClassPracticalSubmissionEnabled(practicalsSettings, selectedClass)) {
       triggerNotification({
         type: 'error',
@@ -4093,6 +4126,42 @@ export default function PracticalsPage() {
               </button>
             </div>
           )}
+
+          {/* Faculty Handover Banner (When newly assigned teacher adopts award from transferred teacher) */}
+          {(() => {
+            const activeDoc = existingAwardInfo?.canonical || existingAwardInfo?.pending;
+            const prevEmail = String(activeDoc?.submittedByEmail || activeDoc?.teacherEmail || '').toLowerCase().trim();
+            const myEmail = String(user?.email || auth.currentUser?.email || '').toLowerCase().trim();
+            const isHandover = Boolean(
+              activeDoc && 
+              prevEmail && 
+              prevEmail !== myEmail && 
+              (practicalsSettings?.deactivatedTeachers?.includes(prevEmail) || activeDoc.isTransferredFaculty || activeDoc.handoverFrom)
+            );
+            if (!isHandover) return null;
+            const prevName = activeDoc.submittedByName || activeDoc.teacherName || activeDoc.handoverFrom?.previousTeacherName || 'Previous Faculty';
+
+            return (
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-sky-50/90 dark:bg-sky-950/40 border border-sky-300 dark:border-sky-800 text-sky-950 dark:text-sky-200 text-xs shadow-2xs flex items-start sm:items-center justify-between gap-3 animate-fadeIn">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-sky-100 dark:bg-sky-900/60 border border-sky-300 dark:border-sky-700 flex items-center justify-center text-sky-700 dark:text-sky-300 shrink-0">
+                    <UserCheck size={16} />
+                  </div>
+                  <div>
+                    <div className="font-black text-sky-950 dark:text-sky-100 flex items-center gap-1.5 flex-wrap">
+                      <span>Faculty Handover Active: Existing Award Record Adopted</span>
+                      <span className="px-1.5 py-0.2 bg-sky-200 dark:bg-sky-800 text-sky-900 dark:text-sky-100 rounded text-[9px] uppercase font-black">
+                        Successor Mode
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-sky-800 dark:text-sky-300 font-medium">
+                      This award roll was previously initiated by <strong>{prevName}</strong> (Transferred/Deactivated). As the appointed faculty member for <strong>{selectedSubject}</strong>, your draft or final submission will adopt and update this single canonical record. <strong>Zero duplicate award rolls will be generated.</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Existing Award / Pending Review Status Banner */}
           {existingAwardInfo?.lockedOtherTeacherAward ? (
@@ -5833,7 +5902,7 @@ export default function PracticalsPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                              if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser, practicalsSettings)) {
                                 triggerNotification({
                                   type: 'error',
                                   title: 'Access Restricted',
@@ -5863,7 +5932,7 @@ export default function PracticalsPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                              if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser, practicalsSettings)) {
                                 triggerNotification({
                                   type: 'error',
                                   title: 'Access Restricted',

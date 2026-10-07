@@ -101,7 +101,7 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
       const email = String(data.newEmail || data.email || '').trim().toLowerCase();
       const oldEmail = String(data.oldEmail || data.email || email).trim().toLowerCase();
       const action = data.action;
-      if (!['create', 'update', 'deactivate', 'reset'].includes(action) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) throw new Error('Valid account details are required.');
+      if (!['create', 'update', 'deactivate', 'reactivate', 'reset'].includes(action) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) throw new Error('Valid account details are required.');
       const isRoot = (oldEmail === ROOT_EMAIL || email === ROOT_EMAIL);
       if (isRoot && action === 'deactivate') throw new Error('The bootstrap Super Admin cannot be deactivated.');
       let user;
@@ -119,14 +119,14 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
         ])
         : [null, null];
       const existingRole = roleKey(uidProfile?.data()?.role || emailProfile?.data()?.role || user?.customClaims?.role);
-      const requestedRole = String(data.role || 'Teacher');
+      const requestedRole = String(data.role || (existingRole === 'admin' ? 'Admin' : 'Teacher'));
       const requestedPerms = [...new Set((Array.isArray(data.perms) ? data.perms : [])
         .filter(p => typeof p === 'string' && /^[a-zA-Z][a-zA-Z0-9*]{0,63}$/.test(p)))].slice(0, 50);
       if (!actorIsSuperAdmin) {
         if (isRoot || existingRole === 'superadmin' || requestedRole === 'SuperAdmin') {
           throw Object.assign(new Error('Only the Super Admin can manage Super Admin access.'), { status: 403 });
         }
-        if (action !== 'deactivate' && !['Teacher', 'Admin'].includes(requestedRole)) {
+        if (action !== 'deactivate' && action !== 'reactivate' && !['Teacher', 'Admin'].includes(requestedRole)) {
           throw Object.assign(new Error('Standard Admins may create or update only Teacher or Admin accounts.'), { status: 403 });
         }
         if (requestedPerms.includes('*') || requestedPerms.some(permission => !actorPerms.includes(permission))) {
@@ -139,62 +139,165 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
         return { success: true, email };
       }
       const role = isRoot ? 'SuperAdmin' : requestedRole;
-      const name = String(data.name || '').trim();
-      if (action !== 'deactivate' && (!['Teacher', 'Admin', 'SuperAdmin'].includes(role) || !name || name.length > 100)) throw new Error('Choose a name and an approved staff role.');
+      const name = String(data.name || uidProfile?.data()?.name || emailProfile?.data()?.name || user?.displayName || '').trim();
+      if (action !== 'deactivate' && action !== 'reactivate' && (!['Teacher', 'Admin', 'SuperAdmin'].includes(role) || !name || name.length > 100)) throw new Error('Choose a name and an approved staff role.');
       if (data.password && (typeof data.password !== 'string' || data.password.length < 6 || data.password.length > 128)) throw new Error('Use a password between 6 and 128 characters.');
       const perms = isRoot ? ['*'] : requestedPerms;
       const sendEmail = action === 'create' ? data.sendSetupEmail !== false : data.sendResetEmail === true;
       if (!user) user = await admin.auth().createUser({ email, displayName: name,
         password: data.password || crypto.randomBytes(32).toString('base64url'), disabled: false });
       const profileRef = db.collection('users').doc(user.uid);
-      // Disable only when explicitly deactivating
-      if (action === 'deactivate') {
-        await profileRef.set({ uid: user.uid, email: oldEmail, active: false, validAfter: Math.floor(Date.now() / 1000) + 1 }, { merge: true });
+      const isDeactivating = action === 'deactivate';
+      const isReactivating = action === 'reactivate';
+
+      // Disable on deactivation; re-enable on reactivation
+      if (isDeactivating) {
+        await profileRef.set({ 
+          uid: user.uid, 
+          email: oldEmail, 
+          active: false, 
+          deactivated: true,
+          deactivatedAt: new Date().toISOString(),
+          deactivatedReason: String(data.reason || 'Transferred / Relieved').trim().slice(0, 200),
+          validAfter: Math.floor(Date.now() / 1000) + 1 
+        }, { merge: true });
         await admin.auth().revokeRefreshTokens(user.uid);
+      } else if (isReactivating) {
+        await profileRef.set({ 
+          uid: user.uid, 
+          email: oldEmail, 
+          active: true, 
+          deactivated: false,
+          deactivatedAt: null,
+          deactivatedReason: null,
+          validAfter: Math.floor(Date.now() / 1000) + 1 
+        }, { merge: true });
       }
-      await admin.auth().updateUser(user.uid, { disabled: action === 'deactivate', ...(action !== 'deactivate' ? { email, displayName: name, ...(data.password ? { password: data.password } : {}), ...(email !== oldEmail ? { emailVerified: false } : {}) } : {}) });
-      await admin.auth().setCustomUserClaims(user.uid, {
-        role: action === 'deactivate' ? 'Student' : role,
-        superadmin: action !== 'deactivate' && isRoot,
-        admin: action !== 'deactivate' && (role === 'Admin' || isRoot),
-        teacher: action !== 'deactivate' && role === 'Teacher',
-        permissions: isRoot ? ['*'] : perms
+
+      await admin.auth().updateUser(user.uid, { 
+        disabled: isDeactivating, 
+        ...((!isDeactivating && !isReactivating) ? { email, displayName: name, ...(data.password ? { password: data.password } : {}), ...(email !== oldEmail ? { emailVerified: false } : {}) } : {}) 
       });
+
+      const effectiveRole = isDeactivating ? 'Student' : (role || 'Teacher');
+      await admin.auth().setCustomUserClaims(user.uid, {
+        role: effectiveRole,
+        superadmin: !isDeactivating && isRoot,
+        admin: !isDeactivating && (effectiveRole === 'Admin' || isRoot),
+        teacher: !isDeactivating && effectiveRole === 'Teacher',
+        permissions: isDeactivating ? [] : (isRoot ? ['*'] : perms)
+      });
+
       const profile = {
         uid: user.uid,
-        email,
+        email: isDeactivating || isReactivating ? oldEmail : email,
         name: name || user.displayName || email,
-        role: action === 'deactivate' ? 'Student' : role,
-        perms: action === 'deactivate' ? [] : (isRoot ? ['*'] : perms),
-        active: action !== 'deactivate',
-        isStaff: action !== 'deactivate',
-        isAdmin: action !== 'deactivate' && (role === 'Admin' || isRoot),
-        isSuperAdmin: action !== 'deactivate' && isRoot,
-        isTeacher: action !== 'deactivate' && role === 'Teacher',
-        designation: String(data.designation || '').trim().slice(0, 100),
-        subject: String(data.subject || '').trim().slice(0, 100),
-        teachingSubject: String(data.teachingSubject || data.subject || '').trim().slice(0, 100),
-        assignedSubjects: Array.isArray(data.assignedSubjects) ? data.assignedSubjects : [],
-        assignedClasses: [...new Set((Array.isArray(data.assignedClasses) ? data.assignedClasses : []).filter(value => ['9th', '10th', '11th', '12th'].includes(value)))],
-        tierSubjects: data.tierSubjects || null,
-        classSubjectMap: data.classSubjectMap || null,
-        mobile: String(data.mobile || '').trim().slice(0, 20),
+        role: effectiveRole,
+        perms: isDeactivating ? [] : (isRoot ? ['*'] : perms),
+        active: !isDeactivating,
+        deactivated: isDeactivating,
+        deactivatedAt: isDeactivating ? new Date().toISOString() : null,
+        deactivatedReason: isDeactivating ? String(data.reason || 'Transferred / Relieved').trim().slice(0, 200) : null,
+        isStaff: !isDeactivating,
+        isAdmin: !isDeactivating && (effectiveRole === 'Admin' || isRoot),
+        isSuperAdmin: !isDeactivating && isRoot,
+        isTeacher: !isDeactivating && effectiveRole === 'Teacher',
+        designation: String(data.designation || uidProfile?.data()?.designation || '').trim().slice(0, 100),
+        subject: String(data.subject || uidProfile?.data()?.subject || '').trim().slice(0, 100),
+        teachingSubject: String(data.teachingSubject || data.subject || uidProfile?.data()?.teachingSubject || '').trim().slice(0, 100),
+        assignedSubjects: Array.isArray(data.assignedSubjects) ? data.assignedSubjects : (uidProfile?.data()?.assignedSubjects || []),
+        assignedClasses: [...new Set((Array.isArray(data.assignedClasses) ? data.assignedClasses : (uidProfile?.data()?.assignedClasses || [])).filter(value => ['9th', '10th', '11th', '12th'].includes(value)))],
+        tierSubjects: data.tierSubjects || uidProfile?.data()?.tierSubjects || null,
+        classSubjectMap: data.classSubjectMap || uidProfile?.data()?.classSubjectMap || null,
+        mobile: String(data.mobile || uidProfile?.data()?.mobile || '').trim().slice(0, 20),
         updatedAt: timestamp()
       };
+
       await db.runTransaction(async tx => {
         const permissionsRef = db.collection('adminSettings').doc('permissions');
         const prior = await tx.get(permissionsRef);
-        const rows = (prior.data()?.users || []).filter(item => item.uid !== user.uid && ![oldEmail, email].includes(String(item.email || '').toLowerCase()));
-        if (profile.active && (role === 'Admin' || role === 'SuperAdmin')) rows.push({ uid: user.uid, email, name, role, perms: profile.perms });
+        const priorUsers = prior.data()?.users || [];
+        let rows = [...priorUsers];
+        const existingIdx = rows.findIndex(item => item.uid === user.uid || [oldEmail, email].includes(String(item.email || '').toLowerCase()));
+
+        if (isDeactivating) {
+          const reasonText = String(data.reason || 'Transferred / Relieved').trim().slice(0, 200);
+          if (existingIdx >= 0) {
+            rows[existingIdx] = {
+              ...rows[existingIdx],
+              uid: user.uid,
+              email: oldEmail,
+              active: false,
+              deactivated: true,
+              deactivatedAt: new Date().toISOString(),
+              deactivatedReason: reasonText
+            };
+          } else {
+            rows.push({
+              uid: user.uid,
+              email: oldEmail,
+              name: name || user.displayName || oldEmail,
+              role: existingRole === 'admin' ? 'Admin' : 'Teacher',
+              active: false,
+              deactivated: true,
+              deactivatedAt: new Date().toISOString(),
+              deactivatedReason: reasonText
+            });
+          }
+        } else if (isReactivating) {
+          if (existingIdx >= 0) {
+            rows[existingIdx] = {
+              ...rows[existingIdx],
+              uid: user.uid,
+              email: oldEmail,
+              active: true,
+              deactivated: false,
+              deactivatedAt: null,
+              deactivatedReason: null
+            };
+          }
+        } else {
+          rows = rows.filter(item => item.uid !== user.uid && ![oldEmail, email].includes(String(item.email || '').toLowerCase()));
+          rows.push({
+            uid: user.uid,
+            email,
+            name,
+            role,
+            perms: profile.perms,
+            active: true,
+            deactivated: false,
+            assignedClasses: profile.assignedClasses,
+            assignedSubjects: profile.assignedSubjects,
+            subject: profile.subject
+          });
+        }
+
         tx.set(profileRef, profile, { merge: true });
         tx.set(permissionsRef, { users: rows, updatedAt: timestamp() }, { merge: true });
         tx.delete(db.collection('users').doc(oldEmail));
         if (email !== oldEmail) tx.delete(db.collection('users').doc(email));
-        if (action === 'deactivate') tx.delete(db.collection('adminSessions').doc(user.uid));
+        if (isDeactivating) tx.delete(db.collection('adminSessions').doc(user.uid));
         tx.create(db.collection('securityAuditLogs').doc(), { action: `staff_${action}`, targetUid: user.uid, actorUid: context.auth.uid, createdAt: timestamp() });
       });
+
+      // Synchronize deactivated faculty list in adminPracticalsSettings/config so teachers & practicals portal can adopt awards seamlessly
+      try {
+        const practicalsConfigRef = db.collection('adminPracticalsSettings').doc('config');
+        if (isDeactivating) {
+          await practicalsConfigRef.set({
+            deactivatedTeachers: admin.firestore.FieldValue.arrayUnion(oldEmail)
+          }, { merge: true });
+        } else if (isReactivating) {
+          await practicalsConfigRef.set({
+            deactivatedTeachers: admin.firestore.FieldValue.arrayRemove(oldEmail)
+          }, { merge: true });
+        }
+      } catch (pracErr) {
+        console.warn('Note: adminPracticalsSettings sync in manageStaffAccount:', pracErr?.message || pracErr);
+      }
+
       let emailSent = false;
-      if (sendEmail && action !== 'deactivate') {
+      if (sendEmail && !isDeactivating && !isReactivating) {
         try {
           const mailer = transport();
           await sendSetup(mailer, email, user.emailVerified && email === oldEmail);
@@ -203,8 +306,18 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
           console.warn('Staff setup email dispatch note:', mErr?.message || mErr);
         }
       }
-      return { success: true, email, uid: user.uid, authCreated: action === 'create', emailSent,
-        message: `Account ${action === 'deactivate' ? 'deactivated and sessions revoked' : 'saved'}${emailSent ? '; setup email sent' : ''}.` };
+      return { 
+        success: true, 
+        email, 
+        uid: user.uid, 
+        authCreated: action === 'create', 
+        emailSent,
+        message: isDeactivating 
+          ? `Account deactivated and moved to Deactivated / Transferred category.` 
+          : isReactivating 
+          ? `Account reactivated successfully.` 
+          : `Account saved successfully${emailSent ? '; setup email sent' : ''}.` 
+      };
     })
   };
 };
