@@ -2,99 +2,27 @@
 // HSS SHANGUS — Official JKBOSE Class 10th Board Examination Results
 // =================================================================
 // Authoritative institutional matriculation board results across sessions:
-// - 2025 Mar-Apr (Annual Regular)
-// - 2024-25 Oct-Nov (Bi-Annual / Private)
-// - 2024 Annual Regular
+// 1. Regular 2024-25 (Oct-Nov)
+// 2. Regular 2024-25 (Mar-Apr)
+// 3. Regular 2023-24
 // =================================================================
 
 export const CLASS_10_BOARD_RESULTS = [
   {
-    id: '10th-2025-mar-apr',
-    title: '10th Result 2025',
+    id: '10th-regular-2024-25-oct-nov',
+    title: '10th Result Regular 2024-25 (Oct-Nov)',
     session: '2024-25',
-    examPeriod: 'Mar-Apr 2025',
-    category: 'Annual Regular',
-    schoolName: 'Govt. Higher Secondary School Shangus',
-    indicators: [
-      { label: 'total appeared', count: '16 (17 total candidates including 1 unreadable file)' },
-      { label: 'total failed/reappear', count: '4' },
-      { label: 'total passed', count: '12' },
-      { label: 'total Distinc (≥ 75% / 375+ marks)', count: '4' },
-      { label: 'total 1st Div (60% to 74.9% / 300–374 marks)', count: '3' },
-      { label: 'total 2nd Div (45% to 59.9% / 225–299 marks)', count: '5' },
-      { label: 'total 3rd Div (33% to 44.9% / 165–224 marks)', count: '0' },
-      { label: 'Result (Overall)', count: '75.00% (70.59% if calculating out of all 17)', highlight: true }
-    ],
-    summaryStats: {
-      appeared: 16,
-      totalEnrolled: 17,
-      passed: 12,
-      failed: 4,
-      distinction: 4,
-      firstDiv: 3,
-      secondDiv: 5,
-      thirdDiv: 0,
-      overallPercent: '75.00%',
-      overallPercentNote: '70.59% out of all 17 candidates'
-    },
-    toppers: [
-      {
-        rollNo: '101059014',
-        name: 'Ahytisham Ishaq Ganie',
-        result: 'Distinc',
-        marksObt: 429,
-        grade: 'A2',
-        percentage: '85.8%',
-        maxMarks: 500,
-        rank: 'School 1st Topper'
-      },
-      {
-        rollNo: '101059016',
-        name: 'Muneeb Tariq Allie',
-        result: 'Distinc',
-        marksObt: 413,
-        grade: 'A2',
-        percentage: '82.6%',
-        maxMarks: 500,
-        rank: 'School 2nd Topper'
-      },
-      {
-        rollNo: '101059002',
-        name: 'Hamid Manzoor Bhat',
-        result: 'Distinc',
-        marksObt: 406,
-        grade: 'A2',
-        percentage: '81.2%',
-        maxMarks: 500,
-        rank: 'School 3rd Topper'
-      },
-      {
-        rollNo: '101059004',
-        name: 'Muzamil Imtiyaz Bond',
-        result: 'Distinc',
-        marksObt: 403,
-        grade: 'A2',
-        percentage: '80.6%',
-        maxMarks: 500,
-        rank: 'School 4th Topper'
-      }
-    ]
-  },
-  {
-    id: '10th-2024-25-oct-nov',
-    title: '10th Result 2024-25',
-    session: '2024-25',
-    examPeriod: 'Oct-Nov 2024',
-    category: 'Bi-Annual / Private',
+    examPeriod: 'Regular 2024-25 (Oct-Nov)',
+    category: 'Regular',
     schoolName: 'Govt. Higher Secondary School Shangus',
     indicators: [
       { label: 'total appeared', count: '35' },
       { label: 'total failed/reappear', count: '7' },
       { label: 'total passed', count: '28' },
-      { label: 'total Distinc (≥ 75% / 375+ marks)', count: '13' },
-      { label: 'total 1st Div (60% to 74.9% / 300–374 marks)', count: '9' },
-      { label: 'total 2nd Div (45% to 59.9% / 225–299 marks)', count: '6' },
-      { label: 'total 3rd Div (33% to 44.9% / 165–224 marks)', count: '0' },
+      { label: 'total Distinc', count: '13' },
+      { label: 'total 1st Div', count: '9' },
+      { label: 'total 2nd Div', count: '6' },
+      { label: 'total 3rd Div', count: '0' },
       { label: 'Result (Overall)', count: '80.00%', highlight: true }
     ],
     summaryStats: {
@@ -109,138 +37,21 @@ export const CLASS_10_BOARD_RESULTS = [
       overallPercent: '80.00%'
     },
     toppers: [
-      {
-        rollNo: '101060016',
-        name: 'Fayiz Bilal',
-        result: 'Distinc',
-        marksObt: 485,
-        grade: 'A1',
-        percentage: '97.0%',
-        maxMarks: 500,
-        rank: 'School 1st Topper'
-      },
-      {
-        rollNo: '101060029',
-        name: 'Naveed Ul Haq',
-        result: 'Distinc',
-        marksObt: 484,
-        grade: 'A1',
-        percentage: '96.8%',
-        maxMarks: 500,
-        rank: 'School 2nd Topper'
-      },
-      {
-        rollNo: '101060007',
-        name: 'Sabzar Bashir Kumar',
-        result: 'Distinc',
-        marksObt: 483,
-        grade: 'A1',
-        percentage: '96.6%',
-        maxMarks: 500,
-        rank: 'School 3rd Topper'
-      },
-      {
-        rollNo: '101060017',
-        name: 'Owais Ashraf Mantoo',
-        result: 'Distinc',
-        marksObt: 475,
-        grade: 'A1',
-        percentage: '95.0%',
-        maxMarks: 500,
-        rank: 'School 4th Topper'
-      },
-      {
-        rollNo: '101060004',
-        name: 'Sahil Yousuf',
-        result: 'Distinc',
-        marksObt: 453,
-        grade: 'A1',
-        percentage: '90.6%',
-        maxMarks: 500,
-        rank: 'Distinction'
-      },
-      {
-        rollNo: '101060008',
-        name: 'Ahzan Muzaffar Beig',
-        result: 'Distinc',
-        marksObt: 452,
-        grade: 'A1',
-        percentage: '90.4%',
-        maxMarks: 500,
-        rank: 'Distinction'
-      },
-      {
-        rollNo: '101060031',
-        name: 'Murtaza Rasool Kanth',
-        result: 'Distinc',
-        marksObt: 448,
-        grade: 'A2',
-        percentage: '89.6%',
-        maxMarks: 500,
-        rank: 'Distinction'
-      },
-      {
-        rollNo: '101060001',
-        name: 'Rahil Ahmad Rather',
-        result: 'Distinc',
-        marksObt: 444,
-        grade: 'A2',
-        percentage: '88.8%',
-        maxMarks: 500,
-        rank: 'Distinction'
-      },
-      {
-        rollNo: '101060000',
-        name: 'Mohammad Daniyal Sheikh',
-        result: 'Distinc',
-        marksObt: 440,
-        grade: 'A2',
-        percentage: '88.0%',
-        maxMarks: 500,
-        rank: 'Distinction'
-      },
-      {
-        rollNo: '101060006',
-        name: 'Hamid Amin',
-        result: 'Distinc',
-        marksObt: 410,
-        grade: 'A2',
-        percentage: '82.0%',
-        maxMarks: 500,
-        rank: 'Distinction'
-      },
-      {
-        rollNo: '101060005',
-        name: 'Tawqeer Bashir Bond',
-        result: 'Distinc',
-        marksObt: 397,
-        grade: 'B1',
-        percentage: '79.4%',
-        maxMarks: 500,
-        rank: 'Distinction'
-      },
-      {
-        rollNo: '101060023',
-        name: 'Waseem Ahmad Khan',
-        result: 'Distinc',
-        marksObt: 391,
-        grade: 'B1',
-        percentage: '78.2%',
-        maxMarks: 500,
-        rank: 'Distinction'
-      },
-      {
-        rollNo: '101060020',
-        name: 'Sheezan Sultan Wani',
-        result: 'Distinc',
-        marksObt: 377,
-        grade: 'B1',
-        percentage: '75.4%',
-        maxMarks: 500,
-        rank: 'Distinction'
-      }
+      { rollNo: '101060016', name: 'Fayiz Bilal', result: 'Distinc', marksObt: 485, grade: 'A1', percentage: '97.0%', maxMarks: 500 },
+      { rollNo: '101060029', name: 'Naveed Ul Haq', result: 'Distinc', marksObt: 484, grade: 'A1', percentage: '96.8%', maxMarks: 500 },
+      { rollNo: '101060007', name: 'Sabzar Bashir Kumar', result: 'Distinc', marksObt: 483, grade: 'A1', percentage: '96.6%', maxMarks: 500 },
+      { rollNo: '101060017', name: 'Owais Ashraf Mantoo', result: 'Distinc', marksObt: 475, grade: 'A1', percentage: '95.0%', maxMarks: 500 },
+      { rollNo: '101060004', name: 'Sahil Yousuf', result: 'Distinc', marksObt: 453, grade: 'A1', percentage: '90.6%', maxMarks: 500 },
+      { rollNo: '101060008', name: 'Ahzan Muzaffar Beig', result: 'Distinc', marksObt: 452, grade: 'A1', percentage: '90.4%', maxMarks: 500 },
+      { rollNo: '101060031', name: 'Murtaza Rasool Kanth', result: 'Distinc', marksObt: 448, grade: 'A2', percentage: '89.6%', maxMarks: 500 },
+      { rollNo: '101060001', name: 'Rahil Ahmad Rather', result: 'Distinc', marksObt: 444, grade: 'A2', percentage: '88.8%', maxMarks: 500 },
+      { rollNo: '101060000', name: 'Mohammad Daniyal Sheikh', result: 'Distinc', marksObt: 440, grade: 'A2', percentage: '88.0%', maxMarks: 500 },
+      { rollNo: '101060006', name: 'Hamid Amin', result: 'Distinc', marksObt: 410, grade: 'A2', percentage: '82.0%', maxMarks: 500 },
+      { rollNo: '101060005', name: 'Tawqeer Bashir Bond', result: 'Distinc', marksObt: 397, grade: 'B1', percentage: '79.4%', maxMarks: 500 },
+      { rollNo: '101060023', name: 'Waseem Ahmad Khan', result: 'Distinc', marksObt: 391, grade: 'B1', percentage: '78.2%', maxMarks: 500 },
+      { rollNo: '101060020', name: 'Sheezan Sultan Wani', result: 'Distinc', marksObt: 377, grade: 'B1', percentage: '75.4%', maxMarks: 500 }
     ],
-    // Complete candidate gazette list from official JKBOSE sheet
+    // Complete 35-candidate roster
     allCandidates: [
       { rollNo: '101060000', name: 'MOHAMMAD DANIYAL SHEIKH', status: 'Qualified (A2)', marks: 440, division: 'Distinction', percentage: '88.0%' },
       { rollNo: '101060001', name: 'RAHIL AHMAD RATHER', status: 'Qualified (A2)', marks: 444, division: 'Distinction', percentage: '88.8%' },
@@ -280,11 +91,47 @@ export const CLASS_10_BOARD_RESULTS = [
     ]
   },
   {
-    id: '10th-2024-annual-regular',
-    title: '10th Result 2024',
+    id: '10th-regular-2024-25-mar-apr',
+    title: '10th Result Regular 2024-25 (Mar-Apr)',
+    session: '2024-25',
+    examPeriod: 'Regular 2024-25 (Mar-Apr)',
+    category: 'Regular',
+    schoolName: 'Govt. Higher Secondary School Shangus',
+    indicators: [
+      { label: 'total appeared', count: '16 (17 total candidates including 1 unreadable file)' },
+      { label: 'total failed/reappear', count: '4' },
+      { label: 'total passed', count: '12' },
+      { label: 'total Distinc (≥ 75% / 375+ marks)', count: '4' },
+      { label: 'total 1st Div (60% to 74.9% / 300–374 marks)', count: '3' },
+      { label: 'total 2nd Div (45% to 59.9% / 225–299 marks)', count: '5' },
+      { label: 'total 3rd Div (33% to 44.9% / 165–224 marks)', count: '0' },
+      { label: 'Result (Overall)', count: '75.00% (70.59% if calculating out of all 17)', highlight: true }
+    ],
+    summaryStats: {
+      appeared: 16,
+      totalEnrolled: 17,
+      passed: 12,
+      failed: 4,
+      distinction: 4,
+      firstDiv: 3,
+      secondDiv: 5,
+      thirdDiv: 0,
+      overallPercent: '75.00%',
+      overallPercentNote: '70.59% out of all 17 candidates'
+    },
+    toppers: [
+      { rollNo: '101059014', name: 'Ahytisham Ishaq Ganie', result: 'Distinc', marksObt: 429, grade: 'A2', percentage: '85.8%', maxMarks: 500 },
+      { rollNo: '101059016', name: 'Muneeb Tariq Allie', result: 'Distinc', marksObt: 413, grade: 'A2', percentage: '82.6%', maxMarks: 500 },
+      { rollNo: '101059002', name: 'Hamid Manzoor Bhat', result: 'Distinc', marksObt: 406, grade: 'A2', percentage: '81.2%', maxMarks: 500 },
+      { rollNo: '101059004', name: 'Muzamil Imtiyaz Bond', result: 'Distinc', marksObt: 403, grade: 'A2', percentage: '80.6%', maxMarks: 500 }
+    ]
+  },
+  {
+    id: '10th-regular-2023-24',
+    title: '10th Result Regular 2023-24',
     session: '2023-24',
-    examPeriod: 'Annual Regular 2024',
-    category: 'Annual Regular',
+    examPeriod: 'Regular 2023-24',
+    category: 'Regular',
     schoolName: 'Govt. Higher Secondary School Shangus',
     indicators: [
       { label: 'total appeared', count: '34' },
@@ -308,36 +155,9 @@ export const CLASS_10_BOARD_RESULTS = [
       overallPercent: '70.59%'
     },
     toppers: [
-      {
-        rollNo: '101057052',
-        name: 'Sartaj Ahmad Mir',
-        result: 'Distinc',
-        marksObt: 485,
-        grade: 'A1',
-        percentage: '97.0%',
-        maxMarks: 500,
-        rank: 'School 1st Topper'
-      },
-      {
-        rollNo: '101057029',
-        name: 'Farhan Yousuf Wani',
-        result: 'Distinc',
-        marksObt: 470,
-        grade: 'A1',
-        percentage: '94.0%',
-        maxMarks: 500,
-        rank: 'School 2nd Topper'
-      },
-      {
-        rollNo: '101057030',
-        name: 'Wasiq Ahmad Bhat',
-        result: 'Distinc',
-        marksObt: 464,
-        grade: 'A1',
-        percentage: '92.8%',
-        maxMarks: 500,
-        rank: 'School 3rd Topper'
-      }
+      { rollNo: '101057052', name: 'Sartaj Ahmad Mir', result: 'Distinc', marksObt: 485, grade: 'A1', percentage: '97.0%', maxMarks: 500 },
+      { rollNo: '101057029', name: 'Farhan Yousuf Wani', result: 'Distinc', marksObt: 470, grade: 'A1', percentage: '94.0%', maxMarks: 500 },
+      { rollNo: '101057030', name: 'Wasiq Ahmad Bhat', result: 'Distinc', marksObt: 464, grade: 'A1', percentage: '92.8%', maxMarks: 500 }
     ]
   }
 ];
