@@ -972,6 +972,24 @@ function MultiSelectCheckboxDropdown({
   }, [isOpen]);
 
   const hasDefaultScoping = typeof isDefaultOption === 'function';
+  const archiveRange = (() => {
+    if (!hasDefaultScoping) return '';
+    const currentSession = getCurrentAcademicSession().trim().toLowerCase();
+    const archiveSessions = options
+      .filter(option => String(option).trim().toLowerCase() !== currentSession && !/bian|bi-annual/i.test(option))
+      .map(option => ({
+        label: option,
+        year: Number(String(option).match(/\b20\d{2}\b/)?.[0])
+      }))
+      .filter(option => Number.isFinite(option.year));
+    if (archiveSessions.length === 0) return '';
+    archiveSessions.sort((a, b) => b.year - a.year ||
+      Number(/oct-nov/i.test(b.label)) - Number(/oct-nov/i.test(a.label)));
+    const newest = archiveSessions[0];
+    const oldestYear = archiveSessions[archiveSessions.length - 1].year;
+    const period = newest.label.match(/\(([^)]+)\)/)?.[1];
+    return `${oldestYear}–${newest.year}${period ? ` (${period})` : ''}`;
+  })();
   const isDefaultSelected = hasDefaultScoping && localSelected.length === 0;
   const isAllSelected = !hasDefaultScoping && localSelected.length === 0;
   const isNoneSelected = localSelected.includes('__NONE__');
@@ -1159,12 +1177,12 @@ function MultiSelectCheckboxDropdown({
                   onClick={() => onLoadAllArchive()}
                   className="w-full py-1 px-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                 >
-                  <span>⚡ Load All Historical Data (2006–2024, Oct–Nov)</span>
+                  <span>⚡ Load All Historical Data{archiveRange ? ` (${archiveRange})` : ''}</span>
                 </button>
               )}
               {isArchiveLoaded && (
                 <div className="py-0.5 px-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-[9px] font-bold flex items-center justify-center gap-1">
-                  <span>✓ Complete 20-Year Archive Loaded</span>
+                  <span>✓ Historical Archive Loaded{archiveRange ? ` (${archiveRange})` : ''}</span>
                 </div>
               )}
             </div>
@@ -9589,15 +9607,19 @@ function AdvancedReports({
   const ensureFullHistoryLoaded = useCallback(async () => {
     if (window._hssMasterRegistersIsFull) return;
     try {
-      showToast('Hydrating complete 2006–2026 historical archives from Cloud Firestore...', 'info');
+      showToast('Loading all archived student records from Cloud Firestore...', 'info');
       setIsHydratingMasterRegisters(true);
       const fullChunks = await getMasterRegistersScoped({ forceAll: true });
       if (Array.isArray(fullChunks) && fullChunks.length > 0) {
-        const formatted = flattenAndFormatMasterRegisters(fullChunks);
+        const currentSession = getCurrentAcademicSession().trim().toLowerCase();
+        const archiveChunks = fullChunks.filter(record =>
+          String(record.session || record.Session || record['Academic Session'] || '').trim().toLowerCase() !== currentSession
+        );
+        const formatted = flattenAndFormatMasterRegisters(archiveChunks);
         startTransition(() => {
           setMasterHistoricalRecords(formatted);
         });
-        showToast('All 20+ years of historical school records loaded successfully!', 'success');
+        showToast('All archived student records loaded successfully!', 'success');
       }
     } catch (e) {
       console.warn('Historical hydration note:', e);
@@ -9630,8 +9652,8 @@ function AdvancedReports({
   const handleConfirmLoadAllArchive = useCallback(() => {
     setConfirmModalConfig({
       isOpen: true,
-      title: 'Load Complete 2006–2026 Historical Archive?',
-      message: 'This will fetch all 20+ years of archived student master register records from Cloud Firestore. Do you want to load the complete historical database now?',
+      title: 'Load All Historical Sessions?',
+      message: 'This will load archived student master register records for every session except the current session. Do you want to continue?',
       confirmText: 'Yes, Load Data',
       cancelText: 'Cancel',
       type: 'info',
