@@ -503,38 +503,38 @@ export default function Navbar() {
                       <ChevronDown size={11} className={`transition-transform duration-200 opacity-80 ${loginDropdownOpen ? 'rotate-180' : ''}`} />
                     </Link>
 
-                    {/* Desktop Hover Submenu — Minimal & Compact */}
+                    {/* Desktop Hover Submenu — Minimal & Compact with Perfect Contrast */}
                     <div
                       className={`absolute right-0 top-full pt-1.5 w-48 z-50 transition-all duration-150 ${
                         loginDropdownOpen ? 'opacity-100 visible translate-y-0 pointer-events-auto' : 'opacity-0 invisible -translate-y-1 pointer-events-none'
                       }`}
                     >
-                      <div className="bg-slate-900/98 backdrop-blur-md border border-slate-700/60 rounded-xl shadow-xl p-1 text-white space-y-0.5">
+                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl shadow-xl shadow-slate-900/10 dark:shadow-slate-950/50 p-1 text-slate-800 dark:text-white space-y-0.5">
                         <Link
                           to="/portal/login?role=student"
                           onClick={() => { setLoginDropdownOpen(false); window.scrollTo(0, 0); }}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800 transition-colors"
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-800 hover:text-slate-950 hover:bg-slate-100/90 dark:text-slate-200 dark:hover:text-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         >
-                          <GraduationCap size={15} className="text-blue-400 shrink-0" />
-                          <span className="text-xs font-semibold">Student Login</span>
+                          <GraduationCap size={15} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                          <span className="text-xs font-bold">Student Login</span>
                         </Link>
 
                         <Link
                           to="/portal/login?role=teacher"
                           onClick={() => { setLoginDropdownOpen(false); window.scrollTo(0, 0); }}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800 transition-colors"
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-800 hover:text-slate-950 hover:bg-slate-100/90 dark:text-slate-200 dark:hover:text-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         >
-                          <UserCheck size={15} className="text-emerald-400 shrink-0" />
-                          <span className="text-xs font-semibold">Teacher Login</span>
+                          <UserCheck size={15} className="text-emerald-700 dark:text-emerald-400 shrink-0" />
+                          <span className="text-xs font-bold">Teacher Login</span>
                         </Link>
 
                         <Link
                           to="/portal/login?role=admin"
                           onClick={() => { setLoginDropdownOpen(false); window.scrollTo(0, 0); }}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-200 hover:text-white hover:bg-slate-800 transition-colors"
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-800 hover:text-slate-950 hover:bg-slate-100/90 dark:text-slate-200 dark:hover:text-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         >
-                          <ShieldCheck size={15} className="text-amber-400 shrink-0" />
-                          <span className="text-xs font-semibold">Standard Admin</span>
+                          <ShieldCheck size={15} className="text-amber-700 dark:text-amber-400 shrink-0" />
+                          <span className="text-xs font-bold">Standard Admin</span>
                         </Link>
                       </div>
                     </div>

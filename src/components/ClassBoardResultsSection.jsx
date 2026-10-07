@@ -131,18 +131,18 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
             }}
             className={`w-full h-9 px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-between gap-1 shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 ${
               isClassDropdownOpen
-                ? 'bg-slate-50 dark:bg-slate-800 border-teal-600 dark:border-teal-500 ring-1 ring-teal-500/30'
-                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 text-slate-800 dark:text-slate-100'
+                ? 'bg-slate-50 dark:bg-slate-800 border-teal-700 dark:border-teal-500 ring-1 ring-teal-500/30'
+                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-slate-500 dark:hover:border-slate-500 text-slate-900 dark:text-slate-100'
             }`}
           >
             <span className="flex items-center gap-1.5 min-w-0 truncate">
-              <GraduationCap size={14} className="text-teal-600 shrink-0" />
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hidden xs:inline shrink-0">Class:</span>
-              <span className="font-bold truncate text-slate-900 dark:text-white">Class {selectedClass}</span>
+              <GraduationCap size={14} className="text-teal-700 dark:text-teal-400 shrink-0" />
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 hidden xs:inline shrink-0">Class:</span>
+              <span className="font-extrabold truncate text-slate-950 dark:text-white">Class {selectedClass}</span>
             </span>
             <ChevronDown
               size={13}
-              className={`text-slate-400 shrink-0 transition-transform duration-200 ${isClassDropdownOpen ? 'rotate-180 text-teal-600' : ''}`}
+              className={`text-slate-600 dark:text-slate-400 shrink-0 transition-transform duration-200 ${isClassDropdownOpen ? 'rotate-180 text-teal-700' : ''}`}
             />
           </button>
 
@@ -150,9 +150,9 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
             <div
               role="listbox"
               aria-label="Select Class"
-              className="absolute left-0 top-full mt-1 w-full min-w-[170px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-40 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+              className="absolute left-0 top-full mt-1 w-full min-w-[170px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl z-40 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
             >
-              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                 Select Class
               </div>
               {AVAILABLE_CLASSES.map((cls) => {
@@ -164,22 +164,22 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
                     aria-selected={isSelected}
                     type="button"
                     onClick={() => handleClassChange(cls.id)}
-                    className={`w-full px-2.5 py-2 text-left text-xs flex items-center gap-2.5 hover:bg-teal-50/70 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
-                      isSelected ? 'bg-teal-50/90 dark:bg-slate-800/90 font-bold text-teal-900 dark:text-teal-200' : 'text-slate-700 dark:text-slate-300'
+                    className={`w-full px-2.5 py-2 text-left text-xs flex items-center gap-2.5 hover:bg-teal-50/80 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
+                      isSelected ? 'bg-teal-50 dark:bg-slate-800/90 font-bold text-teal-950 dark:text-teal-200' : 'text-slate-800 dark:text-slate-200'
                     }`}
                   >
                     <div
                       className={`w-4 h-4 rounded shrink-0 flex items-center justify-center border transition-all ${
                         isSelected
-                          ? 'bg-teal-600 border-teal-600 text-white shadow-2xs'
-                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
+                          ? 'bg-teal-700 border-teal-700 text-white shadow-2xs'
+                          : 'border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-800'
                       }`}
                     >
                       {isSelected && <Check size={11} strokeWidth={3.2} />}
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="truncate leading-snug">{cls.label}</span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal truncate">{cls.sub}</span>
+                      <span className="truncate leading-snug font-semibold">{cls.label}</span>
+                      <span className="text-[10px] text-slate-600 dark:text-slate-400 font-medium truncate">{cls.sub}</span>
                     </div>
                   </button>
                 );
@@ -201,18 +201,18 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
             }}
             className={`w-full h-9 px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-between gap-1 shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 ${
               isSessionDropdownOpen
-                ? 'bg-slate-50 dark:bg-slate-800 border-teal-600 dark:border-teal-500 ring-1 ring-teal-500/30'
-                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 text-slate-800 dark:text-slate-100'
+                ? 'bg-slate-50 dark:bg-slate-800 border-teal-700 dark:border-teal-500 ring-1 ring-teal-500/30'
+                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-slate-500 dark:hover:border-slate-500 text-slate-900 dark:text-slate-100'
             }`}
           >
             <span className="flex items-center gap-1.5 min-w-0 truncate">
-              <Calendar size={14} className="text-teal-600 shrink-0" />
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hidden xs:inline shrink-0">Session:</span>
-              <span className="font-bold truncate text-slate-900 dark:text-white">{cohort?.examPeriod || 'Select Session'}</span>
+              <Calendar size={14} className="text-teal-700 dark:text-teal-400 shrink-0" />
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 hidden xs:inline shrink-0">Session:</span>
+              <span className="font-extrabold truncate text-slate-950 dark:text-white">{cohort?.examPeriod || 'Select Session'}</span>
             </span>
             <ChevronDown
               size={13}
-              className={`text-slate-400 shrink-0 transition-transform duration-200 ${isSessionDropdownOpen ? 'rotate-180 text-teal-600' : ''}`}
+              className={`text-slate-600 dark:text-slate-400 shrink-0 transition-transform duration-200 ${isSessionDropdownOpen ? 'rotate-180 text-teal-700' : ''}`}
             />
           </button>
 
@@ -220,11 +220,11 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
             <div
               role="listbox"
               aria-label="Select Examination Session"
-              className="absolute right-0 top-full mt-1 w-full min-w-[220px] sm:min-w-[260px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-40 py-1 overflow-hidden max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
+              className="absolute right-0 top-full mt-1 w-full min-w-[220px] sm:min-w-[260px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl z-40 py-1 overflow-hidden max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
             >
-              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <span>Select Examination Session</span>
-                <span className="text-[9px] font-normal text-slate-400">{classCohorts.length} sessions</span>
+                <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400">{classCohorts.length} sessions</span>
               </div>
               {classCohorts.map((item) => {
                 const isSelected = item.id === cohort?.id;
@@ -240,24 +240,24 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
                       setRosterFilter('');
                       setIsSessionDropdownOpen(false);
                     }}
-                    className={`w-full px-2.5 py-2 text-left text-xs flex items-center gap-2.5 hover:bg-teal-50/70 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
-                      isSelected ? 'bg-teal-50/90 dark:bg-slate-800/90 font-bold text-teal-900 dark:text-teal-200' : 'text-slate-700 dark:text-slate-300'
+                    className={`w-full px-2.5 py-2 text-left text-xs flex items-center gap-2.5 hover:bg-teal-50/80 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
+                      isSelected ? 'bg-teal-50 dark:bg-slate-800/90 font-bold text-teal-950 dark:text-teal-200' : 'text-slate-800 dark:text-slate-200'
                     }`}
                   >
                     <div
                       className={`w-4 h-4 rounded shrink-0 flex items-center justify-center border transition-all ${
                         isSelected
-                          ? 'bg-teal-600 border-teal-600 text-white shadow-2xs'
-                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
+                          ? 'bg-teal-700 border-teal-700 text-white shadow-2xs'
+                          : 'border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-800'
                       }`}
                     >
                       {isSelected && <Check size={11} strokeWidth={3.2} />}
                     </div>
                     <div className="flex flex-col min-w-0 flex-1">
-                      <span className="truncate leading-snug">{item.examPeriod}</span>
+                      <span className="truncate leading-snug font-semibold">{item.examPeriod}</span>
                       {item.summaryStats?.overallPercent && (
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal flex items-center gap-2">
-                          <span>Pass: <strong className="text-emerald-700 dark:text-emerald-400 font-semibold">{item.summaryStats.overallPercent}</strong></span>
+                        <span className="text-[10px] text-slate-600 dark:text-slate-400 font-medium flex items-center gap-2">
+                          <span>Pass: <strong className="text-emerald-800 dark:text-emerald-300 font-bold">{item.summaryStats.overallPercent}</strong></span>
                           <span>Appeared: {item.summaryStats.appeared}</span>
                         </span>
                       )}
@@ -381,7 +381,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
                       <td className={`py-1.5 px-3 ${leftHighlight ? 'font-bold text-slate-900 dark:text-white bg-[#d1f2d9] dark:bg-emerald-950/80' : ''}`}>
                         {pair.left?.label || '—'}
                       </td>
-                      <td className={`py-1.5 px-3 text-right font-mono ${leftHighlight ? 'font-black text-red-600 dark:text-red-400 text-sm bg-[#d1f2d9] dark:bg-emerald-950/80' : 'font-semibold'}`}>
+                      <td className={`py-1.5 px-3 text-right font-mono ${leftHighlight ? 'font-black text-red-700 dark:text-red-400 text-sm bg-[#d1f2d9] dark:bg-emerald-950/80' : 'font-semibold'}`}>
                         {pair.left?.count ?? '—'}
                       </td>
 
@@ -389,7 +389,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
                       <td className={`py-1.5 px-3 border-l border-slate-300 dark:border-slate-700 ${rightHighlight ? 'font-bold text-slate-900 dark:text-white bg-[#d1f2d9] dark:bg-emerald-950/80' : ''}`}>
                         {pair.right?.label || '—'}
                       </td>
-                      <td className={`py-1.5 px-3 text-right font-mono ${rightHighlight ? 'font-black text-red-600 dark:text-red-400 text-sm bg-[#d1f2d9] dark:bg-emerald-950/80' : 'font-semibold'}`}>
+                      <td className={`py-1.5 px-3 text-right font-mono ${rightHighlight ? 'font-black text-red-700 dark:text-red-400 text-sm bg-[#d1f2d9] dark:bg-emerald-950/80' : 'font-semibold'}`}>
                         {pair.right?.count ?? '—'}
                       </td>
                     </tr>
