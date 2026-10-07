@@ -418,54 +418,72 @@ export default function TeacherAssessmentsPage() {
       }
 
       let allCandidates = [];
+      const isCurrentActiveSession = isSessionMatch(selectedSession, CURRENT_SESSION) || String(selectedSession).includes('2025-26');
 
-      // A. Master Registers
       const masterDocs = Array.isArray(masterRes) ? masterRes : [];
-      masterDocs.forEach(d => {
-        const items = d.items || d.data || d.records;
-        const docSession = d.Session || d.session || d.groupKey?.split('_')[0] || d.id?.split('_')[0] || '';
-        const docClass = d.class || d.Class || d.groupKey?.split('_')[1] || '';
+      const pushMasterCandidates = () => {
+        masterDocs.forEach(d => {
+          const items = d.items || d.data || d.records;
+          const docSession = d.Session || d.session || d.groupKey?.split('_')[0] || d.id?.split('_')[0] || '';
+          const docClass = d.class || d.Class || d.groupKey?.split('_')[1] || '';
 
-        if (Array.isArray(items)) {
-          items.forEach(it => {
-            allCandidates.push({
-              ...it,
-              session: it.Session || it.session || docSession,
-              class: it.class || it.Class || it['Class'] || docClass
+          if (Array.isArray(items)) {
+            items.forEach(it => {
+              allCandidates.push({
+                ...it,
+                session: it.Session || it.session || docSession,
+                class: it.class || it.Class || it['Class'] || docClass,
+                _source: 'masterRegisters'
+              });
             });
-          });
-        } else {
-          allCandidates.push({
-            ...d,
-            session: d.Session || d.session || docSession,
-            class: d.class || d.Class || d['Class'] || docClass
-          });
-        }
-      });
+          } else {
+            allCandidates.push({
+              ...d,
+              session: d.Session || d.session || docSession,
+              class: d.class || d.Class || d['Class'] || docClass,
+              _source: 'masterRegisters'
+            });
+          }
+        });
+      };
 
-      // B. Admissions
       const admDocs = Array.isArray(admRes) ? admRes : [];
-      admDocs.forEach(d => {
-        const items = d.items || d.students || d.records;
-        const docSession = d.Session || d.session || CURRENT_SESSION;
-        const docClass = d.class || d.Class || d['Admission sought for class'] || '';
+      const pushAdmissionCandidates = () => {
+        admDocs.forEach(d => {
+          const items = d.items || d.students || d.records;
+          const docSession = d.Session || d.session || CURRENT_SESSION;
+          const docClass = d.class || d.Class || d['Admission sought for class'] || '';
 
-        if (Array.isArray(items)) {
-          items.forEach(it => {
-            allCandidates.push({
-              ...it,
-              session: it.Session || it.session || docSession,
-              class: it['Admission sought for class'] || it['Class for which Admission Sought'] || it['Class Enrolled'] || it.className || it.class || it.Class || it['Class'] || docClass
+          if (Array.isArray(items)) {
+            items.forEach(it => {
+              allCandidates.push({
+                ...it,
+                session: it.Session || it.session || docSession,
+                class: it['Admission sought for class'] || it['Class for which Admission Sought'] || it['Class Enrolled'] || it.className || it.class || it.Class || it['Class'] || docClass,
+                _source: 'admissions'
+              });
             });
-          });
-        } else {
-          allCandidates.push({
-            ...d,
-            session: d.Session || d.session || docSession,
-            class: d['Admission sought for class'] || d['Class for which Admission Sought'] || d['Class Enrolled'] || d.className || d.class || d.Class || docClass
-          });
-        }
-      });
+          } else {
+            allCandidates.push({
+              ...d,
+              session: d.Session || d.session || docSession,
+              class: d['Admission sought for class'] || d['Class for which Admission Sought'] || d['Class Enrolled'] || d.className || d.class || d.Class || docClass,
+              _source: 'admissions'
+            });
+          }
+        });
+      };
+
+      // For current active session (2025-26), admissions holds the richest and most up-to-date
+      // subject choices, streams, and parentage, so it is prioritized first.
+      // For historical sessions, masterRegisters acts as the permanent institutional record.
+      if (isCurrentActiveSession) {
+        pushAdmissionCandidates();
+        pushMasterCandidates();
+      } else {
+        pushMasterCandidates();
+        pushAdmissionCandidates();
+      }
 
       // C. Build Rich Index Maps for Multi-Key Matching
       const richByReg = new Map();
@@ -490,6 +508,8 @@ export default function TeacherAssessmentsPage() {
             const existingMatches = isClassMatch(existingCls, selectedClass);
             if (!existingMatches && isMatchCls) {
               map.set(key, item);
+            } else if (isCurrentActiveSession && item._source === 'admissions' && existing._source !== 'admissions') {
+              map.set(key, item); // Prioritize admissions for active session!
             }
           }
         };
@@ -616,9 +636,39 @@ export default function TeacherAssessmentsPage() {
           const prev = uniqueMap.get(key);
           const hasPrevMarks = prev.marks !== '' && prev.marks !== undefined;
           const hasNewMarks = st.marks !== '' && st.marks !== undefined;
-          if (!hasPrevMarks && hasNewMarks) {
-            uniqueMap.set(key, { ...prev, ...st });
-          }
+
+          // Non-destructive merge: preserve the richer admissions record as authoritative base,
+          // while backfilling any missing identifiers or rolls from masterRegisters so NO data is lost.
+          const primary = (prev._source === 'admissions' || (!prev.isHistorical && st.isHistorical)) ? prev : st;
+          const secondary = primary === prev ? st : prev;
+
+          const mergedMarks = hasNewMarks ? st.marks : (hasPrevMarks ? prev.marks : '');
+          const mergedAbsent = Boolean(st.isAbsent || prev.isAbsent);
+
+          const merged = {
+            ...secondary,
+            ...primary,
+            // Explicitly guarantee no vital identifiers from secondary are lost if missing in primary:
+            classRollNo: primary.classRollNo || secondary.classRollNo || primary.rollNo || secondary.rollNo || '',
+            rollNo: primary.rollNo || secondary.rollNo || primary.classRollNo || secondary.classRollNo || '',
+            formNo: primary.formNo || secondary.formNo || '',
+            regNo: primary.regNo || secondary.regNo || '',
+            boardRegNo: primary.boardRegNo || secondary.boardRegNo || primary.regNo || secondary.regNo || '',
+            admNo: primary.admNo || secondary.admNo || '',
+            examRollNo: primary.examRollNo || secondary.examRollNo || secondary.boardRollNo || '',
+            boardRollNo: primary.boardRollNo || secondary.boardRollNo || primary.examRollNo || secondary.examRollNo || '',
+            // Ensure subjects & stream always stay rich from admissions:
+            subjects: primary.subjects || secondary.subjects || '',
+            rawSubjects: primary.rawSubjects || secondary.rawSubjects || '',
+            subjectsAbbr: primary.subjectsAbbr || secondary.subjectsAbbr || '',
+            stream: primary.stream || primary.Stream || secondary.stream || secondary.Stream || '',
+            // Ensure parentage is preserved:
+            fatherName: primary.fatherName || secondary.fatherName || primary["Father's Name"] || secondary["Father's Name"] || '',
+            // Preserve assessment marks if present in either:
+            marks: mergedMarks,
+            isAbsent: mergedAbsent
+          };
+          uniqueMap.set(key, merged);
         }
       });
 

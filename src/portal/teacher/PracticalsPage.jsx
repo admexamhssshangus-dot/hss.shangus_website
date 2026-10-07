@@ -2023,55 +2023,73 @@ export default function PracticalsPage() {
 
       if (!uniqueStudents || uniqueStudents.length === 0) {
         let allCandidates = [];
+        const isCurrentActiveSession = isSessionMatch(yearSuffix, CURRENT_SESSION) || String(yearSuffix).includes('2025-26');
 
-        // A. Primary Database Source: masterRegisters
-        if (Array.isArray(masterDocs)) {
-          masterDocs.forEach(d => {
-            const items = d.items || d.data || d.records;
-            const docSession = d.Session || d.session || d.groupKey?.split('_')[0] || d.id?.split('_')[0] || '';
-            const docClass = d.class || d.Class || d.groupKey?.split('_')[1] || '';
+        const pushMasterCandidates = () => {
+          if (Array.isArray(masterDocs)) {
+            masterDocs.forEach(d => {
+              const items = d.items || d.data || d.records;
+              const docSession = d.Session || d.session || d.groupKey?.split('_')[0] || d.id?.split('_')[0] || '';
+              const docClass = d.class || d.Class || d.groupKey?.split('_')[1] || '';
 
-            if (Array.isArray(items)) {
-              items.forEach(it => {
-                allCandidates.push({
-                  ...it,
-                  session: it.Session || it.session || docSession,
-                  class: it.class || it.Class || it['Class'] || docClass
+              if (Array.isArray(items)) {
+                items.forEach(it => {
+                  allCandidates.push({
+                    ...it,
+                    session: it.Session || it.session || docSession,
+                    class: it.class || it.Class || it['Class'] || docClass,
+                    _source: 'masterRegisters'
+                  });
                 });
-              });
-            } else {
-              allCandidates.push({
-                ...d,
-                session: d.Session || d.session || docSession,
-                class: d.class || d.Class || d['Class'] || docClass
-              });
-            }
-          });
-        }
-
-        // B. Secondary Database Source: admissions
-        if (Array.isArray(admDocs)) {
-          admDocs.forEach(d => {
-            const items = d.items || d.students || d.records;
-            const docSession = d.Session || d.session || CURRENT_SESSION;
-            const docClass = d.class || d.Class || d['Admission sought for class'] || '';
-
-            if (Array.isArray(items)) {
-              items.forEach(it => {
+              } else {
                 allCandidates.push({
-                  ...it,
-                  session: it.Session || it.session || docSession,
-                  class: it['Admission sought for class'] || it['Class for which Admission Sought'] || it['Class Enrolled'] || it.className || it.class || it.Class || it['Class'] || docClass
+                  ...d,
+                  session: d.Session || d.session || docSession,
+                  class: d.class || d.Class || d['Class'] || docClass,
+                  _source: 'masterRegisters'
                 });
-              });
-            } else {
-              allCandidates.push({
-                ...d,
-                session: d.Session || d.session || docSession,
-                class: d['Admission sought for class'] || d['Class for which Admission Sought'] || d['Class Enrolled'] || d.className || d.class || d.Class || docClass
-              });
-            }
-          });
+              }
+            });
+          }
+        };
+
+        const pushAdmissionCandidates = () => {
+          if (Array.isArray(admDocs)) {
+            admDocs.forEach(d => {
+              const items = d.items || d.students || d.records;
+              const docSession = d.Session || d.session || CURRENT_SESSION;
+              const docClass = d.class || d.Class || d['Admission sought for class'] || '';
+
+              if (Array.isArray(items)) {
+                items.forEach(it => {
+                  allCandidates.push({
+                    ...it,
+                    session: it.Session || it.session || docSession,
+                    class: it['Admission sought for class'] || it['Class for which Admission Sought'] || it['Class Enrolled'] || it.className || it.class || it.Class || it['Class'] || docClass,
+                    _source: 'admissions'
+                  });
+                });
+              } else {
+                allCandidates.push({
+                  ...d,
+                  session: d.Session || d.session || docSession,
+                  class: d['Admission sought for class'] || d['Class for which Admission Sought'] || d['Class Enrolled'] || d.className || d.class || d.Class || docClass,
+                  _source: 'admissions'
+                });
+              }
+            });
+          }
+        };
+
+        // For current active session (2025-26), admissions holds the richest and most up-to-date
+        // subject choices, streams, and parentage, so it is prioritized first.
+        // For historical sessions, masterRegisters acts as the permanent institutional record.
+        if (isCurrentActiveSession) {
+          pushAdmissionCandidates();
+          pushMasterCandidates();
+        } else {
+          pushMasterCandidates();
+          pushAdmissionCandidates();
         }
 
         // C. Build Rich Index Maps for Hierarchical Matching
@@ -2099,6 +2117,8 @@ export default function PracticalsPage() {
               const existingMatches = isClassMatch(existingCls, selectedClass);
               if (!existingMatches && isMatchCls) {
                 map.set(key, item); // Prioritize matching class record!
+              } else if (isCurrentActiveSession && item._source === 'admissions' && existing._source !== 'admissions') {
+                map.set(key, item); // Prioritize admissions for active session!
               }
             }
           };
@@ -2322,6 +2342,39 @@ export default function PracticalsPage() {
 
           if (key && !uniqueMap.has(key)) {
             uniqueMap.set(key, st);
+          } else if (key) {
+            const existing = uniqueMap.get(key);
+            // Non-destructive merge: preserve the richer admissions record as authoritative base,
+            // while backfilling any missing identifiers or rolls from masterRegisters so NO data is lost.
+            const primary = (existing._source === 'admissions' || (!existing.isHistorical && st.isHistorical)) ? existing : st;
+            const secondary = primary === existing ? st : existing;
+
+            const merged = {
+              ...secondary,
+              ...primary,
+              // Explicitly guarantee no vital identifiers from secondary are lost if missing in primary:
+              classRollNo: primary.classRollNo || secondary.classRollNo || primary.rollNo || secondary.rollNo || '',
+              rollNo: primary.rollNo || secondary.rollNo || primary.classRollNo || secondary.classRollNo || '',
+              formNo: primary.formNo || secondary.formNo || '',
+              regNo: primary.regNo || secondary.regNo || '',
+              boardRegNo: primary.boardRegNo || secondary.boardRegNo || primary.regNo || secondary.regNo || '',
+              admNo: primary.admNo || secondary.admNo || '',
+              examRollNo: primary.examRollNo || secondary.examRollNo || secondary.boardRollNo || '',
+              boardRollNo: primary.boardRollNo || secondary.boardRollNo || primary.examRollNo || secondary.examRollNo || '',
+              // Ensure subjects & stream always stay rich from admissions:
+              subjects: primary.subjects || secondary.subjects || '',
+              rawSubjects: primary.rawSubjects || secondary.rawSubjects || '',
+              subjectsAbbr: primary.subjectsAbbr || secondary.subjectsAbbr || '',
+              stream: primary.stream || primary.Stream || secondary.stream || secondary.Stream || '',
+              // Ensure parentage is preserved:
+              parentName: primary.parentName || secondary.parentName || primary["Father's Name"] || secondary["Father's Name"] || '',
+              // Preserve marks if present in either:
+              practicalMarks: primary.practicalMarks !== undefined ? primary.practicalMarks : secondary.practicalMarks,
+              vivaMarks: primary.vivaMarks !== undefined ? primary.vivaMarks : secondary.vivaMarks,
+              totalMarks: primary.totalMarks !== undefined ? primary.totalMarks : secondary.totalMarks,
+              isHistorical: Boolean(primary.isHistorical && secondary.isHistorical)
+            };
+            uniqueMap.set(key, merged);
           }
         });
 

@@ -2,33 +2,38 @@
 
 ## Commit Message
 
-`docs: archive current session admissions precedence and student roster implementation plan`
+`feat(roster): prioritize admissions data for current session 2025-26 with non-destructive merge`
 
 ## Summary of Changes
 
-1. **Archived Implementation Plan (`docs/archive/CURRENT_SESSION_ADMISSIONS_PRECEDENCE_PLAN.md`)**:
-   - **Institutional Context & Duplicity Diagnostic**:
-     - Documented the current state where session `2025-26` records exist in both `admissions` (the primary live source holding rich subject choices, streams, parentage, phone numbers, form numbers, and registration details) and `masterRegisters` (permanent archive).
-     - Confirmed that this duplicity will be eliminated upon annual session rollover.
-   - **Comprehensive Portal Ingestion Audit**:
-     - Audited all modules fetching student cohorts: `PracticalsPage.jsx`, `TeacherAssessmentsPage.jsx`, `AttendancePage.jsx`, `AdminPracticals.jsx`, `AdminGkTestManager.jsx`, `AdminDashboard.jsx`, and `studentDataFetcher.js`.
-     - Pinpointed why `masterRegisters` currently wins in Teacher Practicals and School Assessments: `masterDocs` was iterated first in candidate arrays and occupied `uniqueMap` slots first, discarding the richer `admissions` entries.
-   - **Step-by-Step Implementation Blueprint**:
-     - **Phase 1**: Inverting candidate loop precedence in `PracticalsPage.jsx` for active session `2025-26`.
-     - **Phase 2**: Inverting candidate loop precedence in `TeacherAssessmentsPage.jsx`.
-     - **Phase 3**: Non-destructive field-level merging in `uniqueMap` to preserve historical exam roll numbers or saved marks while using `admissions` as the base authority for subjects, stream, and parentage.
-     - **Phase 4**: Rollover automation safety and forward-compatibility for `2026-27+`.
-     - **Phase 5**: Complete testing and verification checklist.
+1. **Teacher Practicals Portal (`src/portal/teacher/PracticalsPage.jsx`)**:
+   - **Precedence Inversion for Active Session (`2025-26` / `CURRENT_SESSION`)**:
+     - `admDocs` (`admissions` collection) is ingested **first** into `allCandidates`, ensuring students' rich elective subject combinations, streams, parentage, contact info, and form numbers are authoritative.
+     - `masterDocs` (`masterRegisters` collection) is ingested **second** for current session, while continuing to serve as the primary archive for historical sessions (`2024-25`, etc.).
+   - **Lookup Map Prioritization (`indexRichItem`)**:
+     - Lookup indices (`richByReg`, `richByRoll`, `richByForm`, `richByName`) prioritize active admission records.
+   - **Non-Destructive Deep Merge in Deduplication (`uniqueMap`)**:
+     - **Zero Data Loss Guarantee**: When duplicate records between `admissions` and `masterRegisters` are encountered, the richer `admissions` record forms the base profile, while any existing identifiers from `masterRegisters` (`examRollNo`, `boardRollNo`, `admNo`, or pre-assigned `classRollNo`) and historical practical marks are seamlessly backfilled rather than dropped.
+
+2. **Teacher School-Based Assessment Portal (`src/portal/teacher/TeacherAssessmentsPage.jsx`)**:
+   - **Precedence Inversion for Active Session (`2025-26` / `CURRENT_SESSION`)**:
+     - In `loadData`, `admDocs` is processed **first** into `allCandidates` and `masterDocs` **second** for active sessions.
+   - **Lookup Map Prioritization (`indexRichItem`)**:
+     - Ensures multi-key matching gives first preference to live admission documents.
+   - **Non-Destructive Deep Merge in Deduplication (`uniqueMap`)**:
+     - Merges `admissions` and `masterRegisters` records so complete subject choices, streams, father's names, and form numbers from `admissions` remain intact, while preserving any assigned board roll numbers, registration numbers, and previously saved/draft assessment marks (`marks`, `isAbsent`).
 
 ## Files Changed
 
-1. `docs/archive/CURRENT_SESSION_ADMISSIONS_PRECEDENCE_PLAN.md`
-2. `CHANGES_SINCE_LAST_COMMIT.md`
+1. `src/portal/teacher/PracticalsPage.jsx`
+2. `src/portal/teacher/TeacherAssessmentsPage.jsx`
+3. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
 - **Production Build**: Verified with `npm run build` (Exit Code 0, all 12 public HTML pages generated, zero breaking errors, zero SEO regressions).
-- **Rule Compliance**: Complies with Practicals & Academic Evaluation Data Boundary Rule (Rule 8) and Manual Git Push Policy (Rule 5).
+- **Academic Evaluation Boundary (Rule 8)**: Confidential practicals data remains strictly segregated from School-Based Assessment (Pre-Board) and accessible exclusively via authenticated teacher/admin accounts.
+- **Manual Git Push Policy (Rule 5)**: Never executed automatically.
 
 ## Manual Git Push Instructions
 
@@ -39,7 +44,7 @@
 2. If you wish to amend or re-commit:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "docs: archive current session admissions precedence and student roster implementation plan"
+   git commit -m "feat(roster): prioritize admissions data for current session 2025-26 with non-destructive merge"
    ```
 3. Push changes to GitHub (strictly manual):
    ```bash
