@@ -445,10 +445,10 @@ export function findStudentMarkRecord(subDoc, student) {
   const stClassRoll = getRecordClassRoll(student);
   const stForm = String(student.admissionNo || student.formNo || student['Admission Form No.'] || student['Form No.'] || '').trim();
   const stName = toTitleCase(
-    student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || student.name || ''
+    student["Student's Name (as per school records)"] || student["Student's Name"] || student['Student Name'] || student.StudentName || student['Candidate Name'] || student['Name of Candidate'] || student.studentName || student.name || student.Name || student['Full Name'] || student.fullName || ''
   ).trim().toLowerCase();
   const stFather = toTitleCase(
-    student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || student.fatherName || student.parentage || ''
+    student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || student['Father Name'] || student.FatherName || student['Guardian Name'] || student.fatherName || student.father || student.parentage || student.parentName || student["Parent's Name"] || ''
   ).trim().toLowerCase();
 
   return subDoc.records.find(r => {
@@ -456,8 +456,8 @@ export function findStudentMarkRecord(subDoc, student) {
     const rExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
     const rClassRoll = getRecordClassRoll(r);
     const rForm = String(r.formNo || r.admissionNo || r['Form No.'] || '').trim();
-    const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
-    const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || '').trim().toLowerCase();
+    const rName = toTitleCase(r.name || r.studentName || r['Student Name'] || r.StudentName || r['Candidate Name'] || r['Name of Candidate'] || '').trim().toLowerCase();
+    const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || r["Father's Name"] || r['Father Name'] || '').trim().toLowerCase();
 
     // 1. Board Registration No (Global unique key)
     if (stBoardReg && rBoardReg && stBoardReg === rBoardReg && stBoardReg.length >= 5) return true;
@@ -1339,7 +1339,7 @@ export function printConsolidatedAwardRoll({
         <thead>
           <tr>
             <th style="width: 4%;">S.No.</th>
-            <th style="width: 14%;">Exam Roll No.</th>
+            <th style="width: 14%;">${students.some(s => Boolean(getRecordExamRoll(s, className))) ? 'Exam Roll No.' : 'Roll No. / Name'}</th>
             <th colspan="${activeSubs.length}">SUBJECTS</th>
             <th style="width: 10%;">Hash Total</th>
           </tr>
@@ -1355,8 +1355,29 @@ export function printConsolidatedAwardRoll({
 
   // Build rows for each student
   students.forEach((st, idx) => {
-    const rawExamRoll = String(getRecordExamRoll(st, className) || getStudentExamRoll(st) || st['Exam R.No. (Current)'] || st.examRollNo || '').trim();
-    const displayExamRoll = (rawExamRoll && rawExamRoll !== '—' && rawExamRoll !== 'N/A' && rawExamRoll !== 'NA') ? rawExamRoll : '—';
+    const cleanExamRoll = String(getRecordExamRoll(st, className) || getStudentExamRoll(st) || st['Exam R.No. (Current)'] || st.examRollNo || '').trim();
+    const hasExam = Boolean(cleanExamRoll && cleanExamRoll !== '—' && cleanExamRoll !== 'N/A' && cleanExamRoll !== 'NA');
+    const classRoll = String(getRecordClassRoll(st) || '').trim();
+    const hasClassRoll = Boolean(classRoll && classRoll !== '—' && classRoll !== 'N/A' && classRoll !== 'NA');
+    const rawName = st["Student's Name (as per school records)"] || st["Student's Name"] || st['Student Name'] || st.StudentName || st['Candidate Name'] || st['Name of Candidate'] || st.studentName || st.name || '';
+    const cleanName = rawName ? toTitleCase(String(rawName).trim()) : '';
+
+    let rollCellHtml = '—';
+    if (hasExam) {
+      rollCellHtml = `<strong>${cleanExamRoll}</strong>`;
+    } else if (hasClassRoll && cleanName) {
+      rollCellHtml = `
+        <div style="line-height: 1.15; padding: 1px 0;">
+          <strong style="font-size: 8.5pt; color: #0f172a;">CR: ${classRoll}</strong>
+          <div style="font-size: 7pt; font-weight: 600; color: #475569; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; margin: 0 auto;" title="${cleanName}">${cleanName}</div>
+        </div>
+      `;
+    } else if (hasClassRoll) {
+      rollCellHtml = `<strong>CR: ${classRoll}</strong>`;
+    } else if (cleanName) {
+      rollCellHtml = `<span style="font-size: 7.5pt; font-weight: bold; text-transform: uppercase;">${cleanName}</span>`;
+    }
+
     let rowHashTotal = 0;
 
     const cellHtmls = activeSubs.map(sub => {
@@ -1414,7 +1435,7 @@ export function printConsolidatedAwardRoll({
     matrixHtml += `
       <tr>
         <td>${idx + 1}</td>
-        <td><strong>${displayExamRoll}</strong></td>
+        <td>${rollCellHtml}</td>
         ${cellHtmls}
         <td class="hash-tot">${rowHashTotal > 0 ? rowHashTotal : '—'}</td>
       </tr>
@@ -1576,10 +1597,15 @@ function resolveStudentSubjectsRaw(st, className = '') {
     st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
   ].filter(val => val && !SAME_AS_11_RE.test(String(val))).join(', ');
 
+  const arraySelectedSubs = Array.isArray(st.selectedSubjects) ? st.selectedSubjects.filter(val => val && !SAME_AS_11_RE.test(String(val))).join(', ') : null;
+  const arraySubs = Array.isArray(st.subjects) ? st.subjects.map(s => typeof s === 'string' ? s : s?.name || s?.code).filter(val => val && !SAME_AS_11_RE.test(String(val))).join(', ') : null;
+
   // Ordered candidate fields — most authoritative first
   const candidates = [
     st['Subs'],
     st['subs'],
+    arraySelectedSubs,
+    arraySubs,
     is12 ? st['Subjects to be taken in Class 12th'] : null,
     is12 ? st['Subjects in Class 12th'] : null,
     is12 ? st['Stream & Subjects for Class 12th'] : null,

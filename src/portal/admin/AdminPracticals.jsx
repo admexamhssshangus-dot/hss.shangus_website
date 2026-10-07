@@ -46,7 +46,7 @@ import {
   VALID_SUBJECT_CODES
 } from '../../utils/practicalsCsvManager';
 import { toTitleCase } from '../../utils/textFormatting';
-import { isStudentExamDropped, getAssignedClassRollNumber } from '../../utils/studentApprovalStatus';
+import { isStudentExamDropped, getAssignedClassRollNumber, isStudentAdmissionApproved } from '../../utils/studentApprovalStatus';
 import { checkIsStudentDropped, fetchExamineeDropOverrides } from '../../services/examineeDropService';
 import {
   SUBJECT_CONFIG_DEFS,
@@ -445,7 +445,7 @@ export const isSessionMatch = (rawSess, targetFilter) => {
 };
 
 export const checkStudentApprovalState = (st) => {
-  const isDropped = isStudentExamDropped(st);
+  const isDropped = isStudentExamDropped(st) || checkIsStudentDropped(st);
 
   const rollVal = getRollNo(st);
   const hasRoll = Boolean(
@@ -463,9 +463,8 @@ export const checkStudentApprovalState = (st) => {
 
   const stSess = String(st.Session || st.session || st.academicSession || '');
   const isCurrentSession = !stSess || stSess.includes('2025-26');
-  // For the current academic session (2025-26), only students with an authentic assigned Class Roll Number are approved
-  const isExplicitApproved = statusStr.includes('approv') || statusStr.includes('admit') || statusStr.includes('complet') || statusStr.includes('active') || st.isApproved === true || st._source === 'masterRegisters';
-  const isApproved = !isRejected && !isDropped && (hasRoll || (!isCurrentSession && isExplicitApproved));
+  const isExplicitApproved = statusStr.includes('approv') || statusStr.includes('admit') || statusStr.includes('enrolled') || statusStr.includes('complet') || statusStr.includes('active') || st.isApproved === true || st._source === 'masterRegisters';
+  const isApproved = !isRejected && !isDropped && (hasRoll || isExplicitApproved || isStudentAdmissionApproved(st));
   const isPending = !isApproved && !isRejected && !isDropped;
 
   return { isApproved, isRejected, isPending, isDropped, hasRoll };
@@ -498,8 +497,8 @@ const extractCleanClassFallback = (st) => {
 const normalizeStudentFields = (st, source = 'masterRegisters') => {
   const sNo = st['S. No.'] || st['S.No.'] || st['S.No'] || st['sNo'] || st['Serial No'] || '';
   const formNo = st['Form No.'] || st['Form No'] || st['formNo'] || st['Application No'] || '';
-  const studentName = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '';
-  const fatherName = st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '';
+  const studentName = st["Student's Name (as per school records)"] || st["Student's Name"] || st['Student Name'] || st.StudentName || st['Candidate Name'] || st['Name of Candidate'] || st.studentName || st.name || st.Name || st['Full Name'] || st.fullName || '';
+  const fatherName = st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st['Father Name'] || st.FatherName || st['Guardian Name'] || st.fatherName || st.father || st.parentage || st.parentName || st["Parent's Name"] || '';
   const resolvedClass = extractCleanClassFallback(st);
   const isSecondary = resolvedClass.includes('10') || resolvedClass.includes('9');
   const stream = isSecondary ? 'General' : (getStudentStreamStr(st, resolvedClass) || 'Science');
@@ -921,8 +920,8 @@ function AdminPracticals({ isActive = true }) {
       const addOrMergeStudent = (rawSt, source) => {
         const st = normalizeStudentFields(rawSt, source);
         const isLiveAdmission = source === 'admissions' || source === 'live';
-        const name = cleanStr(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name);
-        const father = cleanStr(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName);
+        const name = cleanStr(st["Student's Name (as per school records)"] || st["Student's Name"] || st['Student Name'] || st.StudentName || st['Candidate Name'] || st['Name of Candidate'] || st.studentName || st.name || st.Name || st['Full Name'] || st.fullName);
+        const father = cleanStr(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st['Father Name'] || st.FatherName || st['Guardian Name'] || st.fatherName || st.father || st.parentage || st.parentName || st["Parent's Name"]);
         const reg = cleanRegistrationNumber(st['Board Registration Number'] || st.regNo || '');
         const form = String(st['Form No.'] || '').trim();
         const roll = String(getRollNo(st) || '').trim();
@@ -959,15 +958,23 @@ function AdminPracticals({ isActive = true }) {
           const existing = studentsMap.get(existingId);
 
           const isSecondary = canonicalCls.includes('10') || canonicalCls.includes('9');
+          const existingIsAdmission = existing._source === 'admissions' || existing._source === 'live';
+          const incomingIsAdmission = isLiveAdmission;
+          const preferAdmission = (sess === '2025-26' || existing.session === '2025-26' || existing.Session === '2025-26') && (existingIsAdmission || incomingIsAdmission);
+
           const stStream = getStudentStreamStr(st, canonicalCls);
           const existingStream = getStudentStreamStr(existing, canonicalCls);
           const finalStream = isSecondary
             ? 'General'
-            : ((isLiveAdmission && stStream) ? stStream : (existingStream || stStream || 'Science'));
+            : (preferAdmission
+                ? ((incomingIsAdmission && stStream) ? stStream : (existingStream || stStream || 'Science'))
+                : (stStream || existingStream || 'Science'));
 
           const stSubs = getStudentSubjectsStr(st, canonicalCls);
           const existingSubs = getStudentSubjectsStr(existing, canonicalCls);
-          const finalSubs = (isLiveAdmission && stSubs) ? stSubs : (stSubs || existingSubs || '');
+          const finalSubs = preferAdmission
+            ? ((incomingIsAdmission && stSubs) ? stSubs : (existingSubs || stSubs || ''))
+            : (stSubs || existingSubs || '');
 
           const finalRoll = getRollNo(st) || getRollNo(existing) || '—';
           const stOfficialExam = getCurrentOfficialExamRoll(st, canonicalCls) || getStudentExamRoll(st);
@@ -991,9 +998,12 @@ function AdminPracticals({ isActive = true }) {
             checkIsStudentDropped(existing)
           );
 
+          const baseRec = (preferAdmission && existingIsAdmission) ? st : existing;
+          const overlayRec = (preferAdmission && existingIsAdmission) ? existing : st;
+
           const merged = {
-            ...existing,
-            ...st,
+            ...baseRec,
+            ...overlayRec,
             Class: canonicalCls,
             class: canonicalCls,
             Session: finalSess,
@@ -1005,19 +1015,19 @@ function AdminPracticals({ isActive = true }) {
             Subjects: finalSubs,
             Subs: finalSubs,
             subjects: finalSubs,
-            'Subjects to be taken in Class 11th': (canonicalCls.includes('11') && finalSubs) ? finalSubs : (st['Subjects to be taken in Class 11th'] || existing['Subjects to be taken in Class 11th'] || ''),
-            'Subjects to be taken in Class 12th': (canonicalCls.includes('12') && finalSubs) ? finalSubs : (st['Subjects to be taken in Class 12th'] || existing['Subjects to be taken in Class 12th'] || ''),
+            'Subjects to be taken in Class 11th': (canonicalCls.includes('11') && finalSubs) ? finalSubs : (overlayRec['Subjects to be taken in Class 11th'] || baseRec['Subjects to be taken in Class 11th'] || ''),
+            'Subjects to be taken in Class 12th': (canonicalCls.includes('12') && finalSubs) ? finalSubs : (overlayRec['Subjects to be taken in Class 12th'] || baseRec['Subjects to be taken in Class 12th'] || ''),
             'Class Roll No': finalRoll,
             classRollNo: finalRoll,
             'Exam R.No. (Current)': finalExam,
             examRollNo: finalExam,
-            currExamRollNo: finalExam !== '—' ? finalExam : (existing.currExamRollNo || st.currExamRollNo || ''),
-            boardRollNo: finalExam !== '—' ? finalExam : (existing.boardRollNo || st.boardRollNo || ''),
+            currExamRollNo: finalExam !== '—' ? finalExam : (overlayRec.currExamRollNo || baseRec.currExamRollNo || ''),
+            boardRollNo: finalExam !== '—' ? finalExam : (overlayRec.boardRollNo || baseRec.boardRollNo || ''),
             'Board Registration Number': finalReg,
             boardRegNo: finalReg,
             isExamDropped: isDropped,
-            examStatus: isDropped ? 'dropped' : (st.examStatus || existing.examStatus || 'active'),
-            _source: isLiveAdmission ? 'admissions' : (existing._source || source),
+            examStatus: isDropped ? 'dropped' : (overlayRec.examStatus || baseRec.examStatus || 'active'),
+            _source: preferAdmission ? 'admissions' : (overlayRec._source || baseRec._source || source),
           };
           studentsMap.set(existingId, merged);
         } else {
@@ -1059,37 +1069,51 @@ function AdminPracticals({ isActive = true }) {
       setSubmissions(canonicalSubmissions);
       setPendingApprovals(pendingSubmissions);
 
-      // 1a. Ingest live admissions documents (essential for Class 10th & 9th cohorts stored in admissions collection).
-      (admissionsData || []).forEach(d => {
-        const docSession = d.Session || d.session || d['Academic Session'] || '2025-26';
-        const canonicalDocSess = normalizePracticalSession(docSession);
-        const docClass = d.class || d.Class || d.className || d['Admission sought for class'] || '';
-        if (d.StudentName || d["Student's Name"] || d["Student's Name (as per school records)"] || d.studentName || d.name) {
-          addOrMergeStudent({
-            ...d,
-            session: canonicalDocSess,
-            Session: canonicalDocSess,
-            class: docClass || d.class || d.Class,
-            _source: 'admissions'
-          }, 'admissions');
-        }
-      });
+      // Ingest helper that gracefully handles both container arrays (.items/.records/.students) and flat documents
+      const ingestRecords = (dataList, source) => {
+        (dataList || []).forEach(d => {
+          if (!d) return;
+          const items = d.items || d.records || d.students;
+          if (Array.isArray(items)) {
+            items.forEach(it => {
+              if (!it) return;
+              const docSession = it.Session || it.session || d.Session || d.session || d['Academic Session'] || '2025-26';
+              const canonicalDocSess = normalizePracticalSession(docSession);
+              const docClass = it.class || it.Class || it.className || it['Admission sought for class'] || d.class || d.Class || d.className || '';
+              const hasName = it.StudentName || it['Student Name'] || it['Candidate Name'] || it['Name of Candidate'] || it["Student's Name"] || it["Student's Name (as per school records)"] || it.studentName || it.name || it.Name || it['Full Name'] || it.fullName;
+              if (hasName) {
+                addOrMergeStudent({
+                  ...it,
+                  session: canonicalDocSess,
+                  Session: canonicalDocSess,
+                  class: docClass || it.class || it.Class,
+                  _source: source
+                }, source);
+              }
+            });
+          } else {
+            const docSession = d.Session || d.session || d['Academic Session'] || '2025-26';
+            const canonicalDocSess = normalizePracticalSession(docSession);
+            const docClass = d.class || d.Class || d.className || d['Admission sought for class'] || '';
+            const hasName = d.StudentName || d['Student Name'] || d['Candidate Name'] || d['Name of Candidate'] || d["Student's Name"] || d["Student's Name (as per school records)"] || d.studentName || d.name || d.Name || d['Full Name'] || d.fullName;
+            if (hasName) {
+              addOrMergeStudent({
+                ...d,
+                session: canonicalDocSess,
+                Session: canonicalDocSess,
+                class: docClass || d.class || d.Class,
+                _source: source
+              }, source);
+            }
+          }
+        });
+      };
 
-      // 1b. Ingest individual master-register documents for the live cohort.
-      (masterRegistersData || []).forEach(d => {
-        const docSession = d.Session || d.session || d['Academic Session'] || '2025-26';
-        const canonicalDocSess = normalizePracticalSession(docSession);
-        const docClass = d.class || d.Class || d.className || '';
-        if (d.StudentName || d["Student's Name"] || d["Student's Name (as per school records)"] || d.studentName || d.name) {
-          addOrMergeStudent({
-            ...d,
-            session: canonicalDocSess,
-            Session: canonicalDocSess,
-            class: docClass || d.class || d.Class,
-            _source: 'masterRegisters'
-          }, 'masterRegisters');
-        }
-      });
+      // 1a. Ingest live admissions documents (essential for active 2025-26 cohort & Class 10th & 9th cohorts).
+      ingestRecords(admissionsData, 'admissions');
+
+      // 1b. Ingest master-register documents (supplements historical exam rolls & permanent credentials).
+      ingestRecords(masterRegistersData, 'masterRegisters');
 
       // 2. Enrich existing students with Exam Rolls and Registration Numbers from Practical Submissions (NO duplicate student injections)
       canonicalSubmissions.forEach(sub => {
@@ -2245,6 +2269,25 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
     }));
   }, [settings, cls, getPD]);
 
+  // Keep localPrintOpts synchronized when selectedSession changes in UI
+  useEffect(() => {
+    if (selectedSession && selectedSession !== 'all') {
+      const formatted = selectedSession === '2025-26'
+        ? 'Annual Regular 2026'
+        : selectedSession.includes('2024')
+        ? 'Session 2024–25 (Oct-Nov)'
+        : `Session ${selectedSession}`;
+      setLocalPrintOpts(prev => {
+        const prevNorm = normalizePracticalSession(prev.sessionText);
+        const selNorm = normalizePracticalSession(selectedSession);
+        if (prevNorm !== selNorm) {
+          return { ...prev, sessionText: formatted };
+        }
+        return prev;
+      });
+    }
+  }, [selectedSession]);
+
   // Calculate visible codes based on class and bioMode
   const activeCodesList = useMemo(() => {
     if (String(cls || '').includes('10')) {
@@ -2345,8 +2388,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
         if (isStudentExamDropped(st) || checkIsStudentDropped(st)) return false;
 
-        const { isApproved, isRejected, isDropped } = checkStudentApprovalState(st) || {};
-        if (isRejected || isDropped || !isApproved) return false;
+        const { isRejected, isDropped } = checkStudentApprovalState(st) || {};
+        if (isRejected || isDropped) return false;
 
         if (selectedSession !== 'all') {
           const sess = getStudentSession(st);
@@ -2356,7 +2399,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
         const roll = getAssignedClassRollNumber(st);
         if (roll && String(roll).trim() && !/^(?:0|n\/?a|na|none|nil|null|undefined|—|-)$/i.test(String(roll).trim())) {
-          const normRoll = String(roll).trim();
+          const normRoll = `${getStudentSession(st)}_${String(roll).trim()}`;
           if (seenRolls.has(normRoll)) return false;
           seenRolls.add(normRoll);
         }
@@ -2494,10 +2537,10 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
       const stClassRoll = getAssignedClassRollNumber(st);
       const stForm = String(st.admissionNo || st.formNo || st['Admission Form No.'] || st['Form No.'] || '').trim();
       const stName = toTitleCase(
-        st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || ''
+        st["Student's Name (as per school records)"] || st["Student's Name"] || st['Student Name'] || st.StudentName || st['Candidate Name'] || st['Name of Candidate'] || st.studentName || st.name || st.Name || st['Full Name'] || st.fullName || ''
       ).trim().toLowerCase();
       const stFather = toTitleCase(
-        st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || st.parentage || ''
+        st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st['Father Name'] || st.FatherName || st['Guardian Name'] || st.fatherName || st.father || st.parentage || st.parentName || st["Parent's Name"] || ''
       ).trim().toLowerCase();
 
       const rec = subDoc.records.find(r => {
@@ -2506,8 +2549,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
         const rExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
         const rClassRoll = getAssignedClassRollNumber(r);
         const rForm = String(r.formNo || r.admissionNo || r['Form No.'] || '').trim();
-        const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
-        const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || '').trim().toLowerCase();
+        const rName = toTitleCase(r.name || r.studentName || r['Student Name'] || r.StudentName || r['Candidate Name'] || r['Name of Candidate'] || '').trim().toLowerCase();
+        const rFather = toTitleCase(r.parentName || r.parentage || r.fatherName || r["Father's Name"] || r['Father Name'] || '').trim().toLowerCase();
 
         // Primary Match 1: Board Registration Number (Exact)
         if (stBoardReg && rBoardReg && stBoardReg === rBoardReg && stBoardReg.length >= 5) return true;
