@@ -46,6 +46,43 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
     );
   }, [cohort, rosterFilter]);
 
+  const [summaryLayout, setSummaryLayout] = useState('multicolumn'); // 'multicolumn' | 'horizontal'
+
+  const multiColumnPairs = useMemo(() => {
+    if (!cohort?.indicators) return [];
+    const ind = cohort.indicators;
+
+    const findInd = (pattern) => ind.find(i => pattern.test(i.label));
+
+    const appeared = findInd(/appeared/i) || ind[0];
+    const passed = findInd(/passed/i) || ind[2] || ind[1];
+    const failed = findInd(/failed|reappear/i) || ind[1];
+    const distinc = findInd(/distinc/i);
+    const firstDiv = findInd(/1st div/i);
+    const secondDiv = findInd(/2nd div/i);
+    const thirdDiv = findInd(/3rd div/i);
+    const overall = findInd(/result|pass percentage/i) || ind.find(i => i.highlight);
+
+    if (appeared && distinc && firstDiv && secondDiv && overall) {
+      return [
+        { left: appeared, right: distinc },
+        { left: passed, right: firstDiv },
+        { left: failed, right: secondDiv },
+        { left: thirdDiv || { label: 'total 3rd Div', count: '0' }, right: overall }
+      ];
+    }
+
+    const half = Math.ceil(ind.length / 2);
+    const rows = [];
+    for (let i = 0; i < half; i++) {
+      rows.push({
+        left: ind[i],
+        right: ind[i + half] || null
+      });
+    }
+    return rows;
+  }, [cohort]);
+
   const hasStreamColumn = selectedClass === '11th' || selectedClass === '12th' || cohort?.class === '11th' || cohort?.class === '12th';
 
   return (
@@ -137,7 +174,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
         </div>
 
         {/* Action Header on Screen */}
-        <div className="flex items-center justify-between mb-3 border-b border-slate-200 dark:border-slate-800 pb-2 print-hide">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 border-b border-slate-200 dark:border-slate-800 pb-2 print-hide">
           <div className="text-left">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400">
               Official Performance Gazette
@@ -147,15 +184,45 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-2xs transition-colors cursor-pointer"
-            title="Print clean official result sheet"
-          >
-            <Printer size={13} />
-            <span>Print Clean Statement</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Multi-Column / Horizontal Layout Switcher */}
+            <div className="inline-flex p-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[11px] font-medium">
+              <button
+                type="button"
+                onClick={() => setSummaryLayout('multicolumn')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  summaryLayout === 'multicolumn'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Multi-column structured table (2×4)"
+              >
+                Multi-Column
+              </button>
+              <button
+                type="button"
+                onClick={() => setSummaryLayout('horizontal')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  summaryLayout === 'horizontal'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Horizontal gazette summary"
+              >
+                Horizontal
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-2xs transition-colors cursor-pointer"
+              title="Print clean official result sheet"
+            >
+              <Printer size={13} />
+              <span>Print Clean Statement</span>
+            </button>
+          </div>
         </div>
 
         {/* Header Title Section on Screen */}
@@ -170,41 +237,80 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
           </div>
         </div>
 
-        {/* Indicators Table (Compact, Minimal, Exact match) */}
-        <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded mb-5">
-          <table className="w-full text-xs text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-100 dark:bg-slate-800/90 border-b border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200">
-                <th className="py-1.5 px-3 font-bold w-2/3">Category / Indicator</th>
-                <th className="py-1.5 px-3 font-bold text-right w-1/3">Count</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
-              {cohort.indicators.map((ind, i) => {
-                const isHighlight = ind.highlight;
-                return (
-                  <tr
-                    key={ind.label}
-                    className={
-                      isHighlight
-                        ? 'bg-[#d1f2d9] dark:bg-emerald-950/80 font-bold'
-                        : i % 2 === 1
-                        ? 'bg-[#f4faf5]/70 dark:bg-slate-800/40'
-                        : 'bg-white dark:bg-slate-900'
-                    }
-                  >
-                    <td className={`py-1.5 px-3 ${isHighlight ? 'font-bold text-slate-900 dark:text-white' : ''}`}>
-                      {ind.label}
-                    </td>
-                    <td className={`py-1.5 px-3 text-right font-mono ${isHighlight ? 'font-black text-red-600 dark:text-red-400 text-sm' : 'font-semibold'}`}>
-                      {ind.count}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {/* Indicators Table (Multi-Column Structure or Horizontal Gazette) */}
+        {summaryLayout === 'multicolumn' ? (
+          <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded mb-4">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100 dark:bg-slate-800/90 border-b border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200">
+                  <th className="py-1.5 px-3 font-bold w-[34%]">Category / Indicator</th>
+                  <th className="py-1.5 px-3 font-bold text-right w-[16%]">Count</th>
+                  <th className="py-1.5 px-3 font-bold w-[34%] border-l border-slate-300 dark:border-slate-700">Category / Indicator</th>
+                  <th className="py-1.5 px-3 font-bold text-right w-[16%]">Count</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
+                {multiColumnPairs.map((pair, idx) => {
+                  const leftHighlight = pair.left?.highlight;
+                  const rightHighlight = pair.right?.highlight;
+                  return (
+                    <tr
+                      key={idx}
+                      className={idx % 2 === 1 ? 'bg-[#f4faf5]/70 dark:bg-slate-800/40' : 'bg-white dark:bg-slate-900'}
+                    >
+                      {/* Left Column Pair */}
+                      <td className={`py-1.5 px-3 ${leftHighlight ? 'font-bold text-slate-900 dark:text-white bg-[#d1f2d9] dark:bg-emerald-950/80' : ''}`}>
+                        {pair.left?.label || '—'}
+                      </td>
+                      <td className={`py-1.5 px-3 text-right font-mono ${leftHighlight ? 'font-black text-red-600 dark:text-red-400 text-sm bg-[#d1f2d9] dark:bg-emerald-950/80' : 'font-semibold'}`}>
+                        {pair.left?.count ?? '—'}
+                      </td>
+
+                      {/* Right Column Pair */}
+                      <td className={`py-1.5 px-3 border-l border-slate-300 dark:border-slate-700 ${rightHighlight ? 'font-bold text-slate-900 dark:text-white bg-[#d1f2d9] dark:bg-emerald-950/80' : ''}`}>
+                        {pair.right?.label || '—'}
+                      </td>
+                      <td className={`py-1.5 px-3 text-right font-mono ${rightHighlight ? 'font-black text-red-600 dark:text-red-400 text-sm bg-[#d1f2d9] dark:bg-emerald-950/80' : 'font-semibold'}`}>
+                        {pair.right?.count ?? '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded mb-4">
+            <table className="w-full text-xs text-center border-collapse">
+              <thead>
+                <tr className="bg-slate-100 dark:bg-slate-800/90 border-b border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold whitespace-nowrap">
+                  <th className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">Appeared</th>
+                  <th className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">Passed</th>
+                  <th className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">Reappear</th>
+                  <th className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">Distinction</th>
+                  <th className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">1st Div</th>
+                  <th className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">2nd Div</th>
+                  <th className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">3rd Div</th>
+                  <th className="py-2 px-2 bg-[#d1f2d9] dark:bg-emerald-950/80 text-slate-900 dark:text-emerald-100 font-bold">Overall Result</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-800 dark:text-slate-200">
+                <tr className="font-mono text-xs sm:text-sm font-semibold bg-white dark:bg-slate-900">
+                  <td className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">{cohort.summaryStats.appeared}</td>
+                  <td className="py-2 px-2 border-r border-slate-200 dark:border-slate-700 text-emerald-700 dark:text-emerald-400 font-bold">{cohort.summaryStats.passed}</td>
+                  <td className="py-2 px-2 border-r border-slate-200 dark:border-slate-700 text-rose-600 dark:text-rose-400">{cohort.summaryStats.failed}</td>
+                  <td className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">{cohort.summaryStats.distinction}</td>
+                  <td className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">{cohort.summaryStats.firstDiv}</td>
+                  <td className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">{cohort.summaryStats.secondDiv}</td>
+                  <td className="py-2 px-2 border-r border-slate-200 dark:border-slate-700">{cohort.summaryStats.thirdDiv}</td>
+                  <td className="py-2 px-2 bg-[#d1f2d9] dark:bg-emerald-950/80 text-red-600 dark:text-red-400 font-black text-sm sm:text-base">
+                    {cohort.summaryStats.overallPercent}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* School Toppers Subsection */}
         {cohort.toppers && cohort.toppers.length > 0 && (

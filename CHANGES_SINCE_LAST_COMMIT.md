@@ -2,34 +2,35 @@
 
 ## Commit Message
 
-`feat(results): add clean official print mode and letterhead statements for board result tables`
+`feat(results): show board result summary in multicolumn structure and limit 10th toppers to top three`
 
 ## Summary of Changes
 
-1. **Clean Print Engine for Board Result Tables (`src/index.css`)**:
-   - Added scoped `.result-table-print-mode` print styling in `@media print`.
-   - When printing, completely hides all website chrome (navigation bar, mobile menus, footers, theme buttons, tab selectors, search inputs, and decorative backgrounds).
-   - Formats the active result sheet (`.printable-result-sheet`) as an authentic, high-resolution official institutional document with clean black/charcoal borders, solid background, crisp typography, and standard margins.
+1. **Multi-Column Structure for Board Result Summary Table (`src/components/ClassBoardResultsSection.jsx`)**:
+   - Transformed the single-column 8-row indicators list into a clean, balanced **Multi-Column (2×4 paired)** structure:
+     - **Left Column Pair**: Enrolment & General Outcomes (`total appeared`, `total passed`, `total failed/reappear`, `total 3rd Div`).
+     - **Right Column Pair**: Academic Divisions & Highlighted Pass Percentage (`total Distinc`, `total 1st Div`, `total 2nd Div`, `Result (Overall)`).
+   - Added an interactive layout switcher:
+     - **Multi-Column (2×4)**: Compact 4-row layout keeping `Category / Indicator` and `Count` columns side by side.
+     - **Horizontal Gazette (8-Col)**: Wide gazette summary placing all 8 indicators into columns across the table.
+   - Preserved full official print letterhead and endorsement verification signatures in `@media print`.
 
-2. **Official Letterhead & Endorsement Signatures (`src/components/ClassBoardResultsSection.jsx`)**:
-   - Added a prominent **"Print Clean Statement"** button (with a printer icon) to every cohort card.
-   - Added an official print-only institutional letterhead banner:
-     - Header: *GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG*
-     - Subtitle: *Office of the Academic Examination Committee • Jammu & Kashmir Board of School Education (JKBOSE)*
-     - Metadata bar: Class, Session/Cohort, School Name, and Date of Print.
-   - Added an official print-only verification endorsement footer:
-     - Dual signature lines for *Incharge Examination* and *Principal / Head of Institution* with an *Official School Seal* circle.
+2. **Class 10th Regular 2024-25 (Oct-Nov) Data Refinement (`src/data/classBoardResults.js`)**:
+   - Trimmed `toppers` list from 13 candidates down strictly to the top three institutional achievers:
+     1. **Fayiz Bilal** (Roll: `101060016`) – Marks: 485/500 (97.0%, Grade A1)
+     2. **Naveed Ul Haq** (Roll: `101060029`) – Marks: 484/500 (96.8%, Grade A1)
+     3. **Sabzar Bashir Kumar** (Roll: `101060007`) – Marks: 483/500 (96.6%, Grade A1)
+   - Completely purged the 35-candidate roster (`allCandidates`) to ensure a clean, professional, publication-ready gazette format.
 
 ## Files Changed
 
 1. `src/components/ClassBoardResultsSection.jsx`
-2. `src/index.css`
+2. `src/data/classBoardResults.js`
 3. `CHANGES_SINCE_LAST_COMMIT.md`
 
 ## Verification
 
-- `npm run build`: Production build completed with Exit Code 0; all 12 public HTML pages and SEO checks verified.
-- `npm run test:public`: 10/10 tests passed with 0 failures.
+- `npm run build`: Production build completed with Exit Code 0; all 12 public static pages and SEO checks verified with zero breaking errors.
 
 ## Manual Git Push Instructions
 
@@ -40,7 +41,7 @@
 2. If you wish to amend or re-commit:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(results): add clean official print mode and letterhead statements for board result tables"
+   git commit -m "feat(results): show board result summary in multicolumn structure and limit 10th toppers to top three"
    ```
 3. Push changes to GitHub (strictly manual):
    ```bash
