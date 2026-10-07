@@ -55,8 +55,12 @@ import {
   getPhotoUrlFromCache,
   resolveStudentPhoto,
   fetchStudentPhotoOnDemand,
-  fetchAllMatchingStudentPhotos
+  fetchAllMatchingStudentPhotos,
+  getAdmissionsBySession,
+  getMasterRegistersScoped,
+  getCurrentAcademicSession
 } from '../../services/dbCache';
+import { showToast } from '../../components/common/GlobalToast';
 import {
   AVAILABLE_GEMINI_MODELS,
   getStoredGeminiKeys,
@@ -91,7 +95,9 @@ import {
   extractFormNo,
   extractVillage,
   extractMobile,
-  unpackMasterRegisterStudents
+  unpackMasterRegisterStudents,
+  CANONICAL_ACADEMIC_SESSIONS,
+  fetchHistoricalSessionData
 } from './CustomRosterDocumentBuilderView';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc, collection, query, where, limit, getDocs } from 'firebase/firestore';
@@ -522,7 +528,7 @@ function StudioMultiSelectDropdown({
     if (isNone) {
       next = [val];
     } else if (isAll) {
-      next = options.map(o => o.value).filter(v => v !== val);
+      next = [val];
     } else if (selected.includes(val)) {
       next = selected.filter(v => v !== val);
     } else {
@@ -629,9 +635,18 @@ function StudioMultiSelectDropdown({
                     />
                     <span className="truncate text-slate-800 dark:text-slate-200">{opt.label}</span>
                   </div>
-                  {opt.count !== undefined && (
+                  {opt.isLoading ? (
+                    <span className="flex items-center gap-1 text-[8px] font-bold text-teal-600 dark:text-teal-400 shrink-0 ml-1">
+                      <RefreshCw size={8} className="animate-spin shrink-0" />
+                      <span>Loading...</span>
+                    </span>
+                  ) : opt.count !== undefined ? (
                     <span className="text-[8.5px] font-mono font-bold text-slate-400 shrink-0 ml-1">
                       {opt.count}
+                    </span>
+                  ) : (
+                    <span className="text-[7.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-tight shrink-0 ml-1">
+                      Load
                     </span>
                   )}
                 </label>
@@ -663,6 +678,31 @@ export default function StudentCertificateStudioView({
     return Array.isArray(cached) && cached.length > 0 ? unpackMasterRegisterStudents(cached) : [];
   });
 
+  // On-demand historical session records loaded dynamically when requested by admin
+  const [extraSessionStudents, setExtraSessionStudents] = useState([]);
+  const [loadingSessions, setLoadingSessions] = useState(() => new Set());
+  const [customDbSessions, setCustomDbSessions] = useState([]);
+  const loadedSessionsRef = useRef(new Set());
+  const inFlightSessionsRef = useRef(new Set());
+  const isLoadingStudents = loadingSessions.size > 0;
+
+  // Real-time discovery of custom sessions defined in Firestore academicSessions
+  useEffect(() => {
+    let active = true;
+    getDocs(collection(db, 'academicSessions'))
+      .then(snap => {
+        if (!active) return;
+        const custom = [];
+        snap.docs.forEach(d => {
+          const name = d.data()?.name || d.data()?.session || d.id;
+          if (name && typeof name === 'string' && name.trim()) custom.push(name.trim());
+        });
+        if (custom.length > 0) setCustomDbSessions(custom);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
   // Eager whole-collection download removed to prevent quota exhaustion.
   // Master register records are resolved from synchronous memory cache or on-demand by student identifier.
 
@@ -687,8 +727,26 @@ export default function StudentCertificateStudioView({
         }
       });
     }
+    if (Array.isArray(extraSessionStudents) && extraSessionStudents.length > 0) {
+      const seenIds = new Set(list.map(s => {
+        const sess = extractSession(s);
+        const cls = extractClass(s);
+        const k = String(s.formNo || s['Form Number'] || s['Form No.'] || s.boardRegNo || s.id || '').trim();
+        return `${sess}_${cls}_${k}`;
+      }).filter(Boolean));
+      extraSessionStudents.forEach(m => {
+        const sess = extractSession(m);
+        const cls = extractClass(m);
+        const k = String(m.formNo || m['Form Number'] || m['Form No.'] || m.boardRegNo || m.id || '').trim();
+        const key = `${sess}_${cls}_${k}`;
+        if (!key || !seenIds.has(key)) {
+          list.push(m);
+          if (key) seenIds.add(key);
+        }
+      });
+    }
     return list;
-  }, [allStudents, identityStudents, masterRegistersList]);
+  }, [allStudents, identityStudents, masterRegistersList, extraSessionStudents]);
 
   const defaultActiveSession = useMemo(() => {
     if (Array.isArray(allStudents) && allStudents.length > 0) {
@@ -711,7 +769,6 @@ export default function StudentCertificateStudioView({
   const [selectedClasses, setSelectedClasses] = useState([]); // [] means ALL classes
   const [selectedSessions, setSelectedSessions] = useState(() => (defaultActiveSession && defaultActiveSession !== 'ALL' ? [defaultActiveSession] : []));
   const [recentIngestedResults, setRecentIngestedResults] = useState([]);
-  const isLoadingStudents = false;
 
   // Synchronize initial session filter once students are loaded if nothing selected yet
   useEffect(() => {
@@ -872,14 +929,35 @@ export default function StudentCertificateStudioView({
         counts[sess] = (counts[sess] || 0) + 1;
       }
     });
-    const sorted = Object.keys(counts).sort((a, b) => {
-      const yearA = parseInt(a.match(/\d{4}/)?.[0] || '0', 10);
-      const yearB = parseInt(b.match(/\d{4}/)?.[0] || '0', 10);
-      if (yearB !== yearA) return yearB - yearA;
+
+    const sessionSet = new Set(CANONICAL_ACADEMIC_SESSIONS);
+    Object.keys(counts).forEach(s => sessionSet.add(s));
+    if (customDbSessions.length > 0) {
+      customDbSessions.forEach(s => sessionSet.add(s));
+    }
+
+    const sorted = Array.from(sessionSet).sort((a, b) => {
+      const numA = parseInt(String(a).match(/\d{4}/)?.[0] || '0', 10);
+      const numB = parseInt(String(b).match(/\d{4}/)?.[0] || '0', 10);
+      if (numA !== numB) return numB - numA;
+      if (/oct|nov/i.test(a) && /mar|apr/i.test(b)) return -1;
+      if (/mar|apr/i.test(a) && /oct|nov/i.test(b)) return 1;
       return b.localeCompare(a, undefined, { numeric: true });
     });
-    return sorted.map(k => ({ value: k, label: `Session ${k} (${counts[k]})` }));
-  }, [unifiedStudentDirectory]);
+
+    return sorted.map(k => {
+      const count = counts[k];
+      const isLoaded = count !== undefined;
+      const isLoading = loadingSessions.has(k);
+      return {
+        value: k,
+        label: `Session ${k}`,
+        count: isLoaded ? count : null,
+        isLoaded,
+        isLoading
+      };
+    });
+  }, [unifiedStudentDirectory, customDbSessions, loadingSessions]);
 
   const cohortCounts = useMemo(() => {
     const counts = { all: unifiedStudentDirectory.length, '12th': 0, '11th': 0, '10th': 0, '9th': 0, past: 0 };
@@ -903,17 +981,16 @@ export default function StudentCertificateStudioView({
   ], [cohortCounts]);
 
   const sessionOptions = useMemo(() => {
-    return dynamicSessions.map(s => {
-      const match = s.label.match(/\((\d+)\)/);
-      return {
-        value: s.value,
-        label: `Session ${s.value}`,
-        count: match ? match[1] : undefined
-      };
-    });
+    return dynamicSessions.map(s => ({
+      value: s.value,
+      label: s.label,
+      count: s.isLoaded ? s.count : undefined,
+      isLoaded: s.isLoaded,
+      isLoading: s.isLoading
+    }));
   }, [dynamicSessions]);
 
-  // Gracefully auto-adjust if the selected session does not exist in indexed student records
+  // Gracefully auto-adjust if the selected session does not exist in any catalog
   useEffect(() => {
     if (dynamicSessions.length > 0 && selectedSessions.length === 1) {
       const activeSess = (selectedSessions[0] || '').toLowerCase().trim();
@@ -924,6 +1001,70 @@ export default function StudentCertificateStudioView({
       }
     }
   }, [dynamicSessions, selectedSessions]);
+
+  // On-demand loader: fetches historical session records from Firestore whenever an unhydrated session is selected
+  useEffect(() => {
+    if (!selectedSessions || selectedSessions.length === 0) return;
+
+    const pendingSessions = selectedSessions.filter(sess => {
+      if (!sess || sess === '__NONE__' || sess === 'ALL') return false;
+      const clean = sess.trim().toLowerCase();
+      const isAlreadyInDir = unifiedStudentDirectory.some(st => {
+        const s = (st.session || '').trim().toLowerCase();
+        return s === clean || s.includes(clean) || clean.includes(s);
+      });
+      return !isAlreadyInDir && !loadedSessionsRef.current.has(clean) && !inFlightSessionsRef.current.has(clean);
+    });
+
+    if (pendingSessions.length === 0) return;
+
+    let isCancelled = false;
+
+    pendingSessions.forEach(async (targetSession) => {
+      const clean = targetSession.trim().toLowerCase();
+      inFlightSessionsRef.current.add(clean);
+      setLoadingSessions(prev => new Set([...prev, targetSession]));
+
+      try {
+        const { admissions, masterRegisters: rawMaster } = await fetchHistoricalSessionData(targetSession);
+        if (isCancelled) return;
+
+        loadedSessionsRef.current.add(clean);
+        const unpacked = unpackMasterRegisterStudents(rawMaster);
+        const combined = [...admissions, ...unpacked];
+
+        if (combined.length > 0) {
+          setExtraSessionStudents(prev => {
+            const existingIds = new Set(prev.map(p => String(p.id || p._docId || '')));
+            const newItems = combined.filter(c => {
+              const id = String(c.id || c._docId || '');
+              return id && !existingIds.has(id);
+            });
+            return newItems.length > 0 ? [...prev, ...newItems] : prev;
+          });
+          showToast(`Loaded ${combined.length} records for Session ${targetSession}`, 'success');
+        } else {
+          showToast(`No student records found in database for Session ${targetSession}`, 'info');
+        }
+      } catch (err) {
+        console.warn(`[StudentCertStudio] Error loading session ${targetSession}:`, err);
+        showToast(`Failed to load records for Session ${targetSession}`, 'error');
+      } finally {
+        inFlightSessionsRef.current.delete(clean);
+        if (!isCancelled) {
+          setLoadingSessions(prev => {
+            const next = new Set(prev);
+            next.delete(targetSession);
+            return next;
+          });
+        }
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedSessions, unifiedStudentDirectory]);
 
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -982,11 +1123,11 @@ export default function StudentCertificateStudioView({
 
     // Apply Active Session Multi-Select Filters
     if (selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
-      const sessionSet = new Set(selectedSessions.map(s => s.toLowerCase()));
+      const sessionList = selectedSessions.map(s => s.toLowerCase().trim());
       pool = pool.filter(st => {
-        const sess = (st.session || '').toLowerCase();
-        for (const s of sessionSet) {
-          if (sess.includes(s)) return true;
+        const sess = (st.session || '').toLowerCase().trim();
+        for (const s of sessionList) {
+          if (sess === s || sess.includes(s) || s.includes(sess)) return true;
         }
         return false;
       });

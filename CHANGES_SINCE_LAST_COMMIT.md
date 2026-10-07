@@ -2,14 +2,13 @@
 
 ## Commit Message
 
-`fix(practicals): preserve web table column sort order in print generators`
+`feat(portal): add on-demand historical session loading to custom roster and certificate studio`
 
 ## Files Changed
 
-1. `src/utils/practicalsPdfGenerator.js` — Updated `printMarksRecordAwardRoll`, `printAttendanceSheet`, `printAllIndividualAwardRolls`, `printFailList`, and `printIndividualAwardRoll` to support `preserveOrder` defaulting to `true`. Avoids overriding the caller's student order with mandatory exam roll re-sorting, ensuring printed award sheets preserve the exact sequence shown on the web interface.
-2. `src/portal/admin/AdminPracticals.jsx` — Explicitly passed `preserveOrder: true` across Evaluation & Attendance print triggers (`printMarksRecordAwardRoll`, `printAttendanceSheet`, `printAllIndividualAwardRolls`, `printFailList`). Refined `examRoll` column sorting with natural numeric comparison and proper fallback to class roll number.
-3. `src/portal/teacher/PracticalsPage.jsx` — Updated print handlers (`handlePrintFilledAwardRoll`, `handlePrintBlankMarksRecord`, `handlePrintBlankAwardRoll`, `handlePrintAttendanceSheet`) to pass `sortedStudents` with `preserveOrder: true` so the Teacher workspace table sorting is faithfully mirrored in printouts.
-4. `CHANGES_SINCE_LAST_COMMIT.md` — Documented the changes, verification steps, commit message, and manual Git push instructions.
+1. `src/portal/admin/CustomRosterDocumentBuilderView.jsx` — Added canonical academic sessions catalog (`CANONICAL_ACADEMIC_SESSIONS`) and dynamic Firestore `academicSessions` discovery. Extended `CohortCheckboxDropdown` to display session options with `(Load)` and spinning loading states. Implemented on-demand asynchronous loader via `fetchHistoricalSessionData` (`getAdmissionsBySession` + `getMasterRegistersScoped`) that dynamically fetches and merges unhydrated session records when selected, while keeping the default mount strictly scoped to the current academic session (`2025-26`). Fixed session auto-adjustment to avoid discarding unhydrated valid sessions.
+2. `src/portal/admin/StudentCertificateStudioView.jsx` — Integrated canonical academic sessions and on-demand loader in `StudentCertificateStudioView`. Updated `StudioMultiSelectDropdown` to show loading states and trigger fetches on selection. Merged fetched historical records into `combinedStudentPool` and `unifiedStudentDirectory` with multi-layered deduplication and bidirectional session matching (`2024-25` <-> `2024-25 (Oct-Nov)` / `(Mar-Apr)`). Preserved default auto-loading exclusively for the current academic session (`2025-26`).
+3. `CHANGES_SINCE_LAST_COMMIT.md` — Documented changes, verification steps, commit message, and manual push guidance.
 
 ## Verification
 
@@ -19,5 +18,5 @@
 ## Review, Amend, and Push Manually
 
 1. Inspect the local commit: `git log -1 --stat` and `git show --check HEAD`.
-2. To amend or re-execute the commit if desired: `git reset --soft HEAD~1` followed by `git commit -m "fix(practicals): preserve web table column sort order in print generators"`.
+2. To amend or re-execute the commit if desired: `git reset --soft HEAD~1` followed by `git commit -m "feat(portal): add on-demand historical session loading to custom roster and certificate studio"`.
 3. Push only when ready: `git push origin main`.

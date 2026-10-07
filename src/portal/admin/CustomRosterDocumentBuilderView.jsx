@@ -26,10 +26,19 @@ import {
 } from '../../utils/customRosterExportUtils';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { showToast } from '../../components/common/GlobalToast';
-import { getCachedCollection, getCachedCollectionSync, getPhotoUrlFromCache, resolveStudentPhoto, fetchStudentPhotoOnDemand } from '../../services/dbCache';
+import {
+  getCachedCollection,
+  getCachedCollectionSync,
+  getPhotoUrlFromCache,
+  resolveStudentPhoto,
+  fetchStudentPhotoOnDemand,
+  getAdmissionsBySession,
+  getMasterRegistersScoped,
+  getCurrentAcademicSession
+} from '../../services/dbCache';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import { db } from '../../services/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { toTitleCase } from '../../utils/textFormatting';
 import {
   getAssignedClassRollNumber,
@@ -704,6 +713,66 @@ export function extractClass(st) {
     }
   }
   return '';
+}
+
+// Canonical historical academic sessions supported across official modules
+export const CANONICAL_ACADEMIC_SESSIONS = Object.freeze([
+  '2025-26',
+  '2024-25 (Oct-Nov)',
+  '2024-25 (Mar-Apr)',
+  '2024-25',
+  '2023-24',
+  '2022-23',
+  '2021-22',
+  '2020-21',
+  '2019-20',
+  '2018-19',
+  '2017-18',
+  '2016-17',
+  '2015-16',
+  '2014-15',
+  '2013-14',
+  '2012-13',
+  '2011-12',
+  '2010-11',
+  '2009-10',
+  '2008-09',
+  '2007-08',
+  '2006-07'
+]);
+
+/**
+ * On-demand historical session loader:
+ * Queries admissions and masterRegisters for the target session via dbCache.
+ * Results are cached in memory so subsequent views cost zero Firestore reads.
+ */
+export async function fetchHistoricalSessionData(session) {
+  const cleanSession = String(session || '')
+    .replace(/^\s*session\s*[:-]?\s*/i, '')
+    .replace(/[\u2013\u2014]/g, '-')
+    .trim();
+  if (!cleanSession) return { admissions: [], masterRegisters: [] };
+
+  try {
+    const [admDocs, masterDocs] = await Promise.all([
+      getAdmissionsBySession({ session: cleanSession }).catch((err) => {
+        console.warn(`[dbCache] Admissions fetch note for session ${cleanSession}:`, err);
+        return [];
+      }),
+      getMasterRegistersScoped({ session: cleanSession }).catch((err) => {
+        console.warn(`[dbCache] Master registers fetch note for session ${cleanSession}:`, err);
+        return [];
+      })
+    ]);
+
+    return {
+      admissions: Array.isArray(admDocs) ? admDocs : [],
+      masterRegisters: Array.isArray(masterDocs) ? masterDocs : []
+    };
+  } catch (err) {
+    console.warn(`[fetchHistoricalSessionData] error for ${cleanSession}:`, err);
+    return { admissions: [], masterRegisters: [] };
+  }
 }
 
 /**
@@ -1742,16 +1811,18 @@ function CohortCheckboxDropdown({
     };
   }, [isOpen]);
 
-  // Normalize options to { value, label, count }
+  // Normalize options to { value, label, count, isLoaded, isLoading }
   const normalizedOptions = useMemo(() => {
     return options.map(opt => {
       if (typeof opt === 'string') {
-        return { value: opt, label: opt, count: null };
+        return { value: opt, label: opt, count: null, isLoaded: false, isLoading: false };
       }
       return {
         value: opt.value,
         label: opt.label || opt.value,
-        count: opt.count !== undefined ? opt.count : null
+        count: opt.count !== undefined ? opt.count : null,
+        isLoaded: opt.isLoaded !== undefined ? opt.isLoaded : opt.count !== null && opt.count !== undefined,
+        isLoading: Boolean(opt.isLoading)
       };
     });
   }, [options]);
@@ -1939,9 +2010,18 @@ function CohortCheckboxDropdown({
                       )}
                       <span className="truncate">{opt.label}</span>
                     </span>
-                    {opt.count !== null && (
+                    {opt.isLoading ? (
+                      <span className="flex items-center gap-1 text-[8px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                        <RefreshCw size={8} className="animate-spin shrink-0" />
+                        <span>Loading...</span>
+                      </span>
+                    ) : opt.count !== null ? (
                       <span className="text-[9px] font-mono text-slate-400 shrink-0">
                         ({opt.count})
+                      </span>
+                    ) : (
+                      <span className="text-[7.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-tight shrink-0">
+                        Load
                       </span>
                     )}
                   </button>
@@ -3327,6 +3407,30 @@ function CustomRosterDocumentBuilderView({
     return Array.isArray(cached) && cached.length > 0 ? unpackMasterRegisterStudents(cached) : [];
   });
 
+  // On-demand historical session records loaded dynamically when requested by admin
+  const [extraSessionStudents, setExtraSessionStudents] = useState([]);
+  const [loadingSessions, setLoadingSessions] = useState(() => new Set());
+  const [customDbSessions, setCustomDbSessions] = useState([]);
+  const loadedSessionsRef = useRef(new Set());
+  const inFlightSessionsRef = useRef(new Set());
+
+  // Real-time discovery of custom sessions defined in Firestore academicSessions
+  useEffect(() => {
+    let active = true;
+    getDocs(collection(db, 'academicSessions'))
+      .then(snap => {
+        if (!active) return;
+        const custom = [];
+        snap.docs.forEach(d => {
+          const name = d.data()?.name || d.data()?.session || d.id;
+          if (name && typeof name === 'string' && name.trim()) custom.push(name.trim());
+        });
+        if (custom.length > 0) setCustomDbSessions(custom);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
   // Persistent cloud-synced overrides map for instantaneous UI updates when dropping / restoring
   const [droppedOverrides, setDroppedOverrides] = useState(() => new Map());
 
@@ -3423,9 +3527,12 @@ function CustomRosterDocumentBuilderView({
     if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
       masterRegistersList.forEach(m => addOrMerge(m, false));
     }
+    if (Array.isArray(extraSessionStudents) && extraSessionStudents.length > 0) {
+      extraSessionStudents.forEach(e => addOrMerge(e, false));
+    }
 
     return list;
-  }, [allStudents, masterRegistersList, droppedOverrides]);
+  }, [allStudents, masterRegistersList, extraSessionStudents, droppedOverrides]);
 
   // ─── Direct High-Performance Pre-Indexed Student Pool (Runs Extraction Only Once) ───
   const unifiedStudentPool = useMemo(() => {
@@ -4584,25 +4691,110 @@ function CustomRosterDocumentBuilderView({
       const sess = st.session;
       if (sess && sess !== '—') counts[sess] = (counts[sess] || 0) + 1;
     });
-    const list = Object.keys(counts).sort((a, b) => {
-      const yearA = parseInt(a.match(/\d{4}/)?.[0] || '0', 10);
-      const yearB = parseInt(b.match(/\d{4}/)?.[0] || '0', 10);
-      if (yearB !== yearA) return yearB - yearA;
+
+    const sessionSet = new Set(CANONICAL_ACADEMIC_SESSIONS);
+    Object.keys(counts).forEach(s => sessionSet.add(s));
+    if (customDbSessions.length > 0) {
+      customDbSessions.forEach(s => sessionSet.add(s));
+    }
+
+    const sorted = Array.from(sessionSet).sort((a, b) => {
+      const numA = parseInt(String(a).match(/\d{4}/)?.[0] || '0', 10);
+      const numB = parseInt(String(b).match(/\d{4}/)?.[0] || '0', 10);
+      if (numA !== numB) return numB - numA;
+      if (/oct|nov/i.test(a) && /mar|apr/i.test(b)) return -1;
+      if (/mar|apr/i.test(a) && /oct|nov/i.test(b)) return 1;
       return b.localeCompare(a, undefined, { numeric: true });
     });
-    return list.map(sess => ({ value: sess, label: `Session ${sess}`, count: counts[sess] }));
-  }, [unifiedStudentPool]);
 
-  // Gracefully auto-adjust if the initial or defaulted session has 0 records in the database
+    return sorted.map(sess => {
+      const count = counts[sess];
+      const isLoaded = count !== undefined;
+      const isLoading = loadingSessions.has(sess);
+      return {
+        value: sess,
+        label: `Session ${sess}`,
+        count: isLoaded ? count : null,
+        isLoaded,
+        isLoading
+      };
+    });
+  }, [unifiedStudentPool, customDbSessions, loadingSessions]);
+
+  // Gracefully auto-adjust only if the selected session does not exist in any catalog
   useEffect(() => {
     if (dynamicSessions.length > 0 && selectedSessions.length === 1) {
       const activeSess = (selectedSessions[0] || '').toLowerCase().trim();
       const match = dynamicSessions.find(d => (d.value || '').toLowerCase().trim() === activeSess);
-      if (!match || match.count === 0) {
+      if (!match) {
         setSelectedSessions([dynamicSessions[0].value]);
       }
     }
   }, [dynamicSessions, selectedSessions]);
+
+  // On-demand loader: fetches historical session records from Firestore whenever an unhydrated session is selected
+  useEffect(() => {
+    if (!selectedSessions || selectedSessions.length === 0) return;
+
+    const pendingSessions = selectedSessions.filter(sess => {
+      if (!sess || sess === '__NONE__' || sess === 'ALL') return false;
+      const clean = sess.trim().toLowerCase();
+      const isAlreadyInPool = unifiedStudentPool.some(st => {
+        const s = (st.session || '').trim().toLowerCase();
+        return s === clean || s.includes(clean) || clean.includes(s);
+      });
+      return !isAlreadyInPool && !loadedSessionsRef.current.has(clean) && !inFlightSessionsRef.current.has(clean);
+    });
+
+    if (pendingSessions.length === 0) return;
+
+    let isCancelled = false;
+
+    pendingSessions.forEach(async (targetSession) => {
+      const clean = targetSession.trim().toLowerCase();
+      inFlightSessionsRef.current.add(clean);
+      setLoadingSessions(prev => new Set([...prev, targetSession]));
+
+      try {
+        const { admissions, masterRegisters: rawMaster } = await fetchHistoricalSessionData(targetSession);
+        if (isCancelled) return;
+
+        loadedSessionsRef.current.add(clean);
+        const unpacked = unpackMasterRegisterStudents(rawMaster);
+        const combined = [...admissions, ...unpacked];
+
+        if (combined.length > 0) {
+          setExtraSessionStudents(prev => {
+            const existingIds = new Set(prev.map(p => String(p.id || p._docId || '')));
+            const newItems = combined.filter(c => {
+              const id = String(c.id || c._docId || '');
+              return id && !existingIds.has(id);
+            });
+            return newItems.length > 0 ? [...prev, ...newItems] : prev;
+          });
+          showToast(`Loaded ${combined.length} records for Session ${targetSession}`, 'success');
+        } else {
+          showToast(`No student records found in database for Session ${targetSession}`, 'info');
+        }
+      } catch (err) {
+        console.warn(`[CustomRoster] Error loading session ${targetSession}:`, err);
+        showToast(`Failed to load records for Session ${targetSession}`, 'error');
+      } finally {
+        inFlightSessionsRef.current.delete(clean);
+        if (!isCancelled) {
+          setLoadingSessions(prev => {
+            const next = new Set(prev);
+            next.delete(targetSession);
+            return next;
+          });
+        }
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedSessions, unifiedStudentPool]);
 
   const sessionStudents = useMemo(() => {
     if (selectedSessions.length === 0) return unifiedStudentPool;
@@ -5198,6 +5390,12 @@ function CustomRosterDocumentBuilderView({
             )}
           </div>
           <div className="flex items-center gap-1.5">
+            {loadingSessions.size > 0 && (
+              <span className="flex items-center gap-1 text-[8px] font-bold text-amber-700 dark:text-amber-400 animate-pulse">
+                <RefreshCw size={8} className="animate-spin text-amber-600" />
+                <span>Loading Session...</span>
+              </span>
+            )}
             <span className="font-mono font-black text-[8.5px] text-emerald-600 dark:text-emerald-400">
               {filteredStudents.length}/{unifiedStudentPool.length} Matched
             </span>
