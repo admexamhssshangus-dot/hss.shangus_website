@@ -233,7 +233,7 @@ export default function Achievements() {
               }`}
             >
               <Award size={14} className={activeViewTab === 'board_results' ? 'text-teal-600' : 'text-slate-400'} />
-              <span>Class 10th Results</span>
+              <span>Class 10th &amp; 11th Results</span>
             </button>
 
             <button
@@ -278,14 +278,14 @@ export default function Achievements() {
             {/* Minimal banner linking to Class Board Results */}
             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs mb-5">
               <span className="text-slate-600 dark:text-slate-400">
-                Official Class 10th Board evaluation tables and statistical summaries are available in the Results tab.
+                Official Class 10th &amp; 11th Board evaluation tables and statistical summaries are available in the Results tab.
               </span>
               <button
                 type="button"
                 onClick={() => handleTabChange('board_results')}
                 className="font-bold text-teal-700 dark:text-teal-300 hover:underline shrink-0 flex items-center gap-1 cursor-pointer"
               >
-                <span>View 10th Results</span>
+                <span>View Board Results</span>
                 <ChevronRight size={13} />
               </button>
             </div>
