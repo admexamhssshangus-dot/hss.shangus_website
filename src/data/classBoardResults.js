@@ -4,6 +4,7 @@
 // Authoritative institutional board results across sessions for:
 // - Class 10th (Matriculation)
 // - Class 11th (Higher Secondary Part-I)
+// - Class 12th (Higher Secondary Part-II)
 // Standardized session naming convention:
 // 1. Regular 2024-25 (Oct-Nov)
 // 2. Regular 2024-25 (Mar-Apr)
@@ -294,12 +295,134 @@ export const CLASS_11_BOARD_RESULTS = [
   }
 ];
 
+export const CLASS_12_BOARD_RESULTS = [
+  {
+    id: '12th-regular-2024-25-oct-nov',
+    class: '12th',
+    title: '12th Regular Result 2024-25 (Oct-Nov)',
+    session: '2024-25',
+    examPeriod: 'Regular 2024-25 (Oct-Nov)',
+    originalLabel: '12th Regular Result 2025 (oct-nov)',
+    category: 'Regular',
+    schoolName: 'Govt. Higher Secondary School Shangus',
+    indicators: [
+      { label: 'total appeared', count: '176' },
+      { label: 'total failed/reappear', count: '57' },
+      { label: 'total passed', count: '119' },
+      { label: 'total Distinc', count: '72' },
+      { label: 'total 1st Div', count: '36' },
+      { label: 'total 2nd Div', count: '11' },
+      { label: 'total 3rd Div', count: '0' },
+      { label: 'Total pass percentage', count: '67.61%', highlight: true }
+    ],
+    summaryStats: {
+      appeared: 176,
+      totalEnrolled: 176,
+      passed: 119,
+      failed: 57,
+      distinction: 72,
+      firstDiv: 36,
+      secondDiv: 11,
+      thirdDiv: 0,
+      overallPercent: '67.61%'
+    },
+    toppers: [
+      { rollNo: '301003054', name: 'Hadeeqa Tabasum', result: 'Distinc', marksObt: 493, maxMarks: 500, percentage: '98.6%', resultMarksDisplay: 'Distinc / 493', stream: 'Science' },
+      { rollNo: '301003037', name: 'Ajvaa Ibrahim Ganie', result: 'Distinc', marksObt: 492, maxMarks: 500, percentage: '98.4%', resultMarksDisplay: 'Distinc / 492', stream: 'Science' },
+      { rollNo: '301003053', name: 'Zaidan Wani', result: 'Distinc', marksObt: 488, maxMarks: 500, percentage: '97.6%', resultMarksDisplay: 'Distinc / 488', stream: 'Science' },
+      { rollNo: '301002031', name: 'Neha Majeed', result: 'Distinc', marksObt: 474, maxMarks: 500, percentage: '94.8%', resultMarksDisplay: 'Distinc / 474', stream: 'Humanities/Arts' },
+      { rollNo: '301002003', name: 'Tahzeena Farooq', result: 'Distinc', marksObt: 473, maxMarks: 500, percentage: '94.6%', resultMarksDisplay: 'Distinc / 473', stream: 'Humanities/Arts' },
+      { rollNo: '301002005', name: 'Sabhat Shafi', result: 'Distinc', marksObt: 471, maxMarks: 500, percentage: '94.2%', resultMarksDisplay: 'Distinc / 471', stream: 'Humanities/Arts' }
+    ]
+  },
+  {
+    id: '12th-regular-2024-25-mar-apr',
+    class: '12th',
+    title: '12th Regular Result 2024-25 (Mar-Apr)',
+    session: '2024-25',
+    examPeriod: 'Regular 2024-25 (Mar-Apr)',
+    originalLabel: '12th Regular Result 2025',
+    category: 'Regular',
+    schoolName: 'Govt. Higher Secondary School Shangus',
+    indicators: [
+      { label: 'total appeared', count: '167' },
+      { label: 'total failed/reappear', count: '19' },
+      { label: 'total passed', count: '148' },
+      { label: 'total Distinc', count: '77' },
+      { label: 'total 1st Div', count: '65' },
+      { label: 'total 2nd Div', count: '6' },
+      { label: 'total 3rd Div', count: '0' },
+      { label: 'Total pass percentage', count: '88.62%', highlight: true }
+    ],
+    summaryStats: {
+      appeared: 167,
+      totalEnrolled: 167,
+      passed: 148,
+      failed: 19,
+      distinction: 77,
+      firstDiv: 65,
+      secondDiv: 6,
+      thirdDiv: 0,
+      overallPercent: '88.62%'
+    },
+    toppers: [
+      { rollNo: '301002004', name: 'Farzana Hassan', result: 'Distinc', marksObt: 475, maxMarks: 500, percentage: '95.0%', resultMarksDisplay: 'Distinc / 475', stream: 'Arts/Humanities' },
+      { rollNo: '301002005', name: 'Talib Ahmad Mir', result: 'Distinc', marksObt: 453, maxMarks: 500, percentage: '90.6%', resultMarksDisplay: 'Distinc / 453', stream: 'Arts/Humanities' },
+      { rollNo: '301046025', name: 'Majid Nabi Dar', result: 'Distinc', marksObt: 447, maxMarks: 500, percentage: '89.4%', resultMarksDisplay: 'Distinc / 447', stream: 'Arts/Humanities' },
+      { rollNo: '301046053', name: 'Tabish Rasool Allie', result: 'Distinc', marksObt: 475, maxMarks: 500, percentage: '95.0%', resultMarksDisplay: 'Distinc / 475', stream: 'Medical' },
+      { rollNo: '301002042', name: 'Bismah Rahman', result: 'Distinc', marksObt: 424, maxMarks: 500, percentage: '84.8%', resultMarksDisplay: 'Distinc / 424', stream: 'Medical' },
+      { rollNo: '301002069', name: 'Shahid Mushtaq Ganie', result: 'Distinc', marksObt: 422, maxMarks: 500, percentage: '84.4%', resultMarksDisplay: 'Distinc / 422', stream: 'Medical' }
+    ]
+  },
+  {
+    id: '12th-regular-2023-24',
+    class: '12th',
+    title: '12th Result Regular 2023-24',
+    session: '2023-24',
+    examPeriod: 'Regular 2023-24',
+    originalLabel: '12th Result 2024',
+    category: 'Regular',
+    schoolName: 'Govt. Higher Secondary School Shangus',
+    indicators: [
+      { label: 'total appeared', count: '188' },
+      { label: 'total failed/reappear', count: '71' },
+      { label: 'total passed', count: '117' },
+      { label: 'total Distinc', count: '49' },
+      { label: 'total 1st Div', count: '53' },
+      { label: 'total 2nd Div', count: '15' },
+      { label: 'total 3rd Div', count: '0' },
+      { label: 'Total pass percentage', count: '62.23%', highlight: true }
+    ],
+    summaryStats: {
+      appeared: 188,
+      totalEnrolled: 188,
+      passed: 117,
+      failed: 71,
+      distinction: 49,
+      firstDiv: 53,
+      secondDiv: 15,
+      thirdDiv: 0,
+      overallPercent: '62.23%'
+    },
+    toppers: [
+      { rollNo: '301003011', name: 'Afreena Asif', result: 'Distinc', marksObt: 485, maxMarks: 500, percentage: '97.0%', resultMarksDisplay: 'Distinc / 485', stream: 'Arts/Humanities' },
+      { rollNo: '301002030', name: 'Faizan Fayaz Bond', result: 'Distinc', marksObt: 476, maxMarks: 500, percentage: '95.2%', resultMarksDisplay: 'Distinc / 476', stream: 'Arts/Humanities' },
+      { rollNo: '301003013', name: 'Mehvish Nabi', result: 'Distinc', marksObt: 473, maxMarks: 500, percentage: '94.6%', resultMarksDisplay: 'Distinc / 473', stream: 'Arts/Humanities' },
+      { rollNo: '301002046', name: 'Arbeena Khan', result: 'Distinc', marksObt: 450, maxMarks: 500, percentage: '90.0%', resultMarksDisplay: 'Distinc / 450', stream: 'Medical' },
+      { rollNo: '301002051', name: 'Mir Saniya Bilal', result: 'Distinc', marksObt: 449, maxMarks: 500, percentage: '89.8%', resultMarksDisplay: 'Distinc / 449', stream: 'Medical' },
+      { rollNo: '301002082', name: 'Areeba Iqbal', result: 'Distinc', marksObt: 448, maxMarks: 500, percentage: '89.6%', resultMarksDisplay: 'Distinc / 448', stream: 'Medical' }
+    ]
+  }
+];
+
 export const BOARD_RESULTS_BY_CLASS = {
   '10th': CLASS_10_BOARD_RESULTS,
-  '11th': CLASS_11_BOARD_RESULTS
+  '11th': CLASS_11_BOARD_RESULTS,
+  '12th': CLASS_12_BOARD_RESULTS
 };
 
 export const ALL_BOARD_RESULTS = [
   ...CLASS_10_BOARD_RESULTS,
-  ...CLASS_11_BOARD_RESULTS
+  ...CLASS_11_BOARD_RESULTS,
+  ...CLASS_12_BOARD_RESULTS
 ];

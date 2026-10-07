@@ -35,7 +35,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
     );
   }, [cohort, rosterFilter]);
 
-  const isClass11 = selectedClass === '11th' || cohort?.class === '11th';
+  const hasStreamColumn = selectedClass === '11th' || selectedClass === '12th' || cohort?.class === '11th' || cohort?.class === '12th';
 
   return (
     <div className={`w-full max-w-2xl mx-auto font-sans ${className}`}>
@@ -63,6 +63,17 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
             }`}
           >
             Class 11th
+          </button>
+          <button
+            type="button"
+            onClick={() => handleClassChange('12th')}
+            className={`px-3 py-1 font-semibold rounded-md transition-colors cursor-pointer ${
+              selectedClass === '12th'
+                ? 'bg-teal-700 text-white shadow-2xs font-bold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Class 12th
           </button>
         </div>
       </div>
@@ -156,9 +167,9 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
                   <tr className="bg-[#9ca3af] dark:bg-slate-700 text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-600 font-bold">
                     <th className="py-1.5 px-2.5">Exam Roll No.</th>
                     <th className="py-1.5 px-2.5">
-                      {isClass11 ? (cohort.id === '11th-regular-2024-25-mar-apr' ? 'Name (Parentage)' : 'Name') : 'Name'}
+                      {cohort.id === '11th-regular-2024-25-mar-apr' ? 'Name (Parentage)' : 'Name'}
                     </th>
-                    {isClass11 ? (
+                    {hasStreamColumn ? (
                       <>
                         <th className="py-1.5 px-2.5 text-center">Result / Marks Obt.</th>
                         <th className="py-1.5 px-2.5 text-center">Stream</th>
@@ -180,7 +191,7 @@ export default function ClassBoardResultsSection({ className = '', defaultClass 
                     >
                       <td className="py-1.5 px-2.5 font-mono font-medium">{t.rollNo}</td>
                       <td className="py-1.5 px-2.5 font-semibold">{t.name}</td>
-                      {isClass11 ? (
+                      {hasStreamColumn ? (
                         <>
                           <td className="py-1.5 px-2.5 text-center font-mono font-bold text-slate-900 dark:text-slate-100">
                             {t.resultMarksDisplay || `${t.result} / ${t.marksObt}`}
