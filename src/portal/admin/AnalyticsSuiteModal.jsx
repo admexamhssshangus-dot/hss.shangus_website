@@ -286,7 +286,7 @@ export default function AnalyticsSuiteModal({
     const hasHistoryInProps = (historicalRecords && historicalRecords.length > 0) || (students && students.length > 1000);
     const hasWindowCache = typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0;
 
-    // High performance optimization: Only fetch 7MB masterSeedData if user is explicitly inspecting legacy cohorts (<2018)
+    // High performance optimization: Only fetch Firestore master records if user is explicitly inspecting legacy cohorts (<2018)
     const isLegacyInspection = selectedSessions.some(ses => {
       const year = parseInt(String(ses).match(/\d{4}/)?.[0] || '2026', 10);
       return year < 2018;
@@ -294,15 +294,15 @@ export default function AnalyticsSuiteModal({
 
     if (isLegacyInspection && !hasHistoryInProps && !hasWindowCache && internalSeedRecords.length === 0) {
       setIsLoadingSeed(true);
-      import('../../data/masterSeedData.json')
-        .then((mod) => {
-          const raw = mod.default?.source_data || mod.source_data || [];
-          if (Array.isArray(raw) && raw.length > 0) {
-            setInternalSeedRecords(raw);
+      import('../../services/dbCache')
+        .then((dbCache) => dbCache.getMasterRegistersScoped({ forceAll: true }))
+        .then((docs) => {
+          if (Array.isArray(docs) && docs.length > 0) {
+            setInternalSeedRecords(docs);
           }
         })
         .catch((err) => {
-          console.warn('[AnalyticsSuite] Master seed fallback note:', err);
+          console.warn('[AnalyticsSuite] Master register fallback note:', err);
         })
         .finally(() => {
           setIsLoadingSeed(false);
