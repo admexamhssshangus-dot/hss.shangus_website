@@ -2908,24 +2908,31 @@ export function isSubmissionOwnedByTeacher(item, user, authUser) {
   const itemBy = String(item.submittedBy || '').toLowerCase().trim();
   const itemUid = String(item.submittedByUid || item.teacherId || item.userId || item.uid || '').trim();
 
-  // Normalization for merged admin -> teacher account alias:
-  // Sheikh Gulfam's submissions created under institutional admin account (e.educational.24@gmail.com)
-  // are canonically owned by teacher email socialshiftz@gmail.com
+  // Normalization for merged admin -> teacher account alias & teacher account merges:
+  // 1) Sheikh Gulfam: e.educational.24@gmail.com -> socialshiftz@gmail.com
+  // 2) Masooda Rashid: masrat74@gmail.com, masooda74@gmail.com -> masoodarashidmasooda@gmail.com
   let resolvedItemEmail = itemEmail || (itemBy.includes('@') ? itemBy : '');
   if (resolvedItemEmail.includes('e.educational')) {
     resolvedItemEmail = 'socialshiftz@gmail.com';
+  }
+  if (resolvedItemEmail === 'masrat74@gmail.com' || resolvedItemEmail === 'masooda74@gmail.com') {
+    resolvedItemEmail = 'masoodarashidmasooda@gmail.com';
   }
   let normalizedCurrentEmail = currentEmail;
   if (normalizedCurrentEmail.includes('e.educational')) {
     normalizedCurrentEmail = 'socialshiftz@gmail.com';
   }
+  if (normalizedCurrentEmail === 'masrat74@gmail.com' || normalizedCurrentEmail === 'masooda74@gmail.com') {
+    normalizedCurrentEmail = 'masoodarashidmasooda@gmail.com';
+  }
 
   // 1. UID match takes highest precedence if both present
   if (currentUid && itemUid) {
     if (itemUid === currentUid) return true;
-    // If this item was created under e.educational and current teacher is socialshiftz, allow email alias matching even if UIDs differ
+    // If this item was created under an aliased account, allow email alias matching even if UIDs differ
     const isGulfamAlias = (itemEmail.includes('e.educational') || resolvedItemEmail === 'socialshiftz@gmail.com') && normalizedCurrentEmail === 'socialshiftz@gmail.com';
-    if (!isGulfamAlias) {
+    const isMasoodaAlias = (itemEmail === 'masrat74@gmail.com' || itemEmail === 'masooda74@gmail.com' || resolvedItemEmail === 'masoodarashidmasooda@gmail.com') && normalizedCurrentEmail === 'masoodarashidmasooda@gmail.com';
+    if (!isGulfamAlias && !isMasoodaAlias) {
       return false; // Explicitly different UID
     }
   }
@@ -2948,14 +2955,21 @@ export function isSubmissionOwnedByTeacher(item, user, authUser) {
     if (cleanCur && cleanItem && cleanCur === cleanItem) {
       return true;
     }
+    // Also match Masooda / Masrat aliases
+    const isMasoodaNameMatch = (cleanCur.includes('masooda') || cleanCur.includes('masrat')) && (cleanItem.includes('masooda') || cleanItem.includes('masrat'));
+    if (isMasoodaNameMatch && normalizedCurrentEmail === 'masoodarashidmasooda@gmail.com') {
+      return true;
+    }
     // Name is explicitly recorded and does not match
     return false;
   }
 
   // 4. Fallback: Only if item has NO submitter identity recorded at all (legacy system imports)
-  if (!resolvedItemEmail && !resolvedItemName && !itemUid && currentSubject) {
-    const itemSubj = String(item.teacherRegisteredSubject || item.subject || item.subjectName || '').toLowerCase().trim();
-    if (itemSubj && isTeacherSubjectMatch(currentSubject, itemSubj)) {
+  if (!resolvedItemEmail && !resolvedItemName && !itemUid) {
+    const itemSubj = String(item.teacherRegisteredSubject || item.subject || item.subjectName || item.subjectCode || '').toLowerCase().trim();
+    const assigned = Array.isArray(user?.assignedSubjects) ? user.assignedSubjects : (user?.assignedSubjects ? [user.assignedSubjects] : []);
+    const candidateSubjects = [currentSubject, ...assigned].filter(Boolean);
+    if (itemSubj && candidateSubjects.some(s => isTeacherSubjectMatch(String(s).toLowerCase().trim(), itemSubj))) {
       return true;
     }
   }

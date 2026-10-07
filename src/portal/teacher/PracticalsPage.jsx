@@ -488,9 +488,60 @@ export function extractStudentClass(st) {
   return c;
 }
 
-// Helper: Check if student has assigned Class Roll No
+// Helper: Extract student roll number robustly for practical award rolls
+// Supports authoritative class rolls, direct class rolls, serial numbers, roll numbers, and board/exam rolls
+export function getPracticalsStudentRoll(st) {
+  if (!st || typeof st !== 'object') return '';
+  // 1. Authoritative assigned class roll from admissions
+  const assigned = getAssignedClassRollNumber(st);
+  if (assigned) return String(assigned).trim();
+
+  // 2. Direct class roll properties
+  const raw = st.raw || st._rawStudent || st;
+  const directRoll = st.classRollNo || raw.classRollNo || st['Class Roll No'] || raw['Class Roll No'] ||
+                     st['Class Roll No.'] || raw['Class Roll No.'] || st['Class R.No.'] || raw['Class R.No.'] ||
+                     st['Class R. No.'] || raw['Class R. No.'] || st.crNo || raw.crNo;
+  if (directRoll && !/^(?:0|n\/?a|na|none|nil|null|undefined|—|-)$/i.test(String(directRoll).trim())) {
+    return String(directRoll).trim();
+  }
+
+  // 3. Serial number / S.No. from master registers or imports
+  const serialNo = st['S.No.'] || raw['S.No.'] || st.sNo || raw.sNo || st.serialNo || raw.serialNo;
+  if (serialNo && !/^(?:0|n\/?a|na|none|nil|null|undefined|—|-)$/i.test(String(serialNo).trim())) {
+    return String(serialNo).trim();
+  }
+
+  // 4. Fallback: Any roll / rollNo / rNo field
+  const rollVal = st.rollNo || raw.rollNo || st['Roll No.'] || raw['Roll No.'] ||
+                  st['Roll No'] || raw['Roll No'] || st.roll || raw.roll || st.rNo || raw.rNo;
+  if (rollVal && !/^(?:0|n\/?a|na|none|nil|null|undefined|—|-)$/i.test(String(rollVal).trim())) {
+    return String(rollVal).trim();
+  }
+
+  // 5. Board / Exam Roll No (authoritative for 10th/11th/12th examinees)
+  const examVal = st.boardRoll || raw.boardRoll || st.boardRollNo || raw.boardRollNo ||
+                  st.examRollNo || raw.examRollNo || st.currExamRoll || raw.currExamRoll ||
+                  st['Exam R.No. (Current)'] || raw['Exam R.No. (Current)'] ||
+                  st['Exam R.No.'] || raw['Exam R.No.'];
+  if (examVal && !/^(?:0|n\/?a|na|none|nil|null|undefined|—|-)$/i.test(String(examVal).trim())) {
+    return String(examVal).trim();
+  }
+
+  return '';
+}
+
+// Helper: Check if student has assigned Class Roll No or valid examinee credential
 export function hasAssignedClassRoll(st) {
-  return Boolean(getAssignedClassRollNumber(st));
+  if (!st || typeof st !== 'object') return false;
+  if (getAssignedClassRollNumber(st)) return true;
+  if (getPracticalsStudentRoll(st)) return true;
+  const raw = st.raw || st._rawStudent || st;
+  const bRoll = st.boardRoll || raw.boardRoll || st.boardRollNo || raw.boardRollNo || st.examRollNo || raw.examRollNo || st.currExamRoll || raw.currExamRoll || st['Exam R.No. (Current)'] || raw['Exam R.No. (Current)'];
+  if (bRoll && !/^(?:0|n\/?a|na|none|nil|null|undefined|—|-)$/i.test(String(bRoll).trim())) return true;
+  const reg = st.regNo || raw.regNo || st.boardRegNo || raw.boardRegNo || st.registrationNo || raw.registrationNo || st['Board Reg. No.'] || raw['Board Reg. No.'] || st.formNo || raw.formNo || st['Form No.'] || raw['Form No.'];
+  if (reg && !/^(?:0|n\/?a|na|none|nil|null|undefined|—|-)$/i.test(String(reg).trim())) return true;
+  if ((st.practicalMarks !== undefined || st.totalMarks !== undefined || st.isHistorical) && (st.name || st.studentName || raw.name || raw.studentName)) return true;
+  return false;
 }
 
 // Helper: Extract Student Name from any potential schema key
@@ -1345,6 +1396,8 @@ export default function PracticalsPage() {
   // State for Cross-Subject switch confirmation modal & Existing award detection
   const [crossSubjectSwitchModal, setCrossSubjectSwitchModal] = useState({ isOpen: false, targetSubject: '' });
   const [existingAwardInfo, setExistingAwardInfo] = useState({ canonical: null, pending: null });
+  const [altSessionAvailable, setAltSessionAvailable] = useState(null);
+  const [altSessionCount, setAltSessionCount] = useState(0);
 
   // Default class to teacher's first assigned class once on initial profile load (if user has not manually selected a class)
   useEffect(() => {
@@ -1576,7 +1629,7 @@ export default function PracticalsPage() {
   // Do not download historical awards merely to populate a selector. History
   // is fetched only when the teacher opens its drawer.
   useEffect(() => {
-    const sessions = new Set(['2025-26', '2024-25 (Oct-Nov)', yearSuffix].filter(Boolean));
+    const sessions = new Set(['2025-26', '2024-25 (Oct-Nov)', '2024-25', yearSuffix].filter(Boolean));
     setAvailableSessions([...sessions].sort((a, b) => b.localeCompare(a)));
   }, [yearSuffix]);
 
@@ -1629,51 +1682,146 @@ export default function PracticalsPage() {
       const clsNorm = String(selectedClass).replace(/class/i, '').trim();
       const targetSubjCode = currentSubjectObj.code;
       const targetSubjName = currentSubjectObj.name;
+      const cleanSubj = String(selectedSubject || '').trim();
+      const cleanSess = String(yearSuffix || '').trim();
+      const cleanSessUnderscore = cleanSess.replace(/\s+/g, '_');
       const docId = formatPracticalDocId(selectedClass, selectedSubject, practicalType, yearSuffix);
       const pendingDocId = `pending_${docId}`;
 
-      // 1. Fetch only the selected cohort and the two exact award documents.
+      // 1. Fetch cohort admissions/masterRegisters and all candidate practical award documents
       let savedMarksMap = {};
       let masterDocs = [];
       let admDocs = [];
       let foundCanonical = null;
       let foundPending = null;
       let lockedOtherTeacherAward = null;
+      let alternateSessionMatch = null;
+      let alternateSessionCount = 0;
 
       try {
         const legacyDocId = clsNorm === '11th'
           ? `11th,12th_${docId.replace(/^11th_/, '')}`
           : '';
-        const awardRefs = [
-          doc(db, 'practicalsData', docId),
-          doc(db, 'practicalsData', pendingDocId),
-          legacyDocId ? doc(db, 'practicalsData', legacyDocId) : null
-        ].filter(Boolean);
-        const [masterRes, admRes, ...awardSnaps] = await Promise.all([
+
+        // Build comprehensive candidate document IDs to match canonical, underscore, code-based, and legacy schemes
+        const candidateDocIds = new Set([
+          docId,
+          pendingDocId,
+          legacyDocId,
+          // Subject Code variants (e.g. 11th_HT_internal_2024-25_(Oct-Nov))
+          `${clsNorm}_${targetSubjCode}_internal_${cleanSessUnderscore}`,
+          `${clsNorm}_${targetSubjCode}_external_${cleanSessUnderscore}`,
+          `${clsNorm}_${targetSubjCode}_internal_${cleanSess}`,
+          `${clsNorm}_${targetSubjCode}_external_${cleanSess}`,
+          `${clsNorm}_${targetSubjCode}_Internal Assessment_${cleanSess}`,
+          `${clsNorm}_${targetSubjCode}_External Practical_${cleanSess}`,
+          // Subject Name variants
+          `${clsNorm}_${targetSubjName}_internal_${cleanSessUnderscore}`,
+          `${clsNorm}_${targetSubjName}_external_${cleanSessUnderscore}`,
+          `${clsNorm}_${targetSubjName}_internal_${cleanSess}`,
+          `${clsNorm}_${targetSubjName}_external_${cleanSess}`,
+          `${clsNorm}_${targetSubjName}_Internal Assessment_${cleanSess}`,
+          `${clsNorm}_${targetSubjName}_External Practical_${cleanSess}`,
+          `${clsNorm}_${cleanSubj}_Internal Assessment_${cleanSess}`,
+          `${clsNorm}_${cleanSubj}_External Practical_${cleanSess}`,
+          // Common 2024-25 variants if not current
+          `${clsNorm}_${targetSubjCode}_internal_2024-25_(Oct-Nov)`,
+          `${clsNorm}_${targetSubjCode}_external_2024-25_(Oct-Nov)`,
+          `${clsNorm}_${targetSubjName}_internal_2024-25_(Oct-Nov)`,
+          `${clsNorm}_${targetSubjCode}_Internal Assessment_2024-25 (Oct-Nov)`
+        ].filter(Boolean));
+
+        [...candidateDocIds].forEach(id => {
+          if (!id.startsWith('pending_')) {
+            candidateDocIds.add(`pending_${id}`);
+          }
+        });
+
+        const awardRefs = [...candidateDocIds].map(id => doc(db, 'practicalsData', id));
+        const [masterRes, admRes, queryRes, ...awardSnaps] = await Promise.all([
           getMasterRegistersScoped({ session: yearSuffix, className: selectedClass }).catch(() => []),
           getAdmissionsBySession({ session: yearSuffix, className: selectedClass }).catch(() => []),
+          getDocs(query(
+            collection(db, 'practicalsData'),
+            where('className', '==', clsNorm),
+            where('subjectCode', '==', targetSubjCode)
+          )).catch(() => null),
           ...awardRefs.map(ref => getDoc(ref).catch(() => null))
         ]);
 
         masterDocs = Array.isArray(masterRes) ? masterRes : [];
         admDocs = Array.isArray(admRes) ? admRes : [];
-        const docItems = awardSnaps
-          .filter(snap => snap?.exists())
-          .map(snap => ({ id: snap.id, ...snap.data() }));
+
+        const docItemsMap = new Map();
+        awardSnaps.forEach(snap => {
+          if (snap?.exists()) {
+            docItemsMap.set(snap.id, { id: snap.id, ...snap.data() });
+          }
+        });
+        if (queryRes && !queryRes.empty) {
+          queryRes.forEach(d => {
+            if (!docItemsMap.has(d.id)) {
+              docItemsMap.set(d.id, { id: d.id, ...d.data() });
+            }
+          });
+        }
+        const docItems = Array.from(docItemsMap.values());
 
         docItems.forEach(data => {
           const dId = String(data.id || data.docId || '');
+          if (dId.startsWith('history_') || dId.startsWith('bin_')) return;
+
+          // Check if this document belongs to another session and has examinees (for 1-click suggestion banner)
+          const docSess = String(data.yearSuffix || data.Session || data.session || (dId.includes('_') ? dId.split('_').pop().replace(/_/g, ' ') : '') || '').trim();
+          const isDocOwned = isSubmissionOwnedByTeacher(data, user, auth.currentUser);
+          if (isDocOwned && Array.isArray(data.records) && data.records.length > 0 && !isSessionMatch(docSess, yearSuffix)) {
+            if (!alternateSessionMatch) {
+              alternateSessionMatch = docSess.includes('Oct-Nov') ? '2024-25 (Oct-Nov)' : (docSess || '2024-25 (Oct-Nov)');
+              alternateSessionCount = data.records.length;
+            }
+          }
+
+          // Class Match
+          const docClass = String(data.className || data.Class || dId).toLowerCase();
+          const matchClass = docClass.includes(clsNorm.toLowerCase()) || dId.toLowerCase().includes(clsNorm.toLowerCase());
+          if (!matchClass) return;
+
+          // Evaluation Type Match — strictly Internal or External Practical
+          const docEvalType = String(data.practicalType || data.evaluationType || data.examTitle || dId).toLowerCase().trim();
+          if (!isPracticalEvaluationType(docEvalType)) return;
+          const targetEvalType = String(practicalType || '').toLowerCase().trim();
+          const isInternalTarget = targetEvalType.includes('internal');
+          const isInternalDoc = docEvalType.includes('internal');
+          const isExternalTarget = targetEvalType.includes('external');
+          const isExternalDoc = docEvalType.includes('external');
+
+          const matchEval = (isInternalTarget && isInternalDoc) || 
+                            (isExternalTarget && isExternalDoc) || 
+                            (docEvalType === targetEvalType) ||
+                            dId === docId || dId === pendingDocId;
+          if (!matchEval) return;
+
+          // Year Match
+          const docYr = String(data.yearSuffix || data.Session || data.session || (dId.includes('_') ? dId.split('_').pop() : '') || '').trim();
+          if (!isSessionMatch(docYr, yearSuffix) && dId !== docId && dId !== pendingDocId) return;
+
+          // Subject Match
+          const docSubj = String(data.subjectName || data.Subject || data.subjectCode || data.subject || '').toUpperCase();
+          const matchSubj = dId === docId || dId === pendingDocId ||
+                            docSubj === targetSubjCode.toUpperCase() || 
+                            docSubj === targetSubjName.toUpperCase() ||
+                            docSubj.includes(targetSubjName.toUpperCase()) ||
+                            (targetSubjCode === 'BO' && (docSubj.includes('BOTANY') || docSubj === 'BO')) ||
+                            (targetSubjCode === 'ZO' && (docSubj.includes('ZOOLOGY') || docSubj === 'ZO')) ||
+                            (targetSubjCode === 'BI' && (docSubj.includes('BIOLOGY') || docSubj === 'BI'));
+          if (!matchSubj) return;
+
           const isApproved = data.status === 'approved' || (data.isPendingApproval === false && data.status !== 'pending_approval' && data.status !== 'rejected' && data.status !== 'draft');
+          const canAccessAward = isDocOwned;
 
-          // Strict Teacher Ownership Check:
-          // In the Teacher Portal, a teacher can ONLY view, load, or integrate awards they personally created.
-          const isOwnedByCurrentTeacher = isSubmissionOwnedByTeacher(data, user, auth.currentUser);
-          const canAccessAward = isOwnedByCurrentTeacher;
+          const isPending = dId.startsWith('pending_') || String(data.canonicalDocId || '') === docId || data.status === 'pending_approval' || data.status === 'rejected' || data.status === 'draft' || (data.isDraft === true && data.status !== 'approved');
 
-          // Track pending, draft or rejected submission for this exact class, subject, evalType, session
-          // Strictly guarantee approved records are NEVER flagged as pending
-          const isMatchingPending = (dId === pendingDocId || String(data.canonicalDocId || '') === docId) && !isApproved && (data.status === 'pending_approval' || data.status === 'rejected' || data.status === 'draft' || (data.isDraft === true && data.status !== 'approved'));
-          if (isMatchingPending) {
+          if (isPending && !isApproved) {
             if (canAccessAward) {
               foundPending = { id: dId, ...data };
             } else if (!lockedOtherTeacherAward) {
@@ -1686,12 +1834,7 @@ export default function PracticalsPage() {
                 status: 'pending'
               };
             }
-          }
-
-          // Track canonical integrated submission (supporting legacy format with composite class prefix if matching)
-          const isLegacyDocMatch = (dId === '11th,12th_' + docId.replace(/^11th_/, '')) && clsNorm === '11th';
-          const isMatchingCanonical = (dId === docId || isLegacyDocMatch || (String(data.docId || '') === docId && !dId.startsWith('pending_') && !dId.startsWith('history_') && !dId.startsWith('bin_'))) && Array.isArray(data.records) && data.records.length > 0;
-          if (isMatchingCanonical) {
+          } else if (Array.isArray(data.records) && data.records.length > 0) {
             if (canAccessAward) {
               const cleanData = { ...data };
               delete cleanData.rejectionReason;
@@ -1710,58 +1853,6 @@ export default function PracticalsPage() {
             }
           }
 
-          // Class Match
-          const docClass = String(data.className || data.Class || dId).toLowerCase();
-          const matchClass = docClass.includes(clsNorm.toLowerCase()) || dId.toLowerCase().includes(clsNorm.toLowerCase());
-          if (!matchClass && dId !== docId && dId !== pendingDocId) return;
-
-          // Evaluation Type Match — strictly Internal or External Practical
-          const docEvalType = String(data.practicalType || data.evaluationType || data.examTitle || '').toLowerCase().trim();
-          if (!isPracticalEvaluationType(docEvalType)) return;
-          const targetEvalType = String(practicalType || '').toLowerCase().trim();
-          const isInternalTarget = targetEvalType.includes('internal');
-          const isInternalDoc = docEvalType.includes('internal');
-          const isExternalTarget = targetEvalType.includes('external');
-          const isExternalDoc = docEvalType.includes('external');
-
-          const matchEval = (isInternalTarget && isInternalDoc) || 
-                            (isExternalTarget && isExternalDoc) || 
-                            (docEvalType === targetEvalType) ||
-                            dId === docId || dId === pendingDocId;
-          if (!matchEval) return;
-
-          // Year Match — normalize old yearSuffix keys before comparing
-          const normalizeYr = (y) => {
-            const s = String(y || '').trim();
-            if (s === '2026') return '2025-26';
-            if (s === '2025') return '2024-25 (Oct-Nov)';
-            if (s === '2024') return '2023-24';
-            if (s === '2023') return '2022-23';
-            if (s === '2022') return '2021-22';
-            if (s === '2024-25 (revised)') return '2024-25 (Oct-Nov)';
-            if (s === '2023-24 (revised)') return '2023-24 (Oct-Nov)';
-            return s;
-          };
-          const docYr = String(data.yearSuffix || data.Session || data.session || (dId.includes('_') ? dId.split('_').pop() : '') || '').trim();
-          const docYrNorm = normalizeYr(docYr);
-          const targetNorm = normalizeYr(String(yearSuffix).trim());
-          const matchYr = (docYrNorm === targetNorm) || dId === docId || dId === pendingDocId || (targetNorm === '2025-26' && (docYr === '2026' || docYrNorm === '2025-26'));
-          if (!matchYr) return;
-
-          // Subject Match (supporting codes, full names, and Botany/Zoology/Biology isolation)
-          const docSubj = String(data.subjectName || data.Subject || data.subjectCode || data.subject || '').toUpperCase();
-          const matchSubj = dId === docId || dId === pendingDocId ||
-                            docSubj === targetSubjCode.toUpperCase() || 
-                            docSubj === targetSubjName.toUpperCase() ||
-                            docSubj.includes(targetSubjName.toUpperCase()) ||
-                            (targetSubjCode === 'BO' && (docSubj.includes('BOTANY') || docSubj === 'BO')) ||
-                            (targetSubjCode === 'ZO' && (docSubj.includes('ZOOLOGY') || docSubj === 'ZO')) ||
-                            (targetSubjCode === 'BI' && (docSubj.includes('BIOLOGY') || docSubj === 'BI'));
-          
-          if (!matchSubj && dId !== docId && dId !== pendingDocId) return;
-
-          // Strict Award Isolation:
-          // If this matching award document belongs to another teacher, non-admin teachers MUST NOT load or view its marks!
           if (!canAccessAward) {
             if (!lockedOtherTeacherAward) {
               lockedOtherTeacherAward = {
@@ -1773,14 +1864,14 @@ export default function PracticalsPage() {
                 status: data.status || 'submitted'
               };
             }
-            return; // STRICT SECURITY: Do not parse marks into savedMarksMap
+            return;
           }
 
-          // Parse records array if present (skip history backups)
+          // Parse records array if present
           if (Array.isArray(data.records) && !dId.startsWith('history_')) {
             data.records.forEach(r => {
               if (checkIsStudentDropped(r) || isStudentExamDropped(r)) return;
-              const rRoll = getAssignedClassRollNumber(r);
+              const rRoll = getPracticalsStudentRoll(r);
               const legacyRoll = String(r.rollNo || '').trim();
               const rBoard = String(r.examRollNo || r.boardRollNo || r.boardRoll || (isLikelyOfficialExamRollNumber(legacyRoll) ? legacyRoll : '')).trim();
               const rForm = String(r.formNo || '').trim();
@@ -1860,7 +1951,7 @@ export default function PracticalsPage() {
         if (foundPending && Array.isArray(foundPending.records)) {
           foundPending.records.forEach(r => {
             if (checkIsStudentDropped(r) || isStudentExamDropped(r)) return;
-            const rRoll = getAssignedClassRollNumber(r);
+            const rRoll = getPracticalsStudentRoll(r);
             const legacyRoll = String(r.rollNo || '').trim();
             const rBoard = String(r.examRollNo || r.boardRollNo || r.boardRoll || (isLikelyOfficialExamRollNumber(legacyRoll) ? legacyRoll : '')).trim();
             const rForm = String(r.formNo || '').trim();
@@ -2034,8 +2125,8 @@ export default function PracticalsPage() {
           setIfBetter(richByForm, rForm, it);
 
           // 3. Class Roll No (Strictly restrict to matching class to prevent cross-class roll number collisions)
-          const rRoll = getAssignedClassRollNumber(it);
-          if (isMatchCls) {
+          const rRoll = getPracticalsStudentRoll(it);
+          if (isMatchCls && rRoll) {
             setIfBetter(richByRoll, rRoll, it);
           }
 
@@ -2098,8 +2189,8 @@ export default function PracticalsPage() {
               ...st,
               studentName: getStudentName(st),
               formNo: st.formNo || st['Form No.'] || st['Form Number'] || '',
-              classRollNo: getAssignedClassRollNumber(st),
-              rollNo: getAssignedClassRollNumber(st),
+              classRollNo: getPracticalsStudentRoll(st),
+              rollNo: getPracticalsStudentRoll(st),
               admNo: extractRawAdmNo(st),
               regNo: getRegNo(st),
               rawSubjects: extractRawSubjectsString(st, selectedClass) || st.subjects || '',
@@ -2118,7 +2209,7 @@ export default function PracticalsPage() {
             if (seenMarksKeys.has(uKey)) return;
             seenMarksKeys.add(uKey);
 
-            const rRoll  = getAssignedClassRollNumber(rec);
+            const rRoll  = getPracticalsStudentRoll(rec);
             const rName  = String(rec.name || rec.studentName || '').toLowerCase().trim();
             const rBoard = String(rec.boardRoll || rec.boardRollNo || '').trim();
             const rForm  = String(rec.formNo || rec.formNumber || '').trim();
@@ -2148,9 +2239,9 @@ export default function PracticalsPage() {
             if (!richSt && rName && rName !== 'student') richSt = richByName.get(rName);
             if (!richSt) richSt = {};
 
-            // CRITICAL: Validate resolved student has assigned class roll AND belongs to selected class + session
+            // Validate resolved student has assigned class roll or valid candidate credential
             if (!hasAssignedClassRoll(richSt) && !hasAssignedClassRoll(rec)) {
-              return; // Skip students without an assigned class roll number
+              return; // Skip records without valid student identifier
             }
 
             const resolvedClass = extractStudentClass(richSt) || rec.class || rec.className || rec.Class || '';
@@ -2184,12 +2275,13 @@ export default function PracticalsPage() {
 
             const resolvedName = getStudentName(richSt);
             const finalName = (resolvedName && resolvedName !== 'Student') ? resolvedName : (rec.name && rec.name !== 'Student' ? rec.name : (rec.studentName || `Student`));
+            const finalRoll = rRoll || getPracticalsStudentRoll(richSt) || getPracticalsStudentRoll(rec);
 
             allDiscoveredStudents.push({
               id: rec.boardRoll || rec.rollNo || richSt.id || `saved_${idx}`,
               ...richSt,
-              classRollNo: getAssignedClassRollNumber(richSt) || getAssignedClassRollNumber(rec),
-              rollNo: getAssignedClassRollNumber(richSt) || getAssignedClassRollNumber(rec),
+              classRollNo: finalRoll,
+              rollNo: finalRoll,
               studentName: finalName,
               parentName: rec.parentName || richSt.parentName || richSt["Father's Name"] || richSt['Father Name'] || '',
               boardRollNo: rBoard || richSt.boardRollNo || richSt['Board Roll No'] || '',
@@ -2202,26 +2294,21 @@ export default function PracticalsPage() {
               examRollNo: getExamRoll({ ...richSt, boardRoll: rBoard || richSt.boardRollNo, boardRollNo: rBoard || richSt.boardRollNo }, selectedClass),
               practicalMarks: rec.practicalMarks,
               vivaMarks: rec.vivaMarks,
-              totalMarks: rec.totalMarks
+              totalMarks: rec.totalMarks,
+              isHistorical: true
             });
           });
         }
 
         // De-duplicate student records using composite keys to prevent cross-class/cross-session collisions
-        // PRIMARY KEY: Class Roll No (session-specific) scoped by class + session
-        // FALLBACK: Reg No / Form No scoped by session end-year
         const uniqueMap = new Map();
         allDiscoveredStudents.forEach(st => {
-          if (!hasAssignedClassRoll(st)) return; // Strictly check class roll first!
+          if (!hasAssignedClassRoll(st)) return;
 
           const stCls = extractStudentClass(st) || selectedClass;
           const clsDigits = String(stCls).replace(/\D/g, '') || String(selectedClass).replace(/\D/g, '');
-
-          // Session scope to prevent collisions across years
           const sesScope = getSessionEndYear(String(st.session || st.Session || yearSuffix || '')) || yearSuffix;
-
-          // Class Roll No is best dedup key — assigned per-session per-class
-          const rollKey = getAssignedClassRollNumber(st);
+          const rollKey = getPracticalsStudentRoll(st);
 
           let key;
           if (rollKey) {
@@ -2248,7 +2335,6 @@ export default function PracticalsPage() {
       const isSecondaryClass = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
       const subjectFiltered = uniqueStudents
         .filter(st => {
-          // STRICT CHECK FIRST: Must have assigned Class Roll No
           if (!hasAssignedClassRoll(st)) return false;
 
           // Always enforce class match regardless of session
@@ -2269,7 +2355,6 @@ export default function PracticalsPage() {
           return isSubjectMatch(enrichedSt, selectedSubject);
         })
         .map(st => {
-          // Persist enriched fields into each student object for later formatting
           const rawStr = extractRawSubjectsString(st, selectedClass);
           const rawSubjects = Array.isArray(rawStr) ? rawStr.join(', ') : String(rawStr);
           return {
@@ -2298,11 +2383,11 @@ export default function PracticalsPage() {
         console.warn('Local draft read error:', dErr);
       }
 
-      // Format final student practical roster — STRICT CLASS ROLL FIRST
+      // Format final student practical roster
       const formatted = subjectFiltered
         .filter(st => hasAssignedClassRoll(st))
         .map((st, sIdx) => {
-          const roll = getAssignedClassRollNumber(st);
+          const roll = getPracticalsStudentRoll(st);
 
           const name = getStudentName(st);
           const examRollVal = st._examRollNo || getExamRoll(st, selectedClass);
@@ -2315,6 +2400,7 @@ export default function PracticalsPage() {
                         (roll && name ? savedMarksMap[`name_${roll}_${name.toLowerCase().trim()}`] : null) ||
                         savedMarksMap[String(st.formNo || '').trim()] || 
                         savedMarksMap[String(st.id || '').trim()] || 
+                        (examRollVal ? savedMarksMap[String(examRollVal).trim()] : null) ||
                         (!roll && savedMarksMap[String(name || '').toLowerCase().trim()]) || 
                         {};
           const draft = draftMap[key] || {};
@@ -2355,6 +2441,14 @@ export default function PracticalsPage() {
             vivaMarks: vMarkVal,
           };
         });
+
+      if (formatted.length === 0 && alternateSessionMatch) {
+        setAltSessionAvailable(alternateSessionMatch);
+        setAltSessionCount(alternateSessionCount);
+      } else {
+        setAltSessionAvailable(null);
+        setAltSessionCount(0);
+      }
 
       if (foundPending?.isDraft === true || foundPending?.status === 'draft') {
         const cloudDraftTime = new Date(foundPending.updatedAt || foundPending.submittedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -2465,7 +2559,7 @@ export default function PracticalsPage() {
               if (!prev || prev.length === 0) return prev;
               const marksMap = new Map();
               cData.records.forEach(r => {
-                const rRoll = getAssignedClassRollNumber(r);
+                const rRoll = getPracticalsStudentRoll(r);
                 const rForm = String(r.formNo || '').trim();
                 const rName = String(r.name || r.studentName || '').toLowerCase().trim();
                 const rReg = String(r.regNo || r.boardRegNo || '').trim().toUpperCase();
@@ -2480,7 +2574,7 @@ export default function PracticalsPage() {
               });
 
               return prev.map(st => {
-                const rRoll = getAssignedClassRollNumber(st);
+                const rRoll = getPracticalsStudentRoll(st);
                 const rForm = String(st.formNo || '').trim();
                 const rName = String(st.name || st.studentName || '').toLowerCase().trim();
                 const rReg = String(st.regNo || '').trim().toUpperCase();
@@ -2581,7 +2675,7 @@ export default function PracticalsPage() {
       const marksByName = new Map();
 
       item.records.forEach(r => {
-        const rRoll = getAssignedClassRollNumber(r);
+        const rRoll = getPracticalsStudentRoll(r);
         const rForm = String(r.formNo || '').trim();
         const rName = String(r.name || r.studentName || '').toLowerCase().trim();
         const mObj = {
@@ -2602,7 +2696,7 @@ export default function PracticalsPage() {
       setStudentMarks(prev => {
         if (Array.isArray(prev) && prev.length > 0) {
           return prev.map(st => {
-            const rollKey = getAssignedClassRollNumber(st);
+            const rollKey = getPracticalsStudentRoll(st);
             const formKey = String(st.formNo || '').trim();
             const nameKey = String(st.name || '').toLowerCase().trim();
             const rollKeyNum = rollKey && !isNaN(parseInt(rollKey, 10)) ? String(parseInt(rollKey, 10)) : '';
@@ -2622,7 +2716,7 @@ export default function PracticalsPage() {
           });
         }
         return item.records.map((r, rIdx) => {
-          const classRollNo = getAssignedClassRollNumber(r);
+          const classRollNo = getPracticalsStudentRoll(r);
           const uId = r._uid || r.id || `rec_${classRollNo || 'noroll'}_${r.formNo || 'noform'}_${rIdx}`;
           return {
             _uid: uId,
@@ -3079,8 +3173,8 @@ export default function PracticalsPage() {
         }
 
         return {
-          classRollNo: getAssignedClassRollNumber(s),
-          rollNo: getAssignedClassRollNumber(s),
+          classRollNo: getPracticalsStudentRoll(s),
+          rollNo: getPracticalsStudentRoll(s),
           name: String(s.name || '').trim().slice(0, 120),
           formNo: String(s.formNo || '').trim().slice(0, 50),
           regNo: String(s.regNo || s.boardRegNo || '').trim().slice(0, 50),
@@ -3365,8 +3459,8 @@ export default function PracticalsPage() {
         }
 
         return {
-          classRollNo: getAssignedClassRollNumber(s),
-          rollNo: getAssignedClassRollNumber(s),
+          classRollNo: getPracticalsStudentRoll(s),
+          rollNo: getPracticalsStudentRoll(s),
           name: String(s.name || '').trim().slice(0, 120),
           formNo: String(s.formNo || '').trim().slice(0, 50),
           regNo: String(s.regNo || s.boardRegNo || '').trim().slice(0, 50),
@@ -3558,8 +3652,8 @@ export default function PracticalsPage() {
       const cleanExam = getRecordExamRoll(st);
       return {
         sno: i + 1,
-        classRollNo: getAssignedClassRollNumber(st),
-        rollNo: cleanExam || getAssignedClassRollNumber(st),
+        classRollNo: getPracticalsStudentRoll(st),
+        rollNo: cleanExam || getPracticalsStudentRoll(st),
         examRollNo: cleanExam,
         centreNo: st.centreNo || '',
         name: st.name || st.studentName || '',
@@ -5266,8 +5360,42 @@ export default function PracticalsPage() {
               )}
             </>
           ) : (
-            <div className="p-8 text-center text-xs font-bold text-slate-400 border rounded-xl border-slate-200 dark:border-slate-800">
-              No confirmed registered students with assigned class roll found for {selectedClass}.
+            <div className="p-8 sm:p-10 text-center text-xs border rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm flex flex-col items-center justify-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400 mb-1">
+                <History size={24} />
+              </div>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                No Examinees Found in Selected Session
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md">
+                No confirmed registered students with assigned rolls found for <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedClass} • {selectedSubject}</span> in session <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{yearSuffix}</span>.
+              </p>
+
+              {altSessionAvailable && (
+                <div className="mt-3 p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-indigo-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row items-center justify-between gap-4 max-w-xl w-full text-left shadow-xs animate-fadeIn">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+                      <Sparkles size={18} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-amber-950 dark:text-amber-100">
+                        Historical Practical Roster Detected
+                      </div>
+                      <div className="text-[11.5px] text-amber-800 dark:text-amber-300 font-medium mt-0.5">
+                        Found <strong>{altSessionCount || 'registered'}</strong> students with practical marks in session <span className="font-mono font-bold">{altSessionAvailable}</span>.
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setYearSuffix(altSessionAvailable)}
+                    className="px-4 py-2 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shrink-0 shadow-sm hover:shadow cursor-pointer active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    <span>Load {altSessionAvailable} Roster</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

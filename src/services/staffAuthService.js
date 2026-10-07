@@ -131,7 +131,35 @@ export const FALLBACK_STAFF_PROFILES = {
     assignedClasses: ['11th', '12th'],
     perms: ['attendanceMgmt', 'practicals']
   },
+  'masoodarashidmasooda@gmail.com': {
+    name: 'Masooda Rashid',
+    role: 'Teacher',
+    isTeacher: true,
+    isAdmin: false,
+    isSuperAdmin: false,
+    isStudent: false,
+    isStaff: true,
+    subject: 'History (HT)',
+    teachingSubject: 'History (HT)',
+    assignedSubjects: ['History (HT)'],
+    assignedClasses: ['11th', '12th'],
+    tierSubjects: {
+      '9th-10th': [],
+      '11th-12th': ['History']
+    },
+    classSubjectMap: {
+      '11th': ['History'],
+      '12th': ['History']
+    },
+    perms: ['attendanceMgmt', 'practicals']
+  },
 };
+
+// Registered email aliases for staff members whose accounts were merged
+export const STAFF_EMAIL_ALIASES = Object.freeze({
+  'masrat74@gmail.com': 'masoodarashidmasooda@gmail.com',
+  'masooda74@gmail.com': 'masoodarashidmasooda@gmail.com',
+});
 
 // High-speed in-memory cache for resolved staff profiles (0ms resolution across navigations)
 const staffProfileMemoryCache = new Map();
@@ -140,9 +168,12 @@ const STAFF_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 export function clearStaffProfileCache(email = null) {
   if (email) {
     const clean = String(email).toLowerCase().trim();
+    const canonical = STAFF_EMAIL_ALIASES[clean] || clean;
     staffProfileMemoryCache.delete(clean);
+    staffProfileMemoryCache.delete(canonical);
     try {
       sessionStorage.removeItem(`hss_staff_profile_${clean}`);
+      sessionStorage.removeItem(`hss_staff_profile_${canonical}`);
     } catch (_) {}
   } else {
     staffProfileMemoryCache.clear();
@@ -166,6 +197,10 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
     email = emailOrUser.toLowerCase().trim();
   } else if (user?.email) {
     email = String(user.email).toLowerCase().trim();
+  }
+
+  if (STAFF_EMAIL_ALIASES[email]) {
+    email = STAFF_EMAIL_ALIASES[email];
   }
 
   if (!email) return null;

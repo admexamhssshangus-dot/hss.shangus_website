@@ -130,6 +130,24 @@ const DEFAULT_ADMIN_USERS = [
       '12th': ['Environmental Science'],
     },
   },
+  {
+    name: 'Masooda Rashid',
+    email: 'masoodarashidmasooda@gmail.com',
+    role: 'Teacher',
+    designation: 'Teacher',
+    perms: ['attendanceMgmt', 'practicals'],
+    subject: 'History (HT)',
+    assignedSubjects: ['History (HT)'],
+    assignedClasses: ['11th', '12th'],
+    tierSubjects: {
+      '9th-10th': [],
+      '11th-12th': ['History'],
+    },
+    classSubjectMap: {
+      '11th': ['History'],
+      '12th': ['History'],
+    },
+  },
 ];
 
 export default function StaffPermissionsManager() {
@@ -220,6 +238,14 @@ export default function StaffPermissionsManager() {
           if (clean === 'shahnawaz@gmail.com') {
             updatedUser.email = 'shahnawaz13678@gmail.com';
           }
+          if (clean === 'masrat74@gmail.com' || clean === 'masooda74@gmail.com') {
+            updatedUser.email = 'masoodarashidmasooda@gmail.com';
+            updatedUser.name = 'Masooda Rashid';
+            updatedUser.assignedClasses = ['11th', '12th'];
+            updatedUser.assignedSubjects = ['History (HT)'];
+            updatedUser.subject = 'History (HT)';
+            updatedUser.teachingSubject = 'History (HT)';
+          }
           if (clean === 'adm.exam.hss.shangus@gmail.com') {
             updatedUser.role = 'SuperAdmin';
             updatedUser.perms = ALL_ADMIN_MODULES.map(m => m.code);
@@ -229,6 +255,25 @@ export default function StaffPermissionsManager() {
           }
           return updatedUser;
         });
+
+        // Deduplicate staff list by email (merging any duplicate or aliased accounts)
+        const dedupedStaffMap = new Map();
+        loadedList.forEach(u => {
+          const k = String(u.email || '').trim().toLowerCase();
+          if (!k) return;
+          if (dedupedStaffMap.has(k)) {
+            const prev = dedupedStaffMap.get(k);
+            dedupedStaffMap.set(k, {
+              ...prev,
+              ...u,
+              assignedClasses: [...new Set([...(prev.assignedClasses || []), ...(u.assignedClasses || [])])],
+              assignedSubjects: [...new Set([...(prev.assignedSubjects || []), ...(u.assignedSubjects || [])])],
+            });
+          } else {
+            dedupedStaffMap.set(k, u);
+          }
+        });
+        loadedList = Array.from(dedupedStaffMap.values());
 
         // Query users collection for any additional registered faculty/teachers/admins
         try {
@@ -257,6 +302,7 @@ export default function StaffPermissionsManager() {
               const isAdmin = roleStr === 'admin' || roleStr === 'administrator';
               if (isTeacher || isAdmin) {
                 const cleanE = String(data.email || '').trim().toLowerCase();
+                if (cleanE === 'masrat74@gmail.com' || cleanE === 'masooda74@gmail.com') return; // Merged into masoodarashidmasooda@gmail.com
                 if (cleanE && !loadedList.some((a) => a.email.toLowerCase() === cleanE) && !extraStaff.some((s) => s.email.toLowerCase() === cleanE)) {
                   const cleanClasses = normalizeTeacherClasses(data.assignedClasses || data.assignedClass || []);
                   const assignedSubjects = Array.isArray(data.assignedSubjects) && data.assignedSubjects.length > 0

@@ -642,12 +642,17 @@ export const parsePracticalsSnap = (snap) => {
       const canonicalSession = normalizePracticalSession(data.sessionCanonical || data.yearSuffix || data.sessionText || data.session || '');
       
       // Unify practicals history of e.educational.24@gmail.com (admin) into socialshiftz@gmail.com (teacher)
+      // and masrat74@gmail.com / masooda74@gmail.com into masoodarashidmasooda@gmail.com (teacher)
       let tEmail = String(data.teacherEmail || data.submittedByEmail || data.email || '').toLowerCase().trim();
       let subByEmail = String(data.submittedByEmail || data.teacherEmail || '').toLowerCase().trim();
       if (tEmail.includes('e.educational')) tEmail = 'socialshiftz@gmail.com';
+      if (tEmail === 'masrat74@gmail.com' || tEmail === 'masooda74@gmail.com') tEmail = 'masoodarashidmasooda@gmail.com';
       if (subByEmail.includes('e.educational')) subByEmail = 'socialshiftz@gmail.com';
+      if (subByEmail === 'masrat74@gmail.com' || subByEmail === 'masooda74@gmail.com') subByEmail = 'masoodarashidmasooda@gmail.com';
       const tName = (tEmail === 'socialshiftz@gmail.com' || subByEmail === 'socialshiftz@gmail.com')
         ? 'Sheikh Gulfam'
+        : (tEmail === 'masoodarashidmasooda@gmail.com' || subByEmail === 'masoodarashidmasooda@gmail.com')
+        ? 'Masooda Rashid'
         : (data.teacherName || data.submittedByName || 'Faculty Member');
 
       return {
@@ -5055,6 +5060,9 @@ function FacultySubmissionsView({
     if (dEmail.includes('e.educational')) {
       dEmail = 'socialshiftz@gmail.com';
     }
+    if (dEmail === 'masrat74@gmail.com' || dEmail === 'masooda74@gmail.com') {
+      dEmail = 'masoodarashidmasooda@gmail.com';
+    }
     const tEmail = String(t.email || t.id || '').toLowerCase().trim();
     if (tEmail.includes('e.educational')) return false; // Pure admin account never claims teacher docs
 
@@ -5110,6 +5118,7 @@ function FacultySubmissionsView({
       if (matchedDocIds.has(d.id)) return;
       let dEmail = String(d.teacherEmail || d.submittedByEmail || d.Email || d.email || '').toLowerCase().trim();
       if (dEmail.includes('e.educational')) dEmail = 'socialshiftz@gmail.com';
+      if (dEmail === 'masrat74@gmail.com' || dEmail === 'masooda74@gmail.com') dEmail = 'masoodarashidmasooda@gmail.com';
       if (dEmail && (excludedSet.has(dEmail) || dEmail.includes('e.educational'))) return;
 
       const sName = d.teacherName || d.submittedByName || d.submittedBy || d['Teacher Name'] || 'Other Evaluator';
