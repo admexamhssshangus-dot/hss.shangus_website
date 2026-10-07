@@ -1957,14 +1957,59 @@ html, body, #root {
   border-color: var(--teal-accent) !important;
 }
 
-/* Mobile menu on Light theme: keep dark bg and white text strictly within the site navbar */
-.theme-light header.site-header-navbar [class*="bg-slate-800"],
-.theme-light header.fixed [class*="bg-slate-800"] {
+/* Mobile menu on Light theme: keep dark bg and white text strictly within the site mobile slide-down menu */
+.theme-light header.site-header-navbar [data-mobile-menu],
+.theme-light header.fixed [data-mobile-menu] {
   background-color: #1e293b !important;
+  color: #ffffff !important;
 }
-.theme-light header.site-header-navbar [class*="bg-slate-700"],
-.theme-light header.fixed [class*="bg-slate-700"] {
+
+/* Login Dropdown Menu — Bulletproof contrast in light and dark themes */
+header.site-header-navbar .login-dropdown-menu {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+header.site-header-navbar .login-dropdown-link {
+  background-color: transparent !important;
+  color: #0f172a !important;
+}
+
+header.site-header-navbar .login-dropdown-link:hover {
+  background-color: #f1f5f9 !important;
+  color: #020617 !important;
+}
+
+/* In Dark Themes: Login Dropdown Menu */
+.dark header.site-header-navbar .login-dropdown-menu,
+.theme-dark header.site-header-navbar .login-dropdown-menu,
+.theme-royal header.site-header-navbar .login-dropdown-menu,
+.theme-forest header.site-header-navbar .login-dropdown-menu,
+.theme-midnight header.site-header-navbar .login-dropdown-menu {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
   border-color: #334155 !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark header.site-header-navbar .login-dropdown-link,
+.theme-dark header.site-header-navbar .login-dropdown-link,
+.theme-royal header.site-header-navbar .login-dropdown-link,
+.theme-forest header.site-header-navbar .login-dropdown-link,
+.theme-midnight header.site-header-navbar .login-dropdown-link {
+  background-color: transparent !important;
+  color: #f1f5f9 !important;
+}
+
+.dark header.site-header-navbar .login-dropdown-link:hover,
+.theme-dark header.site-header-navbar .login-dropdown-link:hover,
+.theme-royal header.site-header-navbar .login-dropdown-link:hover,
+.theme-forest header.site-header-navbar .login-dropdown-link:hover,
+.theme-midnight header.site-header-navbar .login-dropdown-link:hover {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
 }
 
 /* ==========================================================================

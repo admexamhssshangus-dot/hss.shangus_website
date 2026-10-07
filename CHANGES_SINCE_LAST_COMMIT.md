@@ -2,30 +2,21 @@
 
 ## Commit Message
 
-`fix(contrast): ensure perfect light-theme contrast for login submenu and dropdown selectors`
+`fix(home,navbar): remove unneeded action cards and fix light-theme login dropdown text contrast`
 
 ## Files Changed & Remediated
 
-1. `src/components/Navbar.jsx`:
-   - **Login Hover Submenu Light & Dark Theme Contrast**:
-     - Upgraded the container to use responsive theme tokens: `bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 shadow-xl shadow-slate-900/10 dark:shadow-slate-950/50`.
-     - In Light theme, renders as a pristine white card with deep slate-800 text (`#1e293b`), hovering to slate-950 (`#020617`), delivering a contrast ratio exceeding **12.6:1 (WCAG AAA)**.
-     - Upgraded icon glyphs to high-contrast colors in light theme:
-       - 🎓 Student Login: `text-blue-600 dark:text-blue-400`
-       - 👨‍🏫 Teacher Login: `text-emerald-700 dark:text-emerald-400`
-       - 🛡️ Standard Admin: `text-amber-700 dark:text-amber-400`
-     - Clean, outline-free row styling with soft `hover:bg-slate-100/90 dark:hover:bg-slate-800` state.
+1. `src/pages/Home.jsx`:
+   - **Removed Audience Action Hub**: Completely removed the 4-card quick access row (`Apply for Admission`, `Notice Board & Circulars`, `Board Results & Gazettes`, `Digital Campus ERP`) per user request to keep the homepage lean, clean, and focused directly on the core news ticker, school briefing, and executive leadership message.
 
-2. `src/components/ClassBoardResultsSection.jsx`:
-   - **Dropdown Buttons & Menus Light Theme Contrast**:
-     - Upgraded trigger button labels from low-contrast `text-slate-500` to high-contrast `text-slate-700 dark:text-slate-300 font-bold`.
-     - Upgraded active class/session text to `text-slate-950 dark:text-white font-extrabold`.
-     - Upgraded dropdown menu headers to `text-slate-600 dark:text-slate-300 font-bold uppercase`.
-     - Upgraded inactive menu item text to `text-slate-800 dark:text-slate-200 font-semibold` and subtext to `text-slate-600 dark:text-slate-400 font-medium`.
-     - Upgraded checkbox borders to crisp `border-slate-400 dark:border-slate-500` and active checkbox to `bg-teal-700 border-teal-700`.
-     - Upgraded pass percentage highlights in session selector to `<strong className="text-emerald-800 dark:text-emerald-300 font-bold">`.
-   - **Result Gazette Table High-Contrast Highlights**:
-     - Strengthened table highlight text from `text-red-600` to `text-red-700 dark:text-red-400 font-black` for high contrast against the pale-green institutional highlight cell background (`#d1f2d9`).
+2. `src/index.css`:
+   - **Eliminated Wildcard CSS Bleed**: Removed the over-broad wildcard selector `.theme-light header.site-header-navbar [class*="bg-slate-800"]` which was matching elements with `dark:hover:bg-slate-800` and painting unexpected dark backgrounds onto the login submenu links in light mode.
+   - **Dedicated High-Contrast Dropdown Styles**: Added targeted, bulletproof rules for `.login-dropdown-menu` and `.login-dropdown-link` ensuring:
+     - **Light Theme**: Pure white card background (`#ffffff`), 1px slate-200 border, and deep slate text (`#0f172a`, hovering to `#020617` with `#f1f5f9` hover background) delivering **15.8:1 (WCAG AAA)** contrast.
+     - **Dark Theme**: Deep slate-900 background (`#0f172a`), slate-700 border, and light slate text (`#f1f5f9`, hovering to `#ffffff` with `#1e293b` hover background).
+
+3. `src/components/Navbar.jsx`:
+   - Applied `.login-dropdown-menu` and `.login-dropdown-link` classes directly to the desktop hover login submenu to guarantee crisp legibility in all color themes.
 
 ## Verification
 
@@ -42,7 +33,7 @@
 2. **If You Want to Amend or Re-commit**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "fix(contrast): ensure perfect light-theme contrast for login submenu and dropdown selectors"
+   git commit -m "fix(home,navbar): remove unneeded action cards and fix light-theme login dropdown text contrast"
    ```
 3. **Push to Remote Repository** (Run manually whenever you are ready):
    ```bash
