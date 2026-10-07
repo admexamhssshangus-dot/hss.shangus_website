@@ -860,7 +860,8 @@ export function printIndividualAwardRoll({
   minMarks = 4,
   centreNo = '',
   isBlank = false,
-  isBlankAwardRoll = false
+  isBlankAwardRoll = false,
+  preserveOrder = false
 }) {
   if (!records || records.length === 0) return false;
   records = records.filter(r => !isStudentExamDropped(r));
@@ -868,8 +869,10 @@ export function printIndividualAwardRoll({
 
   const isBlankMode = Boolean(isBlank || isBlankAwardRoll);
 
-  // Arrange records in dictionary order by exam roll number so centre numbers do not repeat
-  records = sortRecordsForAwardRoll(records);
+  // Arrange records: preserve order if requested, otherwise sort in dictionary order by exam roll number
+  if (!preserveOrder) {
+    records = sortRecordsForAwardRoll(records);
+  }
 
   const titles = resolveAwardRollTitles(evaluationType || practicalType || examTitle, isExternal);
   const heading = titles.heading;
@@ -1917,7 +1920,8 @@ export function printAttendanceSheet({
   subjectTitle = '',
   subjectCode = '',
   subjectName = '',
-  selectedSubjectCodes = null
+  selectedSubjectCodes = null,
+  preserveOrder = true
 }) {
   if (!students || students.length === 0) return false;
   students = students.filter(st => !isStudentExamDropped(st) && (st.isApproved === true || checkStudentApprovalState(st).isApproved));
@@ -2018,11 +2022,13 @@ export function printAttendanceSheet({
       printStudents = filtered;
     } else {
       // Fallback if already pre-filtered (e.g. from teacher's single-subject roster)
-      printStudents = students;
+      printStudents = [...students];
     }
     if (printStudents.length === 0) return false;
   }
-  printStudents = sortRecordsForAwardRoll(printStudents);
+  if (!preserveOrder) {
+    printStudents = sortRecordsForAwardRoll(printStudents);
+  }
 
   const resolvedSubjectTitle = subjectTitle || (singleSubCode ? `${getSubjectDisplayName(singleSubCode, className) || subjectName} (${singleSubCode})` : '');
 
@@ -2115,7 +2121,8 @@ export function printMarksRecordAwardRoll({
   subjectCode = '',
   subjectName = '',
   selectedSubjectCodes = null,
-  printDetails = null
+  printDetails = null,
+  preserveOrder = true
 }) {
   if (!students || students.length === 0) return false;
   students = students.filter(st => !isStudentExamDropped(st) && (st.isApproved === true || checkStudentApprovalState(st).isApproved));
@@ -2152,14 +2159,15 @@ export function printMarksRecordAwardRoll({
   let combinedHtml = '';
 
   targetSubs.forEach((sub, subIdx) => {
-    // Subject-specific enrolled students sorted cleanly by roll number
-    let subStudents = sortRecordsForAwardRoll(
-      students.filter(st => isStudentEnrolledInPracticalSubject(st, sub.code, className))
-    );
+    // Subject-specific enrolled students preserving the exact web order as per column chosen
+    let subStudents = students.filter(st => isStudentEnrolledInPracticalSubject(st, sub.code, className));
     // When a single subject is targeted (e.g., teacher printing their assigned subject roster),
     // if subject filtering yielded 0 but students were provided, fallback to the pre-filtered students list
     if (subStudents.length === 0 && singleSubCode && students.length > 0) {
-      subStudents = sortRecordsForAwardRoll(students);
+      subStudents = [...students];
+    }
+    if (!preserveOrder) {
+      subStudents = sortRecordsForAwardRoll(subStudents);
     }
     if (subStudents.length === 0) return;
 
@@ -2265,7 +2273,8 @@ export function printAllIndividualAwardRolls({
   examTitle = '',
   selectedSubjectCodes = null,
   printDetails = null,
-  centreNo = ''
+  centreNo = '',
+  preserveOrder = true
 }) {
   if (!students || students.length === 0) return false;
   students = students.filter(st => !isStudentExamDropped(st) && (st.isApproved === true || checkStudentApprovalState(st).isApproved));
@@ -2336,8 +2345,8 @@ export function printAllIndividualAwardRolls({
 
     if (subjectStudents.length === 0) return;
 
-    // Arrange records in dictionary order by exam roll number so centre numbers do not repeat
-    const sortedSubjectStudents = sortRecordsForAwardRoll(subjectStudents).map((rec, i) => ({
+    // Arrange records: preserve web order if requested, otherwise sort by exam roll number
+    const sortedSubjectStudents = (preserveOrder ? subjectStudents : sortRecordsForAwardRoll(subjectStudents)).map((rec, i) => ({
       ...rec,
       sno: i + 1
     }));
@@ -2538,7 +2547,8 @@ export function printFailList({
   isExternal = false,
   evaluationType = '',
   practicalType = '',
-  printDetails = null
+  printDetails = null,
+  preserveOrder = true
 }) {
   if (!students || students.length === 0) return false;
   students = students.filter(st => !isStudentExamDropped(st) && (st.isApproved === true || checkStudentApprovalState(st).isApproved));
@@ -2720,13 +2730,15 @@ export function printFailList({
     });
   });
 
-  // Sort fail records by exam roll number (or class roll)
-  failRecords.sort((a, b) => {
-    const rA = parseInt(String(a.rollNo).replace(/\D/g, '') || '0', 10);
-    const rB = parseInt(String(b.rollNo).replace(/\D/g, '') || '0', 10);
-    if (rA && rB && rA !== rB) return rA - rB;
-    return a.name.localeCompare(b.name);
-  });
+  // Sort fail records by exam roll number (or class roll) unless preserving web table order
+  if (!preserveOrder) {
+    failRecords.sort((a, b) => {
+      const rA = parseInt(String(a.rollNo).replace(/\D/g, '') || '0', 10);
+      const rB = parseInt(String(b.rollNo).replace(/\D/g, '') || '0', 10);
+      if (rA && rB && rA !== rB) return rA - rB;
+      return a.name.localeCompare(b.name);
+    });
+  }
 
   let html = `
     <div class="award-page">

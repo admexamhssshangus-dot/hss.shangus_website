@@ -3745,7 +3745,7 @@ export default function PracticalsPage() {
       return;
     }
 
-    const sortedStudentMarks = sortRecordsForAwardRoll(studentMarks);
+    const sortedStudentMarks = sortedStudents && sortedStudents.length > 0 ? sortedStudents : sortRecordsForAwardRoll(studentMarks);
     const recordsForPrint = sortedStudentMarks.map((st, i) => {
       const cleanExam = getRecordExamRoll(st);
       return {
@@ -3782,7 +3782,8 @@ export default function PracticalsPage() {
       practicalType,
       examTitle: activeEvalOption?.title || activeEvalOption?.label || practicalType,
       maxMarks: subjectMaxMarks,
-      minMarks: minPassMarks
+      minMarks: minPassMarks,
+      preserveOrder: true
     });
 
     if (success === false) {
@@ -3831,13 +3832,14 @@ export default function PracticalsPage() {
     const success = printMarksRecordAwardRoll({
       className: selectedClass,
       session: sessionStr,
-      students: studentMarks,
+      students: sortedStudents && sortedStudents.length > 0 ? sortedStudents : studentMarks,
       isExternal,
       evaluationType: practicalType,
       practicalType,
       subjectCode: subCode,
       subjectName: subName,
-      printDetails: { settings: practicalsSettings }
+      printDetails: { settings: practicalsSettings },
+      preserveOrder: true
     });
 
     if (success === false) {
@@ -3874,7 +3876,7 @@ export default function PracticalsPage() {
       return;
     }
 
-    const sortedStudentMarks = sortRecordsForAwardRoll(studentMarks);
+    const sortedStudentMarks = sortedStudents && sortedStudents.length > 0 ? sortedStudents : sortRecordsForAwardRoll(studentMarks);
     const recordsForPrint = sortedStudentMarks.map((st, i) => {
       const cleanExam = getRecordExamRoll(st);
       return {
@@ -3914,7 +3916,8 @@ export default function PracticalsPage() {
       maxMarks: subjectMaxMarks,
       minMarks: minPassMarks,
       isBlank: true,
-      isBlankAwardRoll: true
+      isBlankAwardRoll: true,
+      preserveOrder: true
     });
 
     if (success === false) {
@@ -3963,12 +3966,13 @@ export default function PracticalsPage() {
     const success = printAttendanceSheet({
       className: selectedClass,
       session: sessionStr,
-      students: studentMarks,
+      students: sortedStudents && sortedStudents.length > 0 ? sortedStudents : studentMarks,
       isExternal,
       evaluationType: practicalType,
       practicalType,
       subjectCode: subCode,
-      subjectName: subName
+      subjectName: subName,
+      preserveOrder: true
     });
 
     if (success === false) {

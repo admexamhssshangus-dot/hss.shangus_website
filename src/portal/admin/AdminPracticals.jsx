@@ -2639,8 +2639,21 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
           aVal = String(a?.['Exam R.No. (Current)'] || a?.["Student's Name (as per school records)"] || a?.studentName || a?.name || '').toLowerCase();
           bVal = String(b?.['Exam R.No. (Current)'] || b?.["Student's Name (as per school records)"] || b?.studentName || b?.name || '').toLowerCase();
         } else if (sortField === 'examRoll') {
-          aVal = String(getCurrentOfficialExamRoll(a, cls) || a?.['Exam R.No. (Current)'] || a?.examRollNo || '').toLowerCase();
-          bVal = String(getCurrentOfficialExamRoll(b, cls) || b?.['Exam R.No. (Current)'] || b?.examRollNo || '').toLowerCase();
+          const aExam = String(getCurrentOfficialExamRoll(a, cls) || a?.['Exam R.No. (Current)'] || a?.examRollNo || '').trim();
+          const bExam = String(getCurrentOfficialExamRoll(b, cls) || b?.['Exam R.No. (Current)'] || b?.examRollNo || '').trim();
+          const aHas = Boolean(aExam && !/^(undefined|null|—|-|#N\/A|N\/A|NA)$/i.test(aExam));
+          const bHas = Boolean(bExam && !/^(undefined|null|—|-|#N\/A|N\/A|NA)$/i.test(bExam));
+          if (aHas && bHas) {
+            const cmp = aExam.localeCompare(bExam, undefined, { numeric: true, sensitivity: 'base' });
+            if (cmp !== 0) return sortDirection === 'asc' ? cmp : -cmp;
+          }
+          if (aHas && !bHas) return -1;
+          if (!aHas && bHas) return 1;
+          const aRoll = parseInt(getRollNo(a), 10);
+          const bRoll = parseInt(getRollNo(b), 10);
+          if (!isNaN(aRoll) && !isNaN(bRoll) && aRoll !== bRoll) {
+            return sortDirection === 'asc' ? aRoll - bRoll : bRoll - aRoll;
+          }
         } else if (sortField === 'regNo') {
           aVal = String(a?.['Board Registration Number'] || a?.['Board Reg. No.'] || a?.boardRegNo || a?.regNo || '').toLowerCase();
           bVal = String(b?.['Board Registration Number'] || b?.['Board Reg. No.'] || b?.boardRegNo || b?.regNo || '').toLowerCase();
@@ -3025,7 +3038,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                               subjectCode: targetCode,
                               subjectName: targetName,
                               selectedSubjectCodes: !isSingle ? activeSubjects : null,
-                              printDetails: localPrintOpts
+                              printDetails: localPrintOpts,
+                              preserveOrder: true
                             });
                           } catch (err) {
                             console.error('Error generating Marks Record print:', err);
@@ -3071,7 +3085,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                               evaluationType: localPrintOpts.practicalType,
                               subjectCode: targetCode,
                               subjectName: targetName,
-                              selectedSubjectCodes: !isSingle ? activeSubjects : null
+                              selectedSubjectCodes: !isSingle ? activeSubjects : null,
+                              preserveOrder: true
                             });
                           } catch (err) {
                             console.error('Error generating Attendance Sheet:', err);
@@ -3116,7 +3131,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                               isExternal: localPrintOpts.practicalType === 'external',
                               evaluationType: localPrintOpts.practicalType,
                               selectedSubjectCodes: targetCodes,
-                              printDetails: { ...localPrintOpts, settings }
+                              printDetails: { ...localPrintOpts, settings },
+                              preserveOrder: true
                             });
                           } catch (err) {
                             console.error('Error generating 2-Column Award Rolls:', err);
@@ -3162,7 +3178,8 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                               selectedSubjectCodes: targetCodes,
                               isExternal: localPrintOpts.practicalType === 'external',
                               evaluationType: localPrintOpts.practicalType,
-                              printDetails: { ...localPrintOpts, settings }
+                              printDetails: { ...localPrintOpts, settings },
+                              preserveOrder: true
                             });
                           } catch (err) {
                             console.error('Error generating Fail/Absent List:', err);
