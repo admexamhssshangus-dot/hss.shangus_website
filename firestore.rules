@@ -461,8 +461,8 @@ service cloud.firestore {
     // Public school achievements & Hall of Fame repository.
     match /siteAchievements/{documentId} {
       allow get, list: if true;
-      allow create, update: if canUseAny(['controls', 'cms']) && hasNoCredentialFields(request.resource.data) && hasNoAiSecretFields(request.resource.data);
-      allow delete: if canUseAny(['controls', 'cms']);
+      allow create, update: if canUseAny(['controls', 'cms', 'achievementsCms']) && hasNoCredentialFields(request.resource.data) && hasNoAiSecretFields(request.resource.data);
+      allow delete: if canUseAny(['controls', 'cms', 'achievementsCms']);
     }
 
     match /users/{userId} {
