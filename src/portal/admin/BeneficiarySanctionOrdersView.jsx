@@ -176,7 +176,7 @@ export default function BeneficiarySanctionOrdersView({
 }) {
   // ─── Active Preset & Orientation ───
   const [activePresetId, setActivePresetId] = useState('mutual_benefit');
-  const [orientation, setOrientation] = useState('landscape'); // 'landscape' | 'portrait'
+  const [orientation, setOrientation] = useState('portrait'); // 'portrait' | 'landscape'
   const [tableFontSize, setTableFontSize] = useState('9.5px');
   const [rowPaddingPreset, setRowPaddingPreset] = useState('compact'); // 'compact' | 'standard' | 'spacious'
   const [showControlsPanel, setShowControlsPanel] = useState(true);

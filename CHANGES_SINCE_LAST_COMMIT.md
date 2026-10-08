@@ -2,17 +2,13 @@
 
 ## Commit Message
 
-`feat(beneficiary): add in-table move controls, inline header editing, in-table column adder, and allow deleting any column`
+`feat(beneficiary): set portrait as default document orientation in Mutual Benefit Fund & Sanction Orders Studio`
 
 ## Files Changed
 
 1. **[src/portal/admin/BeneficiarySanctionOrdersView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BeneficiarySanctionOrdersView.jsx)**
-   - Added direct in-table column move controls (`ChevronLeft` / `ChevronRight` to shift left/right) and delete buttons (`Trash2`) in every `<th>` header on the live document canvas.
-   - Added interactive inline column renaming inputs directly within each table header cell.
-   - Added an in-table `+ Col` header action button with a dropdown to add any student database field or create a custom column directly on the document table without opening the sidebar.
-   - Added in-table row move controls (`ArrowUp` / `ArrowDown`) alongside the row delete button in every row's action cell to reorder beneficiary entries directly on the canvas.
-   - Updated `handleRemoveColumn` so administrators can delete ANY column down to 1 column (including S.No, Class, etc.), with confirmation toast feedback.
-   - Added a `Reset` button in the sidebar Section 4 columns header to quickly restore the default columns preset anytime.
+   - Updated the initial state of `orientation` from `'landscape'` to `'portrait'` (`useState('portrait')`).
+   - Ensures that opening the Mutual Benefit Fund & Sanction Orders Studio displays the official sanction order in portrait mode (`w-[210mm] min-h-[297mm]`) by default, while allowing users to freely toggle to landscape at any time.
 
 ---
 
@@ -31,7 +27,7 @@ If you wish to edit the commit message or modify files before pushing:
 git reset --soft HEAD~1
 # Make desired adjustments, then:
 git add .
-git commit -m "feat(beneficiary): add in-table move controls, inline header editing, in-table column adder, and allow deleting any column"
+git commit -m "feat(beneficiary): set portrait as default document orientation in Mutual Benefit Fund & Sanction Orders Studio"
 ```
 
 ### 3. Push to Remote Repository
