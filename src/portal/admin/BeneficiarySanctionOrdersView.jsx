@@ -13,7 +13,8 @@ import {
   ChevronDown, ChevronUp, ArrowUp, ArrowDown, HelpCircle, X, Calendar,
   Hash, IndianRupee, Users, CheckSquare, Square, UserCheck, RefreshCw,
   Copy, PlusCircle, Sparkles, Share2, Eye, EyeOff, GripVertical, CheckCircle2,
-  AlertCircle, Building2, CreditCard, ShieldCheck, Award, ArrowLeft
+  AlertCircle, Building2, CreditCard, ShieldCheck, Award, ArrowLeft,
+  PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -177,6 +178,7 @@ export default function BeneficiarySanctionOrdersView({
   const [orientation, setOrientation] = useState('landscape'); // 'landscape' | 'portrait'
   const [tableFontSize, setTableFontSize] = useState('9.5px');
   const [rowPaddingPreset, setRowPaddingPreset] = useState('compact'); // 'compact' | 'standard' | 'spacious'
+  const [showControlsPanel, setShowControlsPanel] = useState(true);
 
   // ─── Letterhead & Institutional Metadata ───
   const [officeTitle, setOfficeTitle] = useState('OFFICE OF THE PRINCIPAL');
@@ -982,70 +984,64 @@ export default function BeneficiarySanctionOrdersView({
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 overflow-hidden font-sans">
-      {/* ─── TOP APP HEADER & ACTION BAR ─── */}
-      <header className="flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between shadow-2xs z-30">
-        <div className="flex items-center gap-3">
+      {/* ─── TOP APP HEADER & ACTION BAR (COMPACT HIGH-DENSITY) ─── */}
+      <header className="flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 py-1.5 flex items-center justify-between shadow-2xs z-30 min-h-[42px] gap-2">
+        <div className="flex items-center gap-2 min-w-0 shrink">
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+            className="p-1 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors shrink-0"
             title="Back to Reports / Admin Dashboard"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={14} />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                <CreditCard className="text-teal-600 dark:text-teal-400" size={19} />
-                Beneficiary Lists & Sanction Orders Studio
-              </h1>
-              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
-                Optimized
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Bulk database student fetch • Bank debit orders • Mutual benefit rolls • Custom columns & totals
-            </p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <CreditCard className="text-teal-600 dark:text-teal-400 shrink-0" size={16} />
+            <h1 className="text-xs sm:text-sm font-black tracking-tight text-slate-900 dark:text-white truncate">
+              Beneficiary Lists & Sanction Orders
+            </h1>
+            <span className="hidden md:inline-block text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 shrink-0">
+              Studio
+            </span>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto">
           {/* Quick Preset Selector */}
-          <div className="relative">
-            <select
-              value={activePresetId}
-              onChange={(e) => {
-                const p = TEMPLATE_PRESETS.find(x => x.id === e.target.value);
-                if (p) handleApplyPreset(p);
-              }}
-              className="text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-2xs"
-            >
-              {TEMPLATE_PRESETS.map(p => (
-                <option key={p.id} value={p.id}>
-                  Template: {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={activePresetId}
+            onChange={(e) => {
+              const p = TEMPLATE_PRESETS.find(x => x.id === e.target.value);
+              if (p) handleApplyPreset(p);
+            }}
+            className="h-7 text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-slate-700 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-2xs max-w-[150px] sm:max-w-[210px] truncate shrink-0"
+            title="Select Sanction Order Template Preset"
+          >
+            {TEMPLATE_PRESETS.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
 
           {/* Orientation Toggle */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700 text-xs shrink-0 h-7">
             <button
               onClick={() => setOrientation('landscape')}
-              className={`px-2 py-1 rounded font-semibold transition-all ${
+              className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-all ${
                 orientation === 'landscape'
                   ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
               Landscape
             </button>
             <button
               onClick={() => setOrientation('portrait')}
-              className={`px-2 py-1 rounded font-semibold transition-all ${
+              className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-all ${
                 orientation === 'portrait'
                   ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
               Portrait
@@ -1055,557 +1051,77 @@ export default function BeneficiarySanctionOrdersView({
           {/* History / Drafts */}
           <button
             onClick={() => setShowHistoryModal(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs"
+            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs whitespace-nowrap shrink-0"
+            title="Document History & Saved Drafts"
           >
-            <RotateCcw size={14} className="text-slate-500" />
-            History
+            <RotateCcw size={12} className="text-slate-500 shrink-0" />
+            <span>History</span>
           </button>
 
           {/* Save to Cloud */}
           <button
             onClick={handleSaveToCloud}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs"
+            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs whitespace-nowrap shrink-0"
             title="Save draft to Cloud History"
           >
-            <Save size={14} className="text-teal-600" />
-            Save Draft
+            <Save size={12} className="text-teal-600 shrink-0" />
+            <span>Save</span>
           </button>
 
           {/* Excel Export */}
           <button
             onClick={handleExportExcel}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-colors shadow-2xs"
+            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-colors shadow-2xs whitespace-nowrap shrink-0"
             title="Export full Excel file"
           >
-            <FileSpreadsheet size={14} />
-            Excel
+            <FileSpreadsheet size={12} className="shrink-0" />
+            <span>Excel</span>
           </button>
 
           {/* Word Export */}
           <button
             onClick={handleExportDocx}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors shadow-2xs"
+            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors shadow-2xs whitespace-nowrap shrink-0"
             title="Export Word document"
           >
-            <FileText size={14} />
-            Word
+            <FileText size={12} className="shrink-0" />
+            <span>Word</span>
           </button>
 
           {/* Print / PDF Button */}
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition-all shadow-sm hover:shadow"
+            className="h-7 flex items-center gap-1.5 text-xs font-bold px-2.5 rounded-md bg-teal-600 hover:bg-teal-700 text-white transition-all shadow-2xs whitespace-nowrap shrink-0"
             title="Print or Save as PDF (Ctrl+P)"
           >
-            <Printer size={15} />
-            Print / PDF
+            <Printer size={13} className="shrink-0" />
+            <span>Print / PDF</span>
+          </button>
+
+          {/* Sidebar Controls Toggle */}
+          <button
+            onClick={() => setShowControlsPanel(!showControlsPanel)}
+            className={`h-7 flex items-center gap-1 text-[11px] font-bold px-2 rounded-md border transition-all whitespace-nowrap shrink-0 ${
+              showControlsPanel
+                ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
+                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+            title={showControlsPanel ? "Hide Controls Sidebar" : "Show Controls Sidebar"}
+          >
+            {showControlsPanel ? (
+              <PanelRightClose size={13} className="shrink-0" />
+            ) : (
+              <PanelRightOpen size={13} className="shrink-0" />
+            )}
+            <span className="hidden sm:inline">Controls</span>
           </button>
         </div>
       </header>
 
       {/* ─── DUAL PANE WORKSPACE ─── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ─── LEFT PANEL: CONFIGURATION, INGESTION & COLUMN CONTROLS ─── */}
-        <aside className="w-[430px] flex-none border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-4 space-y-4 shadow-xs">
-          {/* SECTION 1: Bulk Reg No Ingestion & Data Fetching */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 bg-slate-50 dark:bg-slate-800/40 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Users size={15} className="text-teal-600" />
-                Student Reg. No. Fetcher
-              </h2>
-              <span className="text-[11px] font-bold text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/60 px-2 py-0.5 rounded-full">
-                {beneficiaries.length} Enrolled
-              </span>
-            </div>
-
-            {/* Session & Class Filters */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">Session</label>
-                <select
-                  value={selectedSession}
-                  onChange={(e) => setSelectedSession(e.target.value)}
-                  className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 font-medium"
-                >
-                  {CANONICAL_ACADEMIC_SESSIONS.slice(0, 10).map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">Class Cohort</label>
-                <select
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 font-medium"
-                >
-                  <option value="All">All Classes (9th–12th)</option>
-                  <option value="9th">Class 9th</option>
-                  <option value="10th">Class 10th</option>
-                  <option value="11th">Class 11th</option>
-                  <option value="12th">Class 12th</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Bulk Reg No Textarea */}
-            <div>
-              <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1 flex items-center justify-between">
-                <span>Single or Bulk Registration No(s)</span>
-                <span className="text-[9px] text-slate-400 lowercase font-normal">paste from Excel or comma/line separated</span>
-              </label>
-              <textarea
-                value={bulkRegInput}
-                onChange={(e) => setBulkRegInput(e.target.value)}
-                rows={3}
-                placeholder="e.g. 0137040150003845, 0137040150006966, 0137040100015349&#10;or paste a whole column of Reg Nos..."
-                className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-              />
-            </div>
-
-            {/* Fetch & Add Action Button */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleFetchBulkRegs}
-                disabled={isFetchingRegs}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors shadow-2xs disabled:opacity-50"
-              >
-                {isFetchingRegs ? (
-                  <>
-                    <RefreshCw size={13} className="animate-spin" />
-                    Fetching Data...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={14} />
-                    Fetch & Add Students
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={handleAddManualRow}
-                className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 text-slate-700 dark:text-slate-300 text-xs font-semibold py-2 px-2.5 rounded-lg transition-colors"
-                title="Add blank editable row (e.g. non-student vendor / shop)"
-              >
-                <Plus size={14} />
-                + Blank / Shop
-              </button>
-            </div>
-
-            {/* Quick Fuzzy Student Search Bar */}
-            <div className="relative pt-1 border-t border-slate-200 dark:border-slate-700/60">
-              <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
-                Quick Student Finder (Name / Roll / Reg)
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={studentSearchQuery}
-                  onChange={(e) => {
-                    setStudentSearchQuery(e.target.value);
-                    setShowSearchDropdown(true);
-                  }}
-                  onFocus={() => setShowSearchDropdown(true)}
-                  placeholder="Type student name or roll number..."
-                  className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg pl-7 pr-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                />
-                <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
-              </div>
-
-              {/* Autocomplete Dropdown */}
-              {showSearchDropdown && searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto">
-                  <div className="p-1">
-                    {searchResults.map((st, i) => (
-                      <div
-                        key={st.id || i}
-                        onClick={() => handleAddSingleStudent(st)}
-                        className="p-2 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer flex items-center justify-between text-xs transition-colors"
-                      >
-                        <div>
-                          <div className="font-bold text-slate-800 dark:text-slate-200">
-                            {extractStudentName(st)}
-                          </div>
-                          <div className="text-[10px] text-slate-500">
-                            {extractParentage(st) || extractFatherName(st)} • Cl: {extractClass(st)}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-mono text-[10px] text-teal-600 dark:text-teal-400 font-bold">
-                            {cleanRegNoVal(extractBoardRegNo(st)) || 'No Reg'}
-                          </div>
-                          <div className="text-[9px] text-slate-400">
-                            A/c: {extractBankAccount(st) || '—'}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Bulk Amount Helper Button */}
-            {beneficiaries.length > 0 && (
-              <div className="flex items-center justify-between pt-1">
-                <button
-                  onClick={() => setShowFillAmountModal(true)}
-                  className="text-xs text-teal-700 dark:text-teal-300 hover:underline font-bold flex items-center gap-1"
-                >
-                  <IndianRupee size={12} />
-                  Fill / Update Amounts (₹600 / ₹800)
-                </button>
-                <button
-                  onClick={() => {
-                    if (window.confirm('Clear all enrolled beneficiary rows from table?')) {
-                      setBeneficiaries([]);
-                    }
-                  }}
-                  className="text-xs text-rose-600 hover:underline font-semibold"
-                >
-                  Clear All
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* SECTION 2: Reference Number & Date */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 bg-slate-50 dark:bg-slate-800/40 space-y-3">
-            <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-              <Hash size={15} className="text-indigo-600" />
-              Reference Number & Issue Date
-            </h2>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] font-bold uppercase text-slate-500">
-                  Reference Number
-                </label>
-                {refParts.serialNum && (
-                  <span className="text-[10px] font-mono font-bold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded">
-                    Serial #{refParts.serialNum}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => handleStepRef(-1)}
-                  className="px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 font-bold text-xs"
-                  title="Decrement Serial (-1)"
-                >
-                  -
-                </button>
-                <input
-                  type="text"
-                  value={refNo}
-                  onChange={(e) => setRefNo(e.target.value)}
-                  className="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5"
-                />
-                <button
-                  onClick={() => handleStepRef(1)}
-                  className="px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 font-bold text-xs"
-                  title="Increment Serial (+1)"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
-                Issue Date (DD-MM-YYYY)
-              </label>
-              <input
-                type="text"
-                value={dateStr}
-                onChange={(e) => setDateStr(e.target.value)}
-                className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5"
-              />
-            </div>
-          </div>
-
-          {/* SECTION 3: Document Title & Bank Directive Preamble */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 bg-slate-50 dark:bg-slate-800/40 space-y-3">
-            <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-              <FileText size={15} className="text-amber-600" />
-              Document Title & Directive
-            </h2>
-
-            <div>
-              <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
-                Document Subtitle / Banner
-              </label>
-              <input
-                type="text"
-                value={documentTitle}
-                onChange={(e) => setDocumentTitle(e.target.value)}
-                className="w-full text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5"
-              />
-            </div>
-
-            {/* Bank Debit Directive Toggle */}
-            <div className="pt-1 border-t border-slate-200 dark:border-slate-700/60">
-              <label className="flex items-center gap-2 cursor-pointer mb-2">
-                <input
-                  type="checkbox"
-                  checked={showPreamble}
-                  onChange={(e) => setShowPreamble(e.target.checked)}
-                  className="rounded text-teal-600 focus:ring-teal-500"
-                />
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Include Bank Debit Directive Paragraph
-                </span>
-              </label>
-
-              {showPreamble && (
-                <div className="space-y-2 pl-5">
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">
-                      Source Institutional Account Number
-                    </label>
-                    <input
-                      type="text"
-                      value={sourceAccountNo}
-                      onChange={(e) => setSourceAccountNo(e.target.value)}
-                      placeholder="e.g. 0137040500000421"
-                      className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">
-                      Preamble Template (supports {'{totalAmount}'}, {'{accountNumber}'})
-                    </label>
-                    <textarea
-                      value={preambleText}
-                      onChange={(e) => setPreambleText(e.target.value)}
-                      rows={2}
-                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 font-serif"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* SECTION 4: Column Customization Matrix */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 bg-slate-50 dark:bg-slate-800/40 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <SlidersHorizontal size={15} className="text-emerald-600" />
-                Columns ({activeColumns.length})
-              </h2>
-
-              <div className="flex items-center gap-1">
-                {/* Standard DB Column Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowDbColDropdown(!showDbColDropdown)}
-                    className="text-[11px] font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-2 py-1 rounded text-teal-700 dark:text-teal-300 hover:bg-teal-50"
-                  >
-                    + DB Column
-                  </button>
-                  {showDbColDropdown && (
-                    <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 w-56 max-h-60 overflow-y-auto p-1.5 text-xs">
-                      {DB_COLUMN_GROUPS.map(g => (
-                        <div key={g.category} className="mb-2">
-                          <div className="text-[10px] font-black uppercase text-slate-400 px-2 py-1">
-                            {g.category}
-                          </div>
-                          {g.columns.map(c => (
-                            <button
-                              key={c.key}
-                              onClick={() => handleAddDbColumn(c)}
-                              className="w-full text-left px-2 py-1 hover:bg-teal-50 dark:hover:bg-slate-800 rounded flex items-center justify-between"
-                            >
-                              <span>{c.label}</span>
-                              {activeColumns.some(x => x.key === c.key) && (
-                                <Check size={12} className="text-teal-600" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Custom Column Button */}
-                <button
-                  onClick={() => setShowAddCustomColModal(true)}
-                  className="text-[11px] font-bold bg-teal-600 text-white px-2 py-1 rounded hover:bg-teal-700"
-                >
-                  + Custom
-                </button>
-              </div>
-            </div>
-
-            {/* Active Columns List */}
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-              {activeColumns.map((col, idx) => (
-                <div
-                  key={col.key}
-                  className="flex items-center justify-between p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs"
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-[10px] font-mono text-slate-400 w-4">{idx + 1}.</span>
-                    <input
-                      type="text"
-                      value={col.label}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setActiveColumns(prev => prev.map((c, i) => i === idx ? { ...c, label: val } : c));
-                      }}
-                      className="font-semibold text-slate-800 dark:text-slate-200 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-hidden text-xs py-0.5 truncate flex-1"
-                    />
-                    {col.isCustom && (
-                      <span className="text-[9px] uppercase px-1 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold">
-                        {col.type || 'custom'}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1 ml-2">
-                    <button
-                      onClick={() => handleMoveColumn(idx, -1)}
-                      disabled={idx === 0}
-                      className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-20"
-                      title="Move Left / Up"
-                    >
-                      <ArrowUp size={11} />
-                    </button>
-                    <button
-                      onClick={() => handleMoveColumn(idx, 1)}
-                      disabled={idx === activeColumns.length - 1}
-                      className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-20"
-                      title="Move Right / Down"
-                    >
-                      <ArrowDown size={11} />
-                    </button>
-                    <button
-                      onClick={() => handleRemoveColumn(col.key)}
-                      className="p-1 hover:bg-rose-50 text-rose-500 rounded"
-                      title="Remove Column"
-                    >
-                      <Trash2 size={11} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* SECTION 5: Certification Text Paragraph */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 bg-slate-50 dark:bg-slate-800/40 space-y-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showCertification}
-                onChange={(e) => setShowCertification(e.target.checked)}
-                className="rounded text-teal-600 focus:ring-teal-500"
-              />
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <ShieldCheck size={15} className="text-teal-600" />
-                Include Committee Certification Paragraph
-              </span>
-            </label>
-
-            {showCertification && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-[10px] text-slate-500">
-                  <span>Certification Text Template</span>
-                  <button
-                    onClick={() => setCertificationText(TEMPLATE_PRESETS[0].certificationTemplate)}
-                    className="text-teal-600 hover:underline font-bold"
-                  >
-                    Reset to Mutual Benefit Text
-                  </button>
-                </div>
-                <textarea
-                  value={certificationText}
-                  onChange={(e) => setCertificationText(e.target.value)}
-                  rows={6}
-                  className="w-full text-xs font-serif bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 leading-relaxed focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* SECTION 6: Signatures Configuration */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 bg-slate-50 dark:bg-slate-800/40 space-y-3">
-            <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-              <UserCheck size={15} className="text-purple-600" />
-              Signatory Blocks
-            </h2>
-
-            <div>
-              <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
-                Signature Style
-              </label>
-              <select
-                value={signaturesMode}
-                onChange={(e) => setSignaturesMode(e.target.value)}
-                className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 font-medium"
-              >
-                <option value="committee">Committee Members (1–5 Numbered Lines)</option>
-                <option value="principal">Designated Signatory (Principal on Right)</option>
-                <option value="both">Both (Committee on Left + Principal on Right)</option>
-              </select>
-            </div>
-
-            {(signaturesMode === 'committee' || signaturesMode === 'both') && (
-              <div className="space-y-2">
-                <div>
-                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">
-                    Committee Section Title
-                  </label>
-                  <input
-                    type="text"
-                    value={committeeHeader}
-                    onChange={(e) => setCommitteeHeader(e.target.value)}
-                    className="w-full text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">
-                    Number of Committee Signatory Lines (1 to 5)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={5}
-                    value={committeeMemberCount}
-                    onChange={(e) => setCommitteeMemberCount(Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 1)))}
-                    className="w-20 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 text-center"
-                  />
-                </div>
-              </div>
-            )}
-
-            {(signaturesMode === 'principal' || signaturesMode === 'both') && (
-              <div className="space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                <div>
-                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">
-                    Designated Signatory Title
-                  </label>
-                  <input
-                    type="text"
-                    value={principalTitle}
-                    onChange={(e) => setPrincipalTitle(e.target.value)}
-                    className="w-full text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </aside>
-
-        {/* ─── RIGHT PANEL: LIVE WYSIWYG DOCUMENT CANVAS ─── */}
-        <main className="flex-1 overflow-y-auto bg-slate-200/70 dark:bg-slate-950 p-6 flex flex-col items-center">
+        {/* ─── LEFT / MAIN CANVAS: LIVE WYSIWYG DOCUMENT CANVAS ─── */}
+        <main className="flex-1 overflow-y-auto bg-slate-200/70 dark:bg-slate-950 p-4 sm:p-6 flex flex-col items-center">
           {/* Document Sheet Container */}
           <div
             id="beneficiary-document-sheet"
@@ -1716,7 +1232,7 @@ export default function BeneficiarySanctionOrdersView({
                         colSpan={activeColumns.length + 1}
                         className="border border-slate-900 p-8 text-center text-slate-400 font-sans italic"
                       >
-                        No beneficiaries added yet. Use the left panel to fetch student registration numbers or add rows.
+                        No beneficiaries added yet. Use the controls panel on the right to fetch student registration numbers or add rows.
                       </td>
                     </tr>
                   ) : (
@@ -1783,40 +1299,42 @@ export default function BeneficiarySanctionOrdersView({
                     ))
                   )}
 
-                  {/* 6. Dynamic Total Sum Row (Matches Official Formatting) */}
-                  {beneficiaries.length > 0 && (
-                    <tr className="bg-slate-100 font-bold border-t-2 border-slate-900">
-                      {activeColumns.map((c, cIdx) => {
-                        if (cIdx === 0) {
-                          return (
-                            <td
-                              key={c.key}
-                              className="border border-slate-900 px-2 py-1 text-center font-extrabold uppercase text-[12px]"
-                            >
-                              Total
-                            </td>
-                          );
-                        }
-                        if (c.key === 'amount') {
-                          return (
-                            <td
-                              key={c.key}
-                              className="border border-slate-900 px-2 py-1 text-right font-extrabold text-[12px]"
-                            >
-                              ₹ {formattedTotalAmount}
-                            </td>
-                          );
-                        }
-                        return (
+                  {/* 6. Dynamic Total Sum Row (Colspan format to avoid S.No text wrapping) */}
+                  {beneficiaries.length > 0 && (() => {
+                    const amountIdx = activeColumns.findIndex(c => c.key === 'amount');
+                    if (amountIdx !== -1) {
+                      const beforeCols = activeColumns.slice(0, amountIdx);
+                      const afterCols = activeColumns.slice(amountIdx + 1);
+                      return (
+                        <tr className="bg-slate-100 font-bold border-t-2 border-slate-900">
                           <td
-                            key={c.key}
-                            className="border border-slate-900 px-1 py-1"
-                          />
-                        );
-                      })}
-                      <td className="print:hidden border border-slate-900" />
-                    </tr>
-                  )}
+                            colSpan={beforeCols.length}
+                            className="border border-slate-900 px-3 py-1 text-right font-extrabold uppercase text-[11px] tracking-wider"
+                          >
+                            Total Amount Sanctioned :
+                          </td>
+                          <td className="border border-slate-900 px-2 py-1 text-right font-extrabold text-[12px] whitespace-nowrap">
+                            ₹ {formattedTotalAmount}
+                          </td>
+                          {afterCols.map(c => (
+                            <td key={c.key} className="border border-slate-900 px-1 py-1" />
+                          ))}
+                          <td className="print:hidden border border-slate-900" />
+                        </tr>
+                      );
+                    }
+                    return (
+                      <tr className="bg-slate-100 font-bold border-t-2 border-slate-900">
+                        <td
+                          colSpan={activeColumns.length}
+                          className="border border-slate-900 px-3 py-1 text-right font-extrabold text-[11px]"
+                        >
+                          Total : ₹ {formattedTotalAmount}
+                        </td>
+                        <td className="print:hidden border border-slate-900" />
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -1838,13 +1356,10 @@ export default function BeneficiarySanctionOrdersView({
                 <div className="font-bold text-[12px] mb-4 text-center">
                   {committeeHeader}
                 </div>
-                <div className="flex items-center justify-between gap-4 font-bold text-[11px]">
-                  {Array.from({ length: committeeMemberCount }, (_, i) => (
-                    <div key={i} className="flex-1 text-center">
-                      <div className="border-b border-slate-800 pb-1 mb-1">
-                        &nbsp;
-                      </div>
-                      <div className="font-bold">
+                <div className="grid grid-cols-5 gap-3 pt-6">
+                  {Array.from({ length: committeeMemberCount }).map((_, i) => (
+                    <div key={i} className="text-center">
+                      <div className="border-t border-slate-900 mx-auto w-4/5 pt-1 font-bold text-[11px]">
                         {i + 1}
                       </div>
                     </div>
@@ -1871,6 +1386,556 @@ export default function BeneficiarySanctionOrdersView({
             )}
           </div>
         </main>
+
+        {/* ─── RIGHT SIDEBAR: CONFIGURATION, INGESTION & COLUMN CONTROLS ─── */}
+        {showControlsPanel && (
+          <aside className="w-80 lg:w-[350px] flex-none border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-2.5 space-y-2.5 shadow-xs">
+            {/* SECTION 1: Bulk Reg No Ingestion & Data Fetching */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Users size={14} className="text-teal-600" />
+                  Student Fetcher
+                </h2>
+                <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/60 px-1.5 py-0.2 rounded-full">
+                  {beneficiaries.length} Enrolled
+                </span>
+              </div>
+
+              {/* Session & Class Filters */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
+                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Session</label>
+                  <select
+                    value={selectedSession}
+                    onChange={(e) => setSelectedSession(e.target.value)}
+                    className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0 font-medium"
+                  >
+                    {CANONICAL_ACADEMIC_SESSIONS.slice(0, 10).map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Class Cohort</label>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0 font-medium"
+                  >
+                    <option value="All">All Classes (9th–12th)</option>
+                    <option value="9th">Class 9th</option>
+                    <option value="10th">Class 10th</option>
+                    <option value="11th">Class 11th</option>
+                    <option value="12th">Class 12th</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bulk Reg No Textarea */}
+              <div>
+                <div className="flex items-center justify-between mb-0.5">
+                  <label className="text-[9px] font-bold uppercase text-slate-500">Reg No(s)</label>
+                  <span className="text-[9px] text-slate-400 lowercase font-normal">Excel / comma / newline</span>
+                </div>
+                <textarea
+                  value={bulkRegInput}
+                  onChange={(e) => setBulkRegInput(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. 0137040150003845, 0137040150006966...&#10;or paste a whole column of Reg Nos"
+                  className="w-full h-14 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                />
+              </div>
+
+              {/* Fetch & Add Action Button */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleFetchBulkRegs}
+                  disabled={isFetchingRegs}
+                  className="flex-1 h-7 flex items-center justify-center gap-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-2 rounded-md transition-colors shadow-2xs disabled:opacity-50"
+                >
+                  {isFetchingRegs ? (
+                    <>
+                      <RefreshCw size={12} className="animate-spin" />
+                      <span>Fetching...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={13} />
+                      <span>Fetch & Add</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleAddManualRow}
+                  className="h-7 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 text-slate-700 dark:text-slate-300 text-xs font-semibold px-2 rounded-md transition-colors whitespace-nowrap"
+                  title="Add blank editable row (e.g. non-student vendor / shop)"
+                >
+                  <Plus size={13} />
+                  <span>+ Blank</span>
+                </button>
+              </div>
+
+              {/* Quick Fuzzy Student Search Bar */}
+              <div className="relative pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                  Quick Student Finder
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={studentSearchQuery}
+                    onChange={(e) => {
+                      setStudentSearchQuery(e.target.value);
+                      setShowSearchDropdown(true);
+                    }}
+                    onFocus={() => setShowSearchDropdown(true)}
+                    placeholder="Type student name or roll..."
+                    className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md pl-6 pr-2 py-0 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                  />
+                  <Search size={12} className="absolute left-2 top-2 text-slate-400" />
+                </div>
+
+                {/* Autocomplete Dropdown */}
+                {showSearchDropdown && searchResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto">
+                    <div className="p-1">
+                      {searchResults.map((st, i) => (
+                        <div
+                          key={st.id || i}
+                          onClick={() => handleAddSingleStudent(st)}
+                          className="p-1.5 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-md cursor-pointer flex items-center justify-between text-xs transition-colors"
+                        >
+                          <div>
+                            <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                              {extractStudentName(st)}
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              {extractParentage(st) || extractFatherName(st)} • Cl: {extractClass(st)}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-mono text-[10px] text-teal-600 dark:text-teal-400 font-bold">
+                              {cleanRegNoVal(extractBoardRegNo(st)) || 'No Reg'}
+                            </div>
+                            <div className="text-[9px] text-slate-400">
+                              A/c: {extractBankAccount(st) || '—'}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Bulk Amount Helper Button */}
+              {beneficiaries.length > 0 && (
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-700/40">
+                  <button
+                    onClick={() => setShowFillAmountModal(true)}
+                    className="text-[11px] text-teal-700 dark:text-teal-300 hover:underline font-bold flex items-center gap-1"
+                  >
+                    <IndianRupee size={11} />
+                    Fill Amounts (₹600 / ₹800)
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Clear all enrolled beneficiary rows from table?')) {
+                        setBeneficiaries([]);
+                      }
+                    }}
+                    className="text-[11px] text-rose-600 hover:underline font-semibold"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 2: Reference Number & Date */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Hash size={14} className="text-indigo-600" />
+                  Reference & Date
+                </h2>
+                {refParts.serialNum && (
+                  <span className="text-[9px] font-mono font-bold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded">
+                    Serial #{refParts.serialNum}
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                  Reference Number
+                </label>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleStepRef(-1)}
+                    className="h-7 w-7 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-100 font-bold text-xs shrink-0"
+                    title="Decrement Serial (-1)"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="text"
+                    value={refNo}
+                    onChange={(e) => setRefNo(e.target.value)}
+                    className="flex-1 h-7 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                  />
+                  <button
+                    onClick={() => handleStepRef(1)}
+                    className="h-7 w-7 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-100 font-bold text-xs shrink-0"
+                    title="Increment Serial (+1)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                  Issue Date (DD-MM-YYYY)
+                </label>
+                <input
+                  type="text"
+                  value={dateStr}
+                  onChange={(e) => setDateStr(e.target.value)}
+                  className="w-full h-7 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                />
+              </div>
+            </div>
+
+            {/* SECTION 3: Document Title & Styling */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+              <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <FileText size={14} className="text-amber-600" />
+                Document Title & Styling
+              </h2>
+
+              <div>
+                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                  Document Subtitle / Banner
+                </label>
+                <input
+                  type="text"
+                  value={documentTitle}
+                  onChange={(e) => setDocumentTitle(e.target.value)}
+                  className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                />
+              </div>
+
+              {/* Table Density & Font Size Controls */}
+              <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                <div>
+                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Row Spacing</label>
+                  <div className="flex rounded-md border border-slate-300 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-900 text-[10px]">
+                    {['compact', 'standard', 'spacious'].map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setRowPaddingPreset(p)}
+                        className={`flex-1 py-0.5 rounded capitalize font-medium ${
+                          rowPaddingPreset === p
+                            ? 'bg-teal-600 text-white font-bold'
+                            : 'text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {p === 'standard' ? 'norm' : p === 'spacious' ? 'spc' : 'cpt'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Font Size</label>
+                  <select
+                    value={tableFontSize}
+                    onChange={(e) => setTableFontSize(e.target.value)}
+                    className="w-full h-6 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1"
+                  >
+                    <option value="8.5px">8.5 pt</option>
+                    <option value="9.5px">9.5 pt</option>
+                    <option value="10.5px">10.5 pt</option>
+                    <option value="11.5px">11.5 pt</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Letterhead Border Checkbox */}
+              <div className="pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showLetterheadBorder}
+                    onChange={(e) => setShowLetterheadBorder(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                    Red Letterhead Border Frame
+                  </span>
+                </label>
+              </div>
+
+              {/* Bank Debit Directive Toggle */}
+              <div className="pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                <label className="flex items-center gap-1.5 cursor-pointer mb-1.5">
+                  <input
+                    type="checkbox"
+                    checked={showPreamble}
+                    onChange={(e) => setShowPreamble(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                    Bank Debit Directive Paragraph
+                  </span>
+                </label>
+
+                {showPreamble && (
+                  <div className="space-y-1.5 pl-4">
+                    <div>
+                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                        Source Account Number
+                      </label>
+                      <input
+                        type="text"
+                        value={sourceAccountNo}
+                        onChange={(e) => setSourceAccountNo(e.target.value)}
+                        placeholder="e.g. 0137040500000421"
+                        className="w-full h-7 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                        Directive Template
+                      </label>
+                      <textarea
+                        value={preambleText}
+                        onChange={(e) => setPreambleText(e.target.value)}
+                        rows={2}
+                        className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 font-serif"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECTION 4: Column Customization Matrix */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <SlidersHorizontal size={14} className="text-emerald-600" />
+                  Columns ({activeColumns.length})
+                </h2>
+
+                <div className="flex items-center gap-1">
+                  {/* Standard DB Column Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowDbColDropdown(!showDbColDropdown)}
+                      className="text-[10px] font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 rounded text-teal-700 dark:text-teal-300 hover:bg-teal-50"
+                    >
+                      + DB Col
+                    </button>
+                    {showDbColDropdown && (
+                      <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 w-52 max-h-56 overflow-y-auto p-1.5 text-xs">
+                        {DB_COLUMN_GROUPS.map(g => (
+                          <div key={g.category} className="mb-2">
+                            <div className="text-[9px] font-black uppercase text-slate-400 px-1.5 py-0.5">
+                              {g.category}
+                            </div>
+                            {g.columns.map(c => (
+                              <button
+                                key={c.key}
+                                onClick={() => handleAddDbColumn(c)}
+                                className="w-full text-left px-1.5 py-1 hover:bg-teal-50 dark:hover:bg-slate-800 rounded flex items-center justify-between text-xs"
+                              >
+                                <span>{c.label}</span>
+                                {activeColumns.some(x => x.key === c.key) && (
+                                  <Check size={12} className="text-teal-600" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Custom Column Button */}
+                  <button
+                    onClick={() => setShowAddCustomColModal(true)}
+                    className="text-[10px] font-bold bg-teal-600 text-white px-1.5 py-0.5 rounded hover:bg-teal-700"
+                  >
+                    + Custom
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Columns List */}
+              <div className="space-y-1 max-h-44 overflow-y-auto pr-0.5">
+                {activeColumns.map((col, idx) => (
+                  <div
+                    key={col.key}
+                    className="flex items-center justify-between p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-xs"
+                  >
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <span className="text-[9px] font-mono text-slate-400 w-3">{idx + 1}.</span>
+                      <input
+                        type="text"
+                        value={col.label}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setActiveColumns(prev => prev.map((c, i) => i === idx ? { ...c, label: val } : c));
+                        }}
+                        className="font-semibold text-slate-800 dark:text-slate-200 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-hidden text-xs py-0 truncate flex-1"
+                      />
+                      {col.isCustom && (
+                        <span className="text-[8px] uppercase px-1 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold shrink-0">
+                          {col.type || 'custom'}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-0.5 ml-1 shrink-0">
+                      <button
+                        onClick={() => handleMoveColumn(idx, -1)}
+                        disabled={idx === 0}
+                        className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-20"
+                        title="Move Up"
+                      >
+                        <ArrowUp size={11} />
+                      </button>
+                      <button
+                        onClick={() => handleMoveColumn(idx, 1)}
+                        disabled={idx === activeColumns.length - 1}
+                        className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-20"
+                        title="Move Down"
+                      >
+                        <ArrowDown size={11} />
+                      </button>
+                      <button
+                        onClick={() => handleRemoveColumn(col.key)}
+                        className="p-0.5 hover:bg-rose-50 text-rose-500 rounded"
+                        title="Remove Column"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* SECTION 5: Certification Text Paragraph */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showCertification}
+                  onChange={(e) => setShowCertification(e.target.checked)}
+                  className="rounded text-teal-600 focus:ring-teal-500"
+                />
+                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                  <ShieldCheck size={14} className="text-teal-600" />
+                  Committee Certification Paragraph
+                </span>
+              </label>
+
+              {showCertification && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[9px] text-slate-500">
+                    <span>Certification Template</span>
+                    <button
+                      onClick={() => setCertificationText(TEMPLATE_PRESETS[0].certificationTemplate)}
+                      className="text-teal-600 hover:underline font-bold"
+                    >
+                      Reset Text
+                    </button>
+                  </div>
+                  <textarea
+                    value={certificationText}
+                    onChange={(e) => setCertificationText(e.target.value)}
+                    rows={4}
+                    className="w-full text-xs font-serif bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 leading-relaxed focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 6: Signatures Configuration */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+              <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <UserCheck size={14} className="text-purple-600" />
+                Signatory Blocks
+              </h2>
+
+              <div>
+                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                  Signature Style
+                </label>
+                <select
+                  value={signaturesMode}
+                  onChange={(e) => setSignaturesMode(e.target.value)}
+                  className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 font-medium"
+                >
+                  <option value="committee">Committee Members (1–5 Lines)</option>
+                  <option value="principal">Designated Signatory (Right-aligned)</option>
+                  <option value="both">Both (Committee + Designated)</option>
+                </select>
+              </div>
+
+              {(signaturesMode === 'committee' || signaturesMode === 'both') && (
+                <div className="space-y-1.5">
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                      Committee Section Title
+                    </label>
+                    <input
+                      type="text"
+                      value={committeeHeader}
+                      onChange={(e) => setCommitteeHeader(e.target.value)}
+                      className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                      Number of Committee Slots (1 to 5)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={committeeMemberCount}
+                      onChange={(e) => setCommitteeMemberCount(Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 1)))}
+                      className="w-20 h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-center"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(signaturesMode === 'principal' || signaturesMode === 'both') && (
+                <div className="space-y-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                      Designated Signatory Title
+                    </label>
+                    <input
+                      type="text"
+                      value={principalTitle}
+                      onChange={(e) => setPrincipalTitle(e.target.value)}
+                      className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* ─── MODAL: Bulk Amount Filler ─── */}
