@@ -46,6 +46,11 @@ export function printOfficialLetter({
   secondarySignatory = null,
   complimentaryClose = 'Yours faithfully,',
   baseFontSize = '12.5px',
+  signatureGap = 64,
+  signatoryAlign = 'right',
+  signatoryOffsetX = 0,
+  signatoryOffsetY = 0,
+  valedictionOffsetX = 0,
   copyToText = '',
   pageMargin = '0.5in',
   headerLayout = 'logo_right'
@@ -180,7 +185,7 @@ export function printOfficialLetter({
         /* Signatories */
         .signatories-block {
           display: flex;
-          justify-content: ${secondarySignatory ? 'space-between' : 'flex-end'};
+          justify-content: ${secondarySignatory ? 'space-between' : (signatoryAlign === 'left' ? 'flex-start' : signatoryAlign === 'center' ? 'center' : 'flex-end')};
           align-items: flex-end;
           margin-top: 24px;
           page-break-inside: avoid;
@@ -189,13 +194,18 @@ export function printOfficialLetter({
           text-align: center;
           width: 224px;
           min-width: 224px;
+          ${(signatoryOffsetX || signatoryOffsetY) ? `transform: translate(${signatoryOffsetX}px, ${signatoryOffsetY}px);` : ''}
         }
         .sig-close {
           font-size: ${baseFontSize || '12.5px'};
           font-weight: 600;
           color: #0f172a;
           text-align: center;
-          margin-bottom: 24px;
+          margin-bottom: 0px;
+          ${valedictionOffsetX ? `transform: translateX(${valedictionOffsetX}px);` : ''}
+        }
+        .sig-gap {
+          height: ${typeof signatureGap === 'number' ? `${signatureGap}px` : (signatureGap || '64px')};
         }
         .sig-name {
           font-size: 11.5px;
@@ -276,6 +286,7 @@ export function printOfficialLetter({
 
           <div class="sig-box" style="text-align: center; width: 224px; min-width: 224px;">
             ${complimentaryClose ? `<div class="sig-close">${complimentaryClose}</div>` : ''}
+            <div class="sig-gap"></div>
             ${signatoryName ? `<div class="sig-name">${signatoryName}</div>` : ''}
             <div class="sig-desig">${signatoryDesignation || 'Principal'}</div>
             <div class="sig-inst">${signatoryInstitution || institutionName}</div>
@@ -343,6 +354,8 @@ export async function generateOfficialLetterDocx({
   signatoryInstitution = 'Govt. Hr Sec. School Shangus',
   complimentaryClose = 'Yours faithfully,',
   baseFontSize = '13px',
+  signatureGap = 64,
+  signatoryAlign = 'right',
   copyToText = ''
 }) {
   const finalDate = dateStr || new Date().toLocaleDateString('en-GB');
@@ -464,8 +477,8 @@ export async function generateOfficialLetterDocx({
         // Complimentary Close / Valediction & Signature Spacing & Block
         ...(complimentaryClose ? [
           new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            spacing: { before: 240, after: 280 },
+            alignment: signatoryAlign === 'left' ? AlignmentType.LEFT : signatoryAlign === 'center' ? AlignmentType.CENTER : AlignmentType.RIGHT,
+            spacing: { before: 240, after: Math.round((parseInt(signatureGap, 10) || 64) * 14) },
             children: [
               new TextRun({
                 text: complimentaryClose,
@@ -475,11 +488,14 @@ export async function generateOfficialLetterDocx({
             ]
           })
         ] : [
-          new Paragraph({ spacing: { before: 360, after: 30 } })
+          new Paragraph({
+            alignment: signatoryAlign === 'left' ? AlignmentType.LEFT : signatoryAlign === 'center' ? AlignmentType.CENTER : AlignmentType.RIGHT,
+            spacing: { before: Math.round((parseInt(signatureGap, 10) || 64) * 14), after: 30 }
+          })
         ]),
         ...(signatoryName ? [
           new Paragraph({
-            alignment: AlignmentType.RIGHT,
+            alignment: signatoryAlign === 'left' ? AlignmentType.LEFT : signatoryAlign === 'center' ? AlignmentType.CENTER : AlignmentType.RIGHT,
             spacing: { after: 20 },
             children: [
               new TextRun({
@@ -493,7 +509,7 @@ export async function generateOfficialLetterDocx({
           })
         ] : []),
         new Paragraph({
-          alignment: AlignmentType.RIGHT,
+          alignment: signatoryAlign === 'left' ? AlignmentType.LEFT : signatoryAlign === 'center' ? AlignmentType.CENTER : AlignmentType.RIGHT,
           children: [
             new TextRun({
               text: (signatoryDesignation || 'Principal').toUpperCase(),
@@ -505,7 +521,7 @@ export async function generateOfficialLetterDocx({
           ]
         }),
         new Paragraph({
-          alignment: AlignmentType.RIGHT,
+          alignment: signatoryAlign === 'left' ? AlignmentType.LEFT : signatoryAlign === 'center' ? AlignmentType.CENTER : AlignmentType.RIGHT,
           spacing: { after: 180 },
           children: [
             new TextRun({

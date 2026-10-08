@@ -13,7 +13,7 @@ import {
   CornerDownLeft, PlusCircle, Trash2, ArrowLeft, RefreshCw, Bot,
   Key, Wand2, Shield, AlertCircle, ExternalLink, X, FileEdit, Plus, Minus,
   BookmarkPlus, FolderPlus, Award, History, RemoveFormatting, Palette, CheckCircle2,
-  Info, AlertTriangle
+  Info, AlertTriangle, Move
 } from 'lucide-react';
 import {
   printOfficialLetter,
@@ -207,6 +207,51 @@ export default function OfficialLetterWriterView({
       return '13px';
     }
   });
+  const [signatureGap, setSignatureGap] = useState(() => {
+    try {
+      const s = localStorage.getItem('hss_letter_signature_gap');
+      return s ? parseInt(s, 10) || 64 : 64;
+    } catch {
+      return 64;
+    }
+  });
+  const [signatoryAlign, setSignatoryAlign] = useState(() => {
+    try {
+      return localStorage.getItem('hss_letter_signatory_align') || 'right';
+    } catch {
+      return 'right';
+    }
+  });
+  const [signatoryOffsetX, setSignatoryOffsetX] = useState(() => {
+    try {
+      const s = localStorage.getItem('hss_letter_signatory_offset_x');
+      return s ? parseInt(s, 10) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [signatoryOffsetY, setSignatoryOffsetY] = useState(() => {
+    try {
+      const s = localStorage.getItem('hss_letter_signatory_offset_y');
+      return s ? parseInt(s, 10) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [valedictionOffsetX, setValedictionOffsetX] = useState(() => {
+    try {
+      const s = localStorage.getItem('hss_letter_valediction_offset_x');
+      return s ? parseInt(s, 10) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [isDraggingGap, setIsDraggingGap] = useState(false);
+  const [isDraggingSignatory, setIsDraggingSignatory] = useState(false);
+  const [isDraggingValediction, setIsDraggingValediction] = useState(false);
+  const gapDragRef = useRef({ startY: 0, startGap: 64 });
+  const signatoryDragRef = useRef({ startX: 0, startY: 0, initOffsetX: 0, initOffsetY: 0 });
+  const valedictionDragRef = useRef({ startX: 0, initOffsetX: 0 });
   const [copyToText, setCopyToText] = useState(''); // Default: Empty, do not show by default
   const [pageMargin, setPageMargin] = useState('0.5in');
   const [headerLayout, setHeaderLayout] = useState('logo_right'); // 'logo_right' (default) | 'logo_center' | 'logo_left'
@@ -516,6 +561,11 @@ export default function OfficialLetterWriterView({
             signatoryInstitution,
             complimentaryClose,
             baseFontSize,
+            signatureGap,
+            signatoryAlign,
+            signatoryOffsetX,
+            signatoryOffsetY,
+            valedictionOffsetX,
             copyToText,
             pageMargin,
             headerLayout,
@@ -607,6 +657,11 @@ export default function OfficialLetterWriterView({
               if (draft.signatoryInstitution !== undefined) setSignatoryInstitution(draft.signatoryInstitution);
               if (draft.complimentaryClose !== undefined) setComplimentaryClose(draft.complimentaryClose);
               if (draft.baseFontSize !== undefined) setBaseFontSize(draft.baseFontSize);
+              if (draft.signatureGap !== undefined) setSignatureGap(draft.signatureGap);
+              if (draft.signatoryAlign !== undefined) setSignatoryAlign(draft.signatoryAlign);
+              if (draft.signatoryOffsetX !== undefined) setSignatoryOffsetX(draft.signatoryOffsetX);
+              if (draft.signatoryOffsetY !== undefined) setSignatoryOffsetY(draft.signatoryOffsetY);
+              if (draft.valedictionOffsetX !== undefined) setValedictionOffsetX(draft.valedictionOffsetX);
               if (draft.pageMargin !== undefined) setPageMargin(draft.pageMargin);
               if (draft.headerLayout !== undefined) setHeaderLayout(draft.headerLayout);
               if (draft.copyToText !== undefined) setCopyToText(draft.copyToText || '');
@@ -634,6 +689,10 @@ export default function OfficialLetterWriterView({
           if (targetTpl.signatoryInstitution !== undefined) setSignatoryInstitution(targetTpl.signatoryInstitution);
           if (targetTpl.complimentaryClose !== undefined) setComplimentaryClose(targetTpl.complimentaryClose);
           if (targetTpl.baseFontSize !== undefined) setBaseFontSize(targetTpl.baseFontSize);
+          if (targetTpl.signatureGap !== undefined) setSignatureGap(targetTpl.signatureGap);
+          if (targetTpl.signatoryAlign !== undefined) setSignatoryAlign(targetTpl.signatoryAlign);
+          if (targetTpl.signatoryOffsetX !== undefined) setSignatoryOffsetX(targetTpl.signatoryOffsetX);
+          if (targetTpl.signatoryOffsetY !== undefined) setSignatoryOffsetY(targetTpl.signatoryOffsetY);
           if (targetTpl.pageMargin !== undefined) setPageMargin(targetTpl.pageMargin);
           if (targetTpl.headerLayout !== undefined) setHeaderLayout(targetTpl.headerLayout);
           if (targetTpl.copyTo !== undefined) setCopyToText(targetTpl.copyTo || '');
@@ -905,6 +964,148 @@ export default function OfficialLetterWriterView({
       }
       handleSetFontSize(FONT_SIZES[nextIdx]);
     }
+  };
+
+  // ─── Signatory & Seal Space Customization Handlers ───
+  const handleSetSignatureGap = (val) => {
+    const num = Math.max(16, Math.min(180, parseInt(val, 10) || 64));
+    setSignatureGap(num);
+    try { localStorage.setItem('hss_letter_signature_gap', String(num)); } catch {}
+  };
+
+  const handleSetSignatoryAlign = (align) => {
+    setSignatoryAlign(align);
+    setSignatoryOffsetX(0);
+    setSignatoryOffsetY(0);
+    try {
+      localStorage.setItem('hss_letter_signatory_align', align);
+      localStorage.setItem('hss_letter_signatory_offset_x', '0');
+      localStorage.setItem('hss_letter_signatory_offset_y', '0');
+    } catch {}
+  };
+
+  const handleResetSignatoryPosition = () => {
+    setSignatoryAlign('right');
+    setSignatoryOffsetX(0);
+    setSignatoryOffsetY(0);
+    setValedictionOffsetX(0);
+    setSignatureGap(64);
+    try {
+      localStorage.setItem('hss_letter_signatory_align', 'right');
+      localStorage.setItem('hss_letter_signatory_offset_x', '0');
+      localStorage.setItem('hss_letter_signatory_offset_y', '0');
+      localStorage.setItem('hss_letter_valediction_offset_x', '0');
+      localStorage.setItem('hss_letter_signature_gap', '64');
+    } catch {}
+    showToast('Reset signatory position and seal spacing to default.', 'info', 2500);
+  };
+
+  // Drag-to-resize Seal & Signature Gap
+  const handleGapDragStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    gapDragRef.current = { startY: e.clientY, startGap: signatureGap };
+    setIsDraggingGap(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'ns-resize';
+
+    const onPointerMove = (moveEvt) => {
+      const deltaY = moveEvt.clientY - gapDragRef.current.startY;
+      const newGap = Math.max(16, Math.min(180, Math.round(gapDragRef.current.startGap + deltaY)));
+      setSignatureGap(newGap);
+    };
+
+    const onPointerUp = (upEvt) => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      setIsDraggingGap(false);
+      const deltaY = upEvt.clientY - gapDragRef.current.startY;
+      const finalGap = Math.max(16, Math.min(180, Math.round(gapDragRef.current.startGap + deltaY)));
+      try { localStorage.setItem('hss_letter_signature_gap', String(finalGap)); } catch {}
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
+
+  // Drag-to-move Entire Signatory Block
+  const handleSignatoryDragStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    signatoryDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initOffsetX: signatoryOffsetX,
+      initOffsetY: signatoryOffsetY
+    };
+    setIsDraggingSignatory(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+
+    const onPointerMove = (moveEvt) => {
+      const dx = moveEvt.clientX - signatoryDragRef.current.startX;
+      const dy = moveEvt.clientY - signatoryDragRef.current.startY;
+      const newX = Math.max(-650, Math.min(300, Math.round(signatoryDragRef.current.initOffsetX + dx)));
+      const newY = Math.max(-120, Math.min(250, Math.round(signatoryDragRef.current.initOffsetY + dy)));
+      setSignatoryOffsetX(newX);
+      setSignatoryOffsetY(newY);
+    };
+
+    const onPointerUp = (upEvt) => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      setIsDraggingSignatory(false);
+      const dx = upEvt.clientX - signatoryDragRef.current.startX;
+      const dy = upEvt.clientY - signatoryDragRef.current.startY;
+      const finalX = Math.max(-650, Math.min(300, Math.round(signatoryDragRef.current.initOffsetX + dx)));
+      const finalY = Math.max(-120, Math.min(250, Math.round(signatoryDragRef.current.initOffsetY + dy)));
+      try {
+        localStorage.setItem('hss_letter_signatory_offset_x', String(finalX));
+        localStorage.setItem('hss_letter_signatory_offset_y', String(finalY));
+      } catch {}
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
+
+  // Drag-to-nudge Valediction Line
+  const handleValedictionDragStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    valedictionDragRef.current = {
+      startX: e.clientX,
+      initOffsetX: valedictionOffsetX
+    };
+    setIsDraggingValediction(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'ew-resize';
+
+    const onPointerMove = (moveEvt) => {
+      const dx = moveEvt.clientX - valedictionDragRef.current.startX;
+      const newX = Math.max(-150, Math.min(150, Math.round(valedictionDragRef.current.initOffsetX + dx)));
+      setValedictionOffsetX(newX);
+    };
+
+    const onPointerUp = (upEvt) => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      setIsDraggingValediction(false);
+      const dx = upEvt.clientX - valedictionDragRef.current.startX;
+      const finalX = Math.max(-150, Math.min(150, Math.round(valedictionDragRef.current.initOffsetX + dx)));
+      try {
+        localStorage.setItem('hss_letter_valediction_offset_x', String(finalX));
+      } catch {}
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
   };
 
   // Helper to find closest table elements (with persistent fallback cache)
@@ -1205,6 +1406,10 @@ export default function OfficialLetterWriterView({
     if (tpl.signatoryInstitution !== undefined) setSignatoryInstitution(tpl.signatoryInstitution);
     if (tpl.complimentaryClose !== undefined) setComplimentaryClose(tpl.complimentaryClose);
     if (tpl.baseFontSize !== undefined) setBaseFontSize(tpl.baseFontSize);
+    if (tpl.signatureGap !== undefined) setSignatureGap(tpl.signatureGap);
+    if (tpl.signatoryAlign !== undefined) setSignatoryAlign(tpl.signatoryAlign);
+    if (tpl.signatoryOffsetX !== undefined) setSignatoryOffsetX(tpl.signatoryOffsetX);
+    if (tpl.signatoryOffsetY !== undefined) setSignatoryOffsetY(tpl.signatoryOffsetY);
     if (tpl.pageMargin !== undefined) setPageMargin(tpl.pageMargin);
     if (tpl.headerLayout !== undefined) setHeaderLayout(tpl.headerLayout);
     if (tpl.copyTo !== undefined) setCopyToText(tpl.copyTo || '');
@@ -1268,6 +1473,11 @@ export default function OfficialLetterWriterView({
       signatoryInstitution: signatoryInstitution || 'Govt. Hr Sec. School Shangus',
       complimentaryClose: complimentaryClose !== undefined ? complimentaryClose : 'Yours faithfully,',
       baseFontSize: baseFontSize || '13px',
+      signatureGap: signatureGap || 64,
+      signatoryAlign: signatoryAlign || 'right',
+      signatoryOffsetX: signatoryOffsetX || 0,
+      signatoryOffsetY: signatoryOffsetY || 0,
+      valedictionOffsetX: valedictionOffsetX || 0,
       pageMargin: pageMargin || '0.5in',
       headerLayout: headerLayout || 'logo_right',
       bodyHtml: editorRef.current.innerHTML,
@@ -1316,6 +1526,11 @@ export default function OfficialLetterWriterView({
       signatoryInstitution: signatoryInstitution || 'Govt. Hr Sec. School Shangus',
       complimentaryClose: complimentaryClose !== undefined ? complimentaryClose : 'Yours faithfully,',
       baseFontSize: baseFontSize || '13px',
+      signatureGap: signatureGap || 64,
+      signatoryAlign: signatoryAlign || 'right',
+      signatoryOffsetX: signatoryOffsetX || 0,
+      signatoryOffsetY: signatoryOffsetY || 0,
+      valedictionOffsetX: valedictionOffsetX || 0,
       pageMargin: pageMargin || '0.5in',
       headerLayout: headerLayout || 'logo_right',
       bodyHtml: editorRef.current.innerHTML,
@@ -1440,6 +1655,11 @@ export default function OfficialLetterWriterView({
       signatoryInstitution,
       complimentaryClose,
       baseFontSize,
+      signatureGap,
+      signatoryAlign,
+      signatoryOffsetX,
+      signatoryOffsetY,
+      valedictionOffsetX,
       copyToText,
       pageMargin,
       headerLayout,
@@ -1475,6 +1695,11 @@ export default function OfficialLetterWriterView({
           signatoryInstitution,
           complimentaryClose,
           baseFontSize,
+          signatureGap,
+          signatoryAlign,
+          signatoryOffsetX,
+          signatoryOffsetY,
+          valedictionOffsetX,
           copyToText,
           pageMargin,
           headerLayout
@@ -1516,6 +1741,11 @@ export default function OfficialLetterWriterView({
           signatoryInstitution,
           complimentaryClose,
           baseFontSize,
+          signatureGap,
+          signatoryAlign,
+          signatoryOffsetX,
+          signatoryOffsetY,
+          valedictionOffsetX,
           copyToText,
           pageMargin,
           headerLayout
@@ -1538,6 +1768,11 @@ export default function OfficialLetterWriterView({
     if (rec.extraData?.signatoryDesignation) setSignatoryDesignation(rec.extraData.signatoryDesignation);
     if (rec.extraData?.complimentaryClose !== undefined) setComplimentaryClose(rec.extraData.complimentaryClose);
     if (rec.extraData?.baseFontSize !== undefined) setBaseFontSize(rec.extraData.baseFontSize);
+    if (rec.extraData?.signatureGap !== undefined) setSignatureGap(rec.extraData.signatureGap);
+    if (rec.extraData?.signatoryAlign !== undefined) setSignatoryAlign(rec.extraData.signatoryAlign);
+    if (rec.extraData?.signatoryOffsetX !== undefined) setSignatoryOffsetX(rec.extraData.signatoryOffsetX);
+    if (rec.extraData?.signatoryOffsetY !== undefined) setSignatoryOffsetY(rec.extraData.signatoryOffsetY);
+    if (rec.extraData?.valedictionOffsetX !== undefined) setValedictionOffsetX(rec.extraData.valedictionOffsetX);
     if (rec.bodyHtml && editorRef.current) {
       editorRef.current.innerHTML = rec.bodyHtml;
       pushSnapshot();
@@ -1574,6 +1809,11 @@ export default function OfficialLetterWriterView({
         signatoryInstitution,
         complimentaryClose,
         baseFontSize,
+        signatureGap,
+        signatoryAlign,
+        signatoryOffsetX,
+        signatoryOffsetY,
+        valedictionOffsetX,
         copyToText,
         pageMargin,
         headerLayout
@@ -1601,6 +1841,11 @@ export default function OfficialLetterWriterView({
       signatoryInstitution,
       complimentaryClose,
       baseFontSize,
+      signatureGap,
+      signatoryAlign,
+      signatoryOffsetX,
+      signatoryOffsetY,
+      valedictionOffsetX,
       copyToText,
       pageMargin,
       headerLayout
@@ -1662,6 +1907,8 @@ export default function OfficialLetterWriterView({
         signatoryInstitution,
         complimentaryClose,
         baseFontSize,
+        signatureGap,
+        signatoryAlign,
         copyToText,
         pageMargin,
         headerLayout
@@ -1683,6 +1930,8 @@ export default function OfficialLetterWriterView({
         signatoryInstitution,
         complimentaryClose,
         baseFontSize,
+        signatureGap,
+        signatoryAlign,
         copyToText
       });
 
@@ -1914,6 +2163,103 @@ export default function OfficialLetterWriterView({
               />
             </div>
 
+            {/* Seal & Signature Vertical Clearance Space */}
+            <div>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider">
+                  Seal & Signature Space
+                </label>
+                <span className="font-mono text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                  {signatureGap}px
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleSetSignatureGap(signatureGap - 6)}
+                  className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
+                  title="Decrease Space"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min="20"
+                  max="140"
+                  step="4"
+                  value={signatureGap}
+                  onChange={(e) => handleSetSignatureGap(Number(e.target.value))}
+                  className="flex-1 accent-amber-600 cursor-pointer h-1.5"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSetSignatureGap(signatureGap + 6)}
+                  className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
+                  title="Increase Space"
+                >
+                  +
+                </button>
+              </div>
+              <div className="flex items-center gap-1 mt-1">
+                {[
+                  { label: '36px Tight', val: 36 },
+                  { label: '64px Standard', val: 64 },
+                  { label: '96px Spacious', val: 96 }
+                ].map(p => (
+                  <button
+                    key={p.val}
+                    type="button"
+                    onClick={() => handleSetSignatureGap(p.val)}
+                    className={`flex-1 py-0.5 text-[8.5px] font-bold rounded cursor-pointer transition-all ${
+                      signatureGap === p.val 
+                        ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700' 
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Signatory Alignment & Position */}
+            <div>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider">
+                  Signatory Alignment
+                </label>
+                {(signatoryOffsetX !== 0 || signatoryOffsetY !== 0 || signatoryAlign !== 'right') && (
+                  <button
+                    type="button"
+                    onClick={handleResetSignatoryPosition}
+                    className="text-[8px] text-rose-600 hover:underline font-bold cursor-pointer"
+                  >
+                    Reset Position
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  { id: 'left', label: 'Left' },
+                  { id: 'center', label: 'Center' },
+                  { id: 'right', label: 'Right (Def)' }
+                ].map(a => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => handleSetSignatoryAlign(a.id)}
+                    className={`py-1 text-[10px] font-bold rounded-lg cursor-pointer transition-all ${
+                      signatoryAlign === a.id
+                        ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Copy To / Dispatch block */}
             <div>
               <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">
@@ -2099,6 +2445,103 @@ export default function OfficialLetterWriterView({
                     placeholder="Yours faithfully,"
                     className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
                   />
+                </div>
+
+                {/* Seal & Signature Vertical Clearance Space */}
+                <div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+                      Seal & Signature Space
+                    </label>
+                    <span className="font-mono text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                      {signatureGap}px
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSetSignatureGap(signatureGap - 6)}
+                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
+                      title="Decrease Space"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="range"
+                      min="20"
+                      max="140"
+                      step="4"
+                      value={signatureGap}
+                      onChange={(e) => handleSetSignatureGap(Number(e.target.value))}
+                      className="flex-1 accent-amber-600 cursor-pointer h-1.5"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSetSignatureGap(signatureGap + 6)}
+                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
+                      title="Increase Space"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    {[
+                      { label: '36px Tight', val: 36 },
+                      { label: '64px Standard', val: 64 },
+                      { label: '96px Spacious', val: 96 }
+                    ].map(p => (
+                      <button
+                        key={p.val}
+                        type="button"
+                        onClick={() => handleSetSignatureGap(p.val)}
+                        className={`flex-1 py-0.5 text-[8.5px] font-bold rounded cursor-pointer transition-all ${
+                          signatureGap === p.val 
+                            ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700' 
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Signatory Alignment & Position */}
+                <div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+                      Signatory Alignment
+                    </label>
+                    {(signatoryOffsetX !== 0 || signatoryOffsetY !== 0 || signatoryAlign !== 'right') && (
+                      <button
+                        type="button"
+                        onClick={handleResetSignatoryPosition}
+                        className="text-[8px] text-rose-600 hover:underline font-bold cursor-pointer"
+                      >
+                        Reset Position
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { id: 'left', label: 'Left' },
+                      { id: 'center', label: 'Center' },
+                      { id: 'right', label: 'Right (Def)' }
+                    ].map(a => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => handleSetSignatoryAlign(a.id)}
+                        className={`py-1 text-[10px] font-bold rounded-lg cursor-pointer transition-all ${
+                          signatoryAlign === a.id
+                            ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                        }`}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Copy To / Dispatch block */}
@@ -2783,33 +3226,192 @@ export default function OfficialLetterWriterView({
               />
             </div>
 
-            {/* Bottom Section: Signatories & Dispatch (Positioned closely below body) */}
-            <div className="mt-6 pt-3 border-t border-slate-100">
-              {/* Signatory Block — Positioned closely below body */}
-              <div className="flex justify-end text-right">
-                <div className="w-56 text-center space-y-0.5">
-                  {/* Complimentary Close / Valediction — Centered directly over Principal */}
-                  <input
-                    type="text"
-                    value={complimentaryClose}
-                    onChange={(e) => setComplimentaryClose(e.target.value)}
-                    placeholder="Yours faithfully,"
-                    title="Complimentary Close / Valediction (Centered directly over Principal) — Click to edit or leave blank"
-                    className="studio-inline-input w-full text-center font-semibold text-slate-800 bg-transparent border-b border-dashed border-amber-300/70 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all print:border-none print:p-0 print:bg-transparent"
-                    style={{ fontSize: baseFontSize }}
-                  />
+            {/* Bottom Section: Signatories & Dispatch */}
+            <div className="mt-6 pt-3 border-t border-slate-100 relative">
+              {/* Signatory Positioning Container */}
+              <div 
+                className="relative flex transition-transform"
+                style={{
+                  justifyContent: signatoryAlign === 'left' ? 'flex-start' : signatoryAlign === 'center' ? 'center' : 'flex-end',
+                  transform: (signatoryOffsetX !== 0 || signatoryOffsetY !== 0) 
+                    ? `translate(${signatoryOffsetX}px, ${signatoryOffsetY}px)` 
+                    : undefined
+                }}
+              >
+                {/* Draggable Signatory Block Card */}
+                <div className="w-56 text-center space-y-0.5 relative group/sig rounded-xl p-1 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors print:p-0 print:hover:bg-transparent">
+                  
+                  {/* Floating Drag & Align Toolbar (Visible on hover/focus in editor, hidden on print) */}
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 z-30 opacity-0 group-hover/sig:opacity-100 group-focus-within/sig:opacity-100 transition-opacity flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-md rounded-full px-2 py-0.5 text-[9px] print:hidden whitespace-nowrap">
+                    {/* Move Handle */}
+                    <button
+                      type="button"
+                      onPointerDown={handleSignatoryDragStart}
+                      title="Click and drag to move signatory block anywhere"
+                      className="flex items-center gap-1 text-slate-700 dark:text-slate-200 hover:text-amber-700 dark:hover:text-amber-400 font-bold cursor-grab active:cursor-grabbing"
+                    >
+                      <Move size={10} className="text-amber-600" />
+                      <span>Drag Move</span>
+                    </button>
 
-                  {/* Physical signature space */}
-                  <div className="h-6 print:h-8" />
+                    <div className="w-px h-2.5 bg-slate-200 dark:bg-slate-700 mx-0.5" />
 
-                  {signatoryName && (
-                    <div className="font-bold text-xs text-slate-800">{signatoryName}</div>
-                  )}
-                  <div className="font-black text-[13px] text-[#0a192f] uppercase">
-                    {signatoryDesignation || 'Principal'}
+                    {/* Alignment Snaps */}
+                    <button
+                      type="button"
+                      onClick={() => handleSetSignatoryAlign('left')}
+                      title="Snap to Left"
+                      className={`px-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${signatoryAlign === 'left' ? 'text-amber-700 font-black' : 'text-slate-500'}`}
+                    >
+                      Left
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetSignatoryAlign('center')}
+                      title="Snap to Center"
+                      className={`px-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${signatoryAlign === 'center' ? 'text-amber-700 font-black' : 'text-slate-500'}`}
+                    >
+                      Center
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetSignatoryAlign('right')}
+                      title="Snap to Right (Default)"
+                      className={`px-1 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${signatoryAlign === 'right' && signatoryOffsetX === 0 ? 'text-amber-700 font-black' : 'text-slate-500'}`}
+                    >
+                      Right
+                    </button>
+
+                    {(signatoryOffsetX !== 0 || signatoryOffsetY !== 0 || signatoryAlign !== 'right') && (
+                      <button
+                        type="button"
+                        onClick={handleResetSignatoryPosition}
+                        title="Reset position"
+                        className="text-rose-600 hover:text-rose-800 text-[8.5px] font-bold cursor-pointer ml-0.5"
+                      >
+                        Reset
+                      </button>
+                    )}
                   </div>
-                  <div className="font-semibold text-[11px] text-slate-600">
-                    {signatoryInstitution || institutionName}
+
+                  {/* Complimentary Close / Valediction */}
+                  <div 
+                    className="relative group/valediction"
+                    style={{
+                      transform: valedictionOffsetX !== 0 ? `translateX(${valedictionOffsetX}px)` : undefined
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={complimentaryClose}
+                      onChange={(e) => setComplimentaryClose(e.target.value)}
+                      placeholder="Yours faithfully,"
+                      title="Complimentary Close / Valediction (Centered directly over Principal) — Click to edit or leave blank"
+                      className="studio-inline-input w-full text-center font-semibold text-slate-800 bg-transparent border-b border-dashed border-amber-300/70 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all print:border-none print:p-0 print:bg-transparent"
+                      style={{ fontSize: baseFontSize }}
+                    />
+                    {/* Valediction Horizontal Nudge / Drag Handle */}
+                    <div 
+                      onPointerDown={handleValedictionDragStart}
+                      title="Drag to slide 'Yours faithfully,' horizontally"
+                      className="absolute -right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover/valediction:opacity-100 cursor-ew-resize print:hidden text-slate-400 hover:text-amber-600 text-[10px] select-none"
+                    >
+                      ↔
+                    </div>
+                  </div>
+
+                  {/* Physical Seal & Signature Space with Interactive Vertical Drag Handle */}
+                  <div 
+                    className="relative group/gap my-1 flex flex-col items-center justify-center select-none"
+                    style={{ height: `${signatureGap}px` }}
+                  >
+                    {/* Seal & Signature Ghost Guide (Visible in Editor, Hidden on Print) */}
+                    <div className="absolute inset-0 border border-dashed border-slate-300 dark:border-slate-700/80 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-center pointer-events-none print:hidden overflow-hidden">
+                      <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 text-[9px] font-medium opacity-80">
+                        <span className="text-[11px]">🔏</span>
+                        <span>Seal & Signature Space ({signatureGap}px)</span>
+                      </div>
+                    </div>
+
+                    {/* Resizer Drag Bar & Stepper Controls (Bottom edge of gap) */}
+                    <div 
+                      onPointerDown={handleGapDragStart}
+                      title="Drag up/down to adjust vertical space for Seal & Signature"
+                      className="absolute inset-x-0 -bottom-2.5 z-20 flex items-center justify-center cursor-ns-resize print:hidden"
+                    >
+                      <div className="flex items-center gap-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700 shadow-md text-[9px] font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500 transition-all select-none">
+                        <span className="text-[10px] text-amber-600 cursor-ns-resize">↕</span>
+                        <span className="cursor-ns-resize font-black uppercase tracking-wider text-[8px] text-slate-500">Drag ↕</span>
+                        
+                        {/* Step minus */}
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => handleSetSignatureGap(signatureGap - 6)}
+                          title="Decrease space (-6px)"
+                          className="w-4 h-4 rounded hover:bg-amber-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 font-black cursor-pointer active:scale-90"
+                        >
+                          -
+                        </button>
+                        
+                        <span className="font-mono text-[9px] w-6 text-center text-amber-700 dark:text-amber-300">{signatureGap}px</span>
+                        
+                        {/* Step plus */}
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => handleSetSignatureGap(signatureGap + 6)}
+                          title="Increase space (+6px)"
+                          className="w-4 h-4 rounded hover:bg-amber-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 font-black cursor-pointer active:scale-90"
+                        >
+                          +
+                        </button>
+
+                        {/* Presets */}
+                        <div className="flex items-center gap-0.5 ml-1 pl-1 border-l border-slate-200 dark:border-slate-700 text-[8px]">
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={() => handleSetSignatureGap(36)}
+                            className={`px-1 py-0.5 rounded hover:bg-amber-100 cursor-pointer ${signatureGap === 36 ? 'bg-amber-200 font-black text-amber-900' : 'text-slate-500'}`}
+                            title="Compact (36px)"
+                          >
+                            36
+                          </button>
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={() => handleSetSignatureGap(64)}
+                            className={`px-1 py-0.5 rounded hover:bg-amber-100 cursor-pointer ${signatureGap === 64 ? 'bg-amber-200 font-black text-amber-900' : 'text-slate-500'}`}
+                            title="Standard Seal Space (64px)"
+                          >
+                            64
+                          </button>
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={() => handleSetSignatureGap(96)}
+                            className={`px-1 py-0.5 rounded hover:bg-amber-100 cursor-pointer ${signatureGap === 96 ? 'bg-amber-200 font-black text-amber-900' : 'text-slate-500'}`}
+                            title="Spacious Seal Space (96px)"
+                          >
+                            96
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signatory Designation & Institution */}
+                  <div className="cursor-grab active:cursor-grabbing" onPointerDown={handleSignatoryDragStart} title="Click and drag to move signatory block">
+                    {signatoryName && (
+                      <div className="font-bold text-xs text-slate-800">{signatoryName}</div>
+                    )}
+                    <div className="font-black text-[13px] text-[#0a192f] uppercase select-none">
+                      {signatoryDesignation || 'Principal'}
+                    </div>
+                    <div className="font-semibold text-[11px] text-slate-600 select-none">
+                      {signatoryInstitution || institutionName}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2821,7 +3423,7 @@ export default function OfficialLetterWriterView({
                   <div className="whitespace-pre-line leading-tight">{copyToText}</div>
                 </div>
               )}
-        </div>
+            </div>
 
       </div>
 
@@ -3911,6 +4513,31 @@ export default function OfficialLetterWriterView({
                             <span className="text-amber-600 font-bold text-xs">↔️</span>
                             <span>Align Current Line to Principal Box</span>
                           </button>
+                          <div className="flex items-center justify-between px-2.5 py-1 text-[10px] text-slate-600 dark:text-slate-300 font-bold bg-slate-50 dark:bg-slate-800/60 rounded-lg mt-0.5">
+                            <span className="flex items-center gap-1">
+                              <span className="text-amber-600 font-bold">🔏</span>
+                              <span>Seal & Sig Space:</span>
+                            </span>
+                            <div className="flex items-center gap-1 font-mono">
+                              <button
+                                type="button"
+                                onClick={() => handleSetSignatureGap(signatureGap - 8)}
+                                className="w-4 h-4 rounded hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center font-black"
+                                title="Decrease Space (-8px)"
+                              >
+                                -
+                              </button>
+                              <span className="text-amber-700 dark:text-amber-400">{signatureGap}px</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSetSignatureGap(signatureGap + 8)}
+                                className="w-4 h-4 rounded hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center font-black"
+                                title="Increase Space (+8px)"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
