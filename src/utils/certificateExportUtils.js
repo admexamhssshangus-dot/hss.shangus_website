@@ -1199,6 +1199,7 @@ export function printStudentCertificate({
   metaBodyGap = 0.50,
   paraSpacing = 8,
   bodyLineHeight = 1.85,
+  baseFontSize = '12.5px',
   bodyDateGap = 12,
   dateSigGap = 0.50,
   sigReceiptGap = 12
@@ -1763,7 +1764,7 @@ export function printStudentCertificate({
     .body-text-col {
       flex: 1;
       font-family: 'Lora', 'Merriweather', Georgia, serif;
-      font-size: 10.5pt;
+      font-size: ${baseFontSize || '10.5pt'};
       line-height: ${bodyLineHeightVal};
       letter-spacing: 0.1px;
       text-align: justify;
@@ -2097,6 +2098,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     metaBodyGap = 0.50,
     paraSpacing = 8,
     bodyLineHeight = 1.85,
+    baseFontSize = '12.5px',
     bodyDateGap = 12,
     dateSigGap = 0.50,
     sigReceiptGap = 12
@@ -2656,7 +2658,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     .body-text-col {
       flex: 1;
       font-family: 'Lora', 'Merriweather', Georgia, serif;
-      font-size: 10.5pt;
+      font-size: ${baseFontSize || '10.5pt'};
       line-height: ${bodyLineHeightVal};
       letter-spacing: 0.1px;
       text-align: justify;

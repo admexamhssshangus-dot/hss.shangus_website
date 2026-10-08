@@ -355,6 +355,9 @@ const ROW_HEIGHT_PRESETS = [
   { label: 'Spacious (68px)', px: 68, dxa: 850, desc: 'Extra handwriting space' }
 ];
 
+// Table Font Size Presets
+const ROSTER_FONT_SIZES = ['8px', '8.5px', '9px', '9.5px', '10px', '10.5px', '11px', '11.5px', '12px', '13px'];
+
 // ─── Global Helper to extract authentic Class Roll No across all database keys ───
 export function getStudentRollNumber(st) {
   return getAssignedClassRollNumber(st);
@@ -3999,6 +4002,34 @@ function CustomRosterDocumentBuilderView({
   });
   const [orientation, setOrientation] = useState('portrait');
   const [selectedRowHeightIdx, setSelectedRowHeightIdx] = useState(2); // Default: Signature (52px)
+  const [tableFontSize, setTableFontSize] = useState(() => {
+    try {
+      return localStorage.getItem('hss_roster_table_font_size') || '10px';
+    } catch {
+      return '10px';
+    }
+  });
+
+  const handleSetTableFontSize = (size) => {
+    setTableFontSize(size);
+    try {
+      localStorage.setItem('hss_roster_table_font_size', size);
+    } catch {}
+  };
+
+  const handleAdjustTableFontSize = (delta) => {
+    const currentIdx = ROSTER_FONT_SIZES.indexOf(tableFontSize);
+    let nextIdx;
+    if (currentIdx !== -1) {
+      nextIdx = Math.max(0, Math.min(ROSTER_FONT_SIZES.length - 1, currentIdx + delta));
+    } else {
+      const currentPx = parseFloat(tableFontSize) || 10;
+      const targetPx = currentPx + delta * 0.5;
+      nextIdx = ROSTER_FONT_SIZES.findIndex(s => parseFloat(s) >= targetPx);
+      if (nextIdx === -1) nextIdx = delta > 0 ? ROSTER_FONT_SIZES.length - 1 : 0;
+    }
+    handleSetTableFontSize(ROSTER_FONT_SIZES[nextIdx]);
+  };
 
   const signatories = useMemo(() => {
     if (!showSignatories) return [];
@@ -5269,7 +5300,8 @@ function CustomRosterDocumentBuilderView({
         institutionName,
         institutionSubtitle,
         showHeader,
-        showMetaBadges
+        showMetaBadges,
+        tableFontSize
       });
     } catch (err) {
       console.error('Print generation error:', err);
@@ -5768,12 +5800,44 @@ function CustomRosterDocumentBuilderView({
           </div>
         </div>
 
-        {/* Row Height Preset + Letterhead Accordion Trigger */}
+        {/* Table Font Size & Row Height Controls */}
         <div className="grid grid-cols-2 gap-1 items-center">
+          <div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-md border border-slate-300 dark:border-slate-700 px-1.5 h-6 shadow-2xs" title="Adjust roster table font size">
+            <span className="text-[7.5px] font-black text-slate-400 uppercase">Font</span>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => handleAdjustTableFontSize(-1)}
+                className="w-4 h-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[9px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                title="Decrease Font Size (A⁻)"
+              >
+                A⁻
+              </button>
+              <select
+                value={tableFontSize}
+                onChange={(e) => handleSetTableFontSize(e.target.value)}
+                className="text-[8.5px] font-extrabold text-slate-800 dark:text-slate-200 bg-transparent outline-none cursor-pointer px-0.5"
+              >
+                {ROSTER_FONT_SIZES.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => handleAdjustTableFontSize(1)}
+                className="w-4 h-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[9px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                title="Increase Font Size (A⁺)"
+              >
+                A⁺
+              </button>
+            </div>
+          </div>
+
           <select
             value={selectedRowHeightIdx}
             onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
             className="w-full px-1.5 h-6 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[8.5px] text-slate-800 dark:text-slate-200"
+            title="Row Height preset"
           >
             {ROW_HEIGHT_PRESETS.map((p, idx) => (
               <option key={p.label} value={idx}>
@@ -5781,7 +5845,10 @@ function CustomRosterDocumentBuilderView({
               </option>
             ))}
           </select>
+        </div>
 
+        {/* Letterhead & Sign Accordion Trigger */}
+        <div>
           <button
             type="button"
             onClick={() => setIsSetupAccordionOpen(prev => !prev)}
@@ -6458,8 +6525,8 @@ function CustomRosterDocumentBuilderView({
                                   const roll = getAttendanceStudentRoll(row, rollColInfo, i + 1);
                                   return (
                                     <tr key={i} className="h-8.5 hover:bg-slate-50">
-                                      <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>
-                                      <td className="border-r border-slate-400 font-semibold text-[9px] px-1.5 truncate text-slate-900" title={row?._isFallbackMerge ? (row._fallbackMergeReason || "Flagged: Merged via fallback") : undefined}>
+                                      <td className="border-r border-slate-400 text-center font-bold px-1 text-slate-900" style={{ fontSize: tableFontSize }}>{roll}</td>
+                                      <td className="border-r border-slate-400 font-semibold px-1.5 truncate text-slate-900" style={{ fontSize: tableFontSize }} title={row?._isFallbackMerge ? (row._fallbackMergeReason || "Flagged: Merged via fallback") : undefined}>
                                         {row.studentName || row.name || '—'}
                                         {row?._isFallbackMerge && <span className="ml-1 text-amber-600 font-black" title="Merged via fallback">⚠</span>}
                                       </td>
@@ -6496,8 +6563,8 @@ function CustomRosterDocumentBuilderView({
                                   const roll = row ? getAttendanceStudentRoll(row, rollColInfo, half + i + 1) : '';
                                   return (
                                     <tr key={i} className="h-8.5 hover:bg-slate-50">
-                                      <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>
-                                      <td className="border-r border-slate-400 font-semibold text-[9px] px-1.5 truncate text-slate-900" title={row?._isFallbackMerge ? (row._fallbackMergeReason || "Flagged: Merged via fallback") : undefined}>
+                                      <td className="border-r border-slate-400 text-center font-bold px-1 text-slate-900" style={{ fontSize: tableFontSize }}>{roll}</td>
+                                      <td className="border-r border-slate-400 font-semibold px-1.5 truncate text-slate-900" style={{ fontSize: tableFontSize }} title={row?._isFallbackMerge ? (row._fallbackMergeReason || "Flagged: Merged via fallback") : undefined}>
                                         {row ? (row.studentName || row.name || '') : ''}
                                         {row?._isFallbackMerge && <span className="ml-1 text-amber-600 font-black" title="Merged via fallback">⚠</span>}
                                       </td>
@@ -6582,7 +6649,7 @@ function CustomRosterDocumentBuilderView({
                   </div>
                 )}
 
-            {/* Minimal Slim Info Bar: Active Count & Drag Hint (No duplicate action buttons) */}
+            {/* Minimal Slim Info Bar: Active Count & Font Size Stepper & Drag Hint */}
             <div className="flex items-center justify-between gap-1 px-2 py-0.5 mb-1 bg-slate-50 dark:bg-slate-800/80 rounded border border-slate-200 dark:border-slate-700 text-[9px] sm:text-[9.5px] select-none">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="font-extrabold text-slate-700 dark:text-slate-300">
@@ -6595,9 +6662,42 @@ function CustomRosterDocumentBuilderView({
                   </span>
                 )}
               </div>
-              <span className="text-[8px] sm:text-[8.5px] text-slate-400 font-medium hidden sm:inline">
-                💡 Drag table header edges to resize • Official Print Layout
-              </span>
+
+              {/* Quick Font Size Stepper & Drag Hint */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 px-1 py-0.2 shadow-2xs" title="Table font size">
+                  <span className="text-[7.5px] font-black text-slate-400 uppercase mr-1 hidden sm:inline">Font:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustTableFontSize(-1)}
+                    className="w-4 h-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[9px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                    title="Decrease table font (A⁻)"
+                  >
+                    A⁻
+                  </button>
+                  <select
+                    value={tableFontSize}
+                    onChange={(e) => handleSetTableFontSize(e.target.value)}
+                    className="text-[8.5px] font-bold text-slate-800 dark:text-slate-200 bg-transparent outline-none px-0.5 cursor-pointer"
+                  >
+                    {ROSTER_FONT_SIZES.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustTableFontSize(1)}
+                    className="w-4 h-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[9px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                    title="Increase table font (A⁺)"
+                  >
+                    A⁺
+                  </button>
+                </div>
+
+                <span className="text-[8px] sm:text-[8.5px] text-slate-400 font-medium hidden sm:inline">
+                  💡 Drag table header edges to resize • Official Print Layout
+                </span>
+              </div>
             </div>
 
             {/* Formatted Data Table with Draggable & Arrow-Reorderable Headers */}
@@ -6640,8 +6740,12 @@ function CustomRosterDocumentBuilderView({
                       return (
                         <th
                           key={col.key}
-                          style={{ textAlign: col.align || 'left', width: `${pct.toFixed(2)}%` }}
-                          className={`border border-slate-400 px-1 py-1 font-black uppercase text-[9px] tracking-tight group transition-colors relative select-none overflow-hidden ${
+                          style={{
+                            textAlign: col.align || 'left',
+                            width: `${pct.toFixed(2)}%`,
+                            fontSize: `calc(${tableFontSize} - 0.5px)`
+                          }}
+                          className={`border border-slate-400 px-1 py-1 font-black uppercase tracking-tight group transition-colors relative select-none overflow-hidden ${
                             sortConfig.key === col.key ? 'bg-indigo-100/90 text-indigo-950' : 'hover:bg-indigo-50/90'
                           }`}
                         >
@@ -6797,9 +6901,10 @@ function CustomRosterDocumentBuilderView({
                                 key={col.key}
                                 style={{
                                   textAlign: col.align || 'left',
-                                  minHeight: `${currentRowHeightPx}px`
+                                  minHeight: `${currentRowHeightPx}px`,
+                                  fontSize: tableFontSize
                                 }}
-                                className="border border-slate-300 px-1.5 py-1 text-[10px] font-medium leading-snug align-middle whitespace-nowrap overflow-visible"
+                                className="border border-slate-300 px-1.5 py-1 font-medium leading-snug align-middle whitespace-nowrap overflow-visible"
                               >
                                 {col.key === 'studentPhoto' || col.key === 'photo' ? (
                                   <RosterStudentPhotoCell

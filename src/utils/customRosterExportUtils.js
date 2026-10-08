@@ -89,7 +89,8 @@ export function printCustomRosterTable({
   institutionName = 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS',
   institutionSubtitle = 'District Anantnag, Kashmir — 192201 | Official Institutional Record',
   showHeader = true,
-  showMetaBadges = true
+  showMetaBadges = true,
+  tableFontSize = '9px'
 }) {
   if (layoutMode === 'two_column_attendance') {
     const rollColInfo = resolveAttendanceRollCol(columns);
@@ -100,7 +101,8 @@ export function printCustomRosterTable({
       rowHeightPx,
       signatories,
       rowsPerColumn,
-      rollColInfo
+      rollColInfo,
+      tableFontSize
     });
     return executePrintIframe(attHtml, title);
   }
@@ -244,7 +246,7 @@ export function printCustomRosterTable({
           background-color: #f3f4f6 !important;
           color: #111827;
           font-weight: 900;
-          font-size: 8.5px;
+          font-size: ${tableFontSize ? `calc(${tableFontSize} - 0.5px)` : '8.5px'};
           text-transform: uppercase;
           border: 1px solid #374151;
           padding: 4px 2.5px;
@@ -257,7 +259,7 @@ export function printCustomRosterTable({
         td {
           border: 1px solid #6b7280;
           padding: 2.5px 3.5px;
-          font-size: 9px;
+          font-size: ${tableFontSize || '9px'};
           vertical-align: middle;
           word-wrap: break-word;
           overflow-wrap: break-word;
@@ -437,7 +439,8 @@ function buildTwoColumnAttendanceHtml({
   signatories = ['Sig. of the Asstt. Supdt.', 'Sig. of the Centre Supdt.'],
   rowsPerColumn = 25,
   hasExamRollCol = false,
-  rollColInfo = null
+  rollColInfo = null,
+  tableFontSize = '9px'
 }) {
   const activeRollCol = rollColInfo || (hasExamRollCol ? { key: 'examRollNo', label: 'Exam R.No.', isExam: true } : { key: 'classRollNo', label: 'R.No.', isExam: false });
   const isExam = activeRollCol.isExam;
@@ -689,7 +692,7 @@ function buildTwoColumnAttendanceHtml({
           background: #f1f5f9 !important;
           color: #0f172a;
           font-weight: 900;
-          font-size: 8.5px;
+          font-size: ${tableFontSize ? `calc(${tableFontSize} - 0.5px)` : '8.5px'};
           border: 1.5px solid #1e293b;
           padding: 3.5px 2px;
           text-align: left;
@@ -704,7 +707,7 @@ function buildTwoColumnAttendanceHtml({
         .att-table td {
           border: 1.2px solid #475569;
           padding: 2px 3.5px;
-          font-size: 9px;
+          font-size: ${tableFontSize || '9px'};
           vertical-align: middle;
         }
         .rno-cell {

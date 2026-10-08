@@ -1298,6 +1298,13 @@ export default function StudentCertificateStudioView({
   const [bodyDateGap, setBodyDateGap] = useState(12);
   const [dateSigGap, setDateSigGap] = useState(1.0); // Fixed 1 inch vertical space between Section 3 (body/dates) & Section 4 (signatories)
   const [sigReceiptGap, setSigReceiptGap] = useState(12);
+  const [baseFontSize, setBaseFontSize] = useState(() => {
+    try {
+      return localStorage.getItem('hss_cert_base_font_size') || '12.5px';
+    } catch {
+      return '12.5px';
+    }
+  });
 
   // Initialize general certificate reference sequence from Cloud/localStorage (1454 -> 1455 -> 1456...)
   useEffect(() => {
@@ -3417,6 +3424,84 @@ export default function StudentCertificateStudioView({
     showToast(`Color applied (${color})`, 'info', 1500);
   };
 
+  // ─── Font Size Scaling & Selection Styling Handlers ───
+  const FONT_SIZES = ['10px', '11px', '12px', '12.5px', '13px', '13.5px', '14px', '15px', '16px', '18px', '20px'];
+
+  const handleSetFontSize = (size) => {
+    setBaseFontSize(size);
+    try {
+      localStorage.setItem('hss_cert_base_font_size', size);
+    } catch {}
+
+    const sel = window.getSelection();
+    let activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel && editorRef.current?.contains(activeRange.commonAncestorContainer)) {
+      try {
+        sel.removeAllRanges();
+        sel.addRange(activeRange);
+      } catch {}
+    }
+
+    if (sel && sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed && editorRef.current?.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      // Apply inline font size to selected text
+      pushSnapshot();
+      try {
+        const range = sel.getRangeAt(0);
+        const span = document.createElement('span');
+        span.style.fontSize = size;
+        span.appendChild(range.extractContents());
+        range.insertNode(span);
+        const newRange = document.createRange();
+        newRange.selectNodeContents(span);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        saveCurrentSelection();
+        if (editorRef.current) setCustomCanvasHtml(editorRef.current.innerHTML);
+      } catch (e) {
+        console.warn('Font size selection styling error:', e);
+      }
+    } else {
+      // Document-wide base font size update
+      if (editorRef.current) {
+        editorRef.current.style.fontSize = size;
+        setCustomCanvasHtml(editorRef.current.innerHTML);
+      }
+    }
+    showToast(`Font size set to ${size}`, 'info', 1200);
+  };
+
+  const handleAdjustFontSize = (delta) => {
+    const sel = window.getSelection();
+    let activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel && editorRef.current?.contains(activeRange.commonAncestorContainer)) {
+      try {
+        sel.removeAllRanges();
+        sel.addRange(activeRange);
+      } catch {}
+    }
+
+    if (sel && sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed && editorRef.current?.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      let node = sel.getRangeAt(0).commonAncestorContainer;
+      if (node.nodeType === 3) node = node.parentNode;
+      const computed = window.getComputedStyle(node).fontSize;
+      const currentPx = parseInt(computed, 10) || parseInt(baseFontSize, 10) || 12;
+      const newPx = Math.max(9, Math.min(26, currentPx + delta));
+      handleSetFontSize(`${newPx}px`);
+    } else {
+      const currentIdx = FONT_SIZES.indexOf(baseFontSize);
+      let nextIdx;
+      if (currentIdx !== -1) {
+        nextIdx = Math.max(0, Math.min(FONT_SIZES.length - 1, currentIdx + delta));
+      } else {
+        const currentPx = parseInt(baseFontSize, 10) || 12;
+        const targetPx = currentPx + delta;
+        nextIdx = FONT_SIZES.findIndex(s => parseInt(s, 10) >= targetPx);
+        if (nextIdx === -1) nextIdx = delta > 0 ? FONT_SIZES.length - 1 : 0;
+      }
+      handleSetFontSize(FONT_SIZES[nextIdx]);
+    }
+  };
+
   const insertTable = (rows = 2, cols = 3) => {
     pushSnapshot();
     if (!editorRef.current) return;
@@ -4050,6 +4135,7 @@ export default function StudentCertificateStudioView({
           metaBodyGap,
           paraSpacing,
           bodyLineHeight,
+          baseFontSize,
           bodyDateGap,
           dateSigGap,
           sigReceiptGap
@@ -4118,6 +4204,7 @@ export default function StudentCertificateStudioView({
     if (rec.extraData?.metaBodyGap !== undefined) setMetaBodyGap(rec.extraData.metaBodyGap);
     if (rec.extraData?.paraSpacing !== undefined) setParaSpacing(rec.extraData.paraSpacing);
     if (rec.extraData?.bodyLineHeight !== undefined) setBodyLineHeight(rec.extraData.bodyLineHeight);
+    if (rec.extraData?.baseFontSize !== undefined) setBaseFontSize(rec.extraData.baseFontSize);
     if (rec.extraData?.studentPhotoUrl) {
       setStudentPhotoUrl(rec.extraData.studentPhotoUrl);
     }
@@ -4381,6 +4468,7 @@ export default function StudentCertificateStudioView({
         metaBodyGap,
         paraSpacing,
         bodyLineHeight,
+        baseFontSize,
         bodyDateGap,
         dateSigGap,
         sigReceiptGap
@@ -4409,6 +4497,7 @@ export default function StudentCertificateStudioView({
       metaBodyGap,
       paraSpacing,
       bodyLineHeight,
+      baseFontSize,
       bodyDateGap,
       dateSigGap,
       sigReceiptGap
@@ -5765,6 +5854,37 @@ export default function StudentCertificateStudioView({
                     Mr. / Mrs. Titles
                   </span>
                 </label>
+
+                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs" title="Adjust Certificate Base Font Size">
+                  <span className="text-[10px] font-bold text-slate-500">Base Font:</span>
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustFontSize(-1)}
+                      className="w-5 h-5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                      title="Decrease Font Size (A⁻)"
+                    >
+                      A⁻
+                    </button>
+                    <select
+                      value={baseFontSize}
+                      onChange={(e) => handleSetFontSize(e.target.value)}
+                      className="text-[10px] font-bold text-slate-800 dark:text-slate-200 bg-transparent outline-none px-1 py-0.5 cursor-pointer"
+                    >
+                      {FONT_SIZES.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustFontSize(1)}
+                      className="w-5 h-5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                      title="Increase Font Size (A⁺)"
+                    >
+                      A⁺
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -6276,6 +6396,40 @@ export default function StudentCertificateStudioView({
                     </button>
                   </div>
 
+                  {/* Font Size Stepper */}
+                  <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-[9px] font-bold text-slate-500">Font Size:</span>
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleAdjustFontSize(-1)}
+                        className="w-6 h-6 rounded bg-white dark:bg-slate-700 font-black text-xs text-slate-800 dark:text-slate-200 flex items-center justify-center cursor-pointer shadow-2xs"
+                        title="Decrease Font Size (A⁻)"
+                      >
+                        A⁻
+                      </button>
+                      <select
+                        value={baseFontSize}
+                        onChange={(e) => handleSetFontSize(e.target.value)}
+                        className="text-[10px] font-bold text-slate-800 dark:text-slate-200 bg-transparent outline-none px-1 py-0.5"
+                      >
+                        {FONT_SIZES.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleAdjustFontSize(1)}
+                        className="w-6 h-6 rounded bg-white dark:bg-slate-700 font-black text-xs text-slate-800 dark:text-slate-200 flex items-center justify-center cursor-pointer shadow-2xs"
+                        title="Increase Font Size (A⁺)"
+                      >
+                        A⁺
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Inline Styles: B, I, U, S, Clear */}
                   <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
                     <button
@@ -6759,6 +6913,9 @@ export default function StudentCertificateStudioView({
 
               {/* Dynamic Injected Spacing Style Block for Live Canvas */}
               <style>{`
+                .doc-studio-wysiwyg-body {
+                  font-size: ${baseFontSize} !important;
+                }
                 .doc-studio-wysiwyg-body p {
                   margin-bottom: ${paraSpacing}px !important;
                 }
@@ -6773,7 +6930,7 @@ export default function StudentCertificateStudioView({
                   ref={editorRef}
                   contentEditable={true}
                   suppressContentEditableWarning={true}
-                  style={{ lineHeight: bodyLineHeight }}
+                  style={{ lineHeight: bodyLineHeight, fontSize: baseFontSize }}
                   onInput={(e) => {
                     handleEditorInput(e);
                     saveCurrentSelection();
@@ -7457,6 +7614,40 @@ export default function StudentCertificateStudioView({
                       className={`w-6 h-6 rounded font-black text-[9px] flex items-center justify-center cursor-pointer transition-all ${activeFormats.h2 ? 'bg-teal-100 text-teal-900 border border-teal-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'}`}
                     >
                       H2
+                    </button>
+                  </div>
+
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                  {/* Font Size Stepper (A⁻ / Size Select / A⁺) */}
+                  <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/80 rounded-md border border-slate-200/70 dark:border-slate-700/70 px-0.5 shadow-2xs" title="Adjust certificate base font or selected text size">
+                    <button
+                      type="button"
+                      title="Decrease Font Size (A⁻)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleAdjustFontSize(-1)}
+                      className="w-5 h-5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                    >
+                      A⁻
+                    </button>
+                    <select
+                      value={baseFontSize}
+                      onChange={(e) => handleSetFontSize(e.target.value)}
+                      title="Certificate Base / Selection Font Size"
+                      className="h-5 px-0.5 bg-transparent text-[10px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                    >
+                      {FONT_SIZES.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      title="Increase Font Size (A⁺)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleAdjustFontSize(1)}
+                      className="w-5 h-5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                    >
+                      A⁺
                     </button>
                   </div>
 
