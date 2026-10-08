@@ -3,7 +3,7 @@
 // With Gemini AI Multi-Key Pool, Reusable Template Builder & Word Processor
 // =================================================================
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Printer, FileText, Calendar, Edit3, FileSpreadsheet, Download, RotateCcw, Save, Sparkles,
@@ -45,6 +45,11 @@ import { logAdminActivity } from '../../services/adminActivityLogger';
 import DocumentHistoryModal from './DocumentHistoryModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
+import {
+  parseRefParts,
+  stepRefNumber,
+  updateRefSerial
+} from '../../services/certificateRegistryService';
 
 // Built-in Institutional Letter Templates for HSS Shangus
 const BUILTIN_LETTER_TEMPLATES = [
@@ -411,6 +416,24 @@ export default function OfficialLetterWriterView({
       setToast(null);
     }, duration);
   };
+
+  // Reference Number Stepping & Incremental Serial Part
+  const letterRefParts = useMemo(() => {
+    return parseRefParts(refNo);
+  }, [refNo]);
+
+  const letterCurrentFigure = letterRefParts.serialNum;
+
+  const handleStepRefNumber = useCallback((delta) => {
+    const { formatted, nextNum } = stepRefNumber(refNo, delta);
+    setRefNo(formatted);
+    showToast(`Ref serial set to #${nextNum} (${formatted})`, 'success');
+  }, [refNo]);
+
+  const handleUpdateRefSerial = useCallback((newVal) => {
+    const updated = updateRefSerial(refNo, newVal);
+    setRefNo(updated);
+  }, [refNo]);
 
   // ─── Gemini AI Assistant State & Multi-Key Pool ───
   const [activeLeftTab, setActiveLeftTab] = useState('templates'); // 'templates' | 'ai'
@@ -2059,13 +2082,44 @@ export default function OfficialLetterWriterView({
 
             {/* Ref No */}
             <div>
-              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">Reference No.</label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block text-[8.5px] font-black uppercase text-slate-400 tracking-wider">Reference No.</label>
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px] font-black uppercase text-amber-700 dark:text-amber-400 tracking-tight" title="This numerical portion of the reference number increments sequentially">Inc Part:</span>
+                  <div className="inline-flex items-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => handleStepRefNumber(-1)}
+                      className="px-1.5 py-0.5 text-[9px] font-black text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-r border-slate-200 dark:border-slate-700 cursor-pointer"
+                      title="Step figure down (-1)"
+                    >
+                      -1
+                    </button>
+                    <input
+                      type="number"
+                      value={letterCurrentFigure || ''}
+                      onChange={(e) => handleUpdateRefSerial(e.target.value)}
+                      title="Directly edit the reference serial figure manually"
+                      aria-label="Reference Serial Increment Part"
+                      className="w-12 text-center text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400 bg-transparent outline-none py-0.5 px-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleStepRefNumber(1)}
+                      className="px-1.5 py-0.5 text-[9px] font-black text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 border-l border-slate-200 dark:border-slate-700 cursor-pointer"
+                      title="Advance figure to next (+1)"
+                    >
+                      +1 Next
+                    </button>
+                  </div>
+                </div>
+              </div>
               <input
                 type="text"
                 value={refNo}
                 onChange={(e) => setRefNo(e.target.value)}
-                placeholder="e.g. HSS/SHG/2026/..."
-                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                placeholder="e.g. HSS/SHG/2026/01"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all font-mono"
               />
             </div>
 
@@ -2321,7 +2375,38 @@ export default function OfficialLetterWriterView({
 
                 {/* Ref No */}
                 <div>
-                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">Reference No.</label>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">Reference No.</label>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] font-black uppercase text-amber-700 dark:text-amber-400 tracking-tight" title="This numerical portion of the reference number increments sequentially">Inc Part:</span>
+                      <div className="inline-flex items-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => handleStepRefNumber(-1)}
+                          className="px-1.5 py-0.5 text-[9px] font-black text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-r border-slate-200 dark:border-slate-700 cursor-pointer"
+                          title="Step figure down (-1)"
+                        >
+                          -1
+                        </button>
+                        <input
+                          type="number"
+                          value={letterCurrentFigure || ''}
+                          onChange={(e) => handleUpdateRefSerial(e.target.value)}
+                          title="Directly edit the reference serial figure manually"
+                          aria-label="Reference Serial Increment Part"
+                          className="w-12 text-center text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400 bg-transparent outline-none py-0.5 px-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleStepRefNumber(1)}
+                          className="px-1.5 py-0.5 text-[9px] font-black text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 border-l border-slate-200 dark:border-slate-700 cursor-pointer"
+                          title="Advance figure to next (+1)"
+                        >
+                          +1 Next
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                   <input
                     type="text"
                     value={refNo}
@@ -3155,6 +3240,33 @@ export default function OfficialLetterWriterView({
                     className="studio-inline-input text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[140px] sm:max-w-[280px] truncate text-[10px] sm:text-xs placeholder:text-[9px] sm:placeholder:text-xs print:border-none print:bg-transparent print:p-0"
                     style={{ fontSize: '11px', height: '22px' }}
                   />
+                  {/* Labeled Ref Increment Stepper */}
+                  <div className="print:hidden inline-flex items-center gap-1 bg-amber-50/90 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 rounded px-1.5 py-0.5 shadow-2xs shrink-0">
+                    <span className="text-[8.5px] font-black uppercase text-amber-800 dark:text-amber-300 whitespace-nowrap">
+                      Inc Part:
+                    </span>
+                    <span className="text-[9.5px] font-mono font-black text-amber-800 dark:text-amber-200 bg-white dark:bg-slate-800 px-1 rounded border border-amber-100 dark:border-amber-900" title="This numerical portion of the reference number increments">
+                      {letterCurrentFigure}
+                    </span>
+                    <div className="inline-flex items-center rounded overflow-hidden border border-amber-300/60 dark:border-amber-700">
+                      <button
+                        type="button"
+                        onClick={() => handleStepRefNumber(-1)}
+                        className="px-1 py-0.5 text-[8.5px] font-black text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900 border-r border-amber-200 dark:border-amber-700 cursor-pointer"
+                        title="Decrement reference number (-1)"
+                      >
+                        -1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStepRefNumber(1)}
+                        className="px-1 py-0.5 text-[8.5px] font-black text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900 cursor-pointer"
+                        title="Increment reference number (+1)"
+                      >
+                        +1
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 sm:gap-1.5 group/date shrink-0">
                   <span className="text-[#800000] font-black shrink-0 text-[10px] sm:text-xs select-none">
@@ -4578,9 +4690,46 @@ export default function OfficialLetterWriterView({
 
             {/* Modal Body */}
             <div className="p-3.5 space-y-3">
+              {/* Figure / Serial manual control inside modal */}
+              <div className="flex items-center justify-between p-2 rounded-xl bg-amber-50 dark:bg-slate-800/80 border border-amber-200 dark:border-slate-700">
+                <div>
+                  <span className="block text-[9.5px] font-black uppercase text-amber-800 dark:text-amber-300">
+                    Serial № (Inc Part)
+                  </span>
+                  <span className="text-[8.5px] text-slate-500">
+                    The numerical portion of the reference number to be incremented
+                  </span>
+                </div>
+                <div className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleStepRefNumber(-1)}
+                    className="px-2 py-1 text-xs font-black text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-r border-slate-200 dark:border-slate-700 cursor-pointer"
+                    title="Decrease figure by 1"
+                  >
+                    -1
+                  </button>
+                  <input
+                    type="number"
+                    value={letterCurrentFigure || ''}
+                    onChange={(e) => handleUpdateRefSerial(e.target.value)}
+                    className="w-16 text-center text-xs font-mono font-bold text-amber-800 dark:text-amber-300 py-1 outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    title="Type any serial figure"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleStepRefNumber(1)}
+                    className="px-2 py-1 text-xs font-black text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/50 border-l border-slate-200 dark:border-slate-700 cursor-pointer"
+                    title="Advance figure by 1"
+                  >
+                    +1 Next
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[9.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
-                  Reference / Dispatch Number
+                  Full Reference / Dispatch Number
                 </label>
                 <input
                   type="text"
@@ -4689,7 +4838,38 @@ export default function OfficialLetterWriterView({
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     <div>
-                      <label className="block text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5">Reference No.</label>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <label className="block text-[8px] font-black uppercase text-slate-500 dark:text-slate-400">Reference No.</label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[8px] font-black uppercase text-amber-700 dark:text-amber-400 tracking-tight" title="This numerical portion of the reference number increments sequentially">Inc Part:</span>
+                          <div className="inline-flex items-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => handleStepRefNumber(-1)}
+                              className="px-1 py-0.5 text-[8.5px] font-black text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-r border-slate-200 dark:border-slate-700 cursor-pointer"
+                              title="Step figure down (-1)"
+                            >
+                              -1
+                            </button>
+                            <input
+                              type="number"
+                              value={letterCurrentFigure || ''}
+                              onChange={(e) => handleUpdateRefSerial(e.target.value)}
+                              title="Directly edit the reference serial figure manually"
+                              aria-label="Reference Serial Increment Part"
+                              className="w-10 text-center text-[9px] font-mono font-bold text-amber-700 dark:text-amber-400 bg-transparent outline-none py-0 px-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleStepRefNumber(1)}
+                              className="px-1 py-0.5 text-[8.5px] font-black text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 border-l border-slate-200 dark:border-slate-700 cursor-pointer"
+                              title="Advance figure to next (+1)"
+                            >
+                              +1
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                       <input
                         type="text"
                         value={refNo}

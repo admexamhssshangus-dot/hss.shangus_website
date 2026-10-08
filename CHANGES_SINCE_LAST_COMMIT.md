@@ -2,49 +2,41 @@
 
 ## Commit Message
 
-`feat(studios): add interactive font size controls to student certificates and custom registers`
+`feat(studios): add labeled ref no increment steppers to official letter writer and student certificates`
 
 ## Files Changed
 
-1. [src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx):
-   - **Interactive Font Size Steppers & Selectors**:
-     - Added `baseFontSize` state (defaulting to `'12.5px'`) with persistent caching via `localStorage.getItem('hss_cert_base_font_size')`.
-     - Declared `FONT_SIZES` range (`'10px'`, `'11px'`, `'12px'`, `'12.5px'`, `'13px'`, `'13.5px'`, `'14px'`, `'15px'`, `'16px'`, `'18px'`, `'20px'`).
-     - Implemented `handleSetFontSize(size)` and `handleAdjustFontSize(delta)`:
-       - **Selection-Aware Formatting**: When text within the certificate body is highlighted, wraps the selection in an inline `<span style="font-size: ...">` or updates existing font size tags with undo/redo snapshot tracking.
-       - **Document-Wide Base Scaling**: When no text is selected, smoothly scales the certificate body font size across the entire document.
-     - Added a dedicated Font Size Stepper (`[ A⁻ | 12.5px ▾ | A⁺ ]`) to:
-       - **Desktop Toolbar Row 2**: Placed right between heading blocks (¶, H1, H2) and inline text styles (Bold, Italic, Underline).
-       - **Mobile Format Dropdown**: Positioned seamlessly under Headings & Paragraphs.
-       - **Setup Drawer (`# Setup`)**: Integrated into the features & options configuration bar.
-     - Updated live WYSIWYG canvas styling with injected dynamic CSS `.doc-studio-wysiwyg-body { font-size: ${baseFontSize} !important; }` and inline `fontSize: baseFontSize` on `editorRef.current`.
-     - Integrated `baseFontSize` into draft auto-saves, template storage, history archives, and print triggers.
+1. [src/services/certificateRegistryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/certificateRegistryService.js):
+   - **Smart Reference Number Parsing & Stepping**:
+     - Exported `parseRefParts(refStr)`: Intelligently isolates the exact dispatch/serial number that should be incremented from arbitrary institutional prefixes (e.g. `HSS/SHG/Bonafide/`, `HSS/SHG/2026/`, `HSS/`) and suffixes (e.g. `/2026`, `/26`).
+     - Added support for 2-digit year suffixes (`/26`) and automatic synthesis for prefixes ending in slashes (e.g. `HSS/SHG/2026/` -> starts sequential numbering cleanly at `01`).
+     - Exported `stepRefNumber(refStr, delta)`: Accurately increments or decrements the serial number (+1 / -1) while strictly preserving leading zero padding, institutional prefixes, and academic year suffixes without truncation.
+     - Exported `updateRefSerial(refStr, newSerialVal)`: Directly updates the serial number with custom input while preserving full reference formatting.
+     - Updated `parseGeneralRefNo` and `formatGeneralRefNo` to stop stripping `HSS/SHG` into `HSS` and stop truncating 4-digit years like `2026`.
 
-2. [src/utils/certificateExportUtils.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/certificateExportUtils.js):
-   - **Print & PDF Preview Engines**:
-     - Added `baseFontSize = '12.5px'` parameter to both single (`printStudentCertificate`) and batch (`printBatchStudentCertificates`) print utilities.
-     - Updated `.body-text-col` print CSS to use `font-size: ${baseFontSize || '10.5pt'};`, ensuring printouts and PDF exports mirror the custom font size selected on-screen.
+2. [src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx):
+   - **Labeled Reference Number Increment Controls**:
+     - Upgraded `currentFigure`, `handleUpdateFigure`, and `handleStepFigure` to utilize `parseRefParts`, `stepRefNumber`, and `updateRefSerial`.
+     - **Live Canvas Header (General Ref No)**: Added a labeled, print-hidden badge `Inc Part: [ currentFigure ]` alongside `[-1]` and `[+1]` stepper buttons directly adjacent to the inline Reference Number input.
+     - **Live Canvas Header (TC/DC Certificate No)**: Added the labeled `Inc Part: [ currentFigure ]` badge with `[-1]` and `[+1]` buttons beside the Certificate Serial field.
+     - **Setup Drawer (`# Setup`)**: Relabeled the figure stepper from ambiguous `Fig:` to explicit `Inc Part:` with informative tooltip.
+     - **Reference & Date Modal**: Clarified the counter section as `Serial № (Inc Part)` with explanation: *"The numerical portion of the reference number to be incremented"*.
 
-3. [src/portal/admin/CustomRosterDocumentBuilderView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/CustomRosterDocumentBuilderView.jsx):
-   - **Roster & Register Table Font Scaling**:
-     - Added `tableFontSize` state (defaulting to `'10px'`) with `localStorage.getItem('hss_roster_table_font_size')` persistence.
-     - Defined `ROSTER_FONT_SIZES` scale (`'8px'`, `'8.5px'`, `'9px'`, `'9.5px'`, `'10px'`, `'10.5px'`, `'11px'`, `'11.5px'`, `'12px'`, `'13px'`).
-     - Implemented `handleSetTableFontSize(size)` and `handleAdjustTableFontSize(delta)`.
-     - **Page & Table Setup Control**: Added a clean `Font [ A⁻ | 10px ▾ | A⁺ ]` stepper right beside the Row Height preset dropdown in the right-side configuration panel.
-     - **Direct On-Canvas Quick Stepper**: Placed a compact `Font: [ A⁻ | 10px ▾ | A⁺ ]` stepper directly inside the slim info bar above the table preview, enabling administrative staff to adjust table font density in real-time without leaving the preview.
-     - Applied `fontSize: tableFontSize` to all preview `<td>` data cells, dynamic `th` header cells (`calc(${tableFontSize} - 0.5px)`), and 2-column attendance tables.
-     - Passed `tableFontSize` into `printCustomRosterTable`.
-
-4. [src/utils/customRosterExportUtils.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/customRosterExportUtils.js):
-   - **Custom Roster Print Engine**:
-     - Added `tableFontSize = '9px'` parameter to `printCustomRosterTable` and `buildTwoColumnAttendanceHtml`.
-     - Updated print CSS for `th` and `td` to dynamically reflect `tableFontSize` (e.g. `th { font-size: calc(${tableFontSize} - 0.5px); }` and `td { font-size: ${tableFontSize}; }`), ensuring high-density registers or wide examination sheets fit cleanly on A4 pages.
+3. [src/portal/admin/OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx):
+   - **Reference Number Increment Steppers for Official Letters**:
+     - Imported `parseRefParts`, `stepRefNumber`, and `updateRefSerial` from `certificateRegistryService`.
+     - Added `letterRefParts`, `letterCurrentFigure`, `handleStepRefNumber(delta)`, and `handleUpdateRefSerial(val)`.
+     - **Live A4 Canvas Header**: Added an inline, print-hidden `Inc Part: [ letterCurrentFigure ]` badge with `[-1]` and `[+1]` buttons right beside the `Ref. No.:` editable input.
+     - **Setup Drawer (`# Setup`)**: Added a labeled `Inc Part:` manual figure input and sequential steppers (`[-1] [ input ] [+1 Next]`) alongside the Reference No. field.
+     - **Mobile Setup Modal**: Added the labeled `Inc Part:` stepper control inside the mobile setup sheet.
+     - **Reference & Date Pop-up Modal**: Added the dedicated `Serial № (Inc Part)` stepper card at the top of the reference editor modal.
+     - **Header Tools Modal**: Integrated the labeled `Inc Part:` stepper beside Reference No.
 
 ---
 
 ## Verification
 
-- **Build Verification**: `npm run build` executed and passed with **Exit Code 0** and zero breaking errors. All 12 public static pages, sitemaps, and SEO regression checks passed.
+- **Build Verification**: `npm run build` completed with **Exit Code 0** and zero breaking errors. All 12 public static pages, sitemaps, and SEO regression checks passed.
 - **Firebase Security Rules**: Security rules remain active and verified in Cloud Firestore.
 
 ---
@@ -58,9 +50,9 @@
 2. **If You Want to Amend or Re-commit**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(studios): add interactive font size controls to student certificates and custom registers"
+   git commit -m "feat(studios): add labeled ref no increment steppers to official letter writer and student certificates"
    ```
-3. **Push to Remote Repository** *(Strict Manual Policy)*:
+3. **Push Changes Remotely (Manual Execution)**:
    ```bash
    git push origin main
    ```

@@ -567,7 +567,127 @@ const LOCAL_STORAGE_GENERAL_REF_FULL_KEY = 'hss_last_general_cert_ref_full';
 /**
  * Parses a general certificate reference string like "HSS/Char-Past/1369/26" or "HSS/1454/26",
  * extracting prefix, numeric serial, and year.
+/**
+ * Parses any reference string into prefix, serial figure, and suffix.
+ * Smartly isolates the dispatch/serial number to be incremented from prefix and year.
  */
+export function parseRefParts(refStr) {
+  const str = String(refStr || '').trim();
+  const currentYearFull = String(new Date().getFullYear());
+  if (!str) {
+    return {
+      prefix: 'HSS/SHG/',
+      serialStr: '01',
+      serialNum: 1,
+      suffix: `/${currentYearFull}`,
+      padLen: 2,
+      full: `HSS/SHG/01/${currentYearFull}`,
+      isSynthesized: true
+    };
+  }
+
+  // If ends with a separator, e.g. 'HSS/SHG/2026/'
+  if (/[/_-]$/.test(str)) {
+    return {
+      prefix: str,
+      serialStr: '01',
+      serialNum: 1,
+      suffix: '',
+      padLen: 2,
+      full: str + '01',
+      isSynthesized: true
+    };
+  }
+
+  // Find all numeric segments in the string with their indices
+  const matches = [];
+  const regex = /\b(\d+)\b/g;
+  let m;
+  while ((m = regex.exec(str)) !== null) {
+    const val = parseInt(m[1], 10);
+    const isYear = (val >= 1990 && val <= 2099) && m[1].length === 4;
+    matches.push({
+      str: m[1],
+      num: val,
+      index: m.index,
+      length: m[1].length,
+      isYear
+    });
+  }
+
+  // If there are multiple numbers and the last one is at the end, check if it looks like a 2-digit year (e.g. /26)
+  if (matches.length >= 2) {
+    const lastM = matches[matches.length - 1];
+    if (lastM.index + lastM.length === str.length && (lastM.isYear || (lastM.length === 2 && lastM.num >= 20 && lastM.num <= 35))) {
+      lastM.isYear = true;
+    }
+  }
+
+  let target = null;
+  const nonYears = matches.filter(m => !m.isYear);
+  if (nonYears.length > 0) {
+    target = nonYears.find(m => m.num > 10) || nonYears[nonYears.length - 1];
+  } else if (matches.length > 0) {
+    target = matches[matches.length - 1];
+  }
+
+  if (!target) {
+    return {
+      prefix: str + '/',
+      serialStr: '01',
+      serialNum: 1,
+      suffix: '',
+      padLen: 2,
+      full: str + '/01',
+      isSynthesized: true
+    };
+  }
+
+  const prefix = str.slice(0, target.index);
+  const suffix = str.slice(target.index + target.length);
+  return {
+    prefix,
+    serialStr: target.str,
+    serialNum: target.num,
+    suffix,
+    padLen: target.str.length > 1 && target.str.startsWith('0') ? target.str.length : 0,
+    full: str,
+    isSynthesized: false
+  };
+}
+
+/**
+ * Steps the numeric serial part of a reference string by delta (+1 or -1).
+ * Preserves the exact prefix, custom words, and year suffix without altering formatting.
+ */
+export function stepRefNumber(refStr, delta) {
+  const parts = parseRefParts(refStr);
+  let nextNum;
+  if (parts.isSynthesized) {
+    nextNum = delta > 0 ? 1 : 1;
+  } else {
+    nextNum = Math.max(1, parts.serialNum + delta);
+  }
+  const nextStr = parts.padLen > 0 ? String(nextNum).padStart(parts.padLen, '0') : String(nextNum);
+  return {
+    formatted: parts.prefix + nextStr + parts.suffix,
+    nextNum,
+    nextStr,
+    parts
+  };
+}
+
+/**
+ * Updates the numeric serial part of a reference string with a new figure value.
+ */
+export function updateRefSerial(refStr, newSerialVal) {
+  const num = parseInt(newSerialVal, 10);
+  if (isNaN(num) || num <= 0) return refStr;
+  const parts = parseRefParts(refStr);
+  const nextStr = parts.padLen > 0 ? String(num).padStart(parts.padLen, '0') : String(num);
+  return parts.prefix + nextStr + parts.suffix;
+}
+
 export function parseGeneralRefNo(refStr) {
   const text = String(refStr || '').trim();
   const currentYearFull = String(new Date().getFullYear());
@@ -576,12 +696,11 @@ export function parseGeneralRefNo(refStr) {
     return { prefix: 'HSS', serial: DEFAULT_INITIAL_GENERAL_REF_SERIAL, year: currentYearShort, formatted: `HSS/${DEFAULT_INITIAL_GENERAL_REF_SERIAL}/${currentYearShort}` };
   }
 
-  // 1. Match pattern: Prefix / Serial / Year (e.g. HSS/Char-Past/1369/26, HSS/1454/26, HSS/SHG/1454/2026)
+  // 1. Match pattern: Prefix / Serial / Year (e.g. HSS/SHG/Bonafide/1101/2026, HSS/1454/26)
   const matchWithYear = text.match(/^(.*?)[/_-](\d{1,6})[/_-]((?:19|20)?\d{2})$/);
   if (matchWithYear) {
-    let cleanPrefix = matchWithYear[1].trim().replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
-    if (!cleanPrefix) cleanPrefix = 'HSS';
-    const cleanYear = matchWithYear[3].trim().slice(-2);
+    const cleanPrefix = matchWithYear[1].trim() || 'HSS';
+    const cleanYear = matchWithYear[3].trim();
     return {
       prefix: cleanPrefix,
       serial: parseInt(matchWithYear[2], 10),
@@ -593,8 +712,7 @@ export function parseGeneralRefNo(refStr) {
   // 2. Match pattern: Prefix / Serial (without year, e.g. HSS/1454 or HSS/SHG/1454)
   const matchNoYear = text.match(/^(.*?)[/_-](\d{1,6})$/);
   if (matchNoYear) {
-    let cleanPrefix = matchNoYear[1].trim().replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
-    if (!cleanPrefix) cleanPrefix = 'HSS';
+    const cleanPrefix = matchNoYear[1].trim() || 'HSS';
     return {
       prefix: cleanPrefix,
       serial: parseInt(matchNoYear[2], 10),
@@ -603,25 +721,23 @@ export function parseGeneralRefNo(refStr) {
     };
   }
 
-  // 3. Fallback: extract candidate serial number
-  const numbers = Array.from(text.matchAll(/\b\d+\b/g)).map(m => parseInt(m[0], 10));
-  const candidate = numbers.find(n => n < 1900 || n > 2099) || numbers[0] || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
+  // 3. Fallback via smart parts extraction
+  const parts = parseRefParts(text);
   return {
-    prefix: 'HSS',
-    serial: candidate,
+    prefix: parts.prefix.replace(/[/_-]+$/, '') || 'HSS',
+    serial: parts.serialNum || DEFAULT_INITIAL_GENERAL_REF_SERIAL,
     year: currentYearShort,
-    formatted: `HSS/${candidate}/${currentYearShort}`
+    formatted: text
   };
 }
 
 /**
  * Formats a general reference string preserving prefix and year suffix.
- * e.g. formatGeneralRefNo('HSS/Char-Past', 1369, '2026') -> "HSS/Char-Past/1369/26"
+ * e.g. formatGeneralRefNo('HSS/SHG/Bonafide', 1101, '2026') -> "HSS/SHG/Bonafide/1101/2026"
  */
 export function formatGeneralRefNo(prefix = 'HSS', serial = DEFAULT_INITIAL_GENERAL_REF_SERIAL, year = null) {
-  const y = year ? String(year).slice(-2) : String(new Date().getFullYear()).slice(-2);
-  let cleanPrefix = (prefix || 'HSS').replace(/[/_-]+$/, '');
-  cleanPrefix = cleanPrefix.replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+  const y = year ? String(year) : String(new Date().getFullYear()).slice(-2);
+  const cleanPrefix = (prefix || 'HSS').replace(/[/_-]+$/, '');
   return `${cleanPrefix}/${serial}/${y}`;
 }
 

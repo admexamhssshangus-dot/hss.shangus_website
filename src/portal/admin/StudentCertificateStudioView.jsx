@@ -38,7 +38,10 @@ import {
   commitGeneralCertificateRef,
   parseGeneralRefNo,
   formatGeneralRefNo,
-  DEFAULT_INITIAL_GENERAL_REF_SERIAL
+  DEFAULT_INITIAL_GENERAL_REF_SERIAL,
+  parseRefParts,
+  stepRefNumber,
+  updateRefSerial
 } from '../../services/certificateRegistryService';
 import {
   normalizeResultStatus,
@@ -1558,8 +1561,8 @@ export default function StudentCertificateStudioView({
       const parsed = parseInt(extractCertificateSerial(refNo) || refNo, 10);
       return !isNaN(parsed) && parsed > 0 ? parsed : (lastIssuedCertificateRef.current || 1368);
     }
-    const parsed = parseGeneralRefNo(refNo);
-    return parsed.serial || generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
+    const parts = parseRefParts(refNo);
+    return parts.serialNum || generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
   }, [isTcDcActive, refNo, generalRefSerial]);
 
   // Manually update the numeric figure (admin typing directly into figure box)
@@ -1573,56 +1576,51 @@ export default function StudentCertificateStudioView({
       return;
     }
 
-    const currentParsed = parseGeneralRefNo(refNo);
-    const prefix = (currentParsed.prefix || generalRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
-    const year = String(currentParsed.year || generalRefYear || new Date().getFullYear()).slice(-2);
-    const formatted = formatGeneralRefNo(prefix, num, year);
+    const formatted = updateRefSerial(refNo, num);
+    const parts = parseRefParts(formatted);
 
     setGeneralRefSerial(num);
-    setGeneralRefPrefix(prefix);
-    setGeneralRefYear(year);
+    setGeneralRefPrefix(parts.prefix);
+    setGeneralRefYear(parts.suffix);
     setRefNo(formatted);
 
     await commitGeneralCertificateRef({
       serial: num,
-      prefix,
-      year,
+      prefix: parts.prefix,
+      year: parts.suffix,
       fullRef: formatted
     }).catch(() => {});
-  }, [isTcDcActive, refNo, generalRefPrefix, generalRefYear]);
+  }, [isTcDcActive, refNo]);
 
   // Step numeric figure sequentially (+1 or -1)
   const handleStepFigure = useCallback(async (delta) => {
-    const nextNum = Math.max(1, currentFigure + delta);
     if (isTcDcActive) {
+      const nextNum = Math.max(1, currentFigure + delta);
       setRefNo(String(nextNum));
       lastIssuedCertificateRef.current = nextNum;
       showToast(`TC/DC certificate number set to #${nextNum}`, 'info');
       return;
     }
 
-    const currentParsed = parseGeneralRefNo(refNo);
-    const prefix = (currentParsed.prefix || generalRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
-    const year = String(currentParsed.year || generalRefYear || new Date().getFullYear()).slice(-2);
-    const formatted = formatGeneralRefNo(prefix, nextNum, year);
+    const { formatted, nextNum, parts } = stepRefNumber(refNo, delta);
 
     setGeneralRefSerial(nextNum);
-    setGeneralRefPrefix(prefix);
-    setGeneralRefYear(year);
+    setGeneralRefPrefix(parts.prefix);
+    setGeneralRefYear(parts.suffix);
     setRefNo(formatted);
 
     try {
       await commitGeneralCertificateRef({
         serial: nextNum,
-        prefix,
-        year,
+        prefix: parts.prefix,
+        year: parts.suffix,
         fullRef: formatted
       });
-      showToast(`Figure set to #${nextNum} (${formatted})`, 'success');
+      showToast(`Ref serial set to #${nextNum} (${formatted})`, 'success');
     } catch (err) {
       showToast('Could not update figure: ' + err.message, 'error');
     }
-  }, [isTcDcActive, currentFigure, refNo, generalRefPrefix, generalRefYear, showToast]);
+  }, [isTcDcActive, currentFigure, refNo, showToast]);
 
   const [isExportingDocx, setIsExportingDocx] = useState(false);
   const [isIssuingTcDc, setIsIssuingTcDc] = useState(false);
@@ -5652,7 +5650,7 @@ export default function StudentCertificateStudioView({
                   {isTcDcActive ? 'Cert Serial' : 'Reference Number'}
                 </label>
                 <div className="flex items-center gap-1">
-                  <span className="text-[9px] font-bold text-slate-400">Fig:</span>
+                  <span className="text-[9px] font-black uppercase text-teal-700 dark:text-teal-400 tracking-tight" title="This numerical portion of the reference number increments sequentially">Inc Part:</span>
                   <div className="inline-flex items-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-2xs">
                     <button
                       type="button"
@@ -5922,11 +5920,11 @@ export default function StudentCertificateStudioView({
               {/* Figure / Serial manual control inside modal */}
               <div className="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
                 <div>
-                  <span className="block text-[9.5px] font-black uppercase text-slate-700 dark:text-slate-300">
-                    Serial Figure / Counter
+                  <span className="block text-[9.5px] font-black uppercase text-teal-700 dark:text-teal-400">
+                    Serial № (Inc Part)
                   </span>
                   <span className="text-[8.5px] text-slate-500">
-                    Edit figure manually or step sequentially
+                    The numerical portion of the reference number to be incremented
                   </span>
                 </div>
                 <div className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
@@ -6753,23 +6751,31 @@ export default function StudentCertificateStudioView({
                       className="studio-inline-input font-mono font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[240px] sm:max-w-[360px] text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0 print:max-w-none print:w-auto"
                       style={{ fontSize: '11px', height: '22px' }}
                     />
-                    <div className="print:hidden inline-flex items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={() => handleStepFigure(-1)}
-                        className="px-1 py-0.5 rounded text-[8.5px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-                        title="Step figure down (-1)"
-                      >
-                        -1
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleStepFigure(1)}
-                        className="px-1 py-0.5 rounded text-[8.5px] font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/60 cursor-pointer"
-                        title="Advance figure (+1 Next)"
-                      >
-                        +1
-                      </button>
+                    <div className="print:hidden inline-flex items-center gap-1 bg-teal-50/90 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800/80 rounded px-1.5 py-0.5 shadow-2xs shrink-0">
+                      <span className="text-[8.5px] font-black uppercase text-teal-800 dark:text-teal-300 whitespace-nowrap">
+                        Inc Part:
+                      </span>
+                      <span className="text-[9.5px] font-mono font-black text-teal-700 dark:text-teal-200 bg-white dark:bg-slate-800 px-1 rounded border border-teal-100 dark:border-teal-900" title="This numerical portion of the reference number increments">
+                        {currentFigure}
+                      </span>
+                      <div className="inline-flex items-center rounded overflow-hidden border border-teal-300/60 dark:border-teal-700">
+                        <button
+                          type="button"
+                          onClick={() => handleStepFigure(-1)}
+                          className="px-1 py-0.5 text-[8.5px] font-black text-teal-800 dark:text-teal-200 hover:bg-teal-100 dark:hover:bg-teal-900 border-r border-teal-200 dark:border-teal-700 cursor-pointer"
+                          title="Step figure down (-1)"
+                        >
+                          -1
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStepFigure(1)}
+                          className="px-1 py-0.5 text-[8.5px] font-black text-teal-800 dark:text-teal-200 hover:bg-teal-100 dark:hover:bg-teal-900 cursor-pointer"
+                          title="Advance figure (+1 Next)"
+                        >
+                          +1
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 group/date shrink-0">
@@ -6837,23 +6843,31 @@ export default function StudentCertificateStudioView({
                         aria-label="Certificate Serial Number"
                         className="font-mono font-black text-red-600 bg-transparent border-b border-dashed border-red-300/80 hover:border-red-500 focus:border-red-600 focus:bg-red-50/40 rounded px-0.5 py-0 outline-none transition-all w-24 text-[9.5px] print:border-none print:bg-transparent print:p-0"
                       />
-                      <div className="print:hidden inline-flex items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          onClick={() => handleStepFigure(-1)}
-                          className="px-1 py-0.5 rounded text-[8.5px] font-bold text-slate-600 hover:bg-slate-200"
-                          title="Step TC/DC number down (-1)"
-                        >
-                          -1
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleStepFigure(1)}
-                          className="px-1 py-0.5 rounded text-[8.5px] font-bold text-red-600 hover:bg-red-100"
-                          title="Advance TC/DC number (+1)"
-                        >
-                          +1
-                        </button>
+                      <div className="print:hidden inline-flex items-center gap-1 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded px-1.5 py-0.5 shadow-2xs shrink-0">
+                        <span className="text-[8.5px] font-black uppercase text-red-800 dark:text-red-300 whitespace-nowrap">
+                          Inc Part:
+                        </span>
+                        <span className="text-[9.5px] font-mono font-black text-red-700 dark:text-red-200 bg-white dark:bg-slate-800 px-1 rounded border border-red-100 dark:border-red-900" title="This numerical certificate serial increments">
+                          {currentFigure}
+                        </span>
+                        <div className="inline-flex items-center rounded overflow-hidden border border-red-300/60 dark:border-red-700">
+                          <button
+                            type="button"
+                            onClick={() => handleStepFigure(-1)}
+                            className="px-1 py-0.5 text-[8.5px] font-black text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 border-r border-red-200 dark:border-red-700 cursor-pointer"
+                            title="Step TC/DC number down (-1)"
+                          >
+                            -1
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleStepFigure(1)}
+                            className="px-1 py-0.5 text-[8.5px] font-black text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 cursor-pointer"
+                            title="Advance TC/DC number (+1)"
+                          >
+                            +1
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
