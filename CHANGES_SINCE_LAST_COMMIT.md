@@ -2,39 +2,23 @@
 
 ## Commit Message
 
-`feat(achievements): classified studio CRUD, student DB auto-lookup with regNo, and auto-seeding`
+`feat(achievements): minimal compact responsive studio UI and integrated JKBOSE Results Table`
 
 ## Files Changed & Remediated
 
 1. [src/portal/admin/AchievementsCMSManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AchievementsCMSManager.jsx):
-   - **Header Cleanup**: Removed redundant "Back to Records" and "Refresh" buttons from the top bar for a clean, dedicated studio layout.
-   - **Classified Presentation**: Added interactive category filter pills with live counts (All, JKBOSE Board Positions, NEET/JEE & Competitive, Sports & Athletics, Co-Curricular & Arts, Institutional Honors) and a toggle between **Classified Cards View** (grouped by category) and **Master Table View**.
-   - **Database Student Auto-Lookup**: Added a dedicated top lookup bar where administrators specify **Session**, **Class**, and **Board Reg No / Roll No** to auto-fetch candidate name, parentage, class, stream, roll number, and official student photograph directly from the database.
-   - **Registration Number Field**: Added a permanent, editable **Board Registration No. (`boardRegNo`)** field in both the demographics form and honoree badges.
-   - **Full Interactive CRUD**: Real-time Firestore write operations for creating, editing, and deleting records, plus 1-click toggles for **Live/Draft** and **Spotlight Featured** status.
-   - **Template Initialization**: Added an on-demand utility to seed or reset default official honors templates into Firebase.
-
-2. [src/services/achievementsService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/achievementsService.js):
-   - **Automatic Firestore Seeding**: Auto-initializes `siteAchievements` collection with default records if empty upon admin studio load, ensuring data is never trapped in hardcoded states and is fully CRUD-manageable.
-   - **Authentic Registration Numbers**: Populated authentic Board Registration Numbers for institutional toppers (e.g. Zaidan Wani `2201000001160003`, Hadeeqa Tabasum `2201010001160068`, Ajvaa Ibrahim Ganie `2201000000030010`, Tabish Rasool Allie `2101000000980041`).
-   - **Enhanced Student Lookup Engine (`lookupStudentForAchievement`)**: Multi-cohort search across active admissions, historical master registers, and verified student registries, supporting hyphenated/clean registration numbers and resolving real student photos via `fetchStudentPhotoOnDemand`.
-   - **Quick Toggle Helpers**: Added `toggleAchievementPublished()` and `toggleAchievementFeatured()` for instant status mutations.
-
-3. [firestore.rules](file:///d:/Shk_Gulfam/Projects/hss_shangus/firestore.rules):
-   - Consolidated `match /siteAchievements/{achievementId}` rule block, eliminating duplicate definitions.
-   - Configured public read access (`allow read: if true;`) and authenticated staff/admin management with `validStaffDocument`.
-   - Automatically deployed updated security rules to Firebase (`npm run deploy:rules`).
-
-4. [src/pages/Achievements.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Achievements.jsx):
-   - Expanded `CATEGORY_META` to support all categories (`sports`, `cocurricular`, `institutional` alongside `jkbose` and `competitive`).
-   - Displayed `boardRegNo` badge on public honor cards and within the detailed citation popup modal.
+   - **Integrated JKBOSE Results Table Tab**: Added a top-level tab switcher between **"🏆 Merits & Honors"** (the individual achievements CRUD system) and **"📊 JKBOSE Results Table"** (embedding the official interactive Class 10th, 11th & 12th board results, pass statistics, distinction rates, toppers roll, and print engine via `ClassBoardResultsSection`).
+   - **Ultra-Compact Minimalist Command Bar**: Replaced the bulky multi-tile counter layout with an inline, space-efficient command bar displaying micro-badges (`Honors`, `UT Positions`, `Live Published`) directly in the header row, saving over 120px of vertical space.
+   - **Compact Toolbar & Filters**: Streamlined category pills, search input, session selector, class selector, and UT filter into a tight, two-row responsive strip that wraps cleanly across mobile, tablet, and desktop screens.
+   - **Slim Table Rows & Tight Card Grid**: Reduced table cell padding to `py-2 px-3` with compact avatars (`w-8 h-8`), crisp typography, and sleek action buttons so administrators can view 2–3x more data above the fold without excessive scrolling.
+   - **Responsive Modal**: Compacted the student lookup and form editor dialog with optimized grid spacing for seamless mobile and desktop entry.
 
 ---
 
 ## Verification
 
 - **Build Verification**: `npm run build` completed with **Exit Code 0** with zero breaking errors. All 12 public static pages and SEO regression checks passed.
-- **Firebase Security Rules**: Rules verified and deployed successfully to Cloud Firestore via `firebase deploy --only firestore:rules` (`+ released rules firestore.rules to cloud.firestore`).
+- **Firebase Security Rules**: Security rules remain compiled and released to Cloud Firestore.
 
 ---
 
@@ -47,9 +31,9 @@
 2. **If You Want to Amend or Re-commit**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(achievements): classified studio CRUD, student DB auto-lookup with regNo, and auto-seeding"
+   git commit -m "feat(achievements): minimal compact responsive studio UI and integrated JKBOSE Results Table"
    ```
-3. **Push to Remote Repository** (Run manually whenever you are ready):
+3. **Push to Remote Repository** *(Strict Manual Policy)*:
    ```bash
    git push origin main
    ```
