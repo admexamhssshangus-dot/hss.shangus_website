@@ -179,6 +179,43 @@ export default function BeneficiarySanctionOrdersView({
   const [tableFontSize, setTableFontSize] = useState('9.5px');
   const [rowPaddingPreset, setRowPaddingPreset] = useState('compact'); // 'compact' | 'standard' | 'spacious'
   const [showControlsPanel, setShowControlsPanel] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(350);
+
+  // ─── Drag-to-Resize refs ───
+  const isResizing = useRef(false);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(350);
+
+  const handleResizeMouseDown = useCallback((e) => {
+    e.preventDefault();
+    isResizing.current = true;
+    resizeStartX.current = e.clientX;
+    resizeStartWidth.current = sidebarWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (!isResizing.current) return;
+      // Drag left = widen sidebar (we're resizing from the LEFT edge of the sidebar)
+      const delta = resizeStartX.current - e.clientX;
+      const newWidth = Math.min(580, Math.max(260, resizeStartWidth.current + delta));
+      setSidebarWidth(newWidth);
+    };
+    const onMouseUp = () => {
+      if (!isResizing.current) return;
+      isResizing.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
 
   // ─── Letterhead & Institutional Metadata ───
   const [officeTitle, setOfficeTitle] = useState('OFFICE OF THE PRINCIPAL');
@@ -1387,9 +1424,23 @@ export default function BeneficiarySanctionOrdersView({
           </div>
         </main>
 
+        {/* ─── RESIZE HANDLE DIVIDER ─── */}
+        {showControlsPanel && (
+          <div
+            onMouseDown={handleResizeMouseDown}
+            className="flex-none w-1.5 cursor-col-resize bg-slate-200 dark:bg-slate-800 hover:bg-teal-400 dark:hover:bg-teal-600 transition-colors duration-150 relative group print:hidden"
+            title="Drag to resize panel"
+          >
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-slate-300 dark:bg-slate-700 group-hover:bg-teal-500 transition-colors" />
+          </div>
+        )}
+
         {/* ─── RIGHT SIDEBAR: CONFIGURATION, INGESTION & COLUMN CONTROLS ─── */}
         {showControlsPanel && (
-          <aside className="w-80 lg:w-[350px] flex-none border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-2.5 space-y-2.5 shadow-xs">
+          <aside
+            className="flex-none border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-2.5 space-y-2.5 shadow-xs"
+            style={{ width: sidebarWidth }}
+          >
             {/* SECTION 1: Bulk Reg No Ingestion & Data Fetching */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
               <div className="flex items-center justify-between">
