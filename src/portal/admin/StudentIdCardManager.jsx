@@ -1232,17 +1232,6 @@ function StudentIdCardManager({ students = [], allStudents, onClose }) {
             >
               <RotateCcw size={11} className="text-amber-600" />
             </button>
-
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                title="Close ID Suite"
-                className="px-2 py-0.5 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 font-extrabold text-[10.5px] text-red-700 dark:text-red-300 cursor-pointer shadow-2xs"
-              >
-                Close
-              </button>
-            )}
           </div>
 
         </div>

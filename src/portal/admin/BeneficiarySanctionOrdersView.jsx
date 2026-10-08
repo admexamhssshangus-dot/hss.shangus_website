@@ -1075,30 +1075,11 @@ export default function BeneficiarySanctionOrdersView({
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 overflow-hidden font-sans">
-      {/* ─── TOP APP HEADER & ACTION BAR (COMPACT HIGH-DENSITY) ─── */}
-      <header className="flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 py-1.5 flex items-center justify-between shadow-2xs z-30 min-h-[42px] gap-2 print:hidden">
-        <div className="flex items-center gap-2 min-w-0 shrink">
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors shrink-0"
-            title="Back to Reports / Admin Dashboard"
-          >
-            <ArrowLeft size={14} />
-          </button>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <CreditCard className="text-teal-600 dark:text-teal-400 shrink-0" size={16} />
-            <h1 className="text-xs sm:text-sm font-black tracking-tight text-slate-900 dark:text-white truncate">
-              Mutual Benefit Fund & Sanction Orders
-            </h1>
-            <span className="hidden md:inline-block text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 shrink-0">
-              Studio
-            </span>
-          </div>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto">
+    <div className="w-full flex flex-col min-h-[calc(100vh-140px)] bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 rounded-xl overflow-hidden font-sans border border-slate-200 dark:border-slate-800">
+      {/* ─── ACTION CONTROLS TOOLBAR (COMPACT HIGH-DENSITY) ─── */}
+      <div className="flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-2 sm:px-3 py-1 flex items-center justify-between shadow-2xs z-30 min-h-[38px] gap-2 print:hidden overflow-x-auto">
+        {/* Left side: Preset selector & Orientation */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Quick Preset Selector */}
           <select
             value={activePresetId}
@@ -1119,8 +1100,9 @@ export default function BeneficiarySanctionOrdersView({
           {/* Orientation Toggle */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700 text-xs shrink-0 h-7">
             <button
+              type="button"
               onClick={() => setOrientation('landscape')}
-              className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-all ${
+              className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 orientation === 'landscape'
                   ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-2xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -1129,8 +1111,9 @@ export default function BeneficiarySanctionOrdersView({
               Landscape
             </button>
             <button
+              type="button"
               onClick={() => setOrientation('portrait')}
-              className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-all ${
+              className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 orientation === 'portrait'
                   ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-2xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -1139,11 +1122,15 @@ export default function BeneficiarySanctionOrdersView({
               Portrait
             </button>
           </div>
+        </div>
 
+        {/* Right side: Action Controls */}
+        <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto">
           {/* History / Drafts */}
           <button
+            type="button"
             onClick={() => setShowHistoryModal(true)}
-            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs whitespace-nowrap shrink-0"
+            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
             title="Document History & Saved Drafts"
           >
             <RotateCcw size={12} className="text-slate-500 shrink-0" />
@@ -1152,8 +1139,9 @@ export default function BeneficiarySanctionOrdersView({
 
           {/* Save to Cloud */}
           <button
+            type="button"
             onClick={handleSaveToCloud}
-            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs whitespace-nowrap shrink-0"
+            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
             title="Save draft to Cloud History"
           >
             <Save size={12} className="text-teal-600 shrink-0" />
@@ -1162,8 +1150,9 @@ export default function BeneficiarySanctionOrdersView({
 
           {/* Excel Export */}
           <button
+            type="button"
             onClick={handleExportExcel}
-            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-colors shadow-2xs whitespace-nowrap shrink-0"
+            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-colors shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
             title="Export full Excel file"
           >
             <FileSpreadsheet size={12} className="shrink-0" />
@@ -1172,8 +1161,9 @@ export default function BeneficiarySanctionOrdersView({
 
           {/* Word Export */}
           <button
+            type="button"
             onClick={handleExportDocx}
-            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors shadow-2xs whitespace-nowrap shrink-0"
+            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
             title="Export Word document"
           >
             <FileText size={12} className="shrink-0" />
@@ -1182,8 +1172,9 @@ export default function BeneficiarySanctionOrdersView({
 
           {/* Print / PDF Button */}
           <button
+            type="button"
             onClick={handlePrint}
-            className="h-7 flex items-center gap-1.5 text-xs font-bold px-2.5 rounded-md bg-teal-600 hover:bg-teal-700 text-white transition-all shadow-2xs whitespace-nowrap shrink-0"
+            className="h-7 flex items-center gap-1.5 text-xs font-bold px-2.5 rounded-md bg-teal-600 hover:bg-teal-700 text-white transition-all shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
             title="Print or Save as PDF (Ctrl+P)"
           >
             <Printer size={13} className="shrink-0" />
@@ -1192,8 +1183,9 @@ export default function BeneficiarySanctionOrdersView({
 
           {/* Sidebar Controls Toggle */}
           <button
+            type="button"
             onClick={() => setShowControlsPanel(!showControlsPanel)}
-            className={`h-7 flex items-center gap-1 text-[11px] font-bold px-2 rounded-md border transition-all whitespace-nowrap shrink-0 ${
+            className={`h-7 flex items-center gap-1 text-[11px] font-bold px-2 rounded-md border transition-all whitespace-nowrap shrink-0 cursor-pointer ${
               showControlsPanel
                 ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
                 : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
@@ -1208,7 +1200,7 @@ export default function BeneficiarySanctionOrdersView({
             <span className="hidden sm:inline">Controls</span>
           </button>
         </div>
-      </header>
+      </div>
 
       {/* ─── DUAL PANE WORKSPACE ─── */}
       <div className="flex-1 flex overflow-hidden">
@@ -1595,45 +1587,17 @@ export default function BeneficiarySanctionOrdersView({
                 </div>
               </div>
 
-              {/* Reg No(s) Area — Disabled & Merged with Quick Student Finder */}
-              <div className="opacity-75">
-                <div className="flex items-center justify-between mb-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-[9px] font-bold uppercase text-slate-400">Reg No(s)</label>
-                    <span className="text-[8px] bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1 py-0.2 rounded font-semibold uppercase">
-                      Disabled
-                    </span>
-                  </div>
-                  <span className="text-[8.5px] text-slate-400">Merged with Finder below</span>
-                </div>
-                <textarea
-                  disabled
-                  readOnly
-                  value=""
-                  rows={2}
-                  placeholder="Disabled — Registration number search has been merged into Quick Student Finder below. Search by Reg No, Roll No, or Name below."
-                  className="w-full h-11 text-[11px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 rounded-md p-1.5 cursor-not-allowed select-none resize-none"
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-1.5">
+              {/* Manual Blank Row Entry Option */}
+              <div className="flex items-center justify-between pt-0.5">
+                <span className="text-[9.5px] text-slate-500 dark:text-slate-400">Add non-student or vendor:</span>
                 <button
-                  disabled
-                  className="flex-1 h-7 flex items-center justify-center gap-1 bg-slate-200 dark:bg-slate-800 text-slate-400 text-xs font-semibold px-2 rounded-md cursor-not-allowed shadow-none"
-                  title="Direct Reg No lookup merged into Quick Student Finder below"
-                >
-                  <Sparkles size={12} className="opacity-40" />
-                  <span>Fetch & Add (Merged Below)</span>
-                </button>
-
-                <button
+                  type="button"
                   onClick={handleAddManualRow}
-                  className="h-7 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 text-slate-700 dark:text-slate-300 text-xs font-semibold px-2 rounded-md transition-colors whitespace-nowrap"
+                  className="h-6 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
                   title="Add blank editable row (e.g. non-student vendor / shop)"
                 >
-                  <Plus size={13} />
-                  <span>+ Blank</span>
+                  <Plus size={12} />
+                  <span>+ Blank Row</span>
                 </button>
               </div>
 

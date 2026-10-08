@@ -597,7 +597,6 @@ export default function AdminDashboard() {
         </div>
 
         {/* Workspace Card */}
-        {/* Workspace Card */}
         <div className="rounded-lg sm:rounded-xl p-0 sm:p-1 border-0 sm:border shadow-none sm:shadow-sm space-y-0.5 sm:space-y-1" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
           {/* Navigation Tabs Dynamic Toolbar (For non-reports tabs) */}
           {activeTab !== 'reports' && (() => {
@@ -648,31 +647,8 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Right Slot: Setup Button + Admin Tools Dropdown Button */}
+                {/* Right Slot: Admin Tools Dropdown Button */}
                 <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 ml-auto">
-
-                  {/* Setup / Configuration Button (Shown on sm+ screens; each module has its own focused mobile setup) */}
-                  {(activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate') && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextState = !isStudioSetupOpen;
-                        setIsStudioSetupOpen(nextState);
-                        window.dispatchEvent(new CustomEvent('hss-toggle-studio-setup', {
-                          detail: { targetModule: activeTab, open: nextState }
-                        }));
-                      }}
-                      className={`hidden sm:flex h-7 px-2 rounded-lg border font-bold text-xs cursor-pointer transition-all shadow-2xs items-center gap-1 active:scale-95 shrink-0 ${
-                        isStudioSetupOpen
-                          ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 ring-1 ring-amber-400 shadow-xs'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                      }`}
-                      title="Configure Options, Filters, Signatories & Layout"
-                    >
-                      <Sliders size={11} className={isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'} />
-                      <span>Setup</span>
-                    </button>
-                  )}
 
                   {/* Administrative Tools Switcher Dropdown (Positioned on Right Side) */}
                   <div className="relative inline-block text-left" ref={dropdownRef}>
@@ -760,7 +736,7 @@ export default function AdminDashboard() {
               })()}
             </div>
           ) : (
-            <div className="block w-full">
+            <div className={`block w-full ${activeTab !== 'reports' ? 'px-1.5 sm:px-2.5 md:px-3.5 pt-1 sm:pt-1.5 pb-2.5' : ''}`}>
               <ModuleErrorBoundary resetKey={activeTab}>
                 <React.Suspense fallback={<TabLoadingOverlay moduleKey={activeTab} />}>
                   {/* TAB 1: Master Register & Database (Kept mounted to eliminate tab-switch stalls and preserve scroll/search/filter state) */}
@@ -999,7 +975,6 @@ export default function AdminDashboard() {
                     >
                       <OfficialLetterWriterView
                         onClose={handleCloseToReports}
-                        onSwitchToRoster={() => setActiveTab('customRoster')}
                         showSettingsDrawerProp={isStudioSetupOpen}
                         onToggleSettingsDrawer={(val) => setIsStudioSetupOpen(typeof val === 'boolean' ? val : !isStudioSetupOpen)}
                       />
@@ -1018,8 +993,6 @@ export default function AdminDashboard() {
                         allStudents={identityStudents}
                         identityStudents={identityStudents}
                         onClose={handleCloseToReports}
-                        onSwitchToRoster={() => setActiveTab('customRoster')}
-                        onSwitchToLetter={() => setActiveTab('officialLetter')}
                         showSettingsDrawerProp={isStudioSetupOpen}
                         onToggleSettingsDrawer={(val) => setIsStudioSetupOpen(typeof val === 'boolean' ? val : !isStudioSetupOpen)}
                       />

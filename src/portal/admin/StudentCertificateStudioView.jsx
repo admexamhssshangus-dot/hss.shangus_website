@@ -674,8 +674,6 @@ export default function StudentCertificateStudioView({
   onClose,
   activeSubTab = 'certStudio',
   onSwitchSubTab,
-  onSwitchToRoster,
-  onSwitchToLetter,
   showSettingsDrawerProp,
   onToggleSettingsDrawer
 }) {

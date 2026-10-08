@@ -191,7 +191,6 @@ const AI_PROMPT_SUGGESTIONS = [
 export default function OfficialLetterWriterView({
   onClose,
   onSwitchSubTab,
-  onSwitchToRoster,
   showSettingsDrawerProp,
   onToggleSettingsDrawer
 }) {
