@@ -71,7 +71,14 @@ const MODULE_ICONS = {
 
 export const ADMIN_TOOL_MODULES = ADMIN_MODULE_CATALOG
   .filter(module => module.launcher)
-  .map(module => ({ ...module, desc: module.description, icon: MODULE_ICONS[module.id] || PanelsTopLeft }));
+  .map(module => ({
+    ...module,
+    desc: module.description,
+    icon: MODULE_ICONS[module.id] || PanelsTopLeft,
+    fields: module.fields || [],
+    settings: module.settings || [],
+    capabilities: module.capabilities || [],
+  }));
 
 export const isUserPermittedForModule = (user, moduleId) => {
   if (!user) return false;
@@ -210,6 +217,9 @@ export default function AdminToolsDropdown({
         maturityNote: m.maturityNote,
         keywords: m.keywords || [],
         aliases: m.aliases || [],
+        fields: m.fields || [],
+        settings: m.settings || [],
+        capabilities: m.capabilities || [],
         isActive: activeTab === m.id,
         onMouseEnter: () => onPrefetchModule && onPrefetchModule(m.id),
         onClick: () => {
@@ -245,6 +255,9 @@ export default function AdminToolsDropdown({
         icon: Edit3,
         keywords: ['quick cell edit', 'inline edit', 'edit table', 'fast edit', 'cell edit', 'quick update', 'rapid cell edit'],
         aliases: ['quickCellEdit'],
+        fields: ['Table Cell Values', 'Inline Cell Input', 'Cell Change History'],
+        settings: ['Inline Quick Cell Edit Toggle', 'Direct Click-to-edit Table Cells', 'Instant Validation & Auto-save'],
+        capabilities: ['Rapidly edit individual table cells without opening edit modals'],
         isChecked: enableQuickCellEdit,
         onToggle: (val) => setEnableQuickCellEdit(val),
       });
@@ -259,6 +272,9 @@ export default function AdminToolsDropdown({
         icon: Wrench,
         keywords: ['bulk tools', 'bulk status', 'batch export', 'photo suite', 'photo export', 'batch photo download', 'data tools', 'bulk actions', 'bulk updater'],
         aliases: ['bulkToolsAction', 'bulkTools', 'bulk'],
+        fields: ['Student Photo Batch', 'Bulk Field Target', 'Bulk Value', 'Target Cohort Scope'],
+        settings: ['Batch Photo ZIP Downloader & Exporter', 'Bulk Admission Status Updater', 'Bulk Stream / Section Assigner'],
+        capabilities: ['Perform batch updates across hundreds of student records', 'Download student photos in a single ZIP archive'],
         onMouseEnter: () => onPrefetchModule && onPrefetchModule('reports'),
         onClick: () => {
           if (onOpenBulkTools) onOpenBulkTools();

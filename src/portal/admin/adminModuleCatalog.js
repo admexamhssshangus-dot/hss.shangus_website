@@ -1,3 +1,5 @@
+import { MODULE_DEEP_INDEX } from './adminModuleSearchEngine.js';
+
 export const MODULE_MATURITY = Object.freeze({
   optimized: {
     label: 'Optimized',
@@ -54,7 +56,7 @@ export const ADMIN_CATEGORIES = Object.freeze([
   },
 ]);
 
-export const ADMIN_MODULE_CATALOG = Object.freeze([
+const RAW_ADMIN_MODULE_CATALOG = [
   // CATEGORY 1: Records & Registers (7 Modules)
   {
     id: 'reports',
@@ -415,7 +417,16 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     aliases: ['bulkToolsAction', 'bulkTools', 'bulk'],
     keywords: ['bulk tools', 'bulk status', 'batch export', 'photo suite', 'photo export', 'batch photo download', 'data tools', 'bulk actions', 'bulk updater'],
   },
-]);
+];
+
+export const ADMIN_MODULE_CATALOG = Object.freeze(
+  RAW_ADMIN_MODULE_CATALOG.map(module => ({
+    ...module,
+    fields: MODULE_DEEP_INDEX[module.id]?.fields || [],
+    settings: MODULE_DEEP_INDEX[module.id]?.settings || [],
+    capabilities: MODULE_DEEP_INDEX[module.id]?.capabilities || [],
+  }))
+);
 
 export const ROLE_PRESETS = Object.freeze([
   {
