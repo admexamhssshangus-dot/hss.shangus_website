@@ -11,7 +11,7 @@ import { printBeneficiarySanctionOrder } from '../../utils/beneficiaryPrintUtils
 import {
   Printer, Download, FileSpreadsheet, FileText, Plus, Trash2, Edit3,
   Save, RotateCcw, Check, Search, SlidersHorizontal, Layers, Settings2,
-  ChevronDown, ChevronUp, ArrowUp, ArrowDown, HelpCircle, X, Calendar,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, HelpCircle, X, Calendar,
   Hash, IndianRupee, Users, CheckSquare, Square, UserCheck, RefreshCw,
   Copy, PlusCircle, Sparkles, Share2, Eye, EyeOff, GripVertical, CheckCircle2,
   AlertCircle, Building2, CreditCard, ShieldCheck, Award, ArrowLeft,
@@ -318,6 +318,19 @@ export default function BeneficiarySanctionOrdersView({
 
   // ─── Add Standard DB Column Dropdown ───
   const [showDbColDropdown, setShowDbColDropdown] = useState(false);
+  const [showInTableAddMenu, setShowInTableAddMenu] = useState(false);
+  const inTableAddColRef = useRef(null);
+
+  useEffect(() => {
+    if (!showInTableAddMenu) return;
+    const handleClickOutside = (e) => {
+      if (inTableAddColRef.current && !inTableAddColRef.current.contains(e.target)) {
+        setShowInTableAddMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showInTableAddMenu]);
 
   // ─── History & Save Draft Modal ───
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -732,11 +745,21 @@ export default function BeneficiarySanctionOrdersView({
   };
 
   const handleRemoveColumn = (colKey) => {
-    if (activeColumns.length <= 2) {
-      showToast('Must keep at least 2 columns in table', 'warning');
+    if (activeColumns.length <= 1) {
+      showToast('Must keep at least 1 column in table', 'warning');
       return;
     }
+    const target = activeColumns.find(c => c.key === colKey);
     setActiveColumns(prev => prev.filter(c => c.key !== colKey));
+    if (target) {
+      showToast(`Removed column "${target.label}"`, 'info');
+    }
+  };
+
+  const handleResetColumns = () => {
+    const defaultCols = TEMPLATE_PRESETS.find(p => p.id === activePresetId)?.columns || TEMPLATE_PRESETS[0].columns;
+    setActiveColumns(defaultCols);
+    showToast('Reset table columns to preset default', 'info');
   };
 
   // ─── Filtered Search Results for Autocomplete (Name, Roll, or Reg No) ───
@@ -1384,21 +1407,134 @@ export default function BeneficiarySanctionOrdersView({
               >
                 <thead>
                   <tr className="bg-slate-200 font-bold text-center border-b border-slate-900">
-                    {activeColumns.map((c) => (
+                    {activeColumns.map((c, colIdx) => (
                       <th
                         key={c.key}
-                        className="border border-slate-900 px-1.5 py-1 text-slate-900 font-extrabold leading-tight"
+                        className="border border-slate-900 px-1 py-1 text-slate-900 font-extrabold leading-tight align-top group/th relative"
                         style={{
                           width: `${c.widthPct}%`,
                           textAlign: c.align
                         }}
                       >
-                        {c.label}
+                        {/* Screen-only Column Reorder & Delete Toolbar */}
+                        <div className="print:hidden flex items-center justify-between pb-1 mb-1 border-b border-slate-300/80 text-[10px] select-none">
+                          <div className="flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleMoveColumn(colIdx, -1); }}
+                              disabled={colIdx === 0}
+                              className="w-4 h-4 rounded hover:bg-slate-300 dark:hover:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 disabled:opacity-20 cursor-pointer transition-colors"
+                              title="Move Column Left (←)"
+                            >
+                              <ChevronLeft size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleMoveColumn(colIdx, 1); }}
+                              disabled={colIdx === activeColumns.length - 1}
+                              className="w-4 h-4 rounded hover:bg-slate-300 dark:hover:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 disabled:opacity-20 cursor-pointer transition-colors"
+                              title="Move Column Right (→)"
+                            >
+                              <ChevronRight size={11} />
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleRemoveColumn(c.key); }}
+                            className="w-4 h-4 rounded hover:bg-rose-100 dark:hover:bg-rose-950 text-rose-500 hover:text-rose-700 flex items-center justify-center cursor-pointer transition-colors"
+                            title={`Delete column "${c.label}"`}
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+
+                        {/* Column Title: Editable on screen, pure text on print */}
+                        <div className="flex items-center justify-center">
+                          <input
+                            type="text"
+                            value={c.label}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setActiveColumns(prev => prev.map((col, i) => i === colIdx ? { ...col, label: val } : col));
+                            }}
+                            className="print:hidden w-full text-center font-extrabold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-400 focus:border-teal-600 focus:outline-hidden py-0 px-0.5 text-[11px]"
+                            style={{ textAlign: c.align }}
+                            title="Click to rename column title"
+                          />
+                          <span className="hidden print:inline">{c.label}</span>
+                        </div>
                       </th>
                     ))}
-                    {/* Screen-only Action Column */}
-                    <th className="print:hidden border border-slate-900 px-1 py-1 w-8 text-center text-slate-400">
-                      •
+
+                    {/* Screen-only Action / Add Column Header */}
+                    <th className="print:hidden border border-slate-900 px-1 py-1 w-14 text-center align-middle bg-slate-100">
+                      <div className="relative inline-block text-left" ref={inTableAddColRef}>
+                        <button
+                          type="button"
+                          onClick={() => setShowInTableAddMenu(prev => !prev)}
+                          className="h-6 px-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs whitespace-nowrap"
+                          title="Add column to table (+ DB Col or + Custom)"
+                        >
+                          <Plus size={11} />
+                          <span>+ Col</span>
+                        </button>
+
+                        {/* Quick Add Column Menu in Table */}
+                        {showInTableAddMenu && (
+                          <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 w-56 max-h-64 overflow-y-auto p-1.5 text-xs text-left">
+                            <div className="flex items-center justify-between pb-1 mb-1 border-b border-slate-100 dark:border-slate-800 font-black text-[9.5px] uppercase text-teal-700 dark:text-teal-400">
+                              <span>Add Column</span>
+                              <button
+                                type="button"
+                                onClick={() => setShowInTableAddMenu(false)}
+                                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowInTableAddMenu(false);
+                                setShowAddCustomColModal(true);
+                              }}
+                              className="w-full text-left px-2 py-1.5 mb-1.5 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 text-teal-800 dark:text-teal-200 rounded font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <PlusCircle size={13} className="text-teal-600 shrink-0" />
+                              <span>+ Create Custom Column...</span>
+                            </button>
+
+                            <div className="text-[9px] font-black uppercase text-slate-400 px-1 py-0.5">
+                              Student Database Fields
+                            </div>
+                            {DB_COLUMN_GROUPS.map(g => (
+                              <div key={g.category} className="mb-1">
+                                <div className="text-[8.5px] font-bold text-slate-500 uppercase px-1">
+                                  {g.category}
+                                </div>
+                                {g.columns.map(colDef => (
+                                  <button
+                                    key={colDef.key}
+                                    type="button"
+                                    onClick={() => {
+                                      handleAddDbColumn(colDef);
+                                      setShowInTableAddMenu(false);
+                                    }}
+                                    className="w-full text-left px-1.5 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded flex items-center justify-between text-xs cursor-pointer"
+                                  >
+                                    <span>{colDef.label}</span>
+                                    {activeColumns.some(x => x.key === colDef.key) && (
+                                      <Check size={12} className="text-teal-600" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </th>
                   </tr>
                 </thead>
@@ -1409,7 +1545,7 @@ export default function BeneficiarySanctionOrdersView({
                         colSpan={activeColumns.length + 1}
                         className="border border-slate-900 p-8 text-center text-slate-400 font-sans italic"
                       >
-                        No beneficiaries added yet. Use the controls panel on the right to fetch student registration numbers or add rows.
+                        No beneficiaries added yet. Use the controls panel on the right or "+ Col" / "+ Blank" to fetch student registration numbers or add rows.
                       </td>
                     </tr>
                   ) : (
@@ -1462,15 +1598,36 @@ export default function BeneficiarySanctionOrdersView({
                           );
                         })}
 
-                        {/* Screen-only Delete Row Button */}
-                        <td className="print:hidden border border-slate-700 px-1 py-0.5 text-center align-middle">
-                          <button
-                            onClick={() => handleDeleteRow(row.id)}
-                            className="text-slate-300 hover:text-rose-600 transition-colors"
-                            title="Delete this row"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                        {/* Screen-only Row Action Controls: Move Up, Move Down, Delete */}
+                        <td className="print:hidden border border-slate-700 px-1 py-0.5 text-center align-middle whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveRow(rIdx, -1)}
+                              disabled={rIdx === 0}
+                              className="p-0.5 text-slate-400 hover:text-teal-600 disabled:opacity-20 cursor-pointer transition-colors"
+                              title="Move Row Up"
+                            >
+                              <ArrowUp size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveRow(rIdx, 1)}
+                              disabled={rIdx === beneficiaries.length - 1}
+                              className="p-0.5 text-slate-400 hover:text-teal-600 disabled:opacity-20 cursor-pointer transition-colors"
+                              title="Move Row Down"
+                            >
+                              <ArrowDown size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRow(row.id)}
+                              className="p-0.5 text-slate-400 hover:text-rose-600 cursor-pointer ml-0.5 transition-colors"
+                              title="Delete this row"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1482,10 +1639,11 @@ export default function BeneficiarySanctionOrdersView({
                     if (amountIdx !== -1) {
                       const beforeCols = activeColumns.slice(0, amountIdx);
                       const afterCols = activeColumns.slice(amountIdx + 1);
+                      const beforeColSpan = Math.max(1, beforeCols.length);
                       return (
                         <tr className="bg-slate-100 font-bold border-t-2 border-slate-900">
                           <td
-                            colSpan={beforeCols.length}
+                            colSpan={beforeColSpan}
                             className="border border-slate-900 px-3 py-1 text-right font-extrabold uppercase text-[11px] tracking-wider"
                           >
                             Total Amount Sanctioned :
@@ -1966,10 +2124,21 @@ export default function BeneficiarySanctionOrdersView({
 
                   {/* Custom Column Button */}
                   <button
+                    type="button"
                     onClick={() => setShowAddCustomColModal(true)}
-                    className="text-[10px] font-bold bg-teal-600 text-white px-1.5 py-0.5 rounded hover:bg-teal-700"
+                    className="text-[10px] font-bold bg-teal-600 text-white px-1.5 py-0.5 rounded hover:bg-teal-700 cursor-pointer"
                   >
                     + Custom
+                  </button>
+
+                  {/* Reset Defaults button */}
+                  <button
+                    type="button"
+                    onClick={handleResetColumns}
+                    className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 px-1.5 py-0.5 rounded cursor-pointer"
+                    title="Reset to default columns preset"
+                  >
+                    Reset
                   </button>
                 </div>
               </div>

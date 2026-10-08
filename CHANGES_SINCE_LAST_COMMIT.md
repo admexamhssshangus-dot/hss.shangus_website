@@ -2,15 +2,17 @@
 
 ## Commit Message
 
-`feat(beneficiary): combine student selection and restore active bulk Reg No(s) entry with hide/unhide toggle`
+`feat(beneficiary): add in-table move controls, inline header editing, in-table column adder, and allow deleting any column`
 
 ## Files Changed
 
 1. **[src/portal/admin/BeneficiarySanctionOrdersView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BeneficiarySanctionOrdersView.jsx)**
-   - Re-enabled and combined the Registration Number bulk entry box seamlessly with the Quick Student Finder in Section 1 (Student Selection & Fetcher).
-   - Added `showBulkRegInput` state with a dedicated `Hide Reg No(s)` / `Unhide Reg No(s)` toggle button equipped with `Eye` / `EyeOff` icons and local storage persistence.
-   - Removed disabled states from the bulk textarea and `Fetch & Add` action button, fully re-enabling batch-processing of comma-, space-, or newline-separated Registration Numbers directly into beneficiary rows.
-   - Added live token detection counter (`bulkTokensCount`), a one-click `Clear` button for bulk input, and kept `+ Blank` row creation readily available in both expanded and collapsed states.
+   - Added direct in-table column move controls (`ChevronLeft` / `ChevronRight` to shift left/right) and delete buttons (`Trash2`) in every `<th>` header on the live document canvas.
+   - Added interactive inline column renaming inputs directly within each table header cell.
+   - Added an in-table `+ Col` header action button with a dropdown to add any student database field or create a custom column directly on the document table without opening the sidebar.
+   - Added in-table row move controls (`ArrowUp` / `ArrowDown`) alongside the row delete button in every row's action cell to reorder beneficiary entries directly on the canvas.
+   - Updated `handleRemoveColumn` so administrators can delete ANY column down to 1 column (including S.No, Class, etc.), with confirmation toast feedback.
+   - Added a `Reset` button in the sidebar Section 4 columns header to quickly restore the default columns preset anytime.
 
 ---
 
@@ -29,7 +31,7 @@ If you wish to edit the commit message or modify files before pushing:
 git reset --soft HEAD~1
 # Make desired adjustments, then:
 git add .
-git commit -m "feat(beneficiary): combine student selection and restore active bulk Reg No(s) entry with hide/unhide toggle"
+git commit -m "feat(beneficiary): add in-table move controls, inline header editing, in-table column adder, and allow deleting any column"
 ```
 
 ### 3. Push to Remote Repository
