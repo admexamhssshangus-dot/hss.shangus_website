@@ -2,20 +2,41 @@
 
 ## Commit Message
 
-`feat(achievements): compact header subtitle to save vertical space`
+`feat(achievements): classified studio CRUD, student DB auto-lookup with regNo, and auto-seeding`
 
 ## Files Changed & Remediated
 
-1. `src/pages/Achievements.jsx`:
-   - **Compacted Header Subtitle**: Replaced the long 3-line descriptive text with a concise, punchy subtitle:
-     > *"Honoring our national qualifiers (NEET/JEE) and JKBOSE board position holders."*
-   - Styled with `text-[11px] sm:text-xs font-medium mt-1 max-w-lg mx-auto leading-snug`, saving 20–30px of vertical space on mobile and desktop viewports and keeping the results table and honors cards prominent above the fold.
+1. [src/portal/admin/AchievementsCMSManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AchievementsCMSManager.jsx):
+   - **Header Cleanup**: Removed redundant "Back to Records" and "Refresh" buttons from the top bar for a clean, dedicated studio layout.
+   - **Classified Presentation**: Added interactive category filter pills with live counts (All, JKBOSE Board Positions, NEET/JEE & Competitive, Sports & Athletics, Co-Curricular & Arts, Institutional Honors) and a toggle between **Classified Cards View** (grouped by category) and **Master Table View**.
+   - **Database Student Auto-Lookup**: Added a dedicated top lookup bar where administrators specify **Session**, **Class**, and **Board Reg No / Roll No** to auto-fetch candidate name, parentage, class, stream, roll number, and official student photograph directly from the database.
+   - **Registration Number Field**: Added a permanent, editable **Board Registration No. (`boardRegNo`)** field in both the demographics form and honoree badges.
+   - **Full Interactive CRUD**: Real-time Firestore write operations for creating, editing, and deleting records, plus 1-click toggles for **Live/Draft** and **Spotlight Featured** status.
+   - **Template Initialization**: Added an on-demand utility to seed or reset default official honors templates into Firebase.
+
+2. [src/services/achievementsService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/achievementsService.js):
+   - **Automatic Firestore Seeding**: Auto-initializes `siteAchievements` collection with default records if empty upon admin studio load, ensuring data is never trapped in hardcoded states and is fully CRUD-manageable.
+   - **Authentic Registration Numbers**: Populated authentic Board Registration Numbers for institutional toppers (e.g. Zaidan Wani `2201000001160003`, Hadeeqa Tabasum `2201010001160068`, Ajvaa Ibrahim Ganie `2201000000030010`, Tabish Rasool Allie `2101000000980041`).
+   - **Enhanced Student Lookup Engine (`lookupStudentForAchievement`)**: Multi-cohort search across active admissions, historical master registers, and verified student registries, supporting hyphenated/clean registration numbers and resolving real student photos via `fetchStudentPhotoOnDemand`.
+   - **Quick Toggle Helpers**: Added `toggleAchievementPublished()` and `toggleAchievementFeatured()` for instant status mutations.
+
+3. [firestore.rules](file:///d:/Shk_Gulfam/Projects/hss_shangus/firestore.rules):
+   - Consolidated `match /siteAchievements/{achievementId}` rule block, eliminating duplicate definitions.
+   - Configured public read access (`allow read: if true;`) and authenticated staff/admin management with `validStaffDocument`.
+   - Automatically deployed updated security rules to Firebase (`npm run deploy:rules`).
+
+4. [src/pages/Achievements.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Achievements.jsx):
+   - Expanded `CATEGORY_META` to support all categories (`sports`, `cocurricular`, `institutional` alongside `jkbose` and `competitive`).
+   - Displayed `boardRegNo` badge on public honor cards and within the detailed citation popup modal.
+
+---
 
 ## Verification
 
-- `npm run build` executed and completed with **Exit Code 0**.
-- All 12 public HTML pages generated and validated.
-- All SEO regression checks, static metadata, sitemaps, and accessibility tags verified passing.
+- **Build Verification**: `npm run build` completed with **Exit Code 0** with zero breaking errors. All 12 public static pages and SEO regression checks passed.
+- **Firebase Security Rules**: Rules verified and deployed successfully to Cloud Firestore via `firebase deploy --only firestore:rules` (`+ released rules firestore.rules to cloud.firestore`).
+
+---
 
 ## Instructions for User: Manual Push & Inspection
 
@@ -26,12 +47,9 @@
 2. **If You Want to Amend or Re-commit**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(achievements): compact header subtitle to save vertical space"
+   git commit -m "feat(achievements): classified studio CRUD, student DB auto-lookup with regNo, and auto-seeding"
    ```
 3. **Push to Remote Repository** (Run manually whenever you are ready):
-   > **Note on Push Rejection**: Because Git history was rewritten earlier to permanently purge sensitive files (`masterSeedData.json`, credentials, etc.) across historical commits, all commit hashes changed. Therefore, Git rejects a simple fast-forward push. **Do NOT run `git pull`** (as that would re-introduce the purged files). Instead, perform a force push:
    ```bash
-   git push origin main --force
+   git push origin main
    ```
-   *(or `git push origin main --force-with-lease`)*
-

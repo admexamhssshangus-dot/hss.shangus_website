@@ -3,32 +3,85 @@ import {
   Trophy, Award, Star, Search, Plus, Edit3, Trash2, CheckCircle2,
   XCircle, Filter, Eye, RefreshCw, Upload, Camera, ExternalLink,
   ChevronDown, AlertTriangle, ShieldCheck, Sparkles, Building2,
-  GraduationCap, Medal, User, FileText, Check, ArrowLeft
+  GraduationCap, Medal, User, FileText, Check, LayoutGrid, List,
+  Hash, Calendar, RotateCcw
 } from 'lucide-react';
 import {
   fetchAllAchievementsAdmin,
   createAchievement,
   updateAchievement,
   deleteAchievement,
-  lookupStudentForAchievement
+  lookupStudentForAchievement,
+  seedDefaultAchievements,
+  toggleAchievementPublished,
+  toggleAchievementFeatured
 } from '../../services/achievementsService';
 import { getCurrentAcademicSession } from '../../services/dbCache';
 import { compressImageFile } from '../../utils/imageCompressor';
 import { showToast } from '../../components/common/GlobalToast';
+import HonoreePhotoAvatar from '../../components/HonoreePhotoAvatar';
 
-const CATEGORIES = [
-  { id: 'jkbose', label: 'JKBOSE Board Results', icon: Award, color: 'text-teal-700 bg-teal-50 border-teal-200 dark:bg-teal-950/60 dark:text-teal-300' },
-  { id: 'competitive', label: 'NEET / JEE / Competitive', icon: Trophy, color: 'text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300' },
-  { id: 'sports', label: 'Sports & Athletics', icon: Medal, color: 'text-blue-700 bg-blue-50 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300' },
-  { id: 'cocurricular', label: 'Co-Curricular & Arts', icon: Sparkles, color: 'text-purple-700 bg-purple-50 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300' },
-  { id: 'institutional', label: 'Institutional Honors', icon: Building2, color: 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300' }
+export const CATEGORIES = [
+  {
+    id: 'jkbose',
+    label: 'JKBOSE Board Positions',
+    shortLabel: 'JKBOSE Positions',
+    icon: Award,
+    description: 'State & UT Board examination position holders, toppers, and distinction honorees (Classes 10th, 11th & 12th).',
+    color: 'text-indigo-700 bg-indigo-50 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800',
+    pillColor: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200',
+    accentBorder: 'from-indigo-600 via-blue-500 to-indigo-700'
+  },
+  {
+    id: 'competitive',
+    label: 'NEET / JEE & Competitive',
+    shortLabel: 'NEET & JEE',
+    icon: Trophy,
+    description: 'National competitive entrance examination qualifiers (NTA NEET-UG, IIT-JEE Main & Advanced, AIIMS).',
+    color: 'text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800',
+    pillColor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200',
+    accentBorder: 'from-amber-500 via-orange-400 to-amber-600'
+  },
+  {
+    id: 'sports',
+    label: 'Sports & Athletics',
+    shortLabel: 'Sports Honors',
+    icon: Medal,
+    description: 'District, State & National level athletic tournaments, youth services championships, and sports honors.',
+    color: 'text-blue-700 bg-blue-50 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800',
+    pillColor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200',
+    accentBorder: 'from-blue-600 via-cyan-500 to-blue-700'
+  },
+  {
+    id: 'cocurricular',
+    label: 'Co-Curricular & Arts',
+    shortLabel: 'Arts & Debates',
+    icon: Sparkles,
+    description: 'Inter-school symposiums, youth parliament, debates, science exhibitions, and cultural laurels.',
+    color: 'text-purple-700 bg-purple-50 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800',
+    pillColor: 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200',
+    accentBorder: 'from-purple-600 via-fuchsia-500 to-purple-700'
+  },
+  {
+    id: 'institutional',
+    label: 'Institutional Honors',
+    shortLabel: 'School Honors',
+    icon: Building2,
+    description: 'Institutional excellence citations, alumni distinctions, and overall school-level recognition awards.',
+    color: 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
+    pillColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200',
+    accentBorder: 'from-emerald-600 via-teal-500 to-emerald-700'
+  }
 ];
 
-export default function AchievementsCMSManager({ user, userEmail = 'admin', onClose }) {
+export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
   const [achievements, setAchievements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('classified'); // 'classified' (Grouped by Category) | 'table' (Master Table)
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [sessionFilter, setSessionFilter] = useState('all');
+  const [classFilter, setClassFilter] = useState('all');
   const [utOnly, setUtOnly] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -37,6 +90,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
   const [editingItem, setEditingItem] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [seedingLoading, setSeedingLoading] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -64,15 +118,19 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
     achievementDate: new Date().toISOString().split('T')[0]
   });
 
-  // Fast-Lookup State
+  // Fast-Lookup State in Modal
+  const [lookupSession, setLookupSession] = useState(getCurrentAcademicSession() || '2025-26');
+  const [lookupClass, setLookupClass] = useState('12th');
+  const [lookupRegNo, setLookupRegNo] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupFeedback, setLookupFeedback] = useState(null);
 
+  // Load Data from Firestore
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchAllAchievementsAdmin();
-      setAchievements(data);
+      setAchievements(data || []);
     } catch (err) {
       console.error('Failed to load achievements:', err);
       showToast('Could not load achievements list.', 'error');
@@ -85,17 +143,38 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
     loadData();
   }, [loadData]);
 
-  // Handle Fast Lookup Trigger
+  // Handle Restore / Seed Defaults
+  const handleSeedDefaults = async () => {
+    if (!window.confirm('Initialize or restore the official school achievements templates into Firebase? Any existing records will be preserved or merged.')) {
+      return;
+    }
+    setSeedingLoading(true);
+    try {
+      await seedDefaultAchievements(true);
+      showToast('Official school achievements templates loaded successfully!', 'success');
+      await loadData();
+    } catch (err) {
+      console.error('Seed error:', err);
+      showToast('Failed to seed template records: ' + (err.message || 'error'), 'error');
+    } finally {
+      setSeedingLoading(false);
+    }
+  };
+
+  // Handle Fast Lookup Trigger using Reg No, Class & Session
   const handleFastLookup = async () => {
+    if (!lookupRegNo.trim()) {
+      showToast('Please enter a Registration Number (or Roll No) to search.', 'warning');
+      return;
+    }
     setLookupLoading(true);
     setLookupFeedback(null);
     try {
       const res = await lookupStudentForAchievement({
-        session: formData.session,
-        className: formData.className,
-        boardRegNo: formData.boardRegNo,
-        rollNo: formData.examRollNo,
-        studentName: formData.studentName
+        session: lookupSession,
+        className: lookupClass,
+        boardRegNo: lookupRegNo.trim(),
+        rollNo: lookupRegNo.trim()
       });
 
       if (res.found && res.student) {
@@ -107,24 +186,25 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
           className: s.className || prev.className,
           session: s.session || prev.session,
           stream: s.stream || prev.stream,
-          boardRegNo: s.boardRegNo || prev.boardRegNo,
+          boardRegNo: s.boardRegNo || lookupRegNo.trim() || prev.boardRegNo,
+          examRollNo: s.examRollNo || prev.examRollNo,
           photoUrl: s.photoUrl || prev.photoUrl
         }));
         setLookupFeedback({
           type: 'success',
-          message: `Found record for ${s.studentName}! Demographics & photo auto-filled.`
+          message: `Found student record for "${s.studentName}"! Reg No: ${s.boardRegNo || lookupRegNo.trim()}, demographics and photo auto-filled.`
         });
         showToast(`Auto-filled details for ${s.studentName}`, 'success');
       } else {
         setLookupFeedback({
           type: 'warn',
-          message: res.message || 'No matching student record found. You can enter details manually.'
+          message: res.message || 'No matching student record found. You can enter details manually below.'
         });
       }
     } catch (err) {
       setLookupFeedback({
         type: 'error',
-        message: err.message || 'Lookup failed.'
+        message: err.message || 'Database lookup failed.'
       });
     } finally {
       setLookupLoading(false);
@@ -146,12 +226,15 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
   };
 
   // Open Create Modal
-  const handleOpenCreate = () => {
+  const handleOpenCreate = (categoryPreset = 'jkbose') => {
     setEditingItem(null);
     setLookupFeedback(null);
+    setLookupSession(getCurrentAcademicSession() || '2025-26');
+    setLookupClass('12th');
+    setLookupRegNo('');
     setFormData({
       title: '',
-      category: 'jkbose',
+      category: categoryPreset || 'jkbose',
       studentName: '',
       fatherName: '',
       className: '12th',
@@ -159,13 +242,13 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
       stream: 'Science',
       boardRegNo: '',
       examRollNo: '',
-      examOrEvent: 'JKBOSE Annual Regular',
+      examOrEvent: categoryPreset === 'jkbose' ? 'JKBOSE Annual Regular' : '',
       scoreOrMarks: '',
       rankOrPosition: '',
       isUtPositionHolder: false,
       utPositionOrRank: '',
       institutionOrAward: '',
-      badge: 'Board Distinction',
+      badge: categoryPreset === 'jkbose' ? 'Board Distinction' : 'Honors',
       description: '',
       photoUrl: '',
       featured: false,
@@ -180,6 +263,9 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
   const handleOpenEdit = (item) => {
     setEditingItem(item);
     setLookupFeedback(null);
+    setLookupSession(item.session || getCurrentAcademicSession() || '2025-26');
+    setLookupClass(item.className || '12th');
+    setLookupRegNo(item.boardRegNo || item.examRollNo || '');
     setFormData({
       title: item.title || '',
       category: item.category || 'jkbose',
@@ -207,6 +293,32 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
     setIsModalOpen(true);
   };
 
+  // Quick 1-click toggle published status
+  const handleTogglePublished = async (item) => {
+    const nextState = !(item.published !== false);
+    try {
+      await toggleAchievementPublished(item.id, item.published !== false, userEmail);
+      setAchievements(prev => prev.map(x => x.id === item.id ? { ...x, published: nextState } : x));
+      showToast(nextState ? `"${item.studentName || item.title}" published live.` : `"${item.studentName || item.title}" moved to draft.`, 'info');
+    } catch (err) {
+      console.error('Toggle published error:', err);
+      showToast('Could not update status.', 'error');
+    }
+  };
+
+  // Quick 1-click toggle featured spotlight
+  const handleToggleFeatured = async (item) => {
+    const nextState = !Boolean(item.featured);
+    try {
+      await toggleAchievementFeatured(item.id, Boolean(item.featured), userEmail);
+      setAchievements(prev => prev.map(x => x.id === item.id ? { ...x, featured: nextState } : x));
+      showToast(nextState ? `Pinned "${item.studentName || item.title}" to Top Spotlight!` : `Unpinned from Top Spotlight.`, 'info');
+    } catch (err) {
+      console.error('Toggle featured error:', err);
+      showToast('Could not update spotlight status.', 'error');
+    }
+  };
+
   // Handle Save
   const handleSave = async (e) => {
     e.preventDefault();
@@ -223,10 +335,10 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
     try {
       if (editingItem) {
         await updateAchievement(editingItem.id, formData, userEmail);
-        showToast('Achievement updated successfully!', 'success');
+        showToast('Achievement updated successfully in Firebase!', 'success');
       } else {
         await createAchievement(formData, userEmail);
-        showToast('Achievement published successfully!', 'success');
+        showToast('Achievement published successfully to Firebase!', 'success');
       }
       setIsModalOpen(false);
       loadData();
@@ -239,12 +351,12 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
   };
 
   // Handle Delete
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to permanently delete this achievement?')) return;
+  const handleDelete = async (id, title) => {
+    if (!window.confirm(`Are you sure you want to permanently delete "${title || 'this achievement'}" from Firebase?`)) return;
     setDeletingId(id);
     try {
       await deleteAchievement(id, userEmail);
-      showToast('Achievement removed.', 'info');
+      showToast('Achievement removed permanently.', 'info');
       setAchievements(prev => prev.filter(x => x.id !== id));
     } catch (err) {
       console.error('Delete error:', err);
@@ -254,6 +366,30 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
     }
   };
 
+  // Available sessions in dataset
+  const availableSessions = useMemo(() => {
+    const set = new Set(['2025-26', '2024-25', '2023-24']);
+    achievements.forEach(item => {
+      if (item.session) set.add(item.session);
+    });
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [achievements]);
+
+  // Key metrics calculation
+  const metrics = useMemo(() => {
+    const total = achievements.length;
+    const published = achievements.filter(x => x.published !== false).length;
+    const utCount = achievements.filter(x => x.isUtPositionHolder).length;
+    const featuredCount = achievements.filter(x => x.featured).length;
+
+    const countByCategory = {};
+    CATEGORIES.forEach(c => {
+      countByCategory[c.id] = achievements.filter(x => x.category === c.id).length;
+    });
+
+    return { total, published, utCount, featuredCount, countByCategory };
+  }, [achievements]);
+
   // Filtered List
   const filteredList = useMemo(() => {
     return achievements.filter(item => {
@@ -261,70 +397,75 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
       const matchesSearch = !q ||
         (item.title && item.title.toLowerCase().includes(q)) ||
         (item.studentName && item.studentName.toLowerCase().includes(q)) ||
+        (item.fatherName && item.fatherName.toLowerCase().includes(q)) ||
         (item.boardRegNo && item.boardRegNo.toLowerCase().includes(q)) ||
+        (item.examRollNo && item.examRollNo.toLowerCase().includes(q)) ||
         (item.examOrEvent && item.examOrEvent.toLowerCase().includes(q)) ||
-        (item.institutionOrAward && item.institutionOrAward.toLowerCase().includes(q));
+        (item.institutionOrAward && item.institutionOrAward.toLowerCase().includes(q)) ||
+        (item.rankOrPosition && item.rankOrPosition.toLowerCase().includes(q)) ||
+        (item.utPositionOrRank && item.utPositionOrRank.toLowerCase().includes(q));
 
       const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+      const matchesSession = sessionFilter === 'all' || item.session === sessionFilter;
+      const matchesClass = classFilter === 'all' || item.className === classFilter;
       const matchesUt = !utOnly || Boolean(item.isUtPositionHolder);
       const matchesStatus = statusFilter === 'all' ||
         (statusFilter === 'published' && item.published !== false) ||
         (statusFilter === 'draft' && item.published === false);
 
-      return matchesSearch && matchesCategory && matchesUt && matchesStatus;
+      return matchesSearch && matchesCategory && matchesSession && matchesClass && matchesUt && matchesStatus;
     });
-  }, [achievements, searchQuery, selectedCategory, utOnly, statusFilter]);
+  }, [achievements, searchQuery, selectedCategory, sessionFilter, classFilter, utOnly, statusFilter]);
 
-  // Key metrics
-  const metrics = useMemo(() => {
-    const total = achievements.length;
-    const published = achievements.filter(x => x.published !== false).length;
-    const utCount = achievements.filter(x => x.isUtPositionHolder).length;
-    const featuredCount = achievements.filter(x => x.featured).length;
-    return { total, published, utCount, featuredCount };
-  }, [achievements]);
+  // Grouped by Category for Classified View
+  const classifiedSections = useMemo(() => {
+    const categoriesToShow = selectedCategory === 'all'
+      ? CATEGORIES
+      : CATEGORIES.filter(c => c.id === selectedCategory);
+
+    return categoriesToShow.map(cat => {
+      const items = filteredList.filter(item => item.category === cat.id);
+      return {
+        category: cat,
+        items
+      };
+    });
+  }, [filteredList, selectedCategory]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
-      {/* Top Header Card */}
+      {/* ── Top Header Card (Clean Institutional Header without Back or Refresh) ── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-1">
+          <div className="space-y-1 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[10.5px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
               <Trophy size={11} className="text-amber-600 animate-pulse" />
-              <span>Public Hall of Fame CMS</span>
+              <span>Institutional Hall of Fame CMS</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
               School Achievements &amp; Merits Studio
             </h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Manage JKBOSE Board Toppers, J&amp;K UT Position Holders, NEET/JEE Qualifiers, and Athletic Honors displayed at <span className="font-mono text-teal-600 dark:text-teal-400">/achievements</span>.
+            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+              Classified management for JKBOSE Board Toppers, J&amp;K UT Position Holders, NEET/JEE Qualifiers, and Athletic Honors displayed at <span className="font-mono text-teal-600 dark:text-teal-400 font-bold">/achievements</span>. All records sync live to Firebase.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            {onClose && (
+          <div className="flex items-center gap-2.5 w-full sm:w-auto self-end sm:self-center">
+            {achievements.length === 0 && !loading && (
               <button
                 type="button"
-                onClick={onClose}
-                className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                onClick={handleSeedDefaults}
+                disabled={seedingLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                title="Initialize template achievements into Firebase"
               >
-                <ArrowLeft size={14} />
-                <span>Back to Records</span>
+                <RotateCcw size={13} className={seedingLoading ? 'animate-spin' : ''} />
+                <span>Initialize Templates</span>
               </button>
             )}
             <button
               type="button"
-              onClick={loadData}
-              disabled={loading}
-              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-300 transition-all cursor-pointer"
-              title="Refresh Records"
-            >
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenCreate}
+              onClick={() => handleOpenCreate('jkbose')}
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-600 active:scale-95 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer"
             >
               <Plus size={15} />
@@ -354,13 +495,88 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
         </div>
       </div>
 
-      {/* Filter Controls Bar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="relative flex-1 min-w-[220px]">
+      {/* ── Classified Category Navigation Tabs & View Mode Switcher ── */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 sm:pb-0 text-xs">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('all')}
+            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+              selectedCategory === 'all'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            <span>All Categories</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-white/20 dark:bg-slate-900/20 font-black">
+              {metrics.total}
+            </span>
+          </button>
+
+          {CATEGORIES.map(cat => {
+            const Icon = cat.icon;
+            const count = metrics.countByCategory?.[cat.id] || 0;
+            const isSelected = selectedCategory === cat.id;
+
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                  isSelected
+                    ? 'bg-teal-700 text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                <Icon size={12} className={isSelected ? 'text-white' : 'text-slate-500'} />
+                <span>{cat.shortLabel}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+                  isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <button
+            type="button"
+            onClick={() => setViewMode('classified')}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'classified'
+                ? 'bg-white dark:bg-slate-900 text-teal-800 dark:text-teal-300 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <LayoutGrid size={13} />
+            <span>Classified Cards</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'table'
+                ? 'bg-white dark:bg-slate-900 text-teal-800 dark:text-teal-300 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <List size={13} />
+            <span>Master Table</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Search & Filter Controls Bar ── */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div className="relative flex-1 min-w-[240px]">
           <Search size={14} className="absolute left-3 top-3 text-slate-400" />
           <input
             type="text"
-            placeholder="Search candidate name, reg no, event, rank..."
+            placeholder="Search candidate name, reg no, exam roll, rank..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -368,23 +584,35 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Category Dropdown */}
+          {/* Session Filter */}
           <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+            value={sessionFilter}
+            onChange={(e) => setSessionFilter(e.target.value)}
+            className="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
           >
-            <option value="all">All Categories</option>
-            {CATEGORIES.map(c => (
-              <option key={c.id} value={c.id}>{c.label}</option>
+            <option value="all">All Sessions</option>
+            {availableSessions.map(s => (
+              <option key={s} value={s}>Session {s}</option>
             ))}
+          </select>
+
+          {/* Class Filter */}
+          <select
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            className="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+          >
+            <option value="all">All Classes</option>
+            <option value="12th">Class 12th</option>
+            <option value="11th">Class 11th</option>
+            <option value="10th">Class 10th</option>
           </select>
 
           {/* Status Filter */}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
           >
             <option value="all">All Statuses</option>
             <option value="published">Published Only</option>
@@ -407,28 +635,245 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
         </div>
       </div>
 
-      {/* Achievements Table List */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
-        {loading ? (
-          <div className="py-20 text-center text-slate-400 space-y-2">
-            <RefreshCw size={24} className="animate-spin mx-auto text-teal-600" />
-            <p className="text-xs font-semibold">Loading achievements database…</p>
-          </div>
-        ) : filteredList.length === 0 ? (
-          <div className="py-20 text-center text-slate-400 space-y-2">
-            <Trophy size={32} className="mx-auto text-slate-300 dark:text-slate-700" />
-            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No achievements match your filters</p>
-            <p className="text-xs">Click "Add Achievement" above to create the first record.</p>
-          </div>
-        ) : (
+      {/* ── Main Content Area: Classified Cards vs Master Table ── */}
+      {loading ? (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-16 text-center text-slate-400 space-y-2">
+          <RefreshCw size={24} className="animate-spin mx-auto text-teal-600" />
+          <p className="text-xs font-semibold">Loading achievements database from Firebase…</p>
+        </div>
+      ) : filteredList.length === 0 ? (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-16 text-center text-slate-400 space-y-3">
+          <Trophy size={36} className="mx-auto text-slate-300 dark:text-slate-700" />
+          <p className="text-base font-bold text-slate-700 dark:text-slate-300">No achievements match your filters</p>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            {achievements.length === 0
+              ? 'Your achievements database is currently empty. Click "Initialize Templates" or "Add Achievement" above to populate records.'
+              : 'Try clearing your search query or selecting a different category/session.'}
+          </p>
+          {achievements.length === 0 && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleSeedDefaults}
+                disabled={seedingLoading}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs shadow-md cursor-pointer inline-flex items-center gap-2"
+              >
+                <RotateCcw size={14} />
+                <span>Initialize Default Honors Templates</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ) : viewMode === 'classified' ? (
+        /* ── VIEW MODE 1: Classified Category Sections & Cards ── */
+        <div className="space-y-6">
+          {classifiedSections.map(({ category, items }) => {
+            if (items.length === 0 && selectedCategory !== 'all') {
+              return null;
+            }
+            if (items.length === 0) return null;
+
+            const CatIcon = category.icon;
+
+            return (
+              <div
+                key={category.id}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 space-y-4 shadow-sm"
+              >
+                {/* Category Header Banner */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-2xl border ${category.color}`}>
+                      <CatIcon size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                          {category.label}
+                        </h2>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          {items.length} {items.length === 1 ? 'Record' : 'Records'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        {category.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCreate(category.id)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer shrink-0"
+                  >
+                    <Plus size={13} />
+                    <span>Add {category.shortLabel}</span>
+                  </button>
+                </div>
+
+                {/* Cards Grid in this Classification */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+                  {items.map(item => (
+                    <div
+                      key={item.id}
+                      className="p-4 rounded-2xl bg-gradient-to-b from-slate-50/80 to-white dark:from-slate-800/50 dark:to-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-teal-400 dark:hover:border-teal-600 transition-all flex flex-col justify-between space-y-3 group shadow-xs"
+                    >
+                      {/* Card Top: Badges & Quick Action Controls */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {item.session && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200/80 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                              {item.session}
+                            </span>
+                          )}
+                          {item.className && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                              Class {item.className}
+                            </span>
+                          )}
+                          {item.isUtPositionHolder && (
+                            <span className="px-2 py-0.5 rounded-md text-[9.5px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-xs">
+                              ⭐ UT Ranker
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Quick Action Buttons */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Spotlight Star Toggle */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleFeatured(item)}
+                            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                              item.featured
+                                ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700'
+                                : 'text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                            title={item.featured ? 'Pinned in Spotlight (Click to unpin)' : 'Click to Pin in Spotlight'}
+                          >
+                            <Star size={13} className={item.featured ? 'fill-amber-500 text-amber-500' : ''} />
+                          </button>
+
+                          {/* Published Live Toggle */}
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePublished(item)}
+                            className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border cursor-pointer transition-colors ${
+                              item.published !== false
+                                ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-300'
+                            }`}
+                            title="Click to toggle Live / Draft status"
+                          >
+                            {item.published !== false ? 'Live' : 'Draft'}
+                          </button>
+
+                          {/* Edit */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(item)}
+                            className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                            title="Edit Achievement"
+                          >
+                            <Edit3 size={13} />
+                          </button>
+
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            disabled={deletingId === item.id}
+                            onClick={() => handleDelete(item.id, item.studentName || item.title)}
+                            className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/60 cursor-pointer disabled:opacity-40"
+                            title="Delete Achievement"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Card Identity Details */}
+                      <div className="flex items-start gap-3">
+                        <HonoreePhotoAvatar item={item} size="sm" showBadge={false} />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                            {item.studentName || 'Institutional Award'}
+                          </h3>
+                          {item.fatherName && (
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                              S/D of {item.fatherName}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                            {/* Board Reg No Badge */}
+                            {item.boardRegNo ? (
+                              <span className="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                Reg: {item.boardRegNo}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">No Reg No</span>
+                            )}
+                            {item.examRollNo && (
+                              <span className="px-1.5 py-0.5 rounded-md font-mono text-[10px] text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800">
+                                Roll: {item.examRollNo}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Achievement Headline */}
+                      <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <h4 className="font-black text-xs text-slate-800 dark:text-slate-200 line-clamp-2">
+                          {item.title}
+                        </h4>
+                        {item.examOrEvent && (
+                          <p className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate font-medium">
+                            {item.examOrEvent}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Score & Rank Highlights */}
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
+                        <div>
+                          {item.scoreOrMarks && (
+                            <span className="font-mono font-black text-slate-900 dark:text-white block">
+                              {item.scoreOrMarks}
+                            </span>
+                          )}
+                          {item.institutionOrAward && item.institutionOrAward !== 'Govt. Higher Secondary School Shangus' && (
+                            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold block truncate max-w-[140px]">
+                              {item.institutionOrAward}
+                            </span>
+                          )}
+                        </div>
+
+                        {(item.utPositionOrRank || item.rankOrPosition) && (
+                          <div className="text-right">
+                            <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[10px] font-black border border-amber-200 dark:border-amber-800 inline-block">
+                              🏆 {item.utPositionOrRank || item.rankOrPosition}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ── VIEW MODE 2: Master Tabular List ── */
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-[10.5px] font-black uppercase tracking-wider text-slate-500">
                   <th className="py-3 px-4 text-center w-12">#</th>
-                  <th className="py-3 px-4">Candidate / Demographics</th>
+                  <th className="py-3 px-4">Candidate &amp; Demographics</th>
+                  <th className="py-3 px-4">Board Reg No</th>
                   <th className="py-3 px-4">Achievement Headline</th>
-                  <th className="py-3 px-4">Event / Examination</th>
                   <th className="py-3 px-4">Score &amp; Position</th>
                   <th className="py-3 px-4 text-center">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -449,96 +894,92 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                         {idx + 1}
                       </td>
 
-                      {/* Candidate & Photo */}
+                      {/* Candidate & Demographics */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0 flex items-center justify-center">
-                            {item.photoUrl && item.photoUrl !== '/logo.png' && item.photoUrl.length > 20 ? (
-                              <img
-                                src={item.photoUrl}
-                                alt={item.studentName}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <User size={16} className="text-slate-400" />
-                            )}
-                          </div>
+                          <HonoreePhotoAvatar item={item} size="sm" showBadge={false} />
                           <div className="min-w-0">
-                            <div className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                              <span>{item.studentName || 'Institutional'}</span>
-                              {item.isUtPositionHolder && (
-                                <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-0.5">
-                                  <Star size={9} className="fill-amber-600 text-amber-600" />
-                                  <span>UT POSITION</span>
-                                </span>
-                              )}
+                            <div className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                              <span>{item.studentName || item.title}</span>
                               {item.featured && (
-                                <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
-                                  FEATURED
-                                </span>
+                                <Star size={11} className="fill-amber-500 text-amber-500 shrink-0" />
                               )}
                             </div>
-                            <div className="text-[10.5px] text-slate-500 font-medium truncate flex items-center gap-1.5 mt-0.5">
-                              {item.className && <span>Class {item.className}</span>}
-                              {item.session && <span>• {item.session}</span>}
-                              {item.boardRegNo && <span className="font-mono text-slate-400">• Reg: {item.boardRegNo}</span>}
+                            {item.fatherName && (
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                S/D of {item.fatherName}
+                              </div>
+                            )}
+                            <div className="text-[10px] text-teal-700 dark:text-teal-400 font-bold mt-0.5">
+                              Class {item.className} {item.stream ? `(${item.stream})` : ''} • Session {item.session}
                             </div>
                           </div>
                         </div>
+                      </td>
+
+                      {/* Board Reg No */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {item.boardRegNo ? (
+                          <div className="font-mono font-extrabold px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] inline-block">
+                            {item.boardRegNo}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">—</span>
+                        )}
+                        {item.examRollNo && (
+                          <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                            Roll: {item.examRollNo}
+                          </div>
+                        )}
                       </td>
 
                       {/* Headline & Category */}
                       <td className="py-3.5 px-4 max-w-xs">
-                        <div className="font-bold text-slate-800 dark:text-slate-200 leading-snug">
+                        <div className="font-black text-slate-900 dark:text-white line-clamp-1">
                           {item.title}
                         </div>
-                        <div className="mt-1">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-extrabold border ${catConfig.color}`}>
-                            <CatIcon size={10} />
-                            <span>{catConfig.label}</span>
-                          </span>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
+                          <CatIcon size={11} className="text-slate-400" />
+                          <span>{catConfig.shortLabel}</span>
+                          {item.examOrEvent && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate">{item.examOrEvent}</span>
+                            </>
+                          )}
                         </div>
-                      </td>
-
-                      {/* Event / Examination */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="font-semibold text-slate-700 dark:text-slate-300">
-                          {item.examOrEvent || '—'}
-                        </div>
-                        {item.institutionOrAward && (
-                          <div className="text-[10px] text-teal-600 dark:text-teal-400 font-bold truncate mt-0.5">
-                            {item.institutionOrAward}
-                          </div>
-                        )}
                       </td>
 
                       {/* Score / Rank */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         {item.scoreOrMarks && (
-                          <div className="font-black text-slate-900 dark:text-white font-mono">
+                          <div className="font-mono font-black text-slate-900 dark:text-white">
                             {item.scoreOrMarks}
                           </div>
                         )}
                         {(item.utPositionOrRank || item.rankOrPosition) && (
-                          <div className="text-[10.5px] font-extrabold text-amber-700 dark:text-amber-400 flex items-center gap-1 mt-0.5">
-                            <Trophy size={11} className="text-amber-600" />
+                          <div className="text-[10px] font-extrabold text-amber-700 dark:text-amber-300 flex items-center gap-1 mt-0.5">
+                            <Trophy size={10} className="text-amber-600" />
                             <span>{item.utPositionOrRank || item.rankOrPosition}</span>
                           </div>
                         )}
                       </td>
 
-                      {/* Published State */}
+                      {/* Status & Live Toggle */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        {item.published !== false ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                            <CheckCircle2 size={10} />
-                            <span>Live</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
-                            Draft
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePublished(item)}
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border cursor-pointer transition-colors ${
+                            item.published !== false
+                              ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-300'
+                          }`}
+                          title="Click to toggle Live / Draft status"
+                        >
+                          {item.published !== false ? <CheckCircle2 size={10} /> : null}
+                          <span>{item.published !== false ? 'Live' : 'Draft'}</span>
+                        </button>
                       </td>
 
                       {/* Actions */}
@@ -546,8 +987,20 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                         <div className="inline-flex items-center gap-1">
                           <button
                             type="button"
+                            onClick={() => handleToggleFeatured(item)}
+                            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                              item.featured
+                                ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700'
+                                : 'text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                            title={item.featured ? 'Pinned in Spotlight' : 'Pin to Spotlight'}
+                          >
+                            <Star size={13} className={item.featured ? 'fill-amber-500' : ''} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleOpenEdit(item)}
-                            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
+                            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer"
                             title="Edit Achievement"
                           >
                             <Edit3 size={13} />
@@ -555,8 +1008,8 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                           <button
                             type="button"
                             disabled={deletingId === item.id}
-                            onClick={() => handleDelete(item.id)}
-                            className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-rose-600 dark:text-rose-400 cursor-pointer transition-colors disabled:opacity-40"
+                            onClick={() => handleDelete(item.id, item.studentName || item.title)}
+                            className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-rose-600 dark:text-rose-400 cursor-pointer disabled:opacity-40"
                             title="Delete Achievement"
                           >
                             <Trash2 size={13} />
@@ -569,16 +1022,16 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Create / Edit Modal */}
+      {/* ── Add / Edit Achievement Modal with Student Database Auto-Lookup ── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
           <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-5 sm:p-7 space-y-5 my-auto max-h-[92vh] overflow-y-auto text-xs text-slate-800 dark:text-slate-100">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
                   <Trophy size={18} />
                 </div>
@@ -587,7 +1040,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                     {editingItem ? 'Edit Achievement Record' : 'Add New School Achievement'}
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium">
-                    Configure honors, auto-fetch student data by Board Registration No, and publish.
+                    Configure honors, lookup student via Board Reg No / Session, and save live to Firebase.
                   </p>
                 </div>
               </div>
@@ -600,48 +1053,68 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
               </button>
             </div>
 
-            {/* Fast-Lookup Box */}
-            <div className="p-4 rounded-2xl bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-900/60 space-y-3">
+            {/* ── Student Database Auto-Lookup Engine (Reg No, Class, Session) ── */}
+            <div className="p-4 rounded-2xl bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/80 dark:border-teal-900/60 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-black uppercase tracking-wider text-teal-800 dark:text-teal-300 flex items-center gap-1.5">
                   <Search size={12} />
-                  <span>Student Auto-Lookup &amp; Photo Fetch</span>
+                  <span>Student Auto-Lookup from Database</span>
                 </span>
                 <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
-                  Session: {formData.session}
+                  Matches Admissions &amp; Registers
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Target Class</label>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                {/* Session Selector */}
+                <div className="sm:col-span-3">
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Session</label>
                   <select
-                    value={formData.className}
-                    onChange={(e) => setFormData(prev => ({ ...prev, className: e.target.value }))}
-                    className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    value={lookupSession}
+                    onChange={(e) => setLookupSession(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 text-xs"
+                  >
+                    <option value="2025-26">2025-26</option>
+                    <option value="2024-25">2024-25</option>
+                    <option value="2023-24">2023-24</option>
+                    <option value="all">Any Session</option>
+                  </select>
+                </div>
+
+                {/* Class Selector */}
+                <div className="sm:col-span-3">
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Class</label>
+                  <select
+                    value={lookupClass}
+                    onChange={(e) => setLookupClass(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 text-xs"
                   >
                     <option value="12th">Class 12th</option>
                     <option value="11th">Class 11th</option>
                     <option value="10th">Class 10th</option>
-                    <option value="Alumni">Alumni / Past Cohorts</option>
+                    <option value="all">Any Class</option>
                   </select>
                 </div>
 
-                <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Board Registration No.</label>
+                {/* Reg No / Roll No Input + Fetch Button */}
+                <div className="sm:col-span-6">
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                    Board Reg No / Roll No
+                  </label>
                   <div className="flex gap-1.5">
                     <input
                       type="text"
-                      placeholder="e.g. 21-2401-0084 or Roll No"
-                      value={formData.boardRegNo}
-                      onChange={(e) => setFormData(prev => ({ ...prev, boardRegNo: e.target.value }))}
-                      className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="e.g. 2201010001160068"
+                      value={lookupRegNo}
+                      onChange={(e) => setLookupRegNo(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleFastLookup(); } }}
+                      className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 text-xs"
                     />
                     <button
                       type="button"
                       disabled={lookupLoading}
                       onClick={handleFastLookup}
-                      className="px-3 py-1.5 rounded-xl bg-teal-800 hover:bg-teal-700 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="px-3.5 py-1.5 rounded-xl bg-teal-800 hover:bg-teal-700 text-white font-bold text-[11px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       {lookupLoading ? <RefreshCw size={12} className="animate-spin" /> : <Search size={12} />}
                       <span>Fetch</span>
@@ -658,7 +1131,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                     ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 text-amber-800 dark:text-amber-300'
                     : 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 text-rose-800 dark:text-rose-300'
                 }`}>
-                  {lookupFeedback.type === 'success' ? <Check size={13} /> : <AlertTriangle size={13} />}
+                  {lookupFeedback.type === 'success' ? <Check size={14} className="shrink-0" /> : <AlertTriangle size={14} className="shrink-0" />}
                   <span>{lookupFeedback.message}</span>
                 </div>
               )}
@@ -666,7 +1139,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
 
             {/* Achievement Form */}
             <form onSubmit={handleSave} className="space-y-4">
-              {/* Photo & Core Identity Grid */}
+              {/* Photo & Candidate Identity Section */}
               <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
                 {/* Photo Preview & Custom Upload */}
                 <div className="relative group w-24 h-28 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center overflow-hidden shrink-0 mx-auto sm:mx-0">
@@ -698,7 +1171,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                 {/* Candidate Demographics Fields */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Student's Name *</label>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Student's Full Name *</label>
                     <input
                       type="text"
                       required
@@ -720,38 +1193,78 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                     />
                   </div>
 
+                  {/* Board Registration No. (Prominent field) */}
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Stream / Cohort</label>
+                    <label className="block text-[10px] font-bold text-indigo-700 dark:text-indigo-300 mb-1 flex items-center gap-1">
+                      <Hash size={11} />
+                      <span>Board Registration No. (Reg No)</span>
+                    </label>
                     <input
                       type="text"
-                      placeholder="e.g. Medical, Non-Medical, Arts"
-                      value={formData.stream}
-                      onChange={(e) => setFormData(prev => ({ ...prev, stream: e.target.value }))}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="e.g. 2201010001160068"
+                      value={formData.boardRegNo}
+                      onChange={(e) => setFormData(prev => ({ ...prev, boardRegNo: e.target.value }))}
+                      className="w-full px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Exam Roll No / Class Roll</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 301003054"
+                      value={formData.examRollNo}
+                      onChange={(e) => setFormData(prev => ({ ...prev, examRollNo: e.target.value }))}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Class</label>
+                    <select
+                      value={formData.className}
+                      onChange={(e) => setFormData(prev => ({ ...prev, className: e.target.value }))}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="12th">Class 12th</option>
+                      <option value="11th">Class 11th</option>
+                      <option value="10th">Class 10th</option>
+                      <option value="Alumni">Alumni / Past Cohorts</option>
+                    </select>
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-1">Academic Session</label>
                     <input
                       type="text"
-                      placeholder="e.g. 2025-26"
+                      placeholder="e.g. 2024-25"
                       value={formData.session}
                       onChange={(e) => setFormData(prev => ({ ...prev, session: e.target.value }))}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Stream / Faculty</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Science (Medical), Science (Non-Medical), Humanities, Commerce"
+                      value={formData.stream}
+                      onChange={(e) => setFormData(prev => ({ ...prev, stream: e.target.value }))}
                       className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Achievement Specification Grid */}
+              {/* Achievement Specification Details */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2">
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">Achievement Headline *</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. NEET-UG 2025 Qualifier — Selected for GMC Srinagar"
+                    placeholder="e.g. JKBOSE Class 12th Science — J&K UT 8th Position"
                     value={formData.title}
                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-black text-[13px] focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -775,7 +1288,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">Exam / Tournament / Event</label>
                   <input
                     type="text"
-                    placeholder="e.g. NEET UG 2025 or JKBOSE Class 12th"
+                    placeholder="e.g. JKBOSE Class 12th Regular (Oct-Nov) or NTA NEET-UG"
                     value={formData.examOrEvent}
                     onChange={(e) => setFormData(prev => ({ ...prev, examOrEvent: e.target.value }))}
                     className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -786,7 +1299,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">Score / Percentage / Marks</label>
                   <input
                     type="text"
-                    placeholder="e.g. 645 / 720 or 488 / 500 (97.6%)"
+                    placeholder="e.g. 493 / 500 (98.6%) or 690 / 720"
                     value={formData.scoreOrMarks}
                     onChange={(e) => setFormData(prev => ({ ...prev, scoreOrMarks: e.target.value }))}
                     className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -797,7 +1310,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">General Rank / Distinction</label>
                   <input
                     type="text"
-                    placeholder="e.g. AIR 3,420 or District 1st Position"
+                    placeholder="e.g. 8th Position in UT of J&K or AIR 124"
                     value={formData.rankOrPosition}
                     onChange={(e) => setFormData(prev => ({ ...prev, rankOrPosition: e.target.value }))}
                     className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -815,7 +1328,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                     />
                     <span className="font-black text-amber-900 dark:text-amber-200 text-[11.5px] flex items-center gap-1">
                       <Star size={13} className="fill-amber-600 text-amber-600" />
-                      Candidate holds a top performance / official position in Jammu &amp; Kashmir UT
+                      Candidate holds a top rank or official merit position in Jammu &amp; Kashmir UT
                     </span>
                   </label>
 
@@ -826,7 +1339,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                       </label>
                       <input
                         type="text"
-                        placeholder="e.g. 1st Position in J&K UT or Top 10 in UT"
+                        placeholder="e.g. 8th Position in UT of J&K or UT Rank 1"
                         value={formData.utPositionOrRank}
                         onChange={(e) => setFormData(prev => ({ ...prev, utPositionOrRank: e.target.value }))}
                         className="w-full px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-black text-amber-900 dark:text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -839,7 +1352,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">Selected College / Allotted Award</label>
                   <input
                     type="text"
-                    placeholder="e.g. GMC Srinagar (MBBS) or NIT Srinagar"
+                    placeholder="e.g. GMC Srinagar (MBBS) or Govt. HSS Shangus"
                     value={formData.institutionOrAward}
                     onChange={(e) => setFormData(prev => ({ ...prev, institutionOrAward: e.target.value }))}
                     className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -850,7 +1363,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">Card Badge Ribbon</label>
                   <input
                     type="text"
-                    placeholder="e.g. Board Topper, Gold Medalist, NEET Selection"
+                    placeholder="e.g. UT 8th Position, NEET Selection, Board Distinction"
                     value={formData.badge}
                     onChange={(e) => setFormData(prev => ({ ...prev, badge: e.target.value }))}
                     className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -877,7 +1390,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                       onChange={(e) => setFormData(prev => ({ ...prev, featured: e.target.checked }))}
                       className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
                     />
-                    <span>Pin to Top Spotlight (Hall of Fame)</span>
+                    <span>Pin to Top Spotlight (Featured in Hero Banner)</span>
                   </label>
 
                   <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 dark:text-slate-300">
@@ -892,7 +1405,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                 </div>
               </div>
 
-              {/* Actions */}
+              {/* Modal Actions */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
@@ -910,12 +1423,12 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin', onCl
                   {saving ? (
                     <>
                       <RefreshCw size={13} className="animate-spin" />
-                      <span>Saving Record...</span>
+                      <span>Saving to Firebase...</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 size={14} />
-                      <span>{editingItem ? 'Update Achievement' : 'Publish Achievement'}</span>
+                      <span>{editingItem ? 'Update in Firebase' : 'Save to Firebase'}</span>
                     </>
                   )}
                 </button>

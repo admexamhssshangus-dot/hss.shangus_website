@@ -90,7 +90,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     className: '12th',
     session: '2025-26',
     stream: 'Science',
-    boardRegNo: '',
+    boardRegNo: '2201000001160003',
     examRollNo: '301003053',
     examOrEvent: 'National Testing Agency (NTA) NEET-UG 2026',
     scoreOrMarks: '690 / 720 (99.98 Percentile)',
@@ -115,7 +115,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     className: '12th',
     session: '2025-26',
     stream: 'Science',
-    boardRegNo: '',
+    boardRegNo: '2201000001160003',
     examRollNo: '301003053',
     examOrEvent: 'NTA JEE Main & IIT JEE Advanced',
     scoreOrMarks: 'Qualified Both JEE Main & Advanced',
@@ -136,11 +136,11 @@ export const DEFAULT_ACHIEVEMENTS = [
     title: 'National Eligibility cum Entrance Test (NEET-UG) Distinction',
     category: 'competitive',
     studentName: 'Tabish Rasool Allie',
-    fatherName: '',
+    fatherName: 'Ghulam Rasool Allie',
     className: '12th',
     session: '2024-25',
     stream: 'Science',
-    boardRegNo: '',
+    boardRegNo: '2101000000980041',
     examRollNo: '301046053',
     examOrEvent: 'National Testing Agency (NTA) NEET-UG',
     scoreOrMarks: '597 / 720',
@@ -165,7 +165,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     className: '11th',
     session: '2024-25',
     stream: 'Science',
-    boardRegNo: '',
+    boardRegNo: '2201000001160003',
     examRollNo: '201002066',
     examOrEvent: 'JKBOSE Class 11th Regular 2024-25 (Mar-Apr)',
     scoreOrMarks: '493 / 500 (98.6%)',
@@ -190,7 +190,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     className: '11th',
     session: '2024-25',
     stream: 'Science',
-    boardRegNo: '',
+    boardRegNo: '2201010001160068',
     examRollNo: '201002067',
     examOrEvent: 'JKBOSE Class 11th Regular 2024-25 (Mar-Apr)',
     scoreOrMarks: '492 / 500 (98.4%)',
@@ -215,7 +215,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     className: '12th',
     session: '2024-25',
     stream: 'Science',
-    boardRegNo: '',
+    boardRegNo: '2201010001160068',
     examRollNo: '301003054',
     examOrEvent: 'JKBOSE Class 12th Regular 2024-25 (Oct-Nov)',
     scoreOrMarks: '493 / 500 (98.6%)',
@@ -240,7 +240,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     className: '12th',
     session: '2024-25',
     stream: 'Science',
-    boardRegNo: '',
+    boardRegNo: '2201000000030010',
     examRollNo: '301003037',
     examOrEvent: 'JKBOSE Class 12th Regular 2024-25 (Oct-Nov)',
     scoreOrMarks: '492 / 500 (98.4%)',
@@ -259,6 +259,39 @@ export const DEFAULT_ACHIEVEMENTS = [
 ];
 
 /**
+ * Seeds or re-populates the default template achievements directly into Cloud Firestore.
+ */
+export async function seedDefaultAchievements(force = false) {
+  try {
+    const existingSnap = await getDocs(collection(db, ACHIEVEMENTS_COLLECTION));
+    if (!force && !existingSnap.empty) {
+      return existingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    const now = new Date().toISOString();
+    const seeded = [];
+
+    for (const item of DEFAULT_ACHIEVEMENTS) {
+      const docRef = doc(db, ACHIEVEMENTS_COLLECTION, item.id);
+      const record = {
+        ...item,
+        createdAt: now,
+        updatedAt: now,
+        createdByName: 'system_template_seed'
+      };
+      await setDoc(docRef, record, { merge: true });
+      seeded.push(record);
+    }
+
+    notifySync('SEED', 'all');
+    return seeded;
+  } catch (err) {
+    console.error('[achievementsService] seedDefaultAchievements error:', err);
+    throw err;
+  }
+}
+
+/**
  * Fetch all published achievements for the public website Hall of Fame.
  * Automatically sorts featured items and J&K UT Position Holders first.
  */
@@ -274,7 +307,17 @@ export async function fetchPublishedAchievements(forceRefresh = false) {
       where('published', '==', true)
     );
     const snap = await getDocs(q);
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // If Firestore has no documents yet, auto-seed defaults so website and portal stay synced
+    if (items.length === 0) {
+      try {
+        const seeded = await seedDefaultAchievements(false);
+        items = seeded.filter(x => x.published !== false);
+      } catch (_) {
+        items = DEFAULT_ACHIEVEMENTS;
+      }
+    }
 
     // Priority Sorting:
     // 1. Featured items first
@@ -296,10 +339,9 @@ export async function fetchPublishedAchievements(forceRefresh = false) {
       return dateB.localeCompare(dateA);
     });
 
-    const result = items.length > 0 ? items : DEFAULT_ACHIEVEMENTS;
-    publishedAchievementsCache = result;
+    publishedAchievementsCache = items;
     lastFetchTimestamp = now;
-    return result;
+    return items;
   } catch (err) {
     console.warn('[achievementsService] fetchPublishedAchievements fallback:', err.message || err);
     return publishedAchievementsCache || DEFAULT_ACHIEVEMENTS;
@@ -308,13 +350,26 @@ export async function fetchPublishedAchievements(forceRefresh = false) {
 
 /**
  * Fetch all achievement documents (published and drafts) for Admin CMS management.
+ * Auto-initializes Firestore with default documents if empty so admin can immediately perform CRUD.
  */
 export async function fetchAllAchievementsAdmin() {
   try {
     const snap = await getDocs(collection(db, ACHIEVEMENTS_COLLECTION));
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Auto-seed default achievements into Firestore so admin has full CRUD capability immediately
+    if (items.length === 0) {
+      try {
+        items = await seedDefaultAchievements(false);
+      } catch (seedErr) {
+        console.warn('[achievementsService] Auto-seed failed, falling back to in-memory templates:', seedErr);
+        items = DEFAULT_ACHIEVEMENTS;
+      }
+    }
 
     items.sort((a, b) => {
+      if (a.featured !== b.featured) return a.featured ? -1 : 1;
+      if (Boolean(a.isUtPositionHolder) !== Boolean(b.isUtPositionHolder)) return a.isUtPositionHolder ? -1 : 1;
       const dateA = a.achievementDate || a.createdAt || '';
       const dateB = b.achievementDate || b.createdAt || '';
       return dateB.localeCompare(dateA);
@@ -388,10 +443,25 @@ export async function updateAchievement(id, updates, userEmail = 'admin') {
 
   if (payload.studentName) payload.studentName = toTitleCase(payload.studentName);
   if (payload.fatherName) payload.fatherName = toTitleCase(payload.fatherName);
+  if (payload.boardRegNo !== undefined) payload.boardRegNo = String(payload.boardRegNo).trim();
 
   await setDoc(doc(db, ACHIEVEMENTS_COLLECTION, id), payload, { merge: true });
   notifySync('UPDATE', id);
   return { id, ...payload };
+}
+
+/**
+ * Quick toggle published status of an achievement.
+ */
+export async function toggleAchievementPublished(id, currentPublished, userEmail = 'admin') {
+  return updateAchievement(id, { published: !currentPublished }, userEmail);
+}
+
+/**
+ * Quick toggle featured status of an achievement.
+ */
+export async function toggleAchievementFeatured(id, currentFeatured, userEmail = 'admin') {
+  return updateAchievement(id, { featured: !currentFeatured }, userEmail);
 }
 
 /**
@@ -407,9 +477,9 @@ export async function deleteAchievement(id, userEmail = 'admin') {
 
 /**
  * Automated Student Fast-Lookup Engine:
- * Searches admissions and master register cohorts for a given session, class,
- * and Board Registration Number (or Name / Roll No).
- * Automatically resolves and returns official Student Photo and demographics.
+ * Searches admissions cohorts, master registers, and verified student registries
+ * for a given session, class, and Board Registration Number (or Name / Roll No).
+ * Automatically resolves and returns official Student Photo, Reg No, and demographics.
  */
 export async function lookupStudentForAchievement({
   session = '',
@@ -425,74 +495,117 @@ export async function lookupStudentForAchievement({
   const cleanName = String(studentName || '').trim().toLowerCase();
 
   if (!cleanTargetReg && !cleanRoll && cleanName.length < 3) {
-    throw new Error('Please provide a Board Registration Number, Roll Number, or Student Name to lookup');
+    throw new Error('Please enter a Board Registration Number, Roll Number, or Student Name to lookup');
   }
 
-  // 1. Fetch scoped cohort from memory / Firestore
-  let students = [];
-  try {
-    students = await getAdmissionsBySession({ session: targetSession });
-  } catch (_) {
-    students = [];
-  }
+  // 1. Fetch scoped cohort from admissions and master registers
+  const sessionsToTry = Array.from(new Set([targetSession, currentSession, '2024-25', '2025-26', '2023-24']));
+  let pool = [];
 
-  // Fallback to historical master registers on-demand if not found in admissions
-  if ((!students || students.length === 0) && targetSession !== currentSession) {
+  for (const sName of sessionsToTry) {
     try {
-      students = await getMasterRegistersScoped(targetSession);
-    } catch (_) {
-      students = [];
-    }
+      const adm = await getAdmissionsBySession({ session: sName });
+      if (Array.isArray(adm) && adm.length > 0) {
+        pool.push(...adm.map(x => ({ ...x, _detectedSession: sName })));
+      }
+    } catch (_) {}
+
+    try {
+      const reg = await getMasterRegistersScoped(sName);
+      if (Array.isArray(reg) && reg.length > 0) {
+        pool.push(...reg.map(x => ({ ...x, _detectedSession: sName })));
+      }
+    } catch (_) {}
   }
 
   // 2. Locate matching student record
   let match = null;
 
+  // Search by Board Registration Number
   if (cleanTargetReg) {
-    match = students.find(s => {
-      const reg = normalizeRegKey(
-        s.boardRegNo || s.regNo || s['Board Registration Number'] ||
-        s['Board Registration No.'] || s['DIET Registration No.'] || ''
-      );
-      return reg && (reg === cleanTargetReg || reg.includes(cleanTargetReg) || cleanTargetReg.includes(reg));
+    match = pool.find(s => {
+      const regRaw = s.boardRegNo || s.regNo || s.regKey || s['Board Registration Number'] ||
+        s['Board Registration No.'] || s['Registration Number'] || s['DIET Registration No.'] ||
+        s['studentRegNo'] || s['admNo'] || '';
+      const normReg = normalizeRegKey(regRaw);
+      return normReg && (normReg === cleanTargetReg || normReg.includes(cleanTargetReg) || cleanTargetReg.includes(normReg));
     });
   }
 
+  // Search by Roll Number
   if (!match && cleanRoll) {
-    match = students.find(s => {
-      const r = String(s.classRollNo || s.rollNo || s['Class Roll No'] || '').trim().toLowerCase();
-      const c = String(s.className || s.class || '').toLowerCase();
-      const classMatches = !className || c.includes(className.toLowerCase());
+    match = pool.find(s => {
+      const r = String(s.examRollNo || s.classRollNo || s.rollNo || s['Class Roll No'] || s['Roll No'] || '').trim().toLowerCase();
+      const c = String(s.className || s.class || s['Class'] || '').toLowerCase();
+      const classMatches = !className || className === 'all' || c.includes(className.toLowerCase());
       return r === cleanRoll && classMatches;
     });
   }
 
+  // Search by Name
   if (!match && cleanName) {
-    match = students.find(s => {
-      const n = String(s.studentName || s.name || s["Student's Name"] || '').trim().toLowerCase();
-      const c = String(s.className || s.class || '').toLowerCase();
-      const classMatches = !className || c.includes(className.toLowerCase());
+    match = pool.find(s => {
+      const n = String(s.studentName || s.name || s["Student's Name"] || s['Full Name'] || '').trim().toLowerCase();
+      const c = String(s.className || s.class || s['Class'] || '').toLowerCase();
+      const classMatches = !className || className === 'all' || c.includes(className.toLowerCase());
       return n.includes(cleanName) && classMatches;
     });
+  }
+
+  // 3. Fallback search into practical seed cohorts if not in admissions/master registers
+  if (!match) {
+    try {
+      const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData.js');
+      if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
+        for (const cohort of CLEAN_PRACTICALS_SEED_DATA) {
+          const cohortStudents = cohort.students || [];
+          for (const s of cohortStudents) {
+            const regNorm = normalizeRegKey(s.boardRegNo || s.regNo || '');
+            const rNorm = String(s.examRollNo || s.classRollNo || s.rollNo || '').trim().toLowerCase();
+            const nNorm = String(s.name || s.studentName || '').trim().toLowerCase();
+
+            const isRegMatch = cleanTargetReg && regNorm && (regNorm === cleanTargetReg || regNorm.includes(cleanTargetReg) || cleanTargetReg.includes(regNorm));
+            const isRollMatch = cleanRoll && rNorm === cleanRoll;
+            const isNameMatch = cleanName && nNorm.includes(cleanName);
+
+            if (isRegMatch || isRollMatch || isNameMatch) {
+              match = {
+                studentName: s.name,
+                fatherName: s.parentName,
+                className: cohort.class || '12th',
+                session: cohort.session || targetSession,
+                stream: s.stream || cohort.stream || 'Science',
+                boardRegNo: s.boardRegNo || boardRegNo,
+                examRollNo: s.examRollNo || s.classRollNo || '',
+                _detectedSession: cohort.session || targetSession
+              };
+              break;
+            }
+          }
+          if (match) break;
+        }
+      }
+    } catch (_) {}
   }
 
   if (!match) {
     return {
       found: false,
-      message: `No matching student record found for Session "${targetSession}". You can still fill demographics manually.`
+      message: `No record matching "${boardRegNo || rollNo || studentName}" was found in the student database. You can enter details manually.`
     };
   }
 
-  // 3. Resolve Demographics
+  // 4. Resolve Demographics & Normalized Fields
   const sName = match.studentName || match.name || match["Student's Name"] || match['Full Name'] || '';
-  const fName = match.fatherName || match.father || match["Father's Name"] || match["Father's/Guardian's Name"] || '';
-  const sClass = match.className || match.class || match['Class'] || className || '';
-  const sStream = match.stream || match['Stream'] || match['Stream for Class 11th'] || '';
+  const fName = match.fatherName || match.parentName || match.father || match["Father's Name"] || match["Father's/Guardian's Name"] || '';
+  const rawClass = match.className || match.class || match['Class'] || className || '12th';
+  const cleanClass = rawClass.includes('11') ? '11th' : rawClass.includes('10') ? '10th' : '12th';
+  const sStream = match.stream || match['Stream'] || match['Stream for Class 11th'] || 'Science';
   const sReg = match.boardRegNo || match.regNo || match['Board Registration Number'] || boardRegNo || '';
-  const sRoll = match.classRollNo || match.rollNo || match['Class Roll No'] || '';
-  const sForm = match.formNo || match['Form Number'] || match['Form No.'] || '';
+  const sRoll = match.examRollNo || match.classRollNo || match.rollNo || match['Class Roll No'] || '';
+  const matchedSession = match._detectedSession || match.session || match.Session || targetSession;
 
-  // 4. Resolve Student Photograph
+  // 5. Resolve Student Photograph
   let resolvedPhotoUrl = '';
   try {
     resolvedPhotoUrl = await fetchStudentPhotoOnDemand(match);
@@ -507,12 +620,11 @@ export async function lookupStudentForAchievement({
     student: {
       studentName: toTitleCase(sName),
       fatherName: toTitleCase(fName),
-      className: sClass,
-      session: match.session || match.Session || targetSession,
+      className: cleanClass,
+      session: matchedSession,
       stream: sStream,
-      boardRegNo: sReg,
-      classRollNo: sRoll,
-      formNo: sForm,
+      boardRegNo: String(sReg).trim(),
+      examRollNo: String(sRoll).trim(),
       photoUrl: resolvedPhotoUrl
     }
   };

@@ -15,7 +15,7 @@ import { fetchPublishedAchievements } from '../services/achievementsService';
 const CATEGORY_META = {
   jkbose: {
     label: 'JKBOSE Board Position Holders',
-    shortLabel: 'JKBOSE State Positions',
+    shortLabel: 'JKBOSE Positions',
     icon: Award,
     badgeBg: 'bg-indigo-50 text-indigo-900 border-indigo-200 dark:bg-indigo-950/70 dark:text-indigo-300 dark:border-indigo-800',
     accentBorder: 'from-indigo-600 via-blue-500 to-indigo-700',
@@ -23,11 +23,35 @@ const CATEGORY_META = {
   },
   competitive: {
     label: 'National Competitive Exams (NEET / JEE)',
-    shortLabel: 'NEET & JEE Merit',
+    shortLabel: 'NEET & JEE',
     icon: Trophy,
     badgeBg: 'bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800',
     accentBorder: 'from-amber-500 via-orange-400 to-amber-600',
     headerBadge: 'bg-amber-600 text-white'
+  },
+  sports: {
+    label: 'Sports & Athletics Honors',
+    shortLabel: 'Sports Honors',
+    icon: Award,
+    badgeBg: 'bg-blue-50 text-blue-900 border-blue-200 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-800',
+    accentBorder: 'from-blue-600 via-cyan-500 to-blue-700',
+    headerBadge: 'bg-blue-600 text-white'
+  },
+  cocurricular: {
+    label: 'Co-Curricular & Arts Distinctions',
+    shortLabel: 'Arts & Debates',
+    icon: Trophy,
+    badgeBg: 'bg-purple-50 text-purple-900 border-purple-200 dark:bg-purple-950/70 dark:text-purple-300 dark:border-purple-800',
+    accentBorder: 'from-purple-600 via-fuchsia-500 to-purple-700',
+    headerBadge: 'bg-purple-600 text-white'
+  },
+  institutional: {
+    label: 'Institutional Excellence Honors',
+    shortLabel: 'School Honors',
+    icon: Award,
+    badgeBg: 'bg-emerald-50 text-emerald-900 border-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800',
+    accentBorder: 'from-emerald-600 via-teal-500 to-emerald-700',
+    headerBadge: 'bg-emerald-600 text-white'
   }
 };
 
@@ -371,6 +395,11 @@ export default function Achievements() {
                             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5 truncate">
                               Class {item.className} {item.stream ? `• ${item.stream}` : ''}
                             </p>
+                            {item.boardRegNo && (
+                              <p className="text-[10.5px] font-mono font-bold text-indigo-700 dark:text-indigo-300 truncate mt-0.5">
+                                Reg No: {item.boardRegNo}
+                              </p>
+                            )}
                             {item.fatherName ? (
                               <p className="text-[10.5px] font-medium text-slate-400 dark:text-slate-500 truncate mt-0.5">
                                 S/D of {item.fatherName}
@@ -489,6 +518,11 @@ export default function Achievements() {
                     <span className="px-2.5 py-0.5 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 text-[11px] font-bold border border-teal-200 dark:border-teal-800">
                       Class {selectedItem.className} {selectedItem.stream ? `(${selectedItem.stream})` : ''}
                     </span>
+                    {selectedItem.boardRegNo && (
+                      <span className="px-2.5 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 font-mono text-[11px] font-bold border border-indigo-200 dark:border-indigo-800">
+                        Reg No: {selectedItem.boardRegNo}
+                      </span>
+                    )}
                     {selectedItem.examRollNo && (
                       <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[11px] font-bold border border-slate-200 dark:border-slate-700">
                         Exam Roll: {selectedItem.examRollNo}

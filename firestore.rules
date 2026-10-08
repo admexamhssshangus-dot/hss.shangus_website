@@ -459,10 +459,10 @@ service cloud.firestore {
     }
 
     // Public school achievements & Hall of Fame repository.
-    match /siteAchievements/{documentId} {
-      allow get, list: if true;
-      allow create, update: if canUseAny(['controls', 'cms', 'achievementsCms']) && hasNoCredentialFields(request.resource.data) && hasNoAiSecretFields(request.resource.data);
-      allow delete: if canUseAny(['controls', 'cms', 'achievementsCms']);
+    match /siteAchievements/{achievementId} {
+      allow read: if true;
+      allow create, update: if (isAdmin() || canUseAny(['achievementsCms', 'achievements', 'achievements_cms', 'controls', 'cms'])) && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin() || canUseAny(['achievementsCms', 'achievements', 'achievements_cms', 'controls', 'cms']);
     }
 
     match /users/{userId} {
@@ -580,13 +580,6 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if canUse('subjects') && validStaffDocument(request.resource.data);
       allow delete: if canUse('subjects');
-    }
-
-    // School Achievements & Hall of Fame: public read for honors; staff/admin management
-    match /siteAchievements/{achievementId} {
-      allow read: if true;
-      allow create, update: if (isAdmin() || canUseAny(['achievementsCms', 'achievements', 'achievements_cms', 'controls', 'cms'])) && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin() || canUseAny(['achievementsCms', 'achievements', 'achievements_cms', 'controls', 'cms']);
     }
 
     match /holidays/{documentId} {
