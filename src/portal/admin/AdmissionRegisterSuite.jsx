@@ -20,7 +20,8 @@ import {
   getCachedCollection,
   getMasterRegistersByScope,
   fetchStudentPhotoOnDemand,
-  isValidPhotoKey
+  isValidPhotoKey,
+  getAcademicSessionsCached
 } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { getStudentPhotoUrl } from '../../utils/imageCompressor';
@@ -2706,13 +2707,14 @@ function AdmissionRegisterSuite({
   useEffect(() => {
     let active = true;
     const sessionsFound = new Set(['2025-26', '2024-25', '2023-24', '2022-23']);
-    getDocs(collection(db, 'academicSessions'))
-      .then(snap => {
+    getAcademicSessionsCached()
+      .then(custom => {
         if (!active) return;
-        snap.docs.forEach(d => {
-          const sessName = cleanStr(d.data()?.name || d.data()?.session || d.id);
-          if (sessName) sessionsFound.add(sessName);
-        });
+        if (Array.isArray(custom)) {
+          custom.forEach(sessName => {
+            if (sessName) sessionsFound.add(cleanStr(sessName));
+          });
+        }
         setAvailableSessions(Array.from(sessionsFound).sort().reverse());
       })
       .catch(() => {});

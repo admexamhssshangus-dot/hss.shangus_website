@@ -177,7 +177,10 @@ export function getStudentDropLookupKeys(st) {
 /**
  * Fetch persistent examinee drop overrides from Cloud Firestore.
  */
-export async function fetchExamineeDropOverrides() {
+export async function fetchExamineeDropOverrides(forceRefresh = false) {
+  if (!forceRefresh && inMemoryOverridesMap && inMemoryOverridesMap.size > 0) {
+    return inMemoryOverridesMap;
+  }
   const result = new Map();
 
   // 1. Preload initial known drops

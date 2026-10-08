@@ -599,6 +599,20 @@ export async function getAdmissionsBySession(options = {}) {
   if (!forceRefresh && fullyHydratedAdmissionSessions.has(cleanSession)) {
     return [];
   }
+
+  // Reuse already-cached in-memory 'admissions' dataset (0 Firestore reads)
+  if (!forceRefresh) {
+    const cachedAdm = getCachedCollectionSync('admissions');
+    if (Array.isArray(cachedAdm) && cachedAdm.length > 0) {
+      const sessionMatches = cachedAdm.filter(st => isStudentInSessionFast(st, cleanSession));
+      if (sessionMatches.length > 0 || isCurrentSession) {
+        admissionsSessionCache.set(cleanSession, sessionMatches);
+        fullyHydratedAdmissionSessions.add(cleanSession);
+        return sessionMatches;
+      }
+    }
+  }
+
   if (admissionsSessionInflightFetches.has(cleanSession)) {
     return admissionsSessionInflightFetches.get(cleanSession);
   }
@@ -703,16 +717,19 @@ export async function getMasterRegistersByScope({ session, className, stream, fo
       return combined;
     }
 
-    // A complete session has already been loaded: every class/stream can be
-    // derived locally, including a valid empty result, with zero extra reads.
-    if (!forceRefresh && typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache)) {
-      const inMem = window._hssMasterRegistersCache.filter(s => {
+    // A complete session or collection has already been loaded: derive locally with zero extra reads
+    const cachedMaster = (typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0)
+      ? window._hssMasterRegistersCache
+      : (getCachedCollectionSync('masterRegisters') || []);
+
+    if (!forceRefresh && Array.isArray(cachedMaster) && cachedMaster.length > 0) {
+      const inMem = cachedMaster.filter(s => {
         if (cleanSession && !isStudentInSessionFast(s, cleanSession)) return false;
         if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
         if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
         return true;
       });
-      if (inMem.length > 0 || window._hssMasterRegistersIsFull || (cleanSession && fullyHydratedMasterSessions.has(cleanSession))) {
+      if (inMem.length > 0 || (typeof window !== 'undefined' && window._hssMasterRegistersIsFull) || (cleanSession && fullyHydratedMasterSessions.has(cleanSession))) {
         scopeMemoryCache.set(cacheKey, inMem);
         return inMem;
       }
@@ -780,6 +797,19 @@ export async function getMasterRegistersScoped(options = {}) {
   // implementation silently returned the default session even for forceAll,
   // which made those tools appear to have missing records.
   if (opts?.forceAll === true) {
+    if (!opts.forceRefresh) {
+      if (typeof window !== 'undefined' && window._hssMasterRegistersIsFull && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
+        return window._hssMasterRegistersCache;
+      }
+      const syncMaster = getCachedCollectionSync('masterRegisters');
+      if (Array.isArray(syncMaster) && syncMaster.length > 500) {
+        if (typeof window !== 'undefined') {
+          window._hssMasterRegistersCache = syncMaster;
+          window._hssMasterRegistersIsFull = true;
+        }
+        return syncMaster;
+      }
+    }
     try {
       const snapshot = await getDocs(collection(db, 'masterRegisters'));
       const allRecords = snapshot.docs.flatMap(unpackMasterRegisterDoc);
@@ -821,6 +851,113 @@ export async function getMasterRegistersScoped(options = {}) {
     console.warn('[dbCache] getMasterRegistersScoped default cohort note:', err);
     return [];
   }
+}
+
+let academicSessionsMemoryCache = null;
+
+/**
+ * Fetch configured academic sessions once and cache across all modules (0 repetitive reads).
+ */
+export async function getAcademicSessionsCached(forceRefresh = false) {
+  if (!forceRefresh && Array.isArray(academicSessionsMemoryCache) && academicSessionsMemoryCache.length > 0) {
+    return academicSessionsMemoryCache;
+  }
+  if (!forceRefresh) {
+    try {
+      const cached = sessionStorage.getItem('hss_academic_sessions_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          academicSessionsMemoryCache = parsed;
+          return parsed;
+        }
+      }
+    } catch (_) {}
+  }
+  if (inflightFetches.has('academicSessions')) {
+    return inflightFetches.get('academicSessions');
+  }
+
+  const p = (async () => {
+    try {
+      const snap = await getDocs(collection(db, 'academicSessions'));
+      const list = [];
+      snap.docs.forEach(d => {
+        const name = d.data()?.name || d.data()?.session || d.id;
+        if (name && typeof name === 'string' && name.trim()) list.push(name.trim());
+      });
+      academicSessionsMemoryCache = list;
+      try {
+        sessionStorage.setItem('hss_academic_sessions_cache', JSON.stringify(list));
+      } catch (_) {}
+      return list;
+    } catch (err) {
+      console.warn('[dbCache] getAcademicSessionsCached note:', err);
+      return academicSessionsMemoryCache || [];
+    } finally {
+      inflightFetches.delete('academicSessions');
+    }
+  })();
+  inflightFetches.set('academicSessions', p);
+  return p;
+}
+
+/**
+ * Find a student record synchronously across all in-memory caches
+ * (memoryCache, admissionsSessionCache, window._hssMasterRegistersCache, scopeMemoryCache).
+ * Consumes 0 Firestore reads.
+ */
+export function findCachedStudentSync(identifier) {
+  if (!identifier) return null;
+  const raw = String(identifier).trim();
+  const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  const cleanLower = raw.toLowerCase();
+
+  const isMatch = (st) => {
+    if (!st || typeof st !== 'object') return false;
+    const docId = String(st._docId || st.docId || st.id || '').trim().toLowerCase();
+    if (docId && (docId === cleanLower || docId === raw)) return true;
+    const regRaw = st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Registration No.'] || st['Registration No.'];
+    const reg = String(regRaw || '').trim().replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    if (clean && reg && (reg === clean || (clean.length >= 5 && (reg.includes(clean) || clean.includes(reg))))) return true;
+    const form = String(st.formNo || st['Form No.'] || st['Form Number'] || '').trim().toLowerCase();
+    if (form && form === cleanLower) return true;
+    return false;
+  };
+
+  // 1. Check admissions in memory
+  const cachedAdm = getCachedCollectionSync('admissions');
+  if (Array.isArray(cachedAdm)) {
+    const found = cachedAdm.find(isMatch);
+    if (found) return found;
+  }
+
+  // 2. Check all cached admission sessions
+  for (const sessionList of admissionsSessionCache.values()) {
+    if (Array.isArray(sessionList)) {
+      const found = sessionList.find(isMatch);
+      if (found) return found;
+    }
+  }
+
+  // 3. Check master registers in memory
+  const cachedMr = (typeof window !== 'undefined' && Array.isArray(window._hssMasterRegistersCache))
+    ? window._hssMasterRegistersCache
+    : getCachedCollectionSync('masterRegisters');
+  if (Array.isArray(cachedMr)) {
+    const found = cachedMr.find(isMatch);
+    if (found) return found;
+  }
+
+  // 4. Check scope memory cache
+  for (const scopeList of scopeMemoryCache.values()) {
+    if (Array.isArray(scopeList)) {
+      const found = scopeList.find(isMatch);
+      if (found) return found;
+    }
+  }
+
+  return null;
 }
 
 /**

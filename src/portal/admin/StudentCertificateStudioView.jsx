@@ -61,7 +61,9 @@ import {
   fetchAllMatchingStudentPhotos,
   getAdmissionsBySession,
   getMasterRegistersScoped,
-  getCurrentAcademicSession
+  getCurrentAcademicSession,
+  getAcademicSessionsCached,
+  findCachedStudentSync
 } from '../../services/dbCache';
 import { showToast } from '../../components/common/GlobalToast';
 import {
@@ -451,6 +453,10 @@ async function fetchStudentAdmissionRecordOnDemand(st, targetReg, normStudentNam
     if (admMatches.length > 0) return admMatches;
   }
 
+  // 1b. Check multi-tier in-memory student cache (0 reads)
+  const syncStudent = findCachedStudentSync(targetReg || st?.id || st?._docId);
+  if (syncStudent) return [syncStudent];
+
   // 2. Direct document ID lookup if this record originated from admissions (1 read)
   const directDocId = st?.docId || st?.raw?.id || st?.id;
   if (directDocId && typeof directDocId === 'string' && !directDocId.startsWith('mr_') && !directDocId.startsWith('chunk_') && !directDocId.includes('_')) {
@@ -689,18 +695,13 @@ export default function StudentCertificateStudioView({
   const inFlightSessionsRef = useRef(new Set());
   const isLoadingStudents = loadingSessions.size > 0;
 
-  // Real-time discovery of custom sessions defined in Firestore academicSessions
+  // Real-time discovery of custom sessions defined in Firestore academicSessions (cached, 0 redundant reads)
   useEffect(() => {
     let active = true;
-    getDocs(collection(db, 'academicSessions'))
-      .then(snap => {
+    getAcademicSessionsCached()
+      .then(custom => {
         if (!active) return;
-        const custom = [];
-        snap.docs.forEach(d => {
-          const name = d.data()?.name || d.data()?.session || d.id;
-          if (name && typeof name === 'string' && name.trim()) custom.push(name.trim());
-        });
-        if (custom.length > 0) setCustomDbSessions(custom);
+        if (Array.isArray(custom) && custom.length > 0) setCustomDbSessions(custom);
       })
       .catch(() => {});
     return () => { active = false; };

@@ -34,7 +34,8 @@ import {
   fetchStudentPhotoOnDemand,
   getAdmissionsBySession,
   getMasterRegistersScoped,
-  getCurrentAcademicSession
+  getCurrentAcademicSession,
+  getAcademicSessionsCached
 } from '../../services/dbCache';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import { db } from '../../services/firebase';
@@ -3389,6 +3390,8 @@ function RosterColumnsDropdown({
   );
 }
 
+let inMemoryCloudFeeRules = null;
+
 function CustomRosterDocumentBuilderView({
   allStudents = [],
   onClose,
@@ -3417,18 +3420,13 @@ function CustomRosterDocumentBuilderView({
   const loadedSessionsRef = useRef(new Set());
   const inFlightSessionsRef = useRef(new Set());
 
-  // Real-time discovery of custom sessions defined in Firestore academicSessions
+  // Real-time discovery of custom sessions defined in Firestore academicSessions (cached, 0 redundant reads)
   useEffect(() => {
     let active = true;
-    getDocs(collection(db, 'academicSessions'))
-      .then(snap => {
+    getAcademicSessionsCached()
+      .then(custom => {
         if (!active) return;
-        const custom = [];
-        snap.docs.forEach(d => {
-          const name = d.data()?.name || d.data()?.session || d.id;
-          if (name && typeof name === 'string' && name.trim()) custom.push(name.trim());
-        });
-        if (custom.length > 0) setCustomDbSessions(custom);
+        if (Array.isArray(custom) && custom.length > 0) setCustomDbSessions(custom);
       })
       .catch(() => {});
     return () => { active = false; };
@@ -4398,36 +4396,45 @@ function CustomRosterDocumentBuilderView({
   const [saveDefaultToast, setSaveDefaultToast] = useState(false);
   const [isSavingCustomToCloud, setIsSavingCustomToCloud] = useState(false);
   const [cloudFeeSaveToast, setCloudFeeSaveToast] = useState(false);
-  // Preload and sync custom fee rules and column defaults from Firebase Cloud
+  // Preload and sync custom fee rules and column defaults from Firebase Cloud (cached in-memory, 0 redundant reads)
   useEffect(() => {
     let isMounted = true;
+    const applyFeeData = (data) => {
+      if (!data || (!data.classBaseFees && !data.customColumns)) return;
+      setActiveColumns(prev => {
+        const updated = prev.map(c => {
+          if (c.calcType === 'fee_with_subject_surcharge') {
+            return {
+              ...c,
+              baseFee: data.baseFee !== undefined ? Number(data.baseFee) : c.baseFee,
+              classBaseFees: data.classBaseFees || c.classBaseFees,
+              classBaseFees6Subs: data.classBaseFees6Subs || c.classBaseFees6Subs,
+              subjectSurcharge: data.subjectSurcharge !== undefined ? Number(data.subjectSurcharge) : c.subjectSurcharge,
+              chargeableSubjects: Array.isArray(data.chargeableSubjects) ? data.chargeableSubjects : c.chargeableSubjects,
+              showBreakdown: data.showBreakdown !== undefined ? data.showBreakdown : c.showBreakdown
+            };
+          }
+          return c;
+        });
+        try {
+          localStorage.setItem('hss_custom_roster_default_columns', JSON.stringify(updated));
+        } catch (_) {}
+        return updated;
+      });
+    };
+
+    if (inMemoryCloudFeeRules) {
+      applyFeeData(inMemoryCloudFeeRules);
+      return;
+    }
+
     const fetchCloudFeeRules = async () => {
       try {
         const snap = await getDoc(doc(db, 'systemSettings', 'rosterFeeRules'));
         if (snap.exists() && isMounted) {
           const data = snap.data();
-          if (data && (data.classBaseFees || data.customColumns)) {
-            setActiveColumns(prev => {
-              const updated = prev.map(c => {
-                if (c.calcType === 'fee_with_subject_surcharge') {
-                  return {
-                    ...c,
-                    baseFee: data.baseFee !== undefined ? Number(data.baseFee) : c.baseFee,
-                    classBaseFees: data.classBaseFees || c.classBaseFees,
-                    classBaseFees6Subs: data.classBaseFees6Subs || c.classBaseFees6Subs,
-                    subjectSurcharge: data.subjectSurcharge !== undefined ? Number(data.subjectSurcharge) : c.subjectSurcharge,
-                    chargeableSubjects: Array.isArray(data.chargeableSubjects) ? data.chargeableSubjects : c.chargeableSubjects,
-                    showBreakdown: data.showBreakdown !== undefined ? data.showBreakdown : c.showBreakdown
-                  };
-                }
-                return c;
-              });
-              try {
-                localStorage.setItem('hss_custom_roster_default_columns', JSON.stringify(updated));
-              } catch (_) {}
-              return updated;
-            });
-          }
+          inMemoryCloudFeeRules = data;
+          applyFeeData(data);
         }
       } catch (err) {
         console.warn('Cloud fee rules load note:', err);
@@ -4446,11 +4453,13 @@ function CustomRosterDocumentBuilderView({
       setTimeout(() => setSaveDefaultToast(false), 3000);
 
       // Also persist to Firebase Cloud
-      await setDoc(doc(db, 'systemSettings', 'rosterFeeRules'), {
+      const cloudData = {
         allColumnsConfig: activeColumns,
         customColumns: activeColumns.filter(c => c.isCustom),
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      };
+      inMemoryCloudFeeRules = { ...(inMemoryCloudFeeRules || {}), ...cloudData };
+      await setDoc(doc(db, 'systemSettings', 'rosterFeeRules'), cloudData, { merge: true });
     } catch (e) {
       console.error(e);
       showToast('Failed to save default column order: ' + e.message, 'error');

@@ -80,6 +80,14 @@ export async function getStudentRegIndex(forceRefresh = false) {
  * @returns {object|null}
  */
 export function lookupStudentByRegSync(regNo) {
+  if (!memoryIndexCache) {
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY) || localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        memoryIndexCache = JSON.parse(cached);
+      }
+    } catch (_) {}
+  }
   if (!memoryIndexCache) return null;
   const key = normalizeRegKey(regNo);
   if (!key) return null;

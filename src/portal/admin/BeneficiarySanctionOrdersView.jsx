@@ -23,8 +23,7 @@ import {
 import { showToast } from '../../components/common/GlobalToast';
 import {
   getCachedCollectionSync,
-  getAdmissionsBySession,
-  getMasterRegistersScoped,
+  findCachedStudentSync,
   getCurrentAcademicSession
 } from '../../services/dbCache';
 import {
@@ -58,7 +57,6 @@ import {
   cleanRegNoVal,
   getStudentRollNumber,
   CANONICAL_ACADEMIC_SESSIONS,
-  fetchHistoricalSessionData,
   DB_COLUMN_GROUPS,
   ALL_DB_COLUMNS
 } from './CustomRosterDocumentBuilderView';
@@ -304,51 +302,57 @@ export default function BeneficiarySanctionOrdersView({
     showToast(`Applied preset: ${preset.name}`, 'info');
   };
 
-  // ─── Session Student Cache Pool ───
-  const [sessionStudentsPool, setSessionStudentsPool] = useState([]);
+  // ─── Zero-Read Unified In-Memory Student Pool ───
+  // Reuses pre-fetched student datasets from AdminDashboard (allStudents prop) and
+  // local memory caches (getCachedCollectionSync) so zero new Firestore reads are consumed.
+  const unifiedStudentsPool = useMemo(() => {
+    const list = [];
+    const seen = new Set();
 
-  // Load session students whenever selectedSession changes
-  useEffect(() => {
-    let isMounted = true;
-    async function loadSessionPool() {
-      // First check in-memory cached admissions
-      const cachedAdm = getCachedCollectionSync('admissions') || [];
-      const cachedSessionAdm = cachedAdm.filter(st => {
-        const s = extractSession(st);
-        return !s || s.includes(selectedSession) || selectedSession.includes(s);
-      });
+    const addStudent = (st) => {
+      if (!st || typeof st !== 'object') return;
+      const id = String(st.id || st._docId || extractBoardRegNo(st) || '').trim();
+      const reg = cleanRegNoVal(extractBoardRegNo(st)).toLowerCase();
+      const dedupeKey = id || reg;
+      if (dedupeKey && seen.has(dedupeKey)) return;
+      if (dedupeKey) seen.add(dedupeKey);
+      list.push(st);
+    };
 
-      if (cachedSessionAdm.length > 0 && isMounted) {
-        setSessionStudentsPool(cachedSessionAdm);
-      }
-
-      // Concurrently query historical session if needed
-      try {
-        const histData = await fetchHistoricalSessionData(selectedSession);
-        if (!isMounted) return;
-        const allHist = [
-          ...(histData.admissions || []),
-          ...(histData.masterRegisters || [])
-        ];
-        if (allHist.length > 0) {
-          setSessionStudentsPool(prev => {
-            const combined = [...prev, ...allHist];
-            const seen = new Set();
-            return combined.filter(item => {
-              const id = item.id || item._docId || extractBoardRegNo(item);
-              if (!id || seen.has(id)) return false;
-              seen.add(id);
-              return true;
-            });
-          });
-        }
-      } catch (err) {
-        console.warn('Error loading session pool:', err);
-      }
+    // 1. Prioritize allStudents already fetched and maintained by AdminDashboard
+    if (Array.isArray(allStudents)) {
+      allStudents.forEach(addStudent);
     }
-    loadSessionPool();
-    return () => { isMounted = false; };
-  }, [selectedSession]);
+
+    // 2. Combine with in-memory sync cache from admissions (0 reads)
+    const cachedAdm = getCachedCollectionSync('admissions');
+    if (Array.isArray(cachedAdm)) {
+      cachedAdm.forEach(addStudent);
+    }
+
+    // 3. Combine with in-memory sync cache from masterRegisters (0 reads)
+    const cachedMaster = getCachedCollectionSync('masterRegisters');
+    if (Array.isArray(cachedMaster)) {
+      cachedMaster.forEach(addStudent);
+    }
+
+    return list;
+  }, [allStudents]);
+
+  // Derived in-memory cohort for currently selected session (0 reads)
+  const sessionStudentsPool = useMemo(() => {
+    if (!selectedSession || selectedSession === 'All') return unifiedStudentsPool;
+    const cleanTarget = selectedSession.toLowerCase().replace(/session\s*/i, '').replace(/[\u2013\u2014]/g, '-').trim();
+
+    const filtered = unifiedStudentsPool.filter(st => {
+      const s = extractSession(st);
+      if (!s) return false;
+      const sNorm = String(s).toLowerCase().replace(/session\s*/i, '').replace(/[\u2013\u2014]/g, '-').trim();
+      return sNorm === cleanTarget || sNorm.includes(cleanTarget) || cleanTarget.includes(sNorm);
+    });
+
+    return filtered.length > 0 ? filtered : unifiedStudentsPool;
+  }, [unifiedStudentsPool, selectedSession]);
 
   // ─── Extract Column Value from Student Record ───
   const extractDbFieldValue = useCallback((st, colKey) => {
@@ -375,7 +379,7 @@ export default function BeneficiarySanctionOrdersView({
     }
   }, [selectedSession]);
 
-  // ─── Resolve Single Student by Reg No ───
+  // ─── Resolve Single Student by Reg No (Synchronous 0-Read In-Memory Resolution) ───
   const findStudentByReg = useCallback((rawReg) => {
     const clean = cleanRegNoVal(rawReg).toLowerCase();
     if (!clean) return null;
@@ -387,15 +391,18 @@ export default function BeneficiarySanctionOrdersView({
     });
     if (matchPool) return matchPool;
 
-    // 2. Search in all cached admissions
-    const cachedAdm = getCachedCollectionSync('admissions') || [];
-    const matchAdm = cachedAdm.find(st => {
+    // 2. Search in unified in-memory students pool (covers all sessions, admissions, and master registers)
+    const matchUnified = unifiedStudentsPool.find(st => {
       const r = cleanRegNoVal(extractBoardRegNo(st)).toLowerCase();
       return r === clean || (r && clean.length >= 5 && (r.includes(clean) || clean.includes(r)));
     });
-    if (matchAdm) return matchAdm;
+    if (matchUnified) return matchUnified;
 
-    // 3. Search in student index
+    // 3. Search in global dbCache in-memory datasets (0 reads)
+    const matchCache = findCachedStudentSync(rawReg);
+    if (matchCache) return matchCache;
+
+    // 4. Search in student index (reads synchronous memory/storage cache - 0 reads)
     const indexMatch = lookupStudentByRegSync(rawReg);
     if (indexMatch) {
       return {
@@ -409,7 +416,7 @@ export default function BeneficiarySanctionOrdersView({
     }
 
     return null;
-  }, [sessionStudentsPool]);
+  }, [sessionStudentsPool, unifiedStudentsPool]);
 
   // ─── Bulk Reg No Fetch Handler ───
   const handleFetchBulkRegs = async () => {
