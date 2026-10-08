@@ -274,6 +274,33 @@ export default function BeneficiarySanctionOrdersView({
   const [selectedClass, setSelectedClass] = useState('All');
   const [bulkRegInput, setBulkRegInput] = useState('');
   const [isFetchingRegs, setIsFetchingRegs] = useState(false);
+  const [showBulkRegInput, setShowBulkRegInput] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_show_bulk_reg_input');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggleBulkRegInput = useCallback(() => {
+    setShowBulkRegInput(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('hss_show_bulk_reg_input', String(next));
+      } catch (_) {}
+      return next;
+    });
+  }, []);
+
+  const bulkTokensCount = useMemo(() => {
+    if (!bulkRegInput || !bulkRegInput.trim()) return 0;
+    return bulkRegInput
+      .split(/[\r\n,;\t]+/)
+      .map(t => t.trim())
+      .filter(t => t.length > 0 && !/^(reg|no|sno|serial)$/i.test(t)).length;
+  }, [bulkRegInput]);
+
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
@@ -1597,18 +1624,109 @@ export default function BeneficiarySanctionOrdersView({
                 </div>
               </div>
 
-              {/* Manual Blank Row Entry Option */}
-              <div className="flex items-center justify-between pt-0.5">
-                <span className="text-[9.5px] text-slate-500 dark:text-slate-400">Add non-student or vendor:</span>
-                <button
-                  type="button"
-                  onClick={handleAddManualRow}
-                  className="h-6 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
-                  title="Add blank editable row (e.g. non-student vendor / shop)"
-                >
-                  <Plus size={12} />
-                  <span>+ Blank Row</span>
-                </button>
+              {/* Reg No(s) Bulk Area & Quick Student Finder Combined */}
+              <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700/60 space-y-1.5">
+                <div className="flex items-center justify-between mb-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[9px] font-bold uppercase text-slate-700 dark:text-slate-300">
+                      Reg No(s)
+                    </label>
+                    <span className="text-[8px] bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 px-1 py-0.2 rounded font-semibold uppercase">
+                      Bulk Entry
+                    </span>
+                    {bulkTokensCount > 0 && (
+                      <span className="text-[8.5px] font-mono font-bold text-teal-600 dark:text-teal-400">
+                        ({bulkTokensCount} detected)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {showBulkRegInput && bulkRegInput && (
+                      <button
+                        type="button"
+                        onClick={() => setBulkRegInput('')}
+                        className="text-[9px] text-slate-400 hover:text-slate-600 cursor-pointer font-bold"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleToggleBulkRegInput}
+                      className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border cursor-pointer flex items-center gap-1 transition-all ${
+                        showBulkRegInput
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+                          : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-400 hover:bg-teal-100'
+                      }`}
+                      title={showBulkRegInput ? "Hide Reg No(s) bulk text box" : "Unhide / Show Reg No(s) bulk text box"}
+                    >
+                      {showBulkRegInput ? <EyeOff size={11} /> : <Eye size={11} />}
+                      <span>{showBulkRegInput ? "Hide Reg No(s)" : "Unhide Reg No(s)"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {showBulkRegInput ? (
+                  <div className="space-y-1.5">
+                    <textarea
+                      value={bulkRegInput}
+                      onChange={(e) => setBulkRegInput(e.target.value)}
+                      rows={2}
+                      placeholder="Paste or enter Registration Numbers separated by spaces, commas or newlines..."
+                      className="w-full min-h-[50px] text-[11px] font-mono bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 focus:ring-1 focus:ring-teal-500 focus:outline-hidden resize-y shadow-2xs"
+                    />
+
+                    {/* Action Buttons: Fetch & Add + Blank */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleFetchBulkRegs}
+                        disabled={isFetchingRegs || !bulkRegInput.trim()}
+                        className={`flex-1 h-7 flex items-center justify-center gap-1 text-xs font-bold px-2 rounded-md transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
+                          !bulkRegInput.trim()
+                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none'
+                            : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-98'
+                        }`}
+                        title="Fetch and add students from database by pasted Registration Numbers"
+                      >
+                        {isFetchingRegs ? (
+                          <>
+                            <RefreshCw size={12} className="animate-spin shrink-0" />
+                            <span>Fetching...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={12} className="shrink-0" />
+                            <span>Fetch & Add {bulkTokensCount > 0 ? `(${bulkTokensCount})` : ''}</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleAddManualRow}
+                        className="h-7 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+                        title="Add blank editable row (e.g. non-student vendor / shop)"
+                      >
+                        <Plus size={13} />
+                        <span>+ Blank</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between pt-0.5">
+                    <span className="text-[9.5px] text-slate-500 dark:text-slate-400">Add non-student or vendor:</span>
+                    <button
+                      type="button"
+                      onClick={handleAddManualRow}
+                      className="h-6 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+                      title="Add blank editable row (e.g. non-student vendor / shop)"
+                    >
+                      <Plus size={12} />
+                      <span>+ Blank Row</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Quick Student Finder Bar — Merged Search across Name, Roll, and Reg No */}
