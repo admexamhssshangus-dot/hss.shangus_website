@@ -13,7 +13,7 @@ import {
   CornerDownLeft, PlusCircle, Trash2, ArrowLeft, RefreshCw, Bot,
   Key, Wand2, Shield, AlertCircle, ExternalLink, X, FileEdit, Plus, Minus,
   BookmarkPlus, FolderPlus, Award, History, RemoveFormatting, Palette, CheckCircle2,
-  Info, AlertTriangle, Move
+  Info, AlertTriangle, Move, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import {
   printOfficialLetter,
@@ -2757,7 +2757,7 @@ export default function OfficialLetterWriterView({
                   <span>•••</span>
                 </button>
 
-                {/* 6. Dedicated Setup Button */}
+                {/* 6. Controls Sidebar Toggle Button */}
                 <button
                   type="button"
                   onClick={() => {
@@ -2767,13 +2767,17 @@ export default function OfficialLetterWriterView({
                   }}
                   className={`studio-compact-toolbar-btn h-6 sm:h-7 px-1.5 sm:px-2 rounded-md border font-bold text-[9px] sm:text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
                     showSettingsDrawer
-                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 border-amber-400'
+                      ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
                       : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100'
                   }`}
-                  title="Official Letterhead & Reference Setup"
+                  title={showSettingsDrawer ? "Hide Controls Sidebar" : "Show Controls Sidebar"}
                 >
-                  <Sliders size={9} className={showSettingsDrawer ? 'text-amber-600' : 'text-slate-500'} />
-                  <span className="hidden sm:inline">Setup</span>
+                  {showSettingsDrawer ? (
+                    <PanelRightClose size={11} className="shrink-0" />
+                  ) : (
+                    <PanelRightOpen size={11} className="shrink-0" />
+                  )}
+                  <span className="hidden sm:inline">Controls</span>
                 </button>
               </div>
 
