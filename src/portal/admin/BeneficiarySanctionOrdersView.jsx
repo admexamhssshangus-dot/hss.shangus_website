@@ -1178,7 +1178,7 @@ export default function BeneficiarySanctionOrdersView({
   };
 
   return (
-    <div className="w-full flex flex-col min-h-[calc(100vh-140px)] bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 rounded-xl overflow-hidden font-sans border border-slate-200 dark:border-slate-800">
+    <div className="w-full flex flex-col h-[calc(100vh-155px)] max-h-[calc(100vh-155px)] min-h-[500px] bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 rounded-xl overflow-hidden font-sans border border-slate-200 dark:border-slate-800 shadow-xs">
       {/* ─── ACTION CONTROLS TOOLBAR (COMPACT HIGH-DENSITY) ─── */}
       <div className="flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-2 sm:px-3 py-1 flex items-center justify-between shadow-2xs z-30 min-h-[38px] gap-2 print:hidden overflow-x-auto">
         {/* Left side: Preset selector & Orientation */}
@@ -1306,10 +1306,10 @@ export default function BeneficiarySanctionOrdersView({
       </div>
 
       {/* ─── DUAL PANE WORKSPACE (2/3 PREVIEW : 1/3 CONTROLS) ─── */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row overflow-hidden">
         {/* ─── LEFT / MAIN CANVAS: LIVE WYSIWYG DOCUMENT CANVAS (2/3) ─── */}
         <main
-          className={`overflow-y-auto bg-slate-200/70 dark:bg-slate-950 p-4 sm:p-6 flex flex-col items-center min-w-0 transition-all ${
+          className={`h-full min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar overscroll-contain bg-slate-200/70 dark:bg-slate-950 p-4 sm:p-6 pb-16 flex flex-col items-center min-w-0 transition-all ${
             showControlsPanel && !customSidebarWidth
               ? 'w-full lg:w-2/3'
               : 'w-full flex-1'
@@ -1797,7 +1797,7 @@ export default function BeneficiarySanctionOrdersView({
           <div
             onMouseDown={handleResizeMouseDown}
             onDoubleClick={() => setCustomSidebarWidth(null)}
-            className="hidden lg:block flex-none w-1.5 cursor-col-resize bg-slate-200 dark:bg-slate-800 hover:bg-teal-400 dark:hover:bg-teal-600 transition-colors duration-150 relative group print:hidden select-none"
+            className="hidden lg:block flex-none w-1.5 h-full self-stretch cursor-col-resize bg-slate-200 dark:bg-slate-800 hover:bg-teal-400 dark:hover:bg-teal-600 transition-colors duration-150 relative group print:hidden select-none"
             title="Drag to resize panel (Double-click to reset to 1/3 width)"
           >
             <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-slate-300 dark:bg-slate-700 group-hover:bg-teal-500 transition-colors" />
@@ -1808,7 +1808,7 @@ export default function BeneficiarySanctionOrdersView({
         {showControlsPanel && (
           <aside
             ref={asideRef}
-            className={`border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-2 sm:p-2.5 shadow-xs print:hidden min-w-0 transition-all ${
+            className={`border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 h-full min-h-0 overflow-y-auto custom-scrollbar overscroll-contain p-2 sm:p-2.5 pb-16 shadow-xs print:hidden min-w-0 transition-all ${
               customSidebarWidth ? 'flex-none' : 'w-full lg:w-1/3'
             }`}
             style={
