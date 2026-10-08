@@ -16,8 +16,11 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Printer, CheckSquare, Square, Eye, RefreshCw, X,
   Shield, Check, ArrowLeftRight, Grid,
-  Upload, Save, Sliders, ChevronDown, ChevronUp, Layers, RotateCcw, CheckCircle, Filter, Palette
+  Upload, Save, Sliders, ChevronDown, ChevronUp, Layers, RotateCcw, CheckCircle, Filter, Palette,
+  BookOpen, History
 } from 'lucide-react';
+import DocumentHistoryModal from './DocumentHistoryModal';
+import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import ModernLoader from '../../components/ModernLoader';
 import {
   ID_CARD_THEMES,
@@ -290,6 +293,9 @@ function StudentIdCardManager({ students = [], allStudents, onClose }) {
 
   // Single Card Preview Modal
   const [previewStudent, setPreviewStudent] = useState(null);
+
+  // Official Document Catalog & Despatch Register Modal
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
 
   // ─── Principal Seal & Signature Config (With 3-Preset History & 15KB Ceilings) ───
   const SEAL_HISTORY_KEY = 'hss_seal_and_signature_history_v3';
@@ -766,6 +772,37 @@ function StudentIdCardManager({ students = [], allStudents, onClose }) {
 
     // Trigger print mode instantly
     handlePrint();
+
+    // Automatically log issued ID cards batch to Cloud Document History & Despatch Register
+    try {
+      const today = new Date();
+      const dd = String(today.getDate()).padStart(2, '0');
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const yyyy = today.getFullYear();
+      const dateStr = `${dd}-${mm}-${yyyy}`;
+      const cohortStr = `Class ${selectedClass || 'All'}${selectedStream && selectedStream !== 'All' ? ' (' + selectedStream + ')' : ''}`;
+      const sessionClean = (selectedSession && selectedSession !== 'All' ? selectedSession : '2025-26').replace(/\s+/g, '');
+      const refNo = `HSS/IDC/${sessionClean}/${(selectedClass || 'ALL').toUpperCase()}/${today.getTime().toString().slice(-4)}`;
+
+      saveGeneratedDocToHistory({
+        docType: 'id_card',
+        refNo,
+        dateStr,
+        title: `Student ID Cards Batch — ${cohortStr} (${total} Cards)`,
+        subject: `Issuance of Official Student Identity Cards for ${cohortStr}, Session ${selectedSession || '2025-26'}`,
+        recipientOrStudent: `${cohortStr} — ${total} Students`,
+        actionType: 'Printed',
+        extraData: {
+          cardCount: total,
+          classCohort: cohortStr,
+          session: selectedSession || '2025-26',
+          institutionName: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
+          officeTitle: 'OFFICE OF THE PRINCIPAL'
+        }
+      }).catch(err => console.warn('Could not save ID Card batch to history:', err));
+    } catch (e) {
+      console.warn('Error queuing ID card history logging:', e);
+    }
   };
 
   const handlePrint = () => {
@@ -1221,6 +1258,17 @@ function StudentIdCardManager({ students = [], allStudents, onClose }) {
             >
               <Upload size={11} />
               <span className="hidden xl:inline">Stamp</span>
+            </button>
+
+            {/* Document Catalog & Despatch Register Modal */}
+            <button
+              type="button"
+              onClick={() => setShowCatalogModal(true)}
+              title="Official Document Catalog & Despatch Register"
+              className="px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10.5px] cursor-pointer flex items-center gap-1 shadow-2xs transition-all hover:scale-102"
+            >
+              <BookOpen size={11} />
+              <span>Register</span>
             </button>
 
             {/* Reset Button */}
@@ -2858,6 +2906,14 @@ function StudentIdCardManager({ students = [], allStudents, onClose }) {
           </div>
         </div>
       )}
+
+      {/* ─── MODAL 5: CLOUD DOCUMENT HISTORY & DESPATCH REGISTER MODAL ─── */}
+      <DocumentHistoryModal
+        isOpen={showCatalogModal}
+        onClose={() => setShowCatalogModal(false)}
+        defaultFilter="idcard"
+        defaultView="catalog"
+      />
     </div>
   );
 }

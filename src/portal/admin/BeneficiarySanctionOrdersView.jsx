@@ -830,14 +830,20 @@ export default function BeneficiarySanctionOrdersView({
     }
     // Save to history automatically on print
     saveGeneratedDocToHistory({
-      docType: 'letter',
+      docType: 'sanction_order',
       title: documentTitle,
       subject: documentTitle,
       refNo,
       dateStr,
       recipientOrStudent: `${beneficiaries.length} Beneficiaries (Total ₹${formattedTotalAmount})`,
       action: 'Printed',
-      bodyHtml: document.getElementById('beneficiary-document-sheet')?.innerHTML || ''
+      bodyHtml: document.getElementById('beneficiary-document-sheet')?.innerHTML || '',
+      extraData: {
+        beneficiaryCount: beneficiaries.length,
+        totalAmount: formattedTotalAmount,
+        selectedSession,
+        selectedClass
+      }
     }).catch(e => console.warn('History save note:', e));
 
     logAdminActivity({
@@ -1149,14 +1155,20 @@ export default function BeneficiarySanctionOrdersView({
     }
     try {
       await saveGeneratedDocToHistory({
-        docType: 'letter',
+        docType: 'sanction_order',
         title: documentTitle,
         subject: documentTitle,
         refNo,
         dateStr,
         recipientOrStudent: `${beneficiaries.length} Beneficiaries (Total ₹${formattedTotalAmount})`,
         action: 'Saved',
-        bodyHtml: document.getElementById('beneficiary-document-sheet')?.innerHTML || ''
+        bodyHtml: document.getElementById('beneficiary-document-sheet')?.innerHTML || '',
+        extraData: {
+          beneficiaryCount: beneficiaries.length,
+          totalAmount: formattedTotalAmount,
+          selectedSession,
+          selectedClass
+        }
       });
       showToast('Document saved to Cloud History successfully!', 'success');
     } catch (err) {
@@ -2434,11 +2446,11 @@ export default function BeneficiarySanctionOrdersView({
         </div>
       )}
 
-      {/* ─── MODAL: Cloud History Archive ─── */}
+      {/* ─── MODAL: Cloud History Archive & Despatch Register ─── */}
       <DocumentHistoryModal
         isOpen={showHistoryModal}
         onClose={() => setShowHistoryModal(false)}
-        defaultFilter="letter"
+        defaultFilter="sanction"
         onLoadAsDraft={(rec) => {
           if (rec?.title) setDocumentTitle(rec.title);
           setShowHistoryModal(false);

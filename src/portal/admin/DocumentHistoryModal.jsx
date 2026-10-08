@@ -9,7 +9,8 @@ import {
   Trash2, X, FileText, Award, Calendar, User, Hash,
   CheckCircle2, Filter, AlertTriangle, ExternalLink,
   ChevronRight, RefreshCw, FileEdit, CheckSquare, Square,
-  Layers, ShieldAlert, ClipboardList
+  Layers, ShieldAlert, ClipboardList, BookOpen, CreditCard,
+  Contact, FileBadge
 } from 'lucide-react';
 import {
   fetchGeneratedDocHistory,
@@ -34,6 +35,7 @@ import {
   generateProvisionalAdmissionPdf
 } from '../../utils/pdfGenerator';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
+import OfficialDocumentCatalogView, { isSanctionOrderDoc, isIdCardDoc } from './OfficialDocumentCatalogView';
 
 // Classification helper predicates
 export const isDischargeDoc = (r) => {
@@ -119,14 +121,16 @@ export const resolveRecordRecipient = (rec) => {
 export default function DocumentHistoryModal({
   isOpen,
   onClose,
-  defaultFilter = 'all', // 'all' | 'discharge' | 'bonafide' | 'letter' | 'admission'
-  onLoadAsDraft = null
+  defaultFilter = 'all', // 'all' | 'discharge' | 'bonafide' | 'letter' | 'sanction' | 'idcard' | 'admission'
+  onLoadAsDraft = null,
+  defaultView = 'archive' // 'archive' | 'catalog'
 }) {
   const [historyRecords, setHistoryRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [moduleFilter, setModuleFilter] = useState(defaultFilter); // 'all' | 'discharge' | 'bonafide' | 'letter'
+  const [moduleFilter, setModuleFilter] = useState(defaultFilter);
   const [actionFilter, setActionFilter] = useState('all'); // 'all' | 'Printed' | 'Downloaded' | 'Saved'
+  const [viewMode, setViewMode] = useState(defaultView); // 'archive' | 'catalog'
   
   // Multi-Selection State for Bulk Deletion
   const [selectedDocIds, setSelectedDocIds] = useState(new Set());
@@ -144,7 +148,7 @@ export default function DocumentHistoryModal({
   const loadHistory = async () => {
     setIsLoading(true);
     try {
-      const records = await fetchGeneratedDocHistory({ docType: 'all' });
+      const records = await fetchGeneratedDocHistory({ docType: 'all', limitCount: 1000 });
       setHistoryRecords(records);
       setSelectedDocIds(new Set());
     } catch (e) {
@@ -157,9 +161,10 @@ export default function DocumentHistoryModal({
   useEffect(() => {
     if (isOpen) {
       setModuleFilter(defaultFilter);
+      setViewMode(defaultView);
       loadHistory();
     }
-  }, [isOpen, defaultFilter]);
+  }, [isOpen, defaultFilter, defaultView]);
 
   useEffect(() => {
     const handleHistoryUpdate = () => {
@@ -169,15 +174,21 @@ export default function DocumentHistoryModal({
     return () => window.removeEventListener('hss-doc-history-updated', handleHistoryUpdate);
   }, [isOpen]);
 
-  // Dynamic Category Counters
+  // Dynamic Category Counters across all four modules + admissions
   const categoryCounts = useMemo(() => {
     let discharge = 0;
     let bonafide = 0;
     let letter = 0;
+    let sanction = 0;
+    let idcard = 0;
     let admission = 0;
 
     historyRecords.forEach(r => {
-      if (isDischargeDoc(r)) {
+      if (isIdCardDoc(r)) {
+        idcard++;
+      } else if (isSanctionOrderDoc(r)) {
+        sanction++;
+      } else if (isDischargeDoc(r)) {
         discharge++;
       } else if (isLetterDoc(r)) {
         letter++;
@@ -193,6 +204,8 @@ export default function DocumentHistoryModal({
       discharge,
       bonafide,
       letter,
+      sanction,
+      idcard,
       admission
     };
   }, [historyRecords]);
@@ -207,7 +220,11 @@ export default function DocumentHistoryModal({
     } else if (moduleFilter === 'bonafide') {
       list = list.filter(r => isBonafideDoc(r));
     } else if (moduleFilter === 'letter') {
-      list = list.filter(r => isLetterDoc(r));
+      list = list.filter(r => isLetterDoc(r) && !isSanctionOrderDoc(r));
+    } else if (moduleFilter === 'sanction' || moduleFilter === 'mbf') {
+      list = list.filter(r => isSanctionOrderDoc(r));
+    } else if (moduleFilter === 'idcard' || moduleFilter === 'idCards') {
+      list = list.filter(r => isIdCardDoc(r));
     } else if (moduleFilter === 'admission' || moduleFilter === 'forms') {
       list = list.filter(r => isAdmissionFormDoc(r));
     }
@@ -318,7 +335,11 @@ export default function DocumentHistoryModal({
         return;
       }
     }
-    if (rec.docType === 'letter') {
+    if (isIdCardDoc(rec)) {
+      showToast('ID cards are printed from the Student ID Card Studio with real-time student photos and QR badges.', 'info');
+      return;
+    }
+    if (rec.docType === 'letter' || rec.docType === 'sanction_order' || isSanctionOrderDoc(rec)) {
       printOfficialLetter({
         refNo: rec.refNo,
         dateStr: rec.dateStr,
@@ -382,7 +403,7 @@ export default function DocumentHistoryModal({
   const handleDownloadDocx = async (rec, e) => {
     e?.stopPropagation();
     try {
-      if (rec.docType === 'letter') {
+      if (rec.docType === 'letter' || rec.docType === 'sanction_order' || isSanctionOrderDoc(rec)) {
         await generateOfficialLetterDocx({
           refNo: rec.refNo,
           dateStr: rec.dateStr,
@@ -465,30 +486,64 @@ export default function DocumentHistoryModal({
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-md animate-fadeIn">
       
       {/* Main Dialog Container */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] max-h-[780px] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+      <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full ${viewMode === 'catalog' ? 'max-w-6xl max-h-[92vh]' : 'max-w-5xl max-h-[780px]'} h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150`}>
         
         {/* Header */}
         <div className="px-4 py-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-indigo-900/50">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center">
-              <History size={17} className="text-indigo-300" />
+              {viewMode === 'catalog' ? (
+                <BookOpen size={17} className="text-emerald-300" />
+              ) : (
+                <History size={17} className="text-indigo-300" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-black tracking-wide text-white">
-                  Document History & Cloud Archive
+                  {viewMode === 'catalog' ? 'Official Document Catalog & Despatch Register' : 'Document History & Cloud Archive'}
                 </h2>
                 <span className="text-[10px] font-mono bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 px-1.5 py-0.2 rounded-md font-bold">
                   {historyRecords.length} Saved
                 </span>
               </div>
               <p className="text-[10.5px] text-indigo-200/80 font-medium">
-                Immutable audit records for all printed, downloaded, and cloud-saved documents
+                {viewMode === 'catalog'
+                  ? 'Classified & chronological register across Letters, Certificates, Sanctions & ID Cards'
+                  : 'Immutable audit records for all printed, downloaded, and cloud-saved documents'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle: Cards vs Register */}
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
+              <button
+                type="button"
+                onClick={() => setViewMode('archive')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'archive'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-indigo-200 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Layers size={12} />
+                <span>Archive Cards</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('catalog')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'catalog'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs ring-1 ring-emerald-300/40'
+                    : 'text-indigo-200 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <BookOpen size={12} />
+                <span>Despatch Register</span>
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={loadHistory}
@@ -509,116 +564,166 @@ export default function DocumentHistoryModal({
           </div>
         </div>
 
-        {/* Search & Filter Toolbar */}
-        <div className="p-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
-          
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[220px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by student name, roll no, ref no, subject, title..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        {viewMode === 'catalog' ? (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <OfficialDocumentCatalogView
+              records={historyRecords}
+              isLoading={isLoading}
+              onRefresh={loadHistory}
+              onPreviewRecord={(rec) => setPreviewDoc(rec)}
+              onClose={onClose}
             />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <X size={12} />
-              </button>
-            )}
           </div>
+        ) : (
+          <>
+            {/* Search & Filter Toolbar */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
+              
+              {/* Search Input */}
+              <div className="relative flex-1 min-w-[220px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by student name, roll no, ref no, subject, title..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
 
-          {/* Category Filter Tabs with Counts */}
-          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-800 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setModuleFilter('all')}
-              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
-                moduleFilter === 'all'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              All Types ({categoryCounts.all})
-            </button>
+              {/* Category Filter Tabs with Counts */}
+              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-800 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setModuleFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
+                    moduleFilter === 'all'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  All Types ({categoryCounts.all})
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setModuleFilter('discharge')}
-              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
-                moduleFilter === 'discharge'
-                  ? 'bg-rose-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Award size={11} />
-              <span>Discharge/TC ({categoryCounts.discharge})</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setModuleFilter('letter')}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                    moduleFilter === 'letter'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <FileText size={11} />
+                  <span>Letters ({categoryCounts.letter})</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setModuleFilter('bonafide')}
-              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
-                moduleFilter === 'bonafide'
-                  ? 'bg-teal-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Award size={11} />
-              <span>Bonafides ({categoryCounts.bonafide})</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setModuleFilter('bonafide')}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                    moduleFilter === 'bonafide'
+                      ? 'bg-teal-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Award size={11} />
+                  <span>Bonafides ({categoryCounts.bonafide})</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setModuleFilter('admission')}
-              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
-                moduleFilter === 'admission'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <ClipboardList size={11} />
-              <span>Admission Forms ({categoryCounts.admission})</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setModuleFilter('discharge')}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                    moduleFilter === 'discharge'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <FileBadge size={11} />
+                  <span>Discharge/TC ({categoryCounts.discharge})</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setModuleFilter('letter')}
-              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
-                moduleFilter === 'letter'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <FileText size={11} />
-              <span>Letters ({categoryCounts.letter})</span>
-            </button>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setModuleFilter('sanction')}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                    moduleFilter === 'sanction'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <CreditCard size={11} />
+                  <span>Sanctions ({categoryCounts.sanction})</span>
+                </button>
 
-          {/* Action Filter Tabs */}
-          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[10px] font-bold">
-            <span className="px-1.5 text-slate-400 uppercase tracking-wider text-[9px] font-black">Action:</span>
-            {['all', 'Printed', 'Downloaded', 'Saved'].map((act) => (
-              <button
-                key={act}
-                type="button"
-                onClick={() => setActionFilter(act)}
-                className={`px-2 py-0.8 rounded-lg cursor-pointer transition-all ${
-                  actionFilter === act
-                    ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 font-black'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                {act === 'all' ? 'All' : act}
-              </button>
-            ))}
-          </div>
-        </div>
+                <button
+                  type="button"
+                  onClick={() => setModuleFilter('idcard')}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                    moduleFilter === 'idcard'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Contact size={11} />
+                  <span>ID Cards ({categoryCounts.idcard})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setModuleFilter('admission')}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                    moduleFilter === 'admission'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <ClipboardList size={11} />
+                  <span>Admissions ({categoryCounts.admission})</span>
+                </button>
+              </div>
+
+              {/* Action Filter Tabs & Quick Register Button */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[10px] font-bold">
+                  <span className="px-1.5 text-slate-400 uppercase tracking-wider text-[9px] font-black">Action:</span>
+                  {['all', 'Printed', 'Downloaded', 'Saved'].map((act) => (
+                    <button
+                      key={act}
+                      type="button"
+                      onClick={() => setActionFilter(act)}
+                      className={`px-2 py-0.8 rounded-lg cursor-pointer transition-all ${
+                        actionFilter === act
+                          ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 font-black'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      }`}
+                    >
+                      {act === 'all' ? 'All' : act}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode('catalog')}
+                  className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white text-[10.5px] font-black cursor-pointer shadow-xs flex items-center gap-1.5 transition-all"
+                  title="Generate Classified & Chronological Despatch Register"
+                >
+                  <BookOpen size={12} />
+                  <span>Despatch Register</span>
+                </button>
+              </div>
+            </div>
 
         {/* ── Bulk Selection & Action Bar ── */}
         <div className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
@@ -735,15 +840,31 @@ export default function DocumentHistoryModal({
                           </div>
 
                           <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                            isLetter 
-                              ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600' 
-                              : isDischarge
-                                ? 'bg-rose-100 dark:bg-rose-950 text-rose-600'
-                                : isAdmission
-                                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-600'
-                                  : 'bg-teal-100 dark:bg-teal-950 text-teal-600'
+                            isIdCardDoc(rec)
+                              ? 'bg-purple-100 dark:bg-purple-950 text-purple-600'
+                              : isSanctionOrderDoc(rec)
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600'
+                                : isLetter 
+                                  ? 'bg-blue-100 dark:bg-blue-950 text-blue-600' 
+                                  : isDischarge
+                                    ? 'bg-rose-100 dark:bg-rose-950 text-rose-600'
+                                    : isAdmission
+                                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-600'
+                                      : 'bg-teal-100 dark:bg-teal-950 text-teal-600'
                           }`}>
-                            {isLetter ? <FileText size={14} /> : isAdmission ? <ClipboardList size={14} /> : <Award size={14} />}
+                            {isIdCardDoc(rec) ? (
+                              <Contact size={14} />
+                            ) : isSanctionOrderDoc(rec) ? (
+                              <CreditCard size={14} />
+                            ) : isLetter ? (
+                              <FileText size={14} />
+                            ) : isDischarge ? (
+                              <FileBadge size={14} />
+                            ) : isAdmission ? (
+                              <ClipboardList size={14} />
+                            ) : (
+                              <Award size={14} />
+                            )}
                           </div>
 
                           <div className="min-w-0">
@@ -764,8 +885,42 @@ export default function DocumentHistoryModal({
                         </span>
                       </div>
 
+                      {/* Sanction Order Metadata Callout */}
+                      {isSanctionOrderDoc(rec) && (rec.extraData?.totalAmount || rec.extraData?.beneficiaryCount) && (
+                        <div className="mt-1 flex items-center gap-2 text-[10.5px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50/80 dark:bg-emerald-950/50 px-2 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                          <CreditCard size={12} className="text-emerald-600 shrink-0" />
+                          <span>Sanction: <strong>₹{Number(rec.extraData.totalAmount || 0).toLocaleString('en-IN')}</strong></span>
+                          <span>•</span>
+                          <span>{rec.extraData.beneficiaryCount || 0} Beneficiaries</span>
+                          {rec.extraData?.session && (
+                            <span className="text-[9.5px] font-mono bg-emerald-200/60 dark:bg-emerald-900/60 px-1 rounded ml-auto">
+                              {rec.extraData.session}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ID Card Batch Metadata Callout */}
+                      {isIdCardDoc(rec) && (
+                        <div className="mt-1 flex items-center gap-2 text-[10.5px] font-bold text-purple-800 dark:text-purple-300 bg-purple-50/80 dark:bg-purple-950/50 px-2 py-1 rounded-lg border border-purple-200 dark:border-purple-800">
+                          <Contact size={12} className="text-purple-600 shrink-0" />
+                          <span>Batch: <strong>{rec.extraData?.cardCount || 'Students'} Cards</strong></span>
+                          {rec.extraData?.classCohort && (
+                            <>
+                              <span>•</span>
+                              <span>{rec.extraData.classCohort}</span>
+                            </>
+                          )}
+                          {rec.extraData?.session && (
+                            <span className="text-[9.5px] font-mono bg-purple-200/60 dark:bg-purple-900/60 px-1 rounded ml-auto">
+                              {rec.extraData.session}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Subject Callout Badge (for Letters & documents with subject/purpose) */}
-                      {displaySubject && (
+                      {displaySubject && !isSanctionOrderDoc(rec) && (
                         <div className="mt-1.5 p-2 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 text-slate-800 dark:text-slate-200">
                           <div className="flex items-start gap-1.5">
                             <span className="text-[9px] font-black uppercase text-indigo-700 dark:text-indigo-300 tracking-wider shrink-0 bg-indigo-100 dark:bg-indigo-900/80 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
@@ -779,7 +934,7 @@ export default function DocumentHistoryModal({
                       )}
 
                       {/* Recipient / Student Info */}
-                      {recipient && (
+                      {recipient && !isIdCardDoc(rec) && (
                         <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-800 mt-1">
                           <User size={12} className="text-slate-400 shrink-0" />
                           <span className="truncate">
@@ -885,6 +1040,8 @@ export default function DocumentHistoryModal({
             Done
           </button>
         </div>
+          </>
+        )}
       </div>
 
       {/* ── Document Full Preview Popup ── */}
@@ -1004,6 +1161,33 @@ export default function DocumentHistoryModal({
                     <p className="text-[11px] text-slate-500">
                       Click <strong>Print / Save PDF</strong> above to re-generate and view the complete printed admission form.
                     </p>
+                  </div>
+                ) : isSanctionOrderDoc(previewDoc) ? (
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                      <CreditCard size={18} />
+                      <span>{previewDoc.title || 'Mutual Benefit Fund Sanction Order'}</span>
+                    </div>
+                    <div className="text-xs text-slate-700 space-y-1.5">
+                      <div>Sanction Order No: <strong className="font-mono text-emerald-900">{previewDoc.refNo}</strong></div>
+                      <div>Dated: <strong>{previewDoc.dateStr}</strong></div>
+                      <div>Beneficiaries: <strong>{previewDoc.extraData?.beneficiaryCount || 0}</strong> students</div>
+                      <div>Total Sanctioned Amount: <strong className="text-emerald-800 font-black">₹{Number(previewDoc.extraData?.totalAmount || 0).toLocaleString('en-IN')}</strong></div>
+                      <div>Cohort / Session: <strong>{previewDoc.extraData?.session || previewDoc.extraData?.classCohort || 'General'}</strong></div>
+                    </div>
+                  </div>
+                ) : isIdCardDoc(previewDoc) ? (
+                  <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2 text-purple-800 font-bold text-sm">
+                      <Contact size={18} />
+                      <span>{previewDoc.title || 'Student Identity Cards Batch'}</span>
+                    </div>
+                    <div className="text-xs text-slate-700 space-y-1.5">
+                      <div>Dispatch / Batch Ref: <strong className="font-mono text-purple-900">{previewDoc.refNo}</strong></div>
+                      <div>Dated: <strong>{previewDoc.dateStr}</strong></div>
+                      <div>Cards Generated: <strong>{previewDoc.extraData?.cardCount || previewDoc.extraData?.studentCount || 'Batch'}</strong></div>
+                      <div>Target Class / Stream: <strong>{previewDoc.extraData?.classCohort || previewDoc.recipientOrStudent || 'All'}</strong></div>
+                    </div>
                   </div>
                 ) : (
                   <div

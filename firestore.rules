@@ -643,15 +643,15 @@ service cloud.firestore {
     }
 
     match /generatedDocumentHistory/{documentId} {
-      allow read: if isTeacher() || canUseAny(['officialLetter', 'accounts']) || isSuperAdmin();
-      allow create, update: if (isTeacher() || canUseAny(['officialLetter', 'accounts']) || isSuperAdmin()) && validStaffDocument(request.resource.data);
-      allow delete: if canUseAny(['officialLetter', 'accounts']) || isSuperAdmin();
+      allow read: if isTeacher() || canUseAny(['officialLetter', 'certStudio', 'beneficiaryStudio', 'idCards', 'accounts', 'dispatchRegister']) || isSuperAdmin();
+      allow create, update: if (isTeacher() || canUseAny(['officialLetter', 'certStudio', 'beneficiaryStudio', 'idCards', 'accounts', 'dispatchRegister']) || isSuperAdmin()) && validStaffDocument(request.resource.data);
+      allow delete: if canUseAny(['officialLetter', 'certStudio', 'beneficiaryStudio', 'idCards', 'accounts', 'dispatchRegister']) || isSuperAdmin();
     }
 
     match /documentHistory/{documentId} {
-      allow read: if isTeacher() || canUseAny(['officialLetter', 'accounts', 'certStudio']) || isSuperAdmin();
-      allow create, update: if (isTeacher() || canUseAny(['officialLetter', 'accounts', 'certStudio']) || isSuperAdmin()) && validStaffDocument(request.resource.data);
-      allow delete: if canUseAny(['officialLetter', 'accounts', 'certStudio']) || isSuperAdmin();
+      allow read: if isTeacher() || canUseAny(['officialLetter', 'certStudio', 'beneficiaryStudio', 'idCards', 'accounts', 'dispatchRegister']) || isSuperAdmin();
+      allow create, update: if (isTeacher() || canUseAny(['officialLetter', 'certStudio', 'beneficiaryStudio', 'idCards', 'accounts', 'dispatchRegister']) || isSuperAdmin()) && validStaffDocument(request.resource.data);
+      allow delete: if canUseAny(['officialLetter', 'certStudio', 'beneficiaryStudio', 'idCards', 'accounts', 'dispatchRegister']) || isSuperAdmin();
     }
 
     // Permanent uniqueness ledger: a TC/CC number is owned by exactly one
