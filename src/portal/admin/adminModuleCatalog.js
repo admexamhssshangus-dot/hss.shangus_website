@@ -161,6 +161,19 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     keywords: ['id cards', 'identity card', 'id card studio', 'student badge', 'smart card', 'id card print', 'photo id', 'batch id cards', 'barcode', 'qr id card', 'student pass', 'card design'],
   },
   {
+    id: 'beneficiaryStudio',
+    label: 'Beneficiary & Sanction Orders Studio',
+    shortLabel: 'Beneficiaries',
+    description: 'Mutual benefit fund rolls, bank debit orders, poor fund sanctions and student beneficiary lists with bulk reg no fetch',
+    category: 'Records & Registers',
+    maturity: 'optimized',
+    maturityNote: 'Multi-class bulk reg no ingestion, custom columns with auto-sum calculation, bank debit directives, committee signatures, and 1-click exports are regression-checked.',
+    launcher: true,
+    isNew: true,
+    aliases: ['beneficiaryStudio', 'beneficiaryOrders', 'sanctionOrders', 'beneficiaries', 'beneficiaryList'],
+    keywords: ['beneficiary', 'mutual benefit fund', 'bank debit order', 'sanction order', 'poor fund', 'financial assistance', 'scholarship', 'bank transfer', 'disbursement', 'account numbers', 'ifsc', 'committee signatures', 'beneficiary list', 'fund rolls'],
+  },
+  {
     id: 'gkTest',
     label: 'School Based Assessment',
     shortLabel: 'Assessments',
@@ -410,7 +423,7 @@ export const ROLE_PRESETS = Object.freeze([
     name: 'Full Administrator',
     shortName: 'Full Admin',
     badgeClass: 'bg-indigo-600 text-white',
-    desc: 'Access to all 26 administrative modules, tools, and configurations.',
+    desc: 'Access to all 27 administrative modules, tools, and configurations.',
     perms: () => ADMIN_MODULE_CATALOG.map(m => m.id),
   },
   {
@@ -430,9 +443,9 @@ export const ROLE_PRESETS = Object.freeze([
     name: 'Records & Identity Incharge',
     shortName: 'Records',
     badgeClass: 'bg-amber-600 text-white',
-    desc: 'Student Records, Rosters, ID Cards, Certificates, Letterhead, Subject Rolls and Quick Cell Edit.',
+    desc: 'Student Records, Rosters, Beneficiary Lists, ID Cards, Certificates, Letterhead, Subject Rolls and Quick Cell Edit.',
     perms: () => [
-      'reports', 'admRegisterSuite', 'customRoster', 'officialLetter', 'certStudio', 'directEntry',
+      'reports', 'admRegisterSuite', 'customRoster', 'beneficiaryStudio', 'officialLetter', 'certStudio', 'directEntry',
       'idCards', 'analyticsReports', 'quickCellEdit'
     ],
   },
@@ -441,8 +454,8 @@ export const ROLE_PRESETS = Object.freeze([
     name: 'School Accounts & Fee Clerk',
     shortName: 'Accounts',
     badgeClass: 'bg-teal-600 text-white',
-    desc: 'School Accounts, Staff Salary/Tax calculations, and Funds/Fee Accounts (No student admission edits).',
-    perms: () => ['accounts', 'funds'],
+    desc: 'School Accounts, Staff Salary/Tax calculations, Funds/Fee Accounts and Beneficiary Sanctions.',
+    perms: () => ['accounts', 'funds', 'beneficiaryStudio'],
   },
   {
     id: 'teacher',

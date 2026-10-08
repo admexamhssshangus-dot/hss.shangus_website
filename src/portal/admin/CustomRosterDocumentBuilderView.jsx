@@ -57,7 +57,7 @@ import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import { scheduleIdleWork } from '../../utils/scheduleIdleWork';
 
 // Standard Database Columns Grouped by Category (Primary core fields vs Advanced extended fields)
-const DB_COLUMN_GROUPS = [
+export const DB_COLUMN_GROUPS = [
   {
     category: 'Core Identity',
     icon: UserCheck,

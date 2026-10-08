@@ -18,6 +18,7 @@ const ApplicationReviewModal = lazyWithChunkRecovery(() => import('./Application
 const CustomRosterDocumentBuilderView = lazyWithChunkRecovery(() => import('./CustomRosterDocumentBuilderView'), 'admin-roster');
 const OfficialLetterWriterView = lazyWithChunkRecovery(() => import('./OfficialLetterWriterView'), 'admin-letter');
 const StudentCertificateStudioView = lazyWithChunkRecovery(() => import('./StudentCertificateStudioView'), 'admin-certificate');
+const BeneficiarySanctionOrdersView = lazyWithChunkRecovery(() => import('./BeneficiarySanctionOrdersView'), 'admin-beneficiary');
 const StudentIdCardManager = lazyWithChunkRecovery(() => import('./StudentIdCardManager'), 'admin-id-cards');
 const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./AdmissionRegisterSuite'), 'admin-register-suite');
 const ApplicationMergerStudio = lazyWithChunkRecovery(() => import('./ApplicationMergerStudio'), 'admin-merger');
@@ -42,6 +43,11 @@ export const MODULE_LOADERS = {
   reports: () => import('./AdvancedReports'),
   customRoster: () => import('./CustomRosterDocumentBuilderView'),
   docStudio: () => import('./CustomRosterDocumentBuilderView'),
+  beneficiaryStudio: () => import('./BeneficiarySanctionOrdersView'),
+  beneficiaryOrders: () => import('./BeneficiarySanctionOrdersView'),
+  sanctionOrders: () => import('./BeneficiarySanctionOrdersView'),
+  beneficiaries: () => import('./BeneficiarySanctionOrdersView'),
+  beneficiaryList: () => import('./BeneficiarySanctionOrdersView'),
   officialLetter: () => import('./OfficialLetterWriterView'),
   certStudio: () => import('./StudentCertificateStudioView'),
   certificate: () => import('./StudentCertificateStudioView'),
@@ -214,7 +220,7 @@ export default function AdminDashboard() {
     const idlePrefetch = () => {
       const priorityModules = [
         'controls', 'practicals', 'idCards', 'admRegisterSuite', 'attendanceMgmt',
-        'customRoster', 'officialLetter', 'certStudio', 'curriculum', 'staff',
+        'customRoster', 'beneficiaryStudio', 'officialLetter', 'certStudio', 'curriculum', 'staff',
         'analyticsReports', 'boardSync', 'rollNo', 'mergeStudio', 'automations', 'funds', 'accounts',
         'achievementsCms'
       ];
@@ -1135,6 +1141,21 @@ export default function AdminDashboard() {
                       aria-hidden={activeTab !== 'activityAudit'}
                     >
                       <ActivityAuditView user={user} />
+                    </div>
+                  )}
+
+                  {/* TAB: Beneficiary Lists & Sanction Orders Studio */}
+                  {(mountedTabs.has('beneficiaryStudio') || mountedTabs.has('beneficiaryOrders') || mountedTabs.has('sanctionOrders') || mountedTabs.has('beneficiaryList')) && (
+                    <div
+                      key="beneficiary-orders-container"
+                      className={(activeTab === 'beneficiaryStudio' || activeTab === 'beneficiaryOrders' || activeTab === 'sanctionOrders' || activeTab === 'beneficiaries' || activeTab === 'beneficiaryList') ? 'block w-full' : 'hidden'}
+                      style={(activeTab === 'beneficiaryStudio' || activeTab === 'beneficiaryOrders' || activeTab === 'sanctionOrders' || activeTab === 'beneficiaries' || activeTab === 'beneficiaryList') ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'beneficiaryStudio' && activeTab !== 'beneficiaryOrders' && activeTab !== 'sanctionOrders' && activeTab !== 'beneficiaries' && activeTab !== 'beneficiaryList'}
+                    >
+                      <BeneficiarySanctionOrdersView
+                        allStudents={identityStudents}
+                        onClose={handleCloseToReports}
+                      />
                     </div>
                   )}
 

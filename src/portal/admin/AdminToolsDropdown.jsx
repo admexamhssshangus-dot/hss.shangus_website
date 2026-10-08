@@ -42,6 +42,8 @@ const MODULE_ICONS = {
   directEntry: PlusCircle,
   jkboseSubjectRolls: FileText,
   customRoster: FileSpreadsheet,
+  beneficiaryStudio: CreditCard,
+  beneficiaryOrders: CreditCard,
   officialLetter: FileText,
   certStudio: Award,
   idCards: Contact,
