@@ -180,29 +180,33 @@ export default function BeneficiarySanctionOrdersView({
   const [tableFontSize, setTableFontSize] = useState('9.5px');
   const [rowPaddingPreset, setRowPaddingPreset] = useState('compact'); // 'compact' | 'standard' | 'spacious'
   const [showControlsPanel, setShowControlsPanel] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(350);
+  const [customSidebarWidth, setCustomSidebarWidth] = useState(null); // null = default 1/3 flex split
 
   // ─── Drag-to-Resize refs ───
   const isResizing = useRef(false);
   const resizeStartX = useRef(0);
-  const resizeStartWidth = useRef(350);
+  const resizeStartWidth = useRef(0);
+  const asideRef = useRef(null);
 
   const handleResizeMouseDown = useCallback((e) => {
     e.preventDefault();
     isResizing.current = true;
     resizeStartX.current = e.clientX;
-    resizeStartWidth.current = sidebarWidth;
+    const currentW = asideRef.current ? asideRef.current.getBoundingClientRect().width : (window.innerWidth / 3);
+    resizeStartWidth.current = currentW;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, [sidebarWidth]);
+  }, []);
 
   useEffect(() => {
     const onMouseMove = (e) => {
       if (!isResizing.current) return;
       // Drag left = widen sidebar (we're resizing from the LEFT edge of the sidebar)
       const delta = resizeStartX.current - e.clientX;
-      const newWidth = Math.min(580, Math.max(260, resizeStartWidth.current + delta));
-      setSidebarWidth(newWidth);
+      const maxW = window.innerWidth * 0.55;
+      const minW = 280;
+      const newWidth = Math.min(maxW, Math.max(minW, resizeStartWidth.current + delta));
+      setCustomSidebarWidth(newWidth);
     };
     const onMouseUp = () => {
       if (!isResizing.current) return;
@@ -1289,10 +1293,23 @@ export default function BeneficiarySanctionOrdersView({
         </div>
       </div>
 
-      {/* ─── DUAL PANE WORKSPACE ─── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* ─── LEFT / MAIN CANVAS: LIVE WYSIWYG DOCUMENT CANVAS ─── */}
-        <main className="flex-1 overflow-y-auto bg-slate-200/70 dark:bg-slate-950 p-4 sm:p-6 flex flex-col items-center">
+      {/* ─── DUAL PANE WORKSPACE (2/3 PREVIEW : 1/3 CONTROLS) ─── */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* ─── LEFT / MAIN CANVAS: LIVE WYSIWYG DOCUMENT CANVAS (2/3) ─── */}
+        <main
+          className={`overflow-y-auto bg-slate-200/70 dark:bg-slate-950 p-4 sm:p-6 flex flex-col items-center min-w-0 transition-all ${
+            showControlsPanel && !customSidebarWidth
+              ? 'w-full lg:w-2/3'
+              : 'w-full flex-1'
+          }`}
+          style={
+            showControlsPanel
+              ? customSidebarWidth
+                ? { flex: '1 1 0%' }
+                : { flex: '2 2 0%' }
+              : undefined
+          }
+        >
           {/* Native Browser Print Override: ensures only the document sheet prints without any controls */}
           <style>{`
             @media print {
@@ -1767,462 +1784,483 @@ export default function BeneficiarySanctionOrdersView({
         {showControlsPanel && (
           <div
             onMouseDown={handleResizeMouseDown}
-            className="flex-none w-1.5 cursor-col-resize bg-slate-200 dark:bg-slate-800 hover:bg-teal-400 dark:hover:bg-teal-600 transition-colors duration-150 relative group print:hidden"
-            title="Drag to resize panel"
+            onDoubleClick={() => setCustomSidebarWidth(null)}
+            className="hidden lg:block flex-none w-1.5 cursor-col-resize bg-slate-200 dark:bg-slate-800 hover:bg-teal-400 dark:hover:bg-teal-600 transition-colors duration-150 relative group print:hidden select-none"
+            title="Drag to resize panel (Double-click to reset to 1/3 width)"
           >
             <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-slate-300 dark:bg-slate-700 group-hover:bg-teal-500 transition-colors" />
           </div>
         )}
 
-        {/* ─── RIGHT SIDEBAR: CONFIGURATION, INGESTION & COLUMN CONTROLS ─── */}
+        {/* ─── RIGHT SIDEBAR: CONFIGURATION, INGESTION & CONTROLS (1/3) ─── */}
         {showControlsPanel && (
           <aside
-            className="flex-none border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-2.5 space-y-2.5 shadow-xs print:hidden"
-            style={{ width: sidebarWidth }}
+            ref={asideRef}
+            className={`border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-2 sm:p-2.5 shadow-xs print:hidden min-w-0 transition-all ${
+              customSidebarWidth ? 'flex-none' : 'w-full lg:w-1/3'
+            }`}
+            style={
+              customSidebarWidth
+                ? { width: `${customSidebarWidth}px` }
+                : { flex: '1 1 0%' }
+            }
           >
-            {/* SECTION 1: Bulk Reg No Ingestion & Data Fetching */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Users size={14} className="text-teal-600" />
-                  Student Fetcher
-                </h2>
-                <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/60 px-1.5 py-0.2 rounded-full">
-                  {beneficiaries.length} Enrolled
-                </span>
-              </div>
-
-              {/* Session & Class Filters */}
-              <div className="grid grid-cols-2 gap-1.5">
-                <div>
-                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Session</label>
-                  <select
-                    value={selectedSession}
-                    onChange={(e) => setSelectedSession(e.target.value)}
-                    className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0 font-medium"
-                  >
-                    {CANONICAL_ACADEMIC_SESSIONS.slice(0, 10).map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Class Cohort</label>
-                  <select
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
-                    className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0 font-medium"
-                  >
-                    <option value="All">All Classes (9th–12th)</option>
-                    <option value="9th">Class 9th</option>
-                    <option value="10th">Class 10th</option>
-                    <option value="11th">Class 11th</option>
-                    <option value="12th">Class 12th</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Reg No(s) Bulk Area & Quick Student Finder Combined */}
-              <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700/60 space-y-1.5">
-                <div className="flex items-center justify-between mb-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-[9px] font-bold uppercase text-slate-700 dark:text-slate-300">
-                      Reg No(s)
-                    </label>
-                    <span className="text-[8px] bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 px-1 py-0.2 rounded font-semibold uppercase">
-                      Bulk Entry
+            {/* Multicolumn Container for High-Density Compact Layout */}
+            <div
+              className="grid gap-2 sm:gap-2.5 items-start"
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
+            >
+              {/* ─── COLUMN 1: Student Fetcher & Ingestion Operations ─── */}
+              <div className="space-y-2 sm:space-y-2.5 min-w-0">
+                {/* SECTION 1: Bulk Reg No Ingestion & Data Fetching */}
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2 sm:p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Users size={14} className="text-teal-600" />
+                      Student Fetcher
+                    </h2>
+                    <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/60 px-1.5 py-0.2 rounded-full">
+                      {beneficiaries.length} Enrolled
                     </span>
-                    {bulkTokensCount > 0 && (
-                      <span className="text-[8.5px] font-mono font-bold text-teal-600 dark:text-teal-400">
-                        ({bulkTokensCount} detected)
-                      </span>
-                    )}
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {showBulkRegInput && bulkRegInput && (
-                      <button
-                        type="button"
-                        onClick={() => setBulkRegInput('')}
-                        className="text-[9px] text-slate-400 hover:text-slate-600 cursor-pointer font-bold"
-                      >
-                        Clear
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleToggleBulkRegInput}
-                      className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border cursor-pointer flex items-center gap-1 transition-all ${
-                        showBulkRegInput
-                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
-                          : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-400 hover:bg-teal-100'
-                      }`}
-                      title={showBulkRegInput ? "Hide Reg No(s) bulk text box" : "Unhide / Show Reg No(s) bulk text box"}
-                    >
-                      {showBulkRegInput ? <EyeOff size={11} /> : <Eye size={11} />}
-                      <span>{showBulkRegInput ? "Hide Reg No(s)" : "Unhide Reg No(s)"}</span>
-                    </button>
-                  </div>
-                </div>
 
-                {showBulkRegInput ? (
-                  <div className="space-y-1.5">
-                    <textarea
-                      value={bulkRegInput}
-                      onChange={(e) => setBulkRegInput(e.target.value)}
-                      rows={2}
-                      placeholder="Paste or enter Registration Numbers separated by spaces, commas or newlines..."
-                      className="w-full min-h-[50px] text-[11px] font-mono bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 focus:ring-1 focus:ring-teal-500 focus:outline-hidden resize-y shadow-2xs"
-                    />
-
-                    {/* Action Buttons: Fetch & Add + Blank */}
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={handleFetchBulkRegs}
-                        disabled={isFetchingRegs || !bulkRegInput.trim()}
-                        className={`flex-1 h-7 flex items-center justify-center gap-1 text-xs font-bold px-2 rounded-md transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
-                          !bulkRegInput.trim()
-                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none'
-                            : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-98'
-                        }`}
-                        title="Fetch and add students from database by pasted Registration Numbers"
-                      >
-                        {isFetchingRegs ? (
-                          <>
-                            <RefreshCw size={12} className="animate-spin shrink-0" />
-                            <span>Fetching...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles size={12} className="shrink-0" />
-                            <span>Fetch & Add {bulkTokensCount > 0 ? `(${bulkTokensCount})` : ''}</span>
-                          </>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleAddManualRow}
-                        className="h-7 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
-                        title="Add blank editable row (e.g. non-student vendor / shop)"
-                      >
-                        <Plus size={13} />
-                        <span>+ Blank</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between pt-0.5">
-                    <span className="text-[9.5px] text-slate-500 dark:text-slate-400">Add non-student or vendor:</span>
-                    <button
-                      type="button"
-                      onClick={handleAddManualRow}
-                      className="h-6 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
-                      title="Add blank editable row (e.g. non-student vendor / shop)"
-                    >
-                      <Plus size={12} />
-                      <span>+ Blank Row</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Student Finder Bar — Merged Search across Name, Roll, and Reg No */}
-              <div className="relative pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                <div className="flex items-center justify-between mb-0.5">
-                  <label className="text-[9px] font-bold uppercase text-slate-700 dark:text-slate-300">
-                    Quick Student Finder (Name, Roll, or Reg No)
-                  </label>
-                  {studentSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setStudentSearchQuery('')}
-                      className="text-[9px] text-slate-400 hover:text-slate-600"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={studentSearchQuery}
-                    onChange={(e) => {
-                      setStudentSearchQuery(e.target.value);
-                      setShowSearchDropdown(true);
-                    }}
-                    onFocus={() => setShowSearchDropdown(true)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && searchResults.length > 0) {
-                        e.preventDefault();
-                        handleAddSingleStudent(searchResults[0]);
-                      }
-                    }}
-                    placeholder="Search by name, roll no, or reg no... (Press Enter)"
-                    className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md pl-6 pr-2 py-0 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
-                  />
-                  <Search size={12} className="absolute left-2 top-2 text-slate-400" />
-                </div>
-
-                {/* Autocomplete Dropdown */}
-                {showSearchDropdown && searchResults.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto">
-                    <div className="p-1">
-                      {searchResults.map((st, i) => (
-                        <div
-                          key={st.id || i}
-                          onClick={() => handleAddSingleStudent(st)}
-                          className="p-1.5 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-md cursor-pointer flex items-center justify-between text-xs transition-colors"
-                        >
-                          <div>
-                            <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
-                              {extractStudentName(st)}
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              {extractParentage(st) || extractFatherName(st)} • Cl: {extractClass(st)}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-mono text-[10px] text-teal-600 dark:text-teal-400 font-bold">
-                              {cleanRegNoVal(extractBoardRegNo(st)) || 'No Reg'}
-                            </div>
-                            <div className="text-[9px] text-slate-400">
-                              A/c: {extractBankAccount(st) || '—'}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Bulk Amount Helper Button */}
-              {beneficiaries.length > 0 && (
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-700/40">
-                  <button
-                    onClick={() => setShowFillAmountModal(true)}
-                    className="text-[11px] text-teal-700 dark:text-teal-300 hover:underline font-bold flex items-center gap-1"
-                  >
-                    <IndianRupee size={11} />
-                    Fill Amounts (₹600 / ₹800)
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (window.confirm('Clear all enrolled beneficiary rows from table?')) {
-                        setBeneficiaries([]);
-                      }
-                    }}
-                    className="text-[11px] text-rose-600 hover:underline font-semibold"
-                  >
-                    Clear All
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* SECTION 2: Document Title & Styling */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-              <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <FileText size={14} className="text-amber-600" />
-                Document Title & Styling
-              </h2>
-
-              <div>
-                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                  Document Subtitle / Banner
-                </label>
-                <input
-                  type="text"
-                  value={documentTitle}
-                  onChange={(e) => setDocumentTitle(e.target.value)}
-                  className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
-                />
-              </div>
-
-              {/* Table Density & Font Size Controls */}
-              <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                <div>
-                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Row Spacing</label>
-                  <div className="flex rounded-md border border-slate-300 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-900 text-[10px]">
-                    {['compact', 'standard', 'spacious'].map(p => (
-                      <button
-                        key={p}
-                        onClick={() => setRowPaddingPreset(p)}
-                        className={`flex-1 py-0.5 rounded capitalize font-medium ${
-                          rowPaddingPreset === p
-                            ? 'bg-teal-600 text-white font-bold'
-                            : 'text-slate-600 dark:text-slate-400'
-                        }`}
-                      >
-                        {p === 'standard' ? 'norm' : p === 'spacious' ? 'spc' : 'cpt'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Font Size</label>
-                  <select
-                    value={tableFontSize}
-                    onChange={(e) => setTableFontSize(e.target.value)}
-                    className="w-full h-6 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1"
-                  >
-                    <option value="8.5px">8.5 pt</option>
-                    <option value="9.5px">9.5 pt</option>
-                    <option value="10.5px">10.5 pt</option>
-                    <option value="11.5px">11.5 pt</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Bank Debit Directive Toggle */}
-              <div className="pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                <label className="flex items-center gap-1.5 cursor-pointer mb-1.5">
-                  <input
-                    type="checkbox"
-                    checked={showPreamble}
-                    onChange={(e) => setShowPreamble(e.target.checked)}
-                    className="rounded text-teal-600 focus:ring-teal-500"
-                  />
-                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                    Bank Debit Directive Paragraph
-                  </span>
-                </label>
-
-                {showPreamble && (
-                  <div className="space-y-1.5 pl-4">
+                  {/* Session & Class Filters */}
+                  <div className="grid grid-cols-2 gap-1.5">
                     <div>
-                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                        Source Account Number
+                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Session</label>
+                      <select
+                        value={selectedSession}
+                        onChange={(e) => setSelectedSession(e.target.value)}
+                        className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0 font-medium"
+                      >
+                        {CANONICAL_ACADEMIC_SESSIONS.slice(0, 10).map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Class Cohort</label>
+                      <select
+                        value={selectedClass}
+                        onChange={(e) => setSelectedClass(e.target.value)}
+                        className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0 font-medium"
+                      >
+                        <option value="All">All Classes (9th–12th)</option>
+                        <option value="9th">Class 9th</option>
+                        <option value="10th">Class 10th</option>
+                        <option value="11th">Class 11th</option>
+                        <option value="12th">Class 12th</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Reg No(s) Bulk Area & Quick Student Finder Combined */}
+                  <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700/60 space-y-1.5">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[9px] font-bold uppercase text-slate-700 dark:text-slate-300">
+                          Reg No(s)
+                        </label>
+                        <span className="text-[8px] bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 px-1 py-0.2 rounded font-semibold uppercase">
+                          Bulk Entry
+                        </span>
+                        {bulkTokensCount > 0 && (
+                          <span className="text-[8.5px] font-mono font-bold text-teal-600 dark:text-teal-400">
+                            ({bulkTokensCount} detected)
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {showBulkRegInput && bulkRegInput && (
+                          <button
+                            type="button"
+                            onClick={() => setBulkRegInput('')}
+                            className="text-[9px] text-slate-400 hover:text-slate-600 cursor-pointer font-bold"
+                          >
+                            Clear
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleToggleBulkRegInput}
+                          className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border cursor-pointer flex items-center gap-1 transition-all ${
+                            showBulkRegInput
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+                              : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-400 hover:bg-teal-100'
+                          }`}
+                          title={showBulkRegInput ? "Hide Reg No(s) bulk text box" : "Unhide / Show Reg No(s) bulk text box"}
+                        >
+                          {showBulkRegInput ? <EyeOff size={11} /> : <Eye size={11} />}
+                          <span>{showBulkRegInput ? "Hide Reg No(s)" : "Unhide Reg No(s)"}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {showBulkRegInput ? (
+                      <div className="space-y-1.5">
+                        <textarea
+                          value={bulkRegInput}
+                          onChange={(e) => setBulkRegInput(e.target.value)}
+                          rows={2}
+                          placeholder="Paste or enter Registration Numbers separated by spaces, commas or newlines..."
+                          className="w-full min-h-[50px] text-[11px] font-mono bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 focus:ring-1 focus:ring-teal-500 focus:outline-hidden resize-y shadow-2xs"
+                        />
+
+                        {/* Action Buttons: Fetch & Add + Blank */}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleFetchBulkRegs}
+                            disabled={isFetchingRegs || !bulkRegInput.trim()}
+                            className={`flex-1 h-7 flex items-center justify-center gap-1 text-xs font-bold px-2 rounded-md transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
+                              !bulkRegInput.trim()
+                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none'
+                                : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-98'
+                            }`}
+                            title="Fetch and add students from database by pasted Registration Numbers"
+                          >
+                            {isFetchingRegs ? (
+                              <>
+                                <RefreshCw size={12} className="animate-spin shrink-0" />
+                                <span>Fetching...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles size={12} className="shrink-0" />
+                                <span>Fetch & Add {bulkTokensCount > 0 ? `(${bulkTokensCount})` : ''}</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleAddManualRow}
+                            className="h-7 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+                            title="Add blank editable row (e.g. non-student vendor / shop)"
+                          >
+                            <Plus size={13} />
+                            <span>+ Blank</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="text-[9.5px] text-slate-500 dark:text-slate-400">Add non-student or vendor:</span>
+                        <button
+                          type="button"
+                          onClick={handleAddManualRow}
+                          className="h-6 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+                          title="Add blank editable row (e.g. non-student vendor / shop)"
+                        >
+                          <Plus size={12} />
+                          <span>+ Blank Row</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Student Finder Bar — Merged Search across Name, Roll, and Reg No */}
+                  <div className="relative pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="text-[9px] font-bold uppercase text-slate-700 dark:text-slate-300">
+                        Quick Student Finder (Name, Roll, or Reg No)
                       </label>
+                      {studentSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setStudentSearchQuery('')}
+                          className="text-[9px] text-slate-400 hover:text-slate-600"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
                       <input
                         type="text"
-                        value={sourceAccountNo}
-                        onChange={(e) => setSourceAccountNo(e.target.value)}
-                        placeholder="e.g. 0137040500000421"
-                        className="w-full h-7 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                        value={studentSearchQuery}
+                        onChange={(e) => {
+                          setStudentSearchQuery(e.target.value);
+                          setShowSearchDropdown(true);
+                        }}
+                        onFocus={() => setShowSearchDropdown(true)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && searchResults.length > 0) {
+                            e.preventDefault();
+                            handleAddSingleStudent(searchResults[0]);
+                          }
+                        }}
+                        placeholder="Search by name, roll no, or reg no... (Press Enter)"
+                        className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md pl-6 pr-2 py-0 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
                       />
+                      <Search size={12} className="absolute left-2 top-2 text-slate-400" />
                     </div>
 
+                    {/* Autocomplete Dropdown */}
+                    {showSearchDropdown && searchResults.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto">
+                        <div className="p-1">
+                          {searchResults.map((st, i) => (
+                            <div
+                              key={st.id || i}
+                              onClick={() => handleAddSingleStudent(st)}
+                              className="p-1.5 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-md cursor-pointer flex items-center justify-between text-xs transition-colors"
+                            >
+                              <div>
+                                <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                                  {extractStudentName(st)}
+                                </div>
+                                <div className="text-[10px] text-slate-500">
+                                  {extractParentage(st) || extractFatherName(st)} • Cl: {extractClass(st)}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-mono text-[10px] text-teal-600 dark:text-teal-400 font-bold">
+                                  {cleanRegNoVal(extractBoardRegNo(st)) || 'No Reg'}
+                                </div>
+                                <div className="text-[9px] text-slate-400">
+                                  A/c: {extractBankAccount(st) || '—'}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bulk Amount Helper Button & Clear */}
+                  {beneficiaries.length > 0 && (
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-700/40">
+                      <button
+                        onClick={() => setShowFillAmountModal(true)}
+                        className="text-[11px] text-teal-700 dark:text-teal-300 hover:underline font-bold flex items-center gap-1"
+                      >
+                        <IndianRupee size={11} />
+                        Fill Amounts (₹600 / ₹800)
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Clear all enrolled beneficiary rows from table?')) {
+                            setBeneficiaries([]);
+                          }
+                        }}
+                        className="text-[11px] text-rose-600 hover:underline font-semibold"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ─── COLUMN 2: Document Layout, Title, Certification & Signatory Blocks ─── */}
+              <div className="space-y-2 sm:space-y-2.5 min-w-0">
+                {/* SECTION 2: Document Title & Styling */}
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2 sm:p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+                  <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <FileText size={14} className="text-amber-600" />
+                    Document Title & Styling
+                  </h2>
+
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                      Document Subtitle / Banner
+                    </label>
+                    <input
+                      type="text"
+                      value={documentTitle}
+                      onChange={(e) => setDocumentTitle(e.target.value)}
+                      className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                    />
+                  </div>
+
+                  {/* Table Density & Font Size Controls */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
                     <div>
-                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                        Directive Template
-                      </label>
-                      <textarea
-                        value={preambleText}
-                        onChange={(e) => setPreambleText(e.target.value)}
-                        rows={2}
-                        className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 font-serif"
-                      />
+                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Row Spacing</label>
+                      <div className="flex rounded-md border border-slate-300 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-900 text-[10px]">
+                        {['compact', 'standard', 'spacious'].map(p => (
+                          <button
+                            key={p}
+                            onClick={() => setRowPaddingPreset(p)}
+                            className={`flex-1 py-0.5 rounded capitalize font-medium ${
+                              rowPaddingPreset === p
+                                ? 'bg-teal-600 text-white font-bold'
+                                : 'text-slate-600 dark:text-slate-400'
+                            }`}
+                          >
+                            {p === 'standard' ? 'norm' : p === 'spacious' ? 'spc' : 'cpt'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Font Size</label>
+                      <select
+                        value={tableFontSize}
+                        onChange={(e) => setTableFontSize(e.target.value)}
+                        className="w-full h-6 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1"
+                      >
+                        <option value="8.5px">8.5 pt</option>
+                        <option value="9.5px">9.5 pt</option>
+                        <option value="10.5px">10.5 pt</option>
+                        <option value="11.5px">11.5 pt</option>
+                      </select>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
 
-            {/* SECTION 3: Certification Text Paragraph */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showCertification}
-                  onChange={(e) => setShowCertification(e.target.checked)}
-                  className="rounded text-teal-600 focus:ring-teal-500"
-                />
-                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                  <ShieldCheck size={14} className="text-teal-600" />
-                  Committee Certification Paragraph
-                </span>
-              </label>
+                  {/* Bank Debit Directive Toggle */}
+                  <div className="pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                    <label className="flex items-center gap-1.5 cursor-pointer mb-1.5">
+                      <input
+                        type="checkbox"
+                        checked={showPreamble}
+                        onChange={(e) => setShowPreamble(e.target.checked)}
+                        className="rounded text-teal-600 focus:ring-teal-500"
+                      />
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                        Bank Debit Directive Paragraph
+                      </span>
+                    </label>
 
-              {showCertification && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[9px] text-slate-500">
-                    <span>Certification Template</span>
-                    <button
-                      onClick={() => setCertificationText(TEMPLATE_PRESETS[0].certificationTemplate)}
-                      className="text-teal-600 hover:underline font-bold"
+                    {showPreamble && (
+                      <div className="space-y-1.5 pl-4">
+                        <div>
+                          <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                            Source Account Number
+                          </label>
+                          <input
+                            type="text"
+                            value={sourceAccountNo}
+                            onChange={(e) => setSourceAccountNo(e.target.value)}
+                            placeholder="e.g. 0137040500000421"
+                            className="w-full h-7 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                            Directive Template
+                          </label>
+                          <textarea
+                            value={preambleText}
+                            onChange={(e) => setPreambleText(e.target.value)}
+                            rows={2}
+                            className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 font-serif"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* SECTION 3: Certification Text Paragraph */}
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2 sm:p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showCertification}
+                      onChange={(e) => setShowCertification(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                    <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                      <ShieldCheck size={14} className="text-teal-600" />
+                      Committee Certification Paragraph
+                    </span>
+                  </label>
+
+                  {showCertification && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[9px] text-slate-500">
+                        <span>Certification Template</span>
+                        <button
+                          type="button"
+                          onClick={() => setCertificationText(TEMPLATE_PRESETS[0].certificationTemplate)}
+                          className="text-teal-600 hover:underline font-bold"
+                        >
+                          Reset Text
+                        </button>
+                      </div>
+                      <textarea
+                        value={certificationText}
+                        onChange={(e) => setCertificationText(e.target.value)}
+                        rows={3}
+                        className="w-full text-xs font-serif bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 leading-relaxed focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* SECTION 4: Signatures Configuration */}
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2 sm:p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
+                  <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <UserCheck size={14} className="text-purple-600" />
+                    Signatory Blocks
+                  </h2>
+
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                      Signature Style
+                    </label>
+                    <select
+                      value={signaturesMode}
+                      onChange={(e) => setSignaturesMode(e.target.value)}
+                      className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 font-medium"
                     >
-                      Reset Text
-                    </button>
+                      <option value="committee">Committee Members (1–5 Lines)</option>
+                      <option value="principal">Designated Signatory (Right-aligned)</option>
+                      <option value="both">Both (Committee + Designated)</option>
+                    </select>
                   </div>
-                  <textarea
-                    value={certificationText}
-                    onChange={(e) => setCertificationText(e.target.value)}
-                    rows={4}
-                    className="w-full text-xs font-serif bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 leading-relaxed focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
-                  />
+
+                  {(signaturesMode === 'committee' || signaturesMode === 'both') && (
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div className="col-span-2">
+                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                          Committee Title
+                        </label>
+                        <input
+                          type="text"
+                          value={committeeHeader}
+                          onChange={(e) => setCommitteeHeader(e.target.value)}
+                          className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5 whitespace-nowrap">
+                          Slots (1–5)
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={5}
+                          value={committeeMemberCount}
+                          onChange={(e) => setCommitteeMemberCount(Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 1)))}
+                          className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-center"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {(signaturesMode === 'principal' || signaturesMode === 'both') && (
+                    <div className="space-y-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                      <div>
+                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
+                          Designated Signatory Title
+                        </label>
+                        <input
+                          type="text"
+                          value={principalTitle}
+                          onChange={(e) => setPrincipalTitle(e.target.value)}
+                          className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-
-            {/* SECTION 4: Signatures Configuration */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-              <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <UserCheck size={14} className="text-purple-600" />
-                Signatory Blocks
-              </h2>
-
-              <div>
-                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                  Signature Style
-                </label>
-                <select
-                  value={signaturesMode}
-                  onChange={(e) => setSignaturesMode(e.target.value)}
-                  className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 font-medium"
-                >
-                  <option value="committee">Committee Members (1–5 Lines)</option>
-                  <option value="principal">Designated Signatory (Right-aligned)</option>
-                  <option value="both">Both (Committee + Designated)</option>
-                </select>
               </div>
-
-              {(signaturesMode === 'committee' || signaturesMode === 'both') && (
-                <div className="space-y-1.5">
-                  <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                      Committee Section Title
-                    </label>
-                    <input
-                      type="text"
-                      value={committeeHeader}
-                      onChange={(e) => setCommitteeHeader(e.target.value)}
-                      className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                      Number of Committee Slots (1 to 5)
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      value={committeeMemberCount}
-                      onChange={(e) => setCommitteeMemberCount(Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 1)))}
-                      className="w-20 h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-center"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {(signaturesMode === 'principal' || signaturesMode === 'both') && (
-                <div className="space-y-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                  <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                      Designated Signatory Title
-                    </label>
-                    <input
-                      type="text"
-                      value={principalTitle}
-                      onChange={(e) => setPrincipalTitle(e.target.value)}
-                      className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           </aside>
         )}

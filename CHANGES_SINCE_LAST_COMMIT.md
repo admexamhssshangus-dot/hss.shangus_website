@@ -2,28 +2,17 @@
 
 ## Commit Message
 
-`fix(admin): restore earlier toolbar button setup in Letterhead, Certificates, and ID Card Studio`
+`feat(beneficiary): layout 2/3 preview and 1/3 controls with compact multicolumn structure`
 
 ## Files Changed
 
-1. **[src/portal/admin/OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx)**
-   - Restored earlier "Setup" toolbar button with `Sliders` icon and amber highlight styling for opening the official letterhead & reference setup drawer.
-   - Removed external window event listener and unused imports (`PanelRightClose`, `PanelRightOpen`).
-
-2. **[src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)**
-   - Restored earlier "Setup" toolbar button with `Sliders` icon and amber highlight styling for certificate layout & letterhead setup.
-   - Removed external window event listener and unused imports (`PanelRightClose`, `PanelRightOpen`).
-
-3. **[src/portal/admin/StudentIdCardManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentIdCardManager.jsx)**
-   - Restored earlier "Filters" toolbar button with `Filter` icon and amber highlight styling for the layout & filters sidebar.
-   - Removed external window event listener and unused imports (`PanelRightClose`, `PanelRightOpen`).
-
-4. **[src/portal/admin/AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx)**
-   - Removed the global header "Controls" button from the main admin navigation bar, keeping each module's toolbar self-contained and clean.
-   - Cleaned up unused imports (`PanelRightClose`, `PanelRightOpen`).
-
-5. **[src/portal/admin/BeneficiarySanctionOrdersView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BeneficiarySanctionOrdersView.jsx)**
-   - Removed obsolete global window event listener (`hss-toggle-studio-setup`) since the module has its own dedicated toolbar button.
+1. **[src/portal/admin/BeneficiarySanctionOrdersView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BeneficiarySanctionOrdersView.jsx)**
+   - Configured exact **2/3** (66.67%) default flex width for the live WYSIWYG document canvas preview (`main`) and **1/3** (33.33%) for the configuration & controls sidebar (`aside`).
+   - Implemented a high-density, responsive **multicolumn grid structure** within the controls panel (`repeat(auto-fit, minmax(220px, 1fr))`):
+     - **Column 1 (Student Data & Ingestion)**: Student Fetcher card containing Session & Class filters, Bulk Reg No(s) ingestion with detected badge counter, clear & hide/unhide toggles, Quick Student Finder with autocomplete, + Blank Row creation, and quick amount filling / clear actions.
+     - **Column 2 (Document Formatting & Authorization)**: Document Title & Styling card (Subtitle, Row Spacing, Font Size, Bank Debit Directive), Committee Certification Paragraph card, and Signatory Blocks card (Signature style, compact 2-column Committee Title & Slots, Designated Signatory Title).
+   - Upgraded Signatory Blocks with a 3-column inline grid for Committee Title (col-span-2) and Member Slots (col-span-1) to reduce form height.
+   - Preserved draggable panel resizing with boundary clamps and double-click reset to default 1/3 width on the divider handle.
 
 ---
 
@@ -42,7 +31,7 @@ If you wish to edit the commit message or modify files before pushing:
 git reset --soft HEAD~1
 # Make desired adjustments, then:
 git add .
-git commit -m "fix(admin): restore earlier toolbar button setup in Letterhead, Certificates, and ID Card Studio"
+git commit -m "feat(beneficiary): layout 2/3 preview and 1/3 controls with compact multicolumn structure"
 ```
 
 ### 3. Push to Remote Repository
