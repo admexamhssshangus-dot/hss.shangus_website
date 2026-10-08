@@ -66,12 +66,238 @@
         50% { transform: translateX(0%); }
         100% { transform: translateX(100%); }
       }
+      /* Branded Splash Screen */
+      .hss-splash-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        z-index: 99998;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 50% 35%, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%);
+        color: #0f172a;
+        font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        padding: 1.5rem;
+        box-sizing: border-box;
+        text-align: center;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      @media (prefers-color-scheme: dark) {
+        .hss-splash-screen {
+          background: radial-gradient(circle at 50% 35%, #0f172a 0%, #090d16 55%, #020617 100%);
+          color: #f8fafc;
+        }
+      }
+      html.dark .hss-splash-screen {
+        background: radial-gradient(circle at 50% 35%, #0f172a 0%, #090d16 55%, #020617 100%);
+        color: #f8fafc;
+      }
+      .hss-splash-brand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 0.75rem;
+      }
+      .hss-splash-logo-wrap {
+        position: relative;
+        width: 76px;
+        height: 76px;
+        margin-bottom: 1.1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .hss-splash-spinner-ring {
+        position: absolute;
+        inset: -4px;
+        border-radius: 9999px;
+        border: 2.5px solid transparent;
+        border-top-color: #0d9488;
+        border-right-color: rgba(13, 148, 136, 0.35);
+        animation: hssSplashSpin 1.2s linear infinite;
+      }
+      .hss-splash-pulse-glow {
+        position: absolute;
+        inset: 0;
+        border-radius: 9999px;
+        background: rgba(13, 148, 136, 0.15);
+        animation: hssSplashPulse 2s ease-in-out infinite;
+      }
+      .hss-splash-logo-card {
+        position: relative;
+        width: 66px;
+        height: 66px;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+      }
+      @media (prefers-color-scheme: dark) {
+        .hss-splash-logo-card {
+          background: #0f172a;
+          border-color: #1e293b;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+      }
+      html.dark .hss-splash-logo-card {
+        background: #0f172a;
+        border-color: #1e293b;
+      }
+      .hss-splash-logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 9999px;
+        object-fit: contain;
+        display: block;
+      }
+      .hss-splash-title {
+        font-size: 0.9375rem;
+        font-weight: 800;
+        letter-spacing: -0.015em;
+        color: #0f172a;
+        margin-bottom: 0.35rem;
+      }
+      @media (prefers-color-scheme: dark) {
+        .hss-splash-title {
+          color: #f8fafc;
+        }
+      }
+      html.dark .hss-splash-title {
+        color: #f8fafc;
+      }
+      .hss-splash-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        background: #f0fdfa;
+        color: #0f766e;
+        border: 1px solid #ccfbf1;
+      }
+      @media (prefers-color-scheme: dark) {
+        .hss-splash-badge {
+          background: rgba(13, 148, 136, 0.2);
+          color: #2dd4bf;
+          border-color: rgba(45, 212, 191, 0.35);
+        }
+      }
+      html.dark .hss-splash-badge {
+        background: rgba(13, 148, 136, 0.2);
+        color: #2dd4bf;
+        border-color: rgba(45, 212, 191, 0.35);
+      }
+      .hss-splash-status-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+      .hss-splash-status-text {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #475569;
+        letter-spacing: normal;
+      }
+      @media (prefers-color-scheme: dark) {
+        .hss-splash-status-text {
+          color: #94a3b8;
+        }
+      }
+      html.dark .hss-splash-status-text {
+        color: #94a3b8;
+      }
+      .hss-splash-progress-track {
+        width: 190px;
+        max-width: 72vw;
+        height: 4px;
+        border-radius: 9999px;
+        overflow: hidden;
+        position: relative;
+        background: #e2e8f0;
+      }
+      @media (prefers-color-scheme: dark) {
+        .hss-splash-progress-track {
+          background: #1e293b;
+        }
+      }
+      html.dark .hss-splash-progress-track {
+        background: #1e293b;
+      }
+      .hss-splash-progress-bar {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-radius: 9999px;
+        background: linear-gradient(90deg, #0d9488, #10b981);
+        animation: hssSplashSweep 1.4s ease-in-out infinite alternate;
+      }
+      @keyframes hssSplashSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes hssSplashPulse {
+        0%, 100% { transform: scale(1); opacity: 0.7; }
+        50% { transform: scale(1.12); opacity: 0.25; }
+      }
+      @keyframes hssSplashSweep {
+        0% { left: 0%; width: 25%; }
+        50% { width: 50%; }
+        100% { left: 75%; width: 25%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .hss-splash-spinner-ring,
+        .hss-splash-pulse-glow,
+        .hss-splash-progress-bar {
+          animation: none;
+        }
+        .hss-splash-progress-bar {
+          left: 0;
+          width: 60%;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="root">
       <div class="hss-hydration-indicator" aria-hidden="true" role="progressbar">
         <div class="hss-hydration-bar"></div>
+      </div>
+      <div class="hss-splash-screen" id="hss-splash-screen" role="status" aria-live="polite" aria-label="Loading Govt. Higher Secondary School Shangus portal">
+        <div class="hss-splash-brand">
+          <div class="hss-splash-logo-wrap">
+            <div class="hss-splash-spinner-ring" aria-hidden="true"></div>
+            <div class="hss-splash-pulse-glow" aria-hidden="true"></div>
+            <div class="hss-splash-logo-card">
+              <img src="%PUBLIC_URL%/logo.png" width="52" height="52" alt="Govt HSS Shangus school crest" class="hss-splash-logo" />
+            </div>
+          </div>
+          <div class="hss-splash-title">Govt. Higher Secondary School Shangus</div>
+          <div class="hss-splash-badge">Official Institutional Web Portal</div>
+        </div>
+        <div class="hss-splash-status-wrap">
+          <div class="hss-splash-status-text">Loading Institutional Portal…</div>
+          <div class="hss-splash-progress-track" aria-hidden="true">
+            <div class="hss-splash-progress-bar"></div>
+          </div>
+        </div>
       </div>
     </div>
     <noscript>Enable JavaScript for online services. Public page overviews are included in the production build.</noscript>

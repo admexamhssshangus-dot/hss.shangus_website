@@ -45,8 +45,30 @@ function renderHydrationBar() {
   </div>`;
 }
 
+function renderSplashScreen() {
+  return `<div class="hss-splash-screen" id="hss-splash-screen" role="status" aria-live="polite" aria-label="Loading Govt. Higher Secondary School Shangus portal">
+    <div class="hss-splash-brand">
+      <div class="hss-splash-logo-wrap">
+        <div class="hss-splash-spinner-ring" aria-hidden="true"></div>
+        <div class="hss-splash-pulse-glow" aria-hidden="true"></div>
+        <div class="hss-splash-logo-card">
+          <img src="/logo.png" width="52" height="52" alt="Govt HSS Shangus school crest" class="hss-splash-logo" />
+        </div>
+      </div>
+      <div class="hss-splash-title">Govt. Higher Secondary School Shangus</div>
+      <div class="hss-splash-badge">Official Institutional Web Portal</div>
+    </div>
+    <div class="hss-splash-status-wrap">
+      <div class="hss-splash-status-text">Loading Institutional Portal…</div>
+      <div class="hss-splash-progress-track" aria-hidden="true">
+        <div class="hss-splash-progress-bar"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderOverview(page) {
-  return `${renderHydrationBar()}<div class="search-overview">
+  return `${renderHydrationBar()}${renderSplashScreen()}<noscript><style>.hss-splash-screen{display:none!important;}</style></noscript><div class="search-overview">
     <header class="search-overview__header">
       <a href="/" class="search-overview__brand"><img src="/logo.png" width="52" height="52" alt="Govt HSS Shangus school crest"><span>HSS Shangus<small>Govt. Higher Secondary School Shangus • Estd. 1917</small></span></a>
       <nav aria-label="Main navigation">${NAVIGATION.map(link).join(' ')}</nav>
