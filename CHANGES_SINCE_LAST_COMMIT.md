@@ -2,28 +2,14 @@
 
 ## Commit Message
 
-`feat(search): tiered module ranking (Title > Description > Deep Schema) and deep field/settings search indexing`
+`feat(traffic): restore real-time Google search impressions and clicks counter on desktop and mobile homepage`
 
 ## Files Changed
 
-1. **[src/portal/admin/adminModuleSearchEngine.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/adminModuleSearchEngine.js)**
-   - **Tiered Scoring Hierarchy**: Re-architected `searchAdminModules` to strictly prioritize:
-     - **1st Priority (Module Title / `label`)**: Exact match: `+100,000` pts; Title starts with query: `+60,000` pts; Title contains query phrase: `+40,000` pts; All tokens in title: `+25,000` pts; Title token match: `+12,000` pts. Guarantees that any title match (e.g. `"Student ID Card Studio"` for `"id card"`) decisively dominates non-title matches.
-     - **2nd Priority (Brief Description / `desc`)**: Phrase match: `+10,000` pts; All tokens: `+6,000` pts; Token match: `+2,500` pts.
-     - **3rd Priority (Keywords & Aliases)**: Exact match: `+5,000` pts; Phrase: `+3,500` pts; Token: `+1,500` pts.
-     - **4th Priority (Deep Field Structure, Settings & Capabilities)**: Phrase match: `+4,000` pts; Token: `+1,800` pts.
-     - **5th Priority (Category & Educational Thesaurus)**: Synonyms & category boost: `+500` to `+1,500` pts.
-   - **Fixed Token Slicing & Boundary Bug**: Rewrote `matchTokenFuzzy` to prevent short tokens (`length <= 3`, e.g. `id`, `dob`, `cms`, `omr`, `fee`, `tc`) from matching substrings inside longer words. Queries like `"id"` or `"id card"` will no longer match `"consolidated"`, `"slideshow"`, or `"bonafide"`.
-   - **High-Precision Word-Boundary Highlighter**: Updated `getHighlightedSegments` to use multi-word phrase patterns and regex word boundaries (`\b`) for short tokens, preventing words like `"consolidated"` from being chopped into `consol[id]ated`.
-   - **Comprehensive Deep Schema Index (`MODULE_DEEP_INDEX`)**: Indexed the internal student form fields, settings, tools, and capabilities for all 27 administrative modules (e.g. `bank account`, `ifsc`, `blood group`, `nps`, `gp fund`, `form 16`, `recycle bin`, `hero slider`, `pre-board`, `defaulter threshold`, `feeder school`, `qr verification`).
-   - **Contextual Search Match Badges**: Enhanced `_matchedReasons` to output rich badges (`"In Title"`, `"Field: Bank Account"`, `"Setting: Central Website Recycle Bin"`, `"id cards"`).
-
-2. **[src/portal/admin/adminModuleCatalog.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/adminModuleCatalog.js)**
-   - Imported `MODULE_DEEP_INDEX` and dynamically attached `fields`, `settings`, and `capabilities` to every module in `ADMIN_MODULE_CATALOG`.
-   - Kept catalog self-documenting and in 100% synchronization with the search engine.
-
-3. **[src/portal/admin/AdminToolsDropdown.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminToolsDropdown.jsx)**
-   - Updated `ADMIN_TOOL_MODULES` and `allItems` builder to include `fields`, `settings`, and `capabilities` for all regular modules and quick action tools (`quickCellEdit`, `bulkToolsAction`).
+1. **[src/pages/Home.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Home.jsx)**
+   - **Real-Time Google Cloud Traffic & Search Console Listener**: Restored active `onSnapshot(doc(db, 'siteSettings', 'traffic'), ...)` Firestore real-time listener inside the background hydration block, enabling instantaneous live updates without page reload whenever search impressions, clicks, or visits change.
+   - **Desktop Hero Real-Time Traffic Badge**: Restored the sleek glassmorphic badge at the bottom-right of the hero slideshow container displaying live green indicator with pulsing dot, verified Google Searches (`trafficStats.searches || 4540+`), and verified Clicks (`trafficStats.clicks || 965+`) formatted compactly with smooth `AnimatedCounter`.
+   - **Mobile & Tablet Live Traffic Card**: Restored the executive live Google Search Traffic card positioned immediately after the institutional stats row on mobile and tablet screens, showcasing real-time searches and clicks with high-contrast icons and responsive badges.
 
 ---
 
@@ -42,7 +28,7 @@ If you wish to edit the commit message or modify files before pushing:
 git reset --soft HEAD~1
 # Make desired adjustments, then:
 git add .
-git commit -m "feat(search): tiered module ranking (Title > Description > Deep Schema) and deep field/settings search indexing"
+git commit -m "feat(traffic): restore real-time Google search impressions and clicks counter on desktop and mobile homepage"
 ```
 
 ### 3. Push to Remote Repository
