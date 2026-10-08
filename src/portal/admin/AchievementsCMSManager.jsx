@@ -1008,7 +1008,11 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
 
             {/* Embedded ClassBoardResultsSection */}
             <div className="pt-1">
-              <ClassBoardResultsSection defaultClass="12th" />
+              <ClassBoardResultsSection
+                defaultClass="12th"
+                isEditable={true}
+                userEmail={userEmail || user?.email || 'admin'}
+              />
             </div>
           </div>
         </div>
