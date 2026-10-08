@@ -44,6 +44,8 @@ const MODULE_ICONS = {
   customRoster: FileSpreadsheet,
   beneficiaryStudio: CreditCard,
   beneficiaryOrders: CreditCard,
+  mutualBenefitFund: CreditCard,
+  mbfStudio: CreditCard,
   officialLetter: FileText,
   certStudio: Award,
   idCards: Contact,

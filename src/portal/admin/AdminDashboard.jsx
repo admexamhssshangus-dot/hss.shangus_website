@@ -48,6 +48,8 @@ export const MODULE_LOADERS = {
   sanctionOrders: () => import('./BeneficiarySanctionOrdersView'),
   beneficiaries: () => import('./BeneficiarySanctionOrdersView'),
   beneficiaryList: () => import('./BeneficiarySanctionOrdersView'),
+  mutualBenefitFund: () => import('./BeneficiarySanctionOrdersView'),
+  mbfStudio: () => import('./BeneficiarySanctionOrdersView'),
   officialLetter: () => import('./OfficialLetterWriterView'),
   certStudio: () => import('./StudentCertificateStudioView'),
   certificate: () => import('./StudentCertificateStudioView'),
@@ -1144,13 +1146,13 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  {/* TAB: Beneficiary Lists & Sanction Orders Studio */}
-                  {(mountedTabs.has('beneficiaryStudio') || mountedTabs.has('beneficiaryOrders') || mountedTabs.has('sanctionOrders') || mountedTabs.has('beneficiaryList')) && (
+                  {/* TAB: Mutual Benefit Fund & Sanction Orders Studio */}
+                  {(mountedTabs.has('beneficiaryStudio') || mountedTabs.has('beneficiaryOrders') || mountedTabs.has('sanctionOrders') || mountedTabs.has('beneficiaries') || mountedTabs.has('beneficiaryList') || mountedTabs.has('mutualBenefitFund') || mountedTabs.has('mbfStudio')) && (
                     <div
                       key="beneficiary-orders-container"
-                      className={(activeTab === 'beneficiaryStudio' || activeTab === 'beneficiaryOrders' || activeTab === 'sanctionOrders' || activeTab === 'beneficiaries' || activeTab === 'beneficiaryList') ? 'block w-full' : 'hidden'}
-                      style={(activeTab === 'beneficiaryStudio' || activeTab === 'beneficiaryOrders' || activeTab === 'sanctionOrders' || activeTab === 'beneficiaries' || activeTab === 'beneficiaryList') ? undefined : { display: 'none' }}
-                      aria-hidden={activeTab !== 'beneficiaryStudio' && activeTab !== 'beneficiaryOrders' && activeTab !== 'sanctionOrders' && activeTab !== 'beneficiaries' && activeTab !== 'beneficiaryList'}
+                      className={(activeTab === 'beneficiaryStudio' || activeTab === 'beneficiaryOrders' || activeTab === 'sanctionOrders' || activeTab === 'beneficiaries' || activeTab === 'beneficiaryList' || activeTab === 'mutualBenefitFund' || activeTab === 'mbfStudio') ? 'block w-full' : 'hidden'}
+                      style={(activeTab === 'beneficiaryStudio' || activeTab === 'beneficiaryOrders' || activeTab === 'sanctionOrders' || activeTab === 'beneficiaries' || activeTab === 'beneficiaryList' || activeTab === 'mutualBenefitFund' || activeTab === 'mbfStudio') ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'beneficiaryStudio' && activeTab !== 'beneficiaryOrders' && activeTab !== 'sanctionOrders' && activeTab !== 'beneficiaries' && activeTab !== 'beneficiaryList' && activeTab !== 'mutualBenefitFund' && activeTab !== 'mbfStudio'}
                     >
                       <BeneficiarySanctionOrdersView
                         allStudents={identityStudents}

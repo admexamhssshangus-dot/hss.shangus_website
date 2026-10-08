@@ -1,5 +1,5 @@
 // =================================================================
-// HSS SHANGUS — Beneficiary Lists & Sanction Orders Studio
+// HSS SHANGUS — Mutual Benefit Fund & Sanction Orders Studio
 // =================================================================
 // A high-density administrative workspace for composing, customizing,
 // and printing institutional financial assistance rolls, mutual benefit
@@ -7,6 +7,7 @@
 // =================================================================
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { printBeneficiarySanctionOrder } from '../../utils/beneficiaryPrintUtils';
 import {
   Printer, Download, FileSpreadsheet, FileText, Plus, Trash2, Edit3,
   Save, RotateCcw, Check, Search, SlidersHorizontal, Layers, Settings2,
@@ -220,8 +221,8 @@ export default function BeneficiarySanctionOrdersView({
   // ─── Letterhead & Institutional Metadata ───
   const [officeTitle, setOfficeTitle] = useState('OFFICE OF THE PRINCIPAL');
   const [institutionName, setInstitutionName] = useState('GOVT. HIGHER SECONDARY SCHOOL SHANGUS');
-  const [institutionAddress, setInstitutionAddress] = useState('Anantnag Kmr.-192201');
-  const [contactLine, setContactLine] = useState('UDISE: 01061400618; Email: ghssshangus74@gmail.com');
+  const [institutionAddress, setInstitutionAddress] = useState('Anantnag, Kashmir — 192201 (J&K)');
+  const [contactLine, setContactLine] = useState('UDISE: 01061400618 | Email: ghssshangus74@gmail.com');
   const [showLetterheadBorder, setShowLetterheadBorder] = useState(true);
 
   // ─── Reference No & Date with Stepper ───
@@ -711,22 +712,26 @@ export default function BeneficiarySanctionOrdersView({
     setActiveColumns(prev => prev.filter(c => c.key !== colKey));
   };
 
-  // ─── Filtered Search Results for Autocomplete ───
+  // ─── Filtered Search Results for Autocomplete (Name, Roll, or Reg No) ───
   const searchResults = useMemo(() => {
     if (!studentSearchQuery.trim() || studentSearchQuery.length < 2) return [];
     const q = studentSearchQuery.toLowerCase().trim();
+    const tokens = q.split(/[\s,;]+/).filter(t => t.length > 0);
+
     return sessionStudentsPool
       .filter(st => {
         const name = (extractStudentName(st) || '').toLowerCase();
         const parent = (extractParentage(st) || extractFatherName(st) || '').toLowerCase();
         const reg = (extractBoardRegNo(st) || '').toLowerCase();
         const roll = String(getStudentRollNumber(st) || '').toLowerCase();
-        return name.includes(q) || parent.includes(q) || reg.includes(q) || roll.includes(q);
+        return tokens.some(tok =>
+          name.includes(tok) || parent.includes(tok) || reg.includes(tok) || roll.includes(tok)
+        );
       })
-      .slice(0, 10);
+      .slice(0, 15);
   }, [studentSearchQuery, sessionStudentsPool]);
 
-  // ─── Print & PDF Export Handler ───
+  // ─── Print & PDF Export Handler (Isolated Engine matching Official Letterhead Writer) ───
   const handlePrint = () => {
     if (beneficiaries.length === 0) {
       showToast('Add at least one beneficiary to print', 'warning');
@@ -744,8 +749,58 @@ export default function BeneficiarySanctionOrdersView({
       bodyHtml: document.getElementById('beneficiary-document-sheet')?.innerHTML || ''
     }).catch(e => console.warn('History save note:', e));
 
-    window.print();
+    logAdminActivity({
+      actionType: 'export',
+      actionTitle: 'Printed Mutual Benefit Fund Sanction Order',
+      details: `Printed sanction order "${refNo}" with ${beneficiaries.length} beneficiaries (Total ₹${formattedTotalAmount})`,
+      metadata: { refNo, documentTitle, count: beneficiaries.length, totalAmount: formattedTotalAmount }
+    });
+
+    showToast('🖨️ Opening print dialog / PDF preview...', 'info', 2200);
+
+    printBeneficiarySanctionOrder({
+      orientation,
+      officeTitle,
+      institutionName,
+      institutionAddress,
+      contactLine,
+      refNo,
+      dateStr,
+      documentTitle,
+      showPreamble,
+      preambleText: resolvedPreambleText,
+      activeColumns,
+      beneficiaries,
+      totalAmount: formattedTotalAmount,
+      showCertification,
+      certificationText: resolvedCertificationText,
+      signaturesMode,
+      committeeMemberCount,
+      committeeHeader,
+      principalTitle,
+      principalSubtitle,
+      tableFontSize,
+      rowPaddingPreset
+    });
   };
+
+  const handlePrintRef = useRef(handlePrint);
+  useEffect(() => {
+    handlePrintRef.current = handlePrint;
+  });
+
+  // Intercept Ctrl+P / Cmd+P to trigger clean, isolated document print/PDF instead of browser window print
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlePrintRef.current?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // ─── Excel Export (.xlsx) Handler ───
   const handleExportExcel = () => {
@@ -1022,7 +1077,7 @@ export default function BeneficiarySanctionOrdersView({
   return (
     <div className="flex flex-col h-screen w-full bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 overflow-hidden font-sans">
       {/* ─── TOP APP HEADER & ACTION BAR (COMPACT HIGH-DENSITY) ─── */}
-      <header className="flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 py-1.5 flex items-center justify-between shadow-2xs z-30 min-h-[42px] gap-2">
+      <header className="flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 py-1.5 flex items-center justify-between shadow-2xs z-30 min-h-[42px] gap-2 print:hidden">
         <div className="flex items-center gap-2 min-w-0 shrink">
           <button
             onClick={onClose}
@@ -1034,7 +1089,7 @@ export default function BeneficiarySanctionOrdersView({
           <div className="flex items-center gap-1.5 min-w-0">
             <CreditCard className="text-teal-600 dark:text-teal-400 shrink-0" size={16} />
             <h1 className="text-xs sm:text-sm font-black tracking-tight text-slate-900 dark:text-white truncate">
-              Beneficiary Lists & Sanction Orders
+              Mutual Benefit Fund & Sanction Orders
             </h1>
             <span className="hidden md:inline-block text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 shrink-0">
               Studio
@@ -1159,6 +1214,42 @@ export default function BeneficiarySanctionOrdersView({
       <div className="flex-1 flex overflow-hidden">
         {/* ─── LEFT / MAIN CANVAS: LIVE WYSIWYG DOCUMENT CANVAS ─── */}
         <main className="flex-1 overflow-y-auto bg-slate-200/70 dark:bg-slate-950 p-4 sm:p-6 flex flex-col items-center">
+          {/* Native Browser Print Override: ensures only the document sheet prints without any controls */}
+          <style>{`
+            @media print {
+              @page {
+                size: A4 ${orientation};
+                margin: 0.32in 0.38in;
+              }
+              body, html {
+                background: white !important;
+                color: black !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+              header, aside, .print\\:hidden, #beneficiary-print-frame {
+                display: none !important;
+              }
+              main {
+                padding: 0 !important;
+                margin: 0 !important;
+                background: white !important;
+                overflow: visible !important;
+                width: 100% !important;
+                display: block !important;
+              }
+              #beneficiary-document-sheet {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+            }
+          `}</style>
+
           {/* Document Sheet Container */}
           <div
             id="beneficiary-document-sheet"
@@ -1172,53 +1263,73 @@ export default function BeneficiarySanctionOrdersView({
               fontSize: tableFontSize
             }}
           >
-            {/* 1. Official School Letterhead Frame (Matches Sample Images) */}
-            <div
-              className={`p-3 relative mb-2.5 text-center ${
-                showLetterheadBorder
-                  ? 'border-2 border-red-700 rounded-xl'
-                  : ''
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                {/* Circular School Logo */}
-                <div className="w-16 h-16 flex-none flex items-center justify-center">
-                  <img
-                    src="/logo.png"
-                    alt="School Emblem"
-                    className="w-14 h-14 object-contain"
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                  />
-                </div>
-
-                {/* Central Institutional Typography */}
-                <div className="flex-1 text-center px-2">
-                  <div className="text-red-700 font-extrabold uppercase tracking-widest text-[13px] leading-tight font-sans">
-                    {officeTitle}
-                  </div>
-                  <h1 className="text-slate-900 font-extrabold text-[20px] tracking-wide leading-tight my-0.5">
-                    {institutionName}
-                  </h1>
-                  <div className="text-slate-700 font-semibold text-[11px] leading-tight">
-                    {institutionAddress}
-                  </div>
-                  <div className="text-sky-700 font-bold text-[10px] tracking-tight leading-tight mt-0.5 font-sans">
-                    {contactLine}
-                  </div>
-                </div>
-
-                {/* Empty right balance spacer */}
-                <div className="w-16 h-16 flex-none" />
+            {/* 1. Official School Letterhead Banner (Exact match with Official Letterhead Writer & Student Certificates) */}
+            <div className="letterhead-banner text-center bg-[#f0f8ff] border-b-[3px] border-[#800000] p-3.5 sm:p-4 rounded-t-lg -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-3 print:!-mx-6 print:!-mt-6 print:!mb-3">
+              <img
+                src="/logo192.png"
+                alt="School Seal"
+                style={{ width: '48px', height: '48px', maxWidth: '48px', maxHeight: '48px', objectFit: 'contain' }}
+                className="w-12 h-12 object-contain mx-auto mb-1.5 drop-shadow-xs"
+                onError={(e) => { e.target.src = '/logo.png'; e.target.onerror = null; }}
+              />
+              <div className="text-[11px] sm:text-xs font-black text-[#800000] uppercase tracking-[1.5px] m-0 font-sans">
+                {officeTitle || 'OFFICE OF THE PRINCIPAL'}
+              </div>
+              <h1 className="text-base sm:text-lg font-black text-[#0a192f] tracking-wide uppercase m-0 mt-0.5 font-serif">
+                {institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}
+              </h1>
+              <div className="text-[10.5px] text-slate-600 font-semibold m-0 mt-0.5 font-sans">
+                {institutionAddress || 'Anantnag, Kashmir — 192201 (J&K)'}
+              </div>
+              <div className="text-[9.5px] text-sky-800 font-bold tracking-tight m-0 mt-0.5 font-sans">
+                {contactLine || 'UDISE: 01061400618 | Email: ghssshangus74@gmail.com'}
               </div>
             </div>
 
-            {/* 2. Ref No & Date Bar */}
-            <div className="flex items-center justify-between font-bold text-[12px] my-1.5 px-1 font-serif">
-              <div>
-                Ref. No: <span className="font-semibold underline ml-1">{refNo}</span>
+            {/* 2. Ref No & Date Bar — Directly Editable inside the letter */}
+            <div className="flex items-center justify-between text-[11.5px] font-bold text-slate-900 my-2 px-1 font-serif border-b border-slate-200 pb-1.5">
+              <div className="flex items-center gap-1.5 group/ref">
+                <span className="text-[#800000] font-extrabold uppercase tracking-wide">Ref. No:</span>
+                <input
+                  type="text"
+                  value={refNo}
+                  onChange={(e) => setRefNo(e.target.value)}
+                  placeholder="e.g. HSS/SHG/MBF/2025-26/01"
+                  title="Click to directly edit Reference Number"
+                  aria-label="Document Reference Number"
+                  className="font-mono font-bold text-slate-900 bg-transparent border-b border-dashed border-slate-300 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1.5 py-0.5 outline-none transition-all w-56 sm:w-64 text-[11px] print:border-none print:bg-transparent print:p-0 print:w-auto"
+                />
+                <div className="print:hidden inline-flex items-center gap-0.5 opacity-60 group-hover/ref:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => handleStepRef(-1)}
+                    title="Decrement Reference Serial Number"
+                    className="w-4 h-4 flex items-center justify-center rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStepRef(1)}
+                    title="Increment Reference Serial Number"
+                    className="w-4 h-4 flex items-center justify-center rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
-              <div>
-                Date: <span className="font-semibold underline ml-1">{dateStr}</span>
+
+              <div className="flex items-center gap-1.5 group/date">
+                <span className="text-[#800000] font-extrabold uppercase tracking-wide">Date:</span>
+                <input
+                  type="text"
+                  value={dateStr}
+                  onChange={(e) => setDateStr(e.target.value)}
+                  placeholder="DD-MM-YYYY"
+                  title="Click to directly edit Issue Date"
+                  aria-label="Document Issue Date"
+                  className="font-mono font-bold text-slate-900 bg-transparent border-b border-dashed border-slate-300 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1.5 py-0.5 outline-none transition-all w-28 text-[11px] text-right print:border-none print:bg-transparent print:p-0 print:w-auto"
+                />
               </div>
             </div>
 
@@ -1438,7 +1549,7 @@ export default function BeneficiarySanctionOrdersView({
         {/* ─── RIGHT SIDEBAR: CONFIGURATION, INGESTION & COLUMN CONTROLS ─── */}
         {showControlsPanel && (
           <aside
-            className="flex-none border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-2.5 space-y-2.5 shadow-xs"
+            className="flex-none border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-2.5 space-y-2.5 shadow-xs print:hidden"
             style={{ width: sidebarWidth }}
           >
             {/* SECTION 1: Bulk Reg No Ingestion & Data Fetching */}
@@ -1484,39 +1595,36 @@ export default function BeneficiarySanctionOrdersView({
                 </div>
               </div>
 
-              {/* Bulk Reg No Textarea */}
-              <div>
+              {/* Reg No(s) Area — Disabled & Merged with Quick Student Finder */}
+              <div className="opacity-75">
                 <div className="flex items-center justify-between mb-0.5">
-                  <label className="text-[9px] font-bold uppercase text-slate-500">Reg No(s)</label>
-                  <span className="text-[9px] text-slate-400 lowercase font-normal">Excel / comma / newline</span>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[9px] font-bold uppercase text-slate-400">Reg No(s)</label>
+                    <span className="text-[8px] bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1 py-0.2 rounded font-semibold uppercase">
+                      Disabled
+                    </span>
+                  </div>
+                  <span className="text-[8.5px] text-slate-400">Merged with Finder below</span>
                 </div>
                 <textarea
-                  value={bulkRegInput}
-                  onChange={(e) => setBulkRegInput(e.target.value)}
+                  disabled
+                  readOnly
+                  value=""
                   rows={2}
-                  placeholder="e.g. 0137040150003845, 0137040150006966...&#10;or paste a whole column of Reg Nos"
-                  className="w-full h-14 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                  placeholder="Disabled — Registration number search has been merged into Quick Student Finder below. Search by Reg No, Roll No, or Name below."
+                  className="w-full h-11 text-[11px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 rounded-md p-1.5 cursor-not-allowed select-none resize-none"
                 />
               </div>
 
-              {/* Fetch & Add Action Button */}
+              {/* Action Buttons */}
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={handleFetchBulkRegs}
-                  disabled={isFetchingRegs}
-                  className="flex-1 h-7 flex items-center justify-center gap-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-2 rounded-md transition-colors shadow-2xs disabled:opacity-50"
+                  disabled
+                  className="flex-1 h-7 flex items-center justify-center gap-1 bg-slate-200 dark:bg-slate-800 text-slate-400 text-xs font-semibold px-2 rounded-md cursor-not-allowed shadow-none"
+                  title="Direct Reg No lookup merged into Quick Student Finder below"
                 >
-                  {isFetchingRegs ? (
-                    <>
-                      <RefreshCw size={12} className="animate-spin" />
-                      <span>Fetching...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={13} />
-                      <span>Fetch & Add</span>
-                    </>
-                  )}
+                  <Sparkles size={12} className="opacity-40" />
+                  <span>Fetch & Add (Merged Below)</span>
                 </button>
 
                 <button
@@ -1529,11 +1637,22 @@ export default function BeneficiarySanctionOrdersView({
                 </button>
               </div>
 
-              {/* Quick Fuzzy Student Search Bar */}
+              {/* Quick Student Finder Bar — Merged Search across Name, Roll, and Reg No */}
               <div className="relative pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                  Quick Student Finder
-                </label>
+                <div className="flex items-center justify-between mb-0.5">
+                  <label className="text-[9px] font-bold uppercase text-slate-700 dark:text-slate-300">
+                    Quick Student Finder (Name, Roll, or Reg No)
+                  </label>
+                  {studentSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setStudentSearchQuery('')}
+                      className="text-[9px] text-slate-400 hover:text-slate-600"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type="text"
@@ -1543,7 +1662,13 @@ export default function BeneficiarySanctionOrdersView({
                       setShowSearchDropdown(true);
                     }}
                     onFocus={() => setShowSearchDropdown(true)}
-                    placeholder="Type student name or roll..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchResults.length > 0) {
+                        e.preventDefault();
+                        handleAddSingleStudent(searchResults[0]);
+                      }
+                    }}
+                    placeholder="Search by name, roll no, or reg no... (Press Enter)"
                     className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md pl-6 pr-2 py-0 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
                   />
                   <Search size={12} className="absolute left-2 top-2 text-slate-400" />
@@ -1606,62 +1731,7 @@ export default function BeneficiarySanctionOrdersView({
               )}
             </div>
 
-            {/* SECTION 2: Reference Number & Date */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Hash size={14} className="text-indigo-600" />
-                  Reference & Date
-                </h2>
-                {refParts.serialNum && (
-                  <span className="text-[9px] font-mono font-bold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded">
-                    Serial #{refParts.serialNum}
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                  Reference Number
-                </label>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleStepRef(-1)}
-                    className="h-7 w-7 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-100 font-bold text-xs shrink-0"
-                    title="Decrement Serial (-1)"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="text"
-                    value={refNo}
-                    onChange={(e) => setRefNo(e.target.value)}
-                    className="flex-1 h-7 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
-                  />
-                  <button
-                    onClick={() => handleStepRef(1)}
-                    className="h-7 w-7 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-100 font-bold text-xs shrink-0"
-                    title="Increment Serial (+1)"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                  Issue Date (DD-MM-YYYY)
-                </label>
-                <input
-                  type="text"
-                  value={dateStr}
-                  onChange={(e) => setDateStr(e.target.value)}
-                  className="w-full h-7 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
-                />
-              </div>
-            </div>
-
-            {/* SECTION 3: Document Title & Styling */}
+            {/* SECTION 2: Document Title & Styling */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
               <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                 <FileText size={14} className="text-amber-600" />
@@ -1713,21 +1783,6 @@ export default function BeneficiarySanctionOrdersView({
                     <option value="11.5px">11.5 pt</option>
                   </select>
                 </div>
-              </div>
-
-              {/* Letterhead Border Checkbox */}
-              <div className="pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showLetterheadBorder}
-                    onChange={(e) => setShowLetterheadBorder(e.target.checked)}
-                    className="rounded text-teal-600 focus:ring-teal-500"
-                  />
-                  <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                    Red Letterhead Border Frame
-                  </span>
-                </label>
               </div>
 
               {/* Bank Debit Directive Toggle */}
