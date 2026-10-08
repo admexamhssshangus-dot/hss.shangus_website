@@ -62,7 +62,7 @@ Whenever completing or verifying changes requested by the user, follow this stri
     2. `src/portal/admin/StaffPermissionsManager.jsx` (ensuring the updated modules, descriptions, categories, and presets appear in the administrative permissions matrix).
     3. `src/portal/admin/AdminToolsDropdown.jsx` (`MODULE_ICONS`, launcher handlers, and `isUserPermittedForModule` backward-compatibility aliases).
     4. `src/portal/admin/AdminDashboard.jsx` (`MODULE_LOADERS`, `mountedTabs`, and tab container mounting).
-    5. Firestore security rules & RBAC (`firestore.rules` and `staffAuthService.js` to ensure proper read/write authorization).
+    5. Firestore security rules & RBAC (`firestore.rules`, `storage.rules`, and `staffAuthService.js` to ensure that when a Standard Admin is granted access to the module, they can operate it 100% end-to-end with zero Firestore/Storage permission-denied errors).
   - This ensures that staff, teachers, administrators, and students always receive the updated interfaces, functionalities, and access privileges seamlessly across portal updates.
 
 ### 8. Practicals & Academic Evaluation Data Boundary Rule
@@ -72,5 +72,20 @@ Whenever completing or verifying changes requested by the user, follow this stri
   - The **Practicals & Award Rolls Portal** (at both Teacher and Admin sides) holds ONLY practical data: Internal Assessment and External Practical.
   - All other examinations—including Pre-Board Examinations, Golden Tests, Mid-term Tests, Unit Assessments, Term End Examinations, and Competitive/OMR tests—are strictly handled and displayed exclusively within the **School Based Assessment Portal** (the third dedicated portal in Teacher Workspace, and the School Based Assessment Suite in Admin Portal).
   - Approvals of Pre-Board and other school examinations are processed exclusively within the **School Based Assessment Portal** and never in the Practicals portal.
+
+### 9. Standard Admin End-to-End Operational Parity & Firebase Rules Rule
+- **Complete End-to-End Operational Parity**:
+  - Whenever a new module or administrative studio is added, or an existing module is updated:
+  - If a **Standard Admin** is granted access/permission for that module, they MUST be able to use that module **100% end-to-end fully**, with the exact same functional capabilities, editing powers, saving controls, batch actions, and export privileges as a Super Admin.
+- **Zero Firebase Permission Issues**:
+  - Previously, all features and backend collections were accessible solely to Super Admin by default. Under the updated architecture, whenever a Standard Admin has access to any module, they must **NEVER** encounter Firebase Firestore or Storage `permission-denied` errors, silent query rejections, or write blockages.
+  - **Mandatory Security Rules Synchronization**:
+    - Whenever a module reads or writes to documents, collections, subcollections, or storage paths:
+    - `firestore.rules` (e.g. `settingsModule()`, `collectionModule()`, match blocks) and `storage.rules` MUST explicitly permit Standard Admins holding that module's permission via `canUse(module)` or `canUseAny([...])`.
+    - Backend security rules must NEVER restrict operational module collections solely to `isSuperAdmin()`.
+- **Zero Client-Side UI Restrictions**:
+  - Client-side code (`staffAuthService.js`, `AdminDashboard.jsx`, and inside individual module components) must NEVER hide or disable module features, buttons, or operational tools behind hardcoded `isSuperAdmin` checks when a Standard Admin holds permission for that module.
+  - If a Standard Admin has permission for a module, they possess full operational authority to create, read, update, delete, batch-process, and export all data handled by that module.
+
 
 

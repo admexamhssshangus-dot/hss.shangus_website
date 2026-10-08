@@ -2,28 +2,19 @@
 
 ## Commit Message
 
-`fix(shell): replace raw pre-render static overview flash with branded institutional splash loader`
+`docs(agents): mandate Standard Admin full end-to-end operational parity and Firebase security rules sync`
 
 ## Files Changed
 
-1. **[public/search-overview.css](file:///d:/Shk_Gulfam/Projects/hss_shangus/public/search-overview.css)**
-   - Added styles for `.hss-splash-screen`, an institutional branded initial loading screen matching the site's emerald and teal aesthetic (`ModernLoader`).
-   - Implemented an animated spinner ring around the school crest, ambient breathing pulse glow, centered institutional typography, "Official Institutional Web Portal" badge, and an animated gradient sweep progress track.
-   - Added full dark mode support via `prefers-color-scheme: dark` and `html.dark` to guarantee seamless contrast on all devices without layout flashes or color clashes.
-   - Preserved all keyboard skip-link accessibility and hydration progress bar styles.
+1. **[AGENTS.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/AGENTS.md)**
+   - Updated Rule 7 (Module & Permissions Catalog Synchronization Rule) item 5 to explicitly require auditing and synchronizing `firestore.rules`, `storage.rules`, and `staffAuthService.js` so that when a Standard Admin is granted access to a module, they operate it 100% end-to-end with zero Firestore/Storage `permission-denied` errors.
+   - Added Rule 9: **Standard Admin End-to-End Operational Parity & Firebase Rules Rule** establishing mandatory guidelines for all future development:
+     - Full operational parity (actions, batch updates, exports, saves, deletes) between permitted Standard Admins and Super Admins.
+     - Mandatory backend security rules synchronization in `firestore.rules` (e.g. `settingsModule()`, `collectionModule()`, match blocks) and `storage.rules` via `canUse(module)` and `canUseAny([...])`.
+     - Complete elimination of hardcoded client-side `isSuperAdmin` check lockouts within modules.
 
-2. **[scripts/generate-search-pages.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/generate-search-pages.js)**
-   - Updated `renderOverview(page)` to render `renderSplashScreen()` on top of the crawlable semantic overview inside `<div id="root">`.
-   - Included `<noscript><style>.hss-splash-screen{display:none!important;}</style></noscript>` so JavaScript-disabled browsers and crawlers can immediately read the static institutional overview.
-   - Maintained strict compliance with all SEO assertions (`#root h1` length = 1, `#root main` text > 180 chars, crawlable `#root nav` links).
-   - Eliminated the jarring flash of unstyled content (FOUC) where users saw raw pill buttons and the static preview card before React hydration.
-
-3. **[public/index.html](file:///d:/Shk_Gulfam/Projects/hss_shangus/public/index.html)**
-   - Updated `<style id="initial-loader-css">` and `<div id="root">` with the identical branded splash screen markup and styles.
-   - Ensures local development (`npm start`) and the production SPA fallback (`app-shell.html`) share the same unified, high-fidelity loading experience.
-
-4. **[public/service-worker.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/public/service-worker.js)**
-   - Bumped cache version to `hss-shangus-v7-perf-boost` to ensure existing client browsers automatically purge older cached HTML shells and activate the refreshed branded loader.
+2. **[.agents/AGENTS.md](file:///d:/Shk_Gulfam/Projects/hss_shangus/.agents/AGENTS.md)**
+   - Synchronized root agent instructions with the identical updates to Rule 7 and Rule 9.
 
 ---
 
@@ -42,7 +33,7 @@ If you wish to edit the commit message or modify files before pushing:
 git reset --soft HEAD~1
 # Make desired adjustments, then:
 git add .
-git commit -m "fix(shell): replace raw pre-render static overview flash with branded institutional splash loader"
+git commit -m "docs(agents): mandate Standard Admin full end-to-end operational parity and Firebase security rules sync"
 ```
 
 ### 3. Push to Remote Repository
