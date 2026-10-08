@@ -44,6 +44,8 @@ export function printOfficialLetter({
   signatoryDesignation = 'Principal',
   signatoryInstitution = 'Govt. Hr Sec. School Shangus',
   secondarySignatory = null,
+  complimentaryClose = 'Yours faithfully,',
+  baseFontSize = '12.5px',
   copyToText = '',
   pageMargin = '0.5in',
   headerLayout = 'logo_right'
@@ -78,7 +80,8 @@ export function printOfficialLetter({
         .letter-container {
           width: 100%;
           max-width: 100%;
-          /* Top Official Letterhead Banner */
+        }
+        /* Top Official Letterhead Banner */
         .letterhead-banner {
           background-color: #f0f8ff !important;
           border-bottom: 3px solid #800000;
@@ -140,7 +143,7 @@ export function printOfficialLetter({
         }
         /* Main Body Content */
         .letter-body {
-          font-size: 12.5px;
+          font-size: ${baseFontSize || '12.5px'};
           color: #0f172a;
           line-height: 1.6;
           min-height: 140px;
@@ -184,22 +187,34 @@ export function printOfficialLetter({
         }
         .sig-box {
           text-align: center;
-          min-width: 180px;
+          width: 224px;
+          min-width: 224px;
+        }
+        .sig-close {
+          font-size: ${baseFontSize || '12.5px'};
+          font-weight: 600;
+          color: #0f172a;
+          text-align: center;
+          margin-bottom: 24px;
         }
         .sig-name {
           font-size: 11.5px;
           font-weight: 700;
           color: #0f172a;
+          text-align: center;
         }
         .sig-desig {
           font-size: 12px;
           font-weight: 900;
           color: #0a192f;
+          text-transform: uppercase;
+          text-align: center;
         }
         .sig-inst {
           font-size: 10.5px;
           font-weight: 600;
           color: #334155;
+          text-align: center;
         }
         /* Copy to block */
         .copy-to-block {
@@ -252,14 +267,15 @@ export function printOfficialLetter({
         <!-- Signatories -->
         <div class="signatories-block">
           ${secondarySignatory ? `
-            <div class="sig-box" style="text-align: left;">
+            <div class="sig-box" style="text-align: left; width: 200px;">
               ${secondarySignatory.name ? `<div class="sig-name">${secondarySignatory.name}</div>` : ''}
               <div class="sig-desig">${secondarySignatory.designation || 'Dealing Assistant'}</div>
               <div class="sig-inst">${secondarySignatory.institution || institutionName}</div>
             </div>
           ` : ''}
 
-          <div class="sig-box" style="text-align: right;">
+          <div class="sig-box" style="text-align: center; width: 224px; min-width: 224px;">
+            ${complimentaryClose ? `<div class="sig-close">${complimentaryClose}</div>` : ''}
             ${signatoryName ? `<div class="sig-name">${signatoryName}</div>` : ''}
             <div class="sig-desig">${signatoryDesignation || 'Principal'}</div>
             <div class="sig-inst">${signatoryInstitution || institutionName}</div>
@@ -322,17 +338,23 @@ export async function generateOfficialLetterDocx({
   dateStr = '',
   bodyText = '',
   bodyHtml = '',
+  signatoryName = '',
   signatoryDesignation = 'Principal',
   signatoryInstitution = 'Govt. Hr Sec. School Shangus',
+  complimentaryClose = 'Yours faithfully,',
+  baseFontSize = '13px',
   copyToText = ''
 }) {
   const finalDate = dateStr || new Date().toLocaleDateString('en-GB');
+
+  const fontSizePx = parseInt(baseFontSize, 10) || 13;
+  const docxFontSizeHalfPt = Math.max(18, Math.min(36, Math.round(fontSizePx * 1.85)));
 
   // Convert HTML or plain text into native docx elements (Tables, Paragraphs, TextRuns)
   const contentToConvert = bodyHtml || (bodyText ? `<p>${bodyText.replace(/\n/g, '<br/>')}</p>` : '');
   const bodyDocxElements = convertHtmlToDocxElements(contentToConvert, {
     defaultFont: 'Calibri',
-    defaultSize: 24, // 12pt
+    defaultSize: docxFontSizeHalfPt,
     defaultAlign: 'left',
     lineSpacing: 280
   });
@@ -439,15 +461,44 @@ export async function generateOfficialLetterDocx({
         // Body Content (Full HTML with native tables, paragraphs, text styles, lists)
         ...bodyDocxElements,
 
-        // Signature Spacing & Block
-        new Paragraph({ spacing: { before: 400, after: 40 } }),
+        // Complimentary Close / Valediction & Signature Spacing & Block
+        ...(complimentaryClose ? [
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            spacing: { before: 240, after: 280 },
+            children: [
+              new TextRun({
+                text: complimentaryClose,
+                size: docxFontSizeHalfPt,
+                font: 'Calibri'
+              })
+            ]
+          })
+        ] : [
+          new Paragraph({ spacing: { before: 360, after: 30 } })
+        ]),
+        ...(signatoryName ? [
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 20 },
+            children: [
+              new TextRun({
+                text: signatoryName,
+                bold: true,
+                size: Math.max(18, docxFontSizeHalfPt - 2),
+                color: '0F172A',
+                font: 'Calibri'
+              })
+            ]
+          })
+        ] : []),
         new Paragraph({
           alignment: AlignmentType.RIGHT,
           children: [
             new TextRun({
-              text: signatoryDesignation,
+              text: (signatoryDesignation || 'Principal').toUpperCase(),
               bold: true,
-              size: 23,
+              size: Math.max(20, docxFontSizeHalfPt),
               color: '0A192F',
               font: 'Calibri'
             })
@@ -459,7 +510,7 @@ export async function generateOfficialLetterDocx({
           children: [
             new TextRun({
               text: signatoryInstitution,
-              size: 20,
+              size: Math.max(18, docxFontSizeHalfPt - 3),
               color: '334155',
               font: 'Calibri'
             })

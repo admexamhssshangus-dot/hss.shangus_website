@@ -98,8 +98,6 @@ Govt. Higher Secondary School Shangus.</p>
 </table>
 
 <p>All class incharges are advised to ensure proper entry in the student register and deposit the collected amount with the cashier against proper institutional receipt.</p>
-
-<p>Yours faithfully,</p>
     `,
     copyTo: ''
   },
@@ -126,8 +124,6 @@ District Anantnag, Kashmir.</p>
 <p>The total enrollment and category-wise statistics are enclosed in the annexed roster sheets for your kind perusal and official record.</p>
 
 <p>Thanking you.</p>
-
-<p>Yours faithfully,</p>
     `,
     copyTo: ''
   },
@@ -171,8 +167,6 @@ District Anantnag, Kashmir.</p>
 <p>Respected Sir / Madam,</p>
 
 <p>[Type your official letter body content here. You can format text with Bold, Italic, Underline, Bulleted / Numbered lists, and Tables using the toolbar above, or use the Gemini AI Assistant to draft it automatically.]</p>
-
-<p>Yours faithfully,</p>
     `,
     copyTo: ''
   }
@@ -205,6 +199,14 @@ export default function OfficialLetterWriterView({
   const [signatoryName, setSignatoryName] = useState('');
   const [signatoryDesignation, setSignatoryDesignation] = useState('Principal');
   const [signatoryInstitution, setSignatoryInstitution] = useState('Govt. Hr Sec. School Shangus');
+  const [complimentaryClose, setComplimentaryClose] = useState('Yours faithfully,');
+  const [baseFontSize, setBaseFontSize] = useState(() => {
+    try {
+      return localStorage.getItem('hss_letter_base_font_size') || '13px';
+    } catch {
+      return '13px';
+    }
+  });
   const [copyToText, setCopyToText] = useState(''); // Default: Empty, do not show by default
   const [pageMargin, setPageMargin] = useState('0.5in');
   const [headerLayout, setHeaderLayout] = useState('logo_right'); // 'logo_right' (default) | 'logo_center' | 'logo_left'
@@ -512,6 +514,8 @@ export default function OfficialLetterWriterView({
             signatoryName,
             signatoryDesignation,
             signatoryInstitution,
+            complimentaryClose,
+            baseFontSize,
             copyToText,
             pageMargin,
             headerLayout,
@@ -601,6 +605,8 @@ export default function OfficialLetterWriterView({
               if (draft.signatoryName !== undefined) setSignatoryName(draft.signatoryName);
               if (draft.signatoryDesignation !== undefined) setSignatoryDesignation(draft.signatoryDesignation);
               if (draft.signatoryInstitution !== undefined) setSignatoryInstitution(draft.signatoryInstitution);
+              if (draft.complimentaryClose !== undefined) setComplimentaryClose(draft.complimentaryClose);
+              if (draft.baseFontSize !== undefined) setBaseFontSize(draft.baseFontSize);
               if (draft.pageMargin !== undefined) setPageMargin(draft.pageMargin);
               if (draft.headerLayout !== undefined) setHeaderLayout(draft.headerLayout);
               if (draft.copyToText !== undefined) setCopyToText(draft.copyToText || '');
@@ -626,6 +632,8 @@ export default function OfficialLetterWriterView({
           if (targetTpl.signatoryName !== undefined) setSignatoryName(targetTpl.signatoryName);
           if (targetTpl.signatoryDesignation !== undefined) setSignatoryDesignation(targetTpl.signatoryDesignation);
           if (targetTpl.signatoryInstitution !== undefined) setSignatoryInstitution(targetTpl.signatoryInstitution);
+          if (targetTpl.complimentaryClose !== undefined) setComplimentaryClose(targetTpl.complimentaryClose);
+          if (targetTpl.baseFontSize !== undefined) setBaseFontSize(targetTpl.baseFontSize);
           if (targetTpl.pageMargin !== undefined) setPageMargin(targetTpl.pageMargin);
           if (targetTpl.headerLayout !== undefined) setHeaderLayout(targetTpl.headerLayout);
           if (targetTpl.copyTo !== undefined) setCopyToText(targetTpl.copyTo || '');
@@ -819,6 +827,84 @@ export default function OfficialLetterWriterView({
       checkActiveFormats();
     }, 50);
     showToast(`Color applied (${color})`, 'info', 1500);
+  };
+
+  // ── Font Size Controls (Supports both letter-wide scaling & selected text) ──
+  const FONT_SIZES = ['11px', '12px', '13px', '14px', '15px', '16px', '18px'];
+
+  const handleSetFontSize = (size) => {
+    setBaseFontSize(size);
+    try {
+      localStorage.setItem('hss_letter_base_font_size', size);
+    } catch {}
+
+    const sel = window.getSelection();
+    let activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel && editorRef.current?.contains(activeRange.commonAncestorContainer)) {
+      try {
+        sel.removeAllRanges();
+        sel.addRange(activeRange);
+      } catch {}
+    }
+
+    if (sel && sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed && editorRef.current?.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      // Apply inline font size to selected text
+      pushSnapshot();
+      try {
+        const range = sel.getRangeAt(0);
+        const span = document.createElement('span');
+        span.style.fontSize = size;
+        span.appendChild(range.extractContents());
+        range.insertNode(span);
+        const newRange = document.createRange();
+        newRange.selectNodeContents(span);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        saveCurrentSelection();
+        handleEditorInput();
+      } catch (e) {
+        console.warn('Font size selection styling error:', e);
+      }
+    } else {
+      // Document wide base font size update
+      if (editorRef.current) {
+        editorRef.current.style.fontSize = size;
+      }
+      handleEditorInput();
+    }
+    showToast(`Font size set to ${size}`, 'info', 1200);
+  };
+
+  const handleAdjustFontSize = (delta) => {
+    const sel = window.getSelection();
+    let activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel && editorRef.current?.contains(activeRange.commonAncestorContainer)) {
+      try {
+        sel.removeAllRanges();
+        sel.addRange(activeRange);
+      } catch {}
+    }
+
+    if (sel && sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed && editorRef.current?.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      let node = sel.getRangeAt(0).commonAncestorContainer;
+      if (node.nodeType === 3) node = node.parentNode;
+      const computed = window.getComputedStyle(node).fontSize;
+      const currentPx = parseInt(computed, 10) || parseInt(baseFontSize, 10) || 13;
+      const newPx = Math.max(10, Math.min(26, currentPx + delta));
+      handleSetFontSize(`${newPx}px`);
+    } else {
+      const currentIdx = FONT_SIZES.indexOf(baseFontSize);
+      let nextIdx;
+      if (currentIdx !== -1) {
+        nextIdx = Math.max(0, Math.min(FONT_SIZES.length - 1, currentIdx + delta));
+      } else {
+        const currentPx = parseInt(baseFontSize, 10) || 13;
+        const targetPx = currentPx + delta;
+        nextIdx = FONT_SIZES.findIndex(s => parseInt(s, 10) >= targetPx);
+        if (nextIdx === -1) nextIdx = delta > 0 ? FONT_SIZES.length - 1 : 0;
+      }
+      handleSetFontSize(FONT_SIZES[nextIdx]);
+    }
   };
 
   // Helper to find closest table elements (with persistent fallback cache)
@@ -1117,6 +1203,8 @@ export default function OfficialLetterWriterView({
     if (tpl.signatoryName !== undefined) setSignatoryName(tpl.signatoryName);
     if (tpl.signatoryDesignation !== undefined) setSignatoryDesignation(tpl.signatoryDesignation);
     if (tpl.signatoryInstitution !== undefined) setSignatoryInstitution(tpl.signatoryInstitution);
+    if (tpl.complimentaryClose !== undefined) setComplimentaryClose(tpl.complimentaryClose);
+    if (tpl.baseFontSize !== undefined) setBaseFontSize(tpl.baseFontSize);
     if (tpl.pageMargin !== undefined) setPageMargin(tpl.pageMargin);
     if (tpl.headerLayout !== undefined) setHeaderLayout(tpl.headerLayout);
     if (tpl.copyTo !== undefined) setCopyToText(tpl.copyTo || '');
@@ -1178,6 +1266,8 @@ export default function OfficialLetterWriterView({
       signatoryName: signatoryName || '',
       signatoryDesignation: signatoryDesignation || 'Principal',
       signatoryInstitution: signatoryInstitution || 'Govt. Hr Sec. School Shangus',
+      complimentaryClose: complimentaryClose !== undefined ? complimentaryClose : 'Yours faithfully,',
+      baseFontSize: baseFontSize || '13px',
       pageMargin: pageMargin || '0.5in',
       headerLayout: headerLayout || 'logo_right',
       bodyHtml: editorRef.current.innerHTML,
@@ -1201,7 +1291,7 @@ export default function OfficialLetterWriterView({
       setShowSaveTemplateModal(false);
       setNewTplName('');
       setNewTplDesc('');
-      showToast(`â˜�ï¸� Template "${templateData.name}" successfully saved to Cloud Database!`, 'success');
+      showToast(`☁️ Template "${templateData.name}" successfully saved to Cloud Database!`, 'success');
     } catch (err) {
       console.error(err);
       showToast(`Template saved locally (Cloud sync note: ${err.message})`, 'warning');
@@ -1224,6 +1314,8 @@ export default function OfficialLetterWriterView({
       signatoryName: signatoryName || '',
       signatoryDesignation: signatoryDesignation || 'Principal',
       signatoryInstitution: signatoryInstitution || 'Govt. Hr Sec. School Shangus',
+      complimentaryClose: complimentaryClose !== undefined ? complimentaryClose : 'Yours faithfully,',
+      baseFontSize: baseFontSize || '13px',
       pageMargin: pageMargin || '0.5in',
       headerLayout: headerLayout || 'logo_right',
       bodyHtml: editorRef.current.innerHTML,
@@ -1295,6 +1387,43 @@ export default function OfficialLetterWriterView({
     setTimeout(pushSnapshot, 50);
   };
 
+  const insertValedictionLine = () => {
+    pushSnapshot();
+    executeFormat('insertHTML', '<div style="margin-top:16px; margin-left:auto; margin-right:0; width:224px; text-align:center; font-weight:600;">Yours faithfully,</div><p><br/></p>');
+    setTimeout(pushSnapshot, 50);
+    showToast('Inserted "Yours faithfully," aligned to Principal', 'info', 2000);
+  };
+
+  const alignWithSignatoryBlock = () => {
+    if (!editorRef.current) return;
+    pushSnapshot();
+    editorRef.current.focus();
+    const sel = window.getSelection();
+    let activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel && editorRef.current.contains(activeRange.commonAncestorContainer)) {
+      try {
+        sel.removeAllRanges();
+        sel.addRange(activeRange);
+      } catch {}
+    }
+    if (sel && sel.rangeCount > 0) {
+      let node = sel.getRangeAt(0).commonAncestorContainer;
+      if (node.nodeType === 3) node = node.parentNode;
+      const block = node?.closest('p, div, h1, h2, h3, h4, h5, h6, li');
+      if (block && editorRef.current.contains(block)) {
+        block.style.marginLeft = 'auto';
+        block.style.marginRight = '0';
+        block.style.width = '224px';
+        block.style.textAlign = 'center';
+        saveCurrentSelection();
+        handleEditorInput();
+        showToast('Aligned block with Principal signatory box below', 'info', 2000);
+        return;
+      }
+    }
+    showToast('Place cursor on the line to align with Principal box', 'warning', 2500);
+  };
+
   // Save Draft to LocalStorage & History Archive
   const handleSaveDraft = () => {
     if (!editorRef.current) return;
@@ -1309,6 +1438,8 @@ export default function OfficialLetterWriterView({
       signatoryName,
       signatoryDesignation,
       signatoryInstitution,
+      complimentaryClose,
+      baseFontSize,
       copyToText,
       pageMargin,
       headerLayout,
@@ -1342,6 +1473,8 @@ export default function OfficialLetterWriterView({
           signatoryName,
           signatoryDesignation,
           signatoryInstitution,
+          complimentaryClose,
+          baseFontSize,
           copyToText,
           pageMargin,
           headerLayout
@@ -1381,6 +1514,8 @@ export default function OfficialLetterWriterView({
           signatoryName,
           signatoryDesignation,
           signatoryInstitution,
+          complimentaryClose,
+          baseFontSize,
           copyToText,
           pageMargin,
           headerLayout
@@ -1401,6 +1536,8 @@ export default function OfficialLetterWriterView({
     if (rec.extraData?.copyToText !== undefined) setCopyToText(rec.extraData.copyToText);
     if (rec.extraData?.signatoryName) setSignatoryName(rec.extraData.signatoryName);
     if (rec.extraData?.signatoryDesignation) setSignatoryDesignation(rec.extraData.signatoryDesignation);
+    if (rec.extraData?.complimentaryClose !== undefined) setComplimentaryClose(rec.extraData.complimentaryClose);
+    if (rec.extraData?.baseFontSize !== undefined) setBaseFontSize(rec.extraData.baseFontSize);
     if (rec.bodyHtml && editorRef.current) {
       editorRef.current.innerHTML = rec.bodyHtml;
       pushSnapshot();
@@ -1435,6 +1572,8 @@ export default function OfficialLetterWriterView({
         signatoryName,
         signatoryDesignation,
         signatoryInstitution,
+        complimentaryClose,
+        baseFontSize,
         copyToText,
         pageMargin,
         headerLayout
@@ -1460,6 +1599,8 @@ export default function OfficialLetterWriterView({
       signatoryName,
       signatoryDesignation,
       signatoryInstitution,
+      complimentaryClose,
+      baseFontSize,
       copyToText,
       pageMargin,
       headerLayout
@@ -1519,6 +1660,8 @@ export default function OfficialLetterWriterView({
         signatoryName,
         signatoryDesignation,
         signatoryInstitution,
+        complimentaryClose,
+        baseFontSize,
         copyToText,
         pageMargin,
         headerLayout
@@ -1535,8 +1678,11 @@ export default function OfficialLetterWriterView({
         dateStr,
         bodyText: textContent,
         bodyHtml: bodyHtml,
+        signatoryName,
         signatoryDesignation,
         signatoryInstitution,
+        complimentaryClose,
+        baseFontSize,
         copyToText
       });
 
@@ -1740,6 +1886,34 @@ export default function OfficialLetterWriterView({
               </select>
             </div>
 
+            {/* Base Font Size */}
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">Base Font Size</label>
+              <select
+                value={baseFontSize}
+                onChange={(e) => handleSetFontSize(e.target.value)}
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+              >
+                {FONT_SIZES.map(s => (
+                  <option key={s} value={s}>{s} {s === '13px' ? '(Standard)' : ''}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Complimentary Close / Valediction */}
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">
+                Valediction / Close <span className="text-slate-400 font-normal lowercase">(over Principal)</span>
+              </label>
+              <input
+                type="text"
+                value={complimentaryClose}
+                onChange={(e) => setComplimentaryClose(e.target.value)}
+                placeholder="Yours faithfully,"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+              />
+            </div>
+
             {/* Copy To / Dispatch block */}
             <div>
               <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">
@@ -1897,6 +2071,34 @@ export default function OfficialLetterWriterView({
                     <option value="0.75in">0.75" Med</option>
                     <option value="1.0in">1.0" Wide</option>
                   </select>
+                </div>
+
+                {/* Base Font Size */}
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">Base Font Size</label>
+                  <select
+                    value={baseFontSize}
+                    onChange={(e) => handleSetFontSize(e.target.value)}
+                    className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                  >
+                    {FONT_SIZES.map(s => (
+                      <option key={s} value={s}>{s} {s === '13px' ? '(Standard)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Complimentary Close / Valediction */}
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">
+                    Valediction / Close <span className="text-slate-400 font-normal lowercase">(over Principal)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={complimentaryClose}
+                    onChange={(e) => setComplimentaryClose(e.target.value)}
+                    placeholder="Yours faithfully,"
+                    className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                  />
                 </div>
 
                 {/* Copy To / Dispatch block */}
@@ -2173,6 +2375,40 @@ export default function OfficialLetterWriterView({
                     </button>
                   </div>
 
+                  {/* Font Size Stepper */}
+                  <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-[9px] font-bold text-slate-500">Font Size:</span>
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleAdjustFontSize(-1)}
+                        className="w-6 h-6 rounded bg-white dark:bg-slate-700 font-black text-xs text-slate-800 dark:text-slate-200 flex items-center justify-center cursor-pointer shadow-2xs"
+                        title="Decrease Font Size (A⁻)"
+                      >
+                        A⁻
+                      </button>
+                      <select
+                        value={baseFontSize}
+                        onChange={(e) => handleSetFontSize(e.target.value)}
+                        className="text-[10px] font-bold text-slate-800 dark:text-slate-200 bg-transparent outline-none px-1 py-0.5"
+                      >
+                        {FONT_SIZES.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleAdjustFontSize(1)}
+                        className="w-6 h-6 rounded bg-white dark:bg-slate-700 font-black text-xs text-slate-800 dark:text-slate-200 flex items-center justify-center cursor-pointer shadow-2xs"
+                        title="Increase Font Size (A⁺)"
+                      >
+                        A⁺
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Inline Styles: B, I, U, S, Clear */}
                   <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
                     <button
@@ -2252,7 +2488,7 @@ export default function OfficialLetterWriterView({
               {mobileDropdownOpen === 'layout' && (
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-1 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-56 max-w-[calc(100vw-1.5rem)] space-y-2 animate-fadeIn"
+                  className="absolute right-1 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-64 max-w-[calc(100vw-1.5rem)] space-y-2 animate-fadeIn"
                 >
                   <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400">
                     <span>Layout & Structure</span>
@@ -2271,37 +2507,47 @@ export default function OfficialLetterWriterView({
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => executeFormat('justifyLeft')}
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyLeft ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center ${activeFormats.justifyLeft ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
                       title="Align Left"
                     >
-                      <AlignLeft size={12} />
+                      <AlignLeft size={11} />
                     </button>
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => executeFormat('justifyCenter')}
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyCenter ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center ${activeFormats.justifyCenter ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
                       title="Align Center"
                     >
-                      <AlignCenter size={12} />
+                      <AlignCenter size={11} />
                     </button>
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => executeFormat('justifyRight')}
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyRight ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center ${activeFormats.justifyRight ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
                       title="Align Right"
                     >
-                      <AlignRight size={12} />
+                      <AlignRight size={11} />
                     </button>
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => executeFormat('justifyFull')}
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyFull ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center ${activeFormats.justifyFull ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
                       title="Justify"
                     >
-                      <AlignJustify size={12} />
+                      <AlignJustify size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { alignWithSignatoryBlock(); setMobileDropdownOpen(null); }}
+                      className="h-6 px-1.5 rounded-lg flex items-center justify-center gap-0.5 hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-[8.5px] font-black"
+                      title="Align Line with Principal Signatory Box below"
+                    >
+                      <span>✍️</span>
+                      <span>To Principal</span>
                     </button>
                   </div>
 
@@ -2532,8 +2778,8 @@ export default function OfficialLetterWriterView({
                   saveCurrentSelection();
                   checkActiveFormats();
                 }}
-                className="official-letter-wysiwyg-content outline-none focus:ring-1 focus:ring-amber-400 rounded-lg p-2 min-h-[160px] text-[13px] leading-relaxed text-slate-900"
-                style={{ textAlign: 'justify' }}
+                className="official-letter-wysiwyg-content outline-none focus:ring-1 focus:ring-amber-400 rounded-lg p-2 min-h-[160px] leading-relaxed text-slate-900"
+                style={{ fontSize: baseFontSize, textAlign: 'justify' }}
               />
             </div>
 
@@ -2542,6 +2788,20 @@ export default function OfficialLetterWriterView({
               {/* Signatory Block — Positioned closely below body */}
               <div className="flex justify-end text-right">
                 <div className="w-56 text-center space-y-0.5">
+                  {/* Complimentary Close / Valediction — Centered directly over Principal */}
+                  <input
+                    type="text"
+                    value={complimentaryClose}
+                    onChange={(e) => setComplimentaryClose(e.target.value)}
+                    placeholder="Yours faithfully,"
+                    title="Complimentary Close / Valediction (Centered directly over Principal) — Click to edit or leave blank"
+                    className="studio-inline-input w-full text-center font-semibold text-slate-800 bg-transparent border-b border-dashed border-amber-300/70 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all print:border-none print:p-0 print:bg-transparent"
+                    style={{ fontSize: baseFontSize }}
+                  />
+
+                  {/* Physical signature space */}
+                  <div className="h-6 print:h-8" />
+
                   {signatoryName && (
                     <div className="font-bold text-xs text-slate-800">{signatoryName}</div>
                   )}
@@ -2715,6 +2975,46 @@ export default function OfficialLetterWriterView({
 
                   <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
 
+                  {/* Font Size Stepper (A⁻ / Size Select / A⁺) */}
+                  <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/80 rounded-md border border-slate-200/70 dark:border-slate-700/70 px-0.5 shadow-2xs" title="Adjust document base font or selected text size">
+                    <button
+                      type="button"
+                      title="Decrease Font Size (A⁻)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleAdjustFontSize(-1)}
+                      className="w-5 h-5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                    >
+                      A⁻
+                    </button>
+                    <select
+                      value={baseFontSize}
+                      onChange={(e) => handleSetFontSize(e.target.value)}
+                      title="Letter Base / Selection Font Size"
+                      className="h-5 px-0.5 bg-transparent text-[10px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                    >
+                      <option value="11px">11px</option>
+                      <option value="12px">12px</option>
+                      <option value="12.5px">12.5px</option>
+                      <option value="13px">13px</option>
+                      <option value="13.5px">13.5px</option>
+                      <option value="14px">14px</option>
+                      <option value="15px">15px</option>
+                      <option value="16px">16px</option>
+                      <option value="18px">18px</option>
+                    </select>
+                    <button
+                      type="button"
+                      title="Increase Font Size (A⁺)"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleAdjustFontSize(1)}
+                      className="w-5 h-5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                    >
+                      A⁺
+                    </button>
+                  </div>
+
+                  <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
                   <div className="flex items-center gap-0.5">
                     <button
                       type="button"
@@ -2846,6 +3146,18 @@ export default function OfficialLetterWriterView({
                       className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-all ${activeFormats.justifyFull ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
                     >
                       <AlignJustify size={11} />
+                    </button>
+
+                    {/* Align with Principal Block below */}
+                    <button
+                      type="button"
+                      title='Align selected line to match "Principal" block below (width 224px, centered over Principal)'
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={alignWithSignatoryBlock}
+                      className="h-6 px-1.5 rounded flex items-center gap-1 font-bold text-[9px] bg-amber-50 hover:bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 border border-amber-300 dark:border-amber-700 cursor-pointer transition-all active:scale-95 ml-0.5"
+                    >
+                      <span>✍️</span>
+                      <span className="hidden xl:inline text-[9px]">To Principal</span>
                     </button>
                   </div>
 
@@ -3580,6 +3892,26 @@ export default function OfficialLetterWriterView({
                           <Minus size={11} className="text-slate-500" />
                           <span>Divider Line</span>
                         </button>
+                        <div className="pt-1 mt-0.5 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => { insertValedictionLine(); setShowQuickInsertMenu(false); }}
+                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/50 text-amber-900 dark:text-amber-300 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                            title="Insert 'Yours faithfully,' with matching 224px width centered over Principal block below"
+                          >
+                            <span className="text-amber-600 font-bold text-xs">✍️</span>
+                            <span>"Yours faithfully," (Aligned to Principal)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { alignWithSignatoryBlock(); setShowQuickInsertMenu(false); }}
+                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/50 text-amber-900 dark:text-amber-300 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                            title="Re-align the selected line or paragraph to center right over the Principal block"
+                          >
+                            <span className="text-amber-600 font-bold text-xs">↔️</span>
+                            <span>Align Current Line to Principal Box</span>
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
