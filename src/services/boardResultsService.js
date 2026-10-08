@@ -55,6 +55,61 @@ function notifySync(action, id) {
 }
 
 /**
+ * Deduplicate board result cohorts by ID and composite key (class + examPeriod).
+ * Ensures no duplicate cohort sessions ever exist in memory or UI.
+ */
+export function deduplicateBoardCohorts(cohorts) {
+  if (!Array.isArray(cohorts)) return [];
+  const seenIds = new Set();
+  const seenCompositeKeys = new Set();
+  const deduped = [];
+
+  for (const c of cohorts) {
+    if (!c) continue;
+    const idKey = String(c.id || '').trim().toLowerCase();
+    const compKey = `${c.class || ''}__${String(c.examPeriod || c.session || '').trim().toLowerCase()}`;
+
+    // Skip if either the unique document ID or class+period key has already been seen
+    if (idKey && seenIds.has(idKey)) continue;
+    if (seenCompositeKeys.has(compKey)) continue;
+
+    if (idKey) seenIds.add(idKey);
+    seenCompositeKeys.add(compKey);
+    deduped.push(c);
+  }
+
+  return deduped;
+}
+
+/**
+ * Deduplicate toppers within a cohort to guarantee no student or roll number is duplicated.
+ */
+export function deduplicateToppers(toppers) {
+  if (!Array.isArray(toppers)) return [];
+  const seenRolls = new Set();
+  const seenNames = new Set();
+  const uniqueToppers = [];
+
+  for (const t of toppers) {
+    if (!t) continue;
+    const roll = String(t.rollNo || '').trim().toLowerCase();
+    const name = String(t.name || t.studentName || '').trim().toLowerCase();
+
+    // Check duplicate roll number (if provided)
+    if (roll && seenRolls.has(roll)) continue;
+
+    // Check duplicate identical name within same cohort if roll is empty
+    if (!roll && name && seenNames.has(name)) continue;
+
+    if (roll) seenRolls.add(roll);
+    if (name) seenNames.add(name);
+    uniqueToppers.push(t);
+  }
+
+  return uniqueToppers;
+}
+
+/**
  * Helper to build the 8 standard gazette indicators from summary statistics.
  */
 export function buildIndicatorsFromStats(stats, originalIndicators = []) {
@@ -86,6 +141,7 @@ export function buildIndicatorsFromStats(stats, originalIndicators = []) {
 /**
  * Fetch all board result cohorts from Firestore.
  * Automatically seeds default cohorts if Firestore is empty so the admin can immediately edit.
+ * Strictly deduplicates returned cohorts by ID and session.
  */
 export async function fetchAllBoardResults(forceRefresh = false) {
   const now = Date.now();
@@ -107,6 +163,9 @@ export async function fetchAllBoardResults(forceRefresh = false) {
       }
     }
 
+    // Deduplicate any duplicate documents
+    items = deduplicateBoardCohorts(items);
+
     // Sort cohorts: Class order (12th, 11th, 10th), then session/order descending
     const classWeight = { '12th': 3, '11th': 2, '10th': 1 };
     items.sort((a, b) => {
@@ -122,20 +181,26 @@ export async function fetchAllBoardResults(forceRefresh = false) {
   } catch (err) {
     console.error('[boardResultsService] fetchAllBoardResults error:', err);
     // Graceful fallback to static data
-    return ALL_BOARD_RESULTS;
+    return deduplicateBoardCohorts(ALL_BOARD_RESULTS);
   }
 }
 
 /**
  * Save (create or update) a board result cohort in Firestore.
+ * Uses deterministic canonical IDs and topper deduplication to prevent duplicate entries.
  */
 export async function saveBoardResultCohort(cohortData, userEmail = 'admin') {
   if (!cohortData || typeof cohortData !== 'object') {
     throw new Error('Cohort data payload is required');
   }
 
-  const rawId = cohortData.id || `${cohortData.class || '12th'}-${(cohortData.session || '2024-25').toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now().toString(36)}`;
-  const id = String(rawId).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+  // Canonical slug generator to ensure idempotent writes
+  const periodSlug = (cohortData.examPeriod || cohortData.session || 'regular')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const canonicalId = `${cohortData.class || '12th'}-${periodSlug}`;
+  const id = String(cohortData.id || canonicalId).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
   const now = new Date().toISOString();
 
   // Normalize stats
@@ -154,6 +219,10 @@ export async function saveBoardResultCohort(cohortData, userEmail = 'admin') {
   // Re-generate indicators from stats to keep them 100% in sync
   const indicators = buildIndicatorsFromStats(summaryStats, cohortData.indicators);
 
+  // Deduplicate toppers to prevent repeated students or roll numbers
+  const rawToppers = Array.isArray(cohortData.toppers) ? cohortData.toppers : [];
+  const dedupedToppers = deduplicateToppers(rawToppers);
+
   const payload = {
     id,
     class: String(cohortData.class || '12th').trim(),
@@ -164,9 +233,9 @@ export async function saveBoardResultCohort(cohortData, userEmail = 'admin') {
     schoolName: String(cohortData.schoolName || 'Govt. Higher Secondary School Shangus').trim(),
     summaryStats,
     indicators,
-    toppers: Array.isArray(cohortData.toppers) ? cohortData.toppers.map((t, idx) => ({
+    toppers: dedupedToppers.map((t, idx) => ({
       rollNo: String(t.rollNo || '').trim(),
-      name: String(t.name || '').trim(),
+      name: String(t.name || t.studentName || '').trim(),
       studentName: String(t.studentName || t.name || '').trim(),
       parentage: String(t.parentage || '').trim(),
       result: String(t.result || 'Distinc').trim(),
@@ -177,7 +246,7 @@ export async function saveBoardResultCohort(cohortData, userEmail = 'admin') {
       stream: String(t.stream || 'Science').trim(),
       grade: String(t.grade || (Number(t.marksObt) >= 450 ? 'A1' : 'A2')).trim(),
       order: idx + 1
-    })) : [],
+    })),
     allCandidates: Array.isArray(cohortData.allCandidates) ? cohortData.allCandidates : [],
     updatedAt: now,
     updatedBy: userEmail || 'admin'
@@ -200,13 +269,15 @@ export async function deleteBoardResultCohort(id) {
 
 /**
  * Seed or restore default official JKBOSE cohorts into Cloud Firestore.
+ * Deduplicates default cohorts before batch writing.
  */
 export async function seedDefaultBoardResults(forceOverwrite = false) {
   const batch = writeBatch(db);
   const seeded = [];
   const now = new Date().toISOString();
+  const dedupedDefaults = deduplicateBoardCohorts(ALL_BOARD_RESULTS);
 
-  for (const cohort of ALL_BOARD_RESULTS) {
+  for (const cohort of dedupedDefaults) {
     const docRef = doc(db, BOARD_RESULTS_COLLECTION, cohort.id);
     const data = {
       ...cohort,

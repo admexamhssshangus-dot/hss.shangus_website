@@ -134,7 +134,14 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
     setLoading(true);
     try {
       const data = await fetchAllAchievementsAdmin();
-      setAchievements(data || []);
+      // Strictly deduplicate by ID to eliminate any duplicate entries
+      const seenIds = new Set();
+      const deduped = (data || []).filter(item => {
+        if (!item?.id || seenIds.has(item.id)) return false;
+        seenIds.add(item.id);
+        return true;
+      });
+      setAchievements(deduped);
     } catch (err) {
       console.error('Failed to load achievements:', err);
       showToast('Could not load achievements list.', 'error');
@@ -333,6 +340,27 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
     if (!formData.studentName.trim() && formData.category !== 'institutional') {
       showToast('Please enter the student name.', 'warning');
       return;
+    }
+
+    // Guard against creating duplicate achievements
+    if (!editingItem) {
+      const cleanName = (formData.studentName || '').trim().toLowerCase();
+      const cleanTitle = (formData.title || '').trim().toLowerCase();
+      const cleanReg = (formData.boardRegNo || '').trim().toLowerCase();
+
+      const isDuplicate = achievements.some(a => {
+        if (a.session !== formData.session) return false;
+        if (cleanReg && a.boardRegNo && a.boardRegNo.trim().toLowerCase() === cleanReg && a.category === formData.category) {
+          return true;
+        }
+        return a.studentName?.trim().toLowerCase() === cleanName && a.title?.trim().toLowerCase() === cleanTitle;
+      });
+
+      if (isDuplicate) {
+        if (!window.confirm(`A similar achievement record for "${formData.studentName || formData.title}" (${formData.session}) already exists in the system. Do you want to continue creating this record?`)) {
+          return;
+        }
+      }
     }
 
     setSaving(true);

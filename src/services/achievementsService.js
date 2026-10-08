@@ -319,6 +319,14 @@ export async function fetchPublishedAchievements(forceRefresh = false) {
       }
     }
 
+    // Deduplicate any duplicate documents by ID
+    const seenIds = new Set();
+    items = items.filter(item => {
+      if (!item?.id || seenIds.has(item.id)) return false;
+      seenIds.add(item.id);
+      return true;
+    });
+
     // Priority Sorting:
     // 1. Featured items first
     // 2. UT Position Holders next (J&K UT Toppers & Rankers)
@@ -366,6 +374,14 @@ export async function fetchAllAchievementsAdmin() {
         items = DEFAULT_ACHIEVEMENTS;
       }
     }
+
+    // Deduplicate any duplicate documents by ID
+    const seenIds = new Set();
+    items = items.filter(item => {
+      if (!item?.id || seenIds.has(item.id)) return false;
+      seenIds.add(item.id);
+      return true;
+    });
 
     items.sort((a, b) => {
       if (a.featured !== b.featured) return a.featured ? -1 : 1;

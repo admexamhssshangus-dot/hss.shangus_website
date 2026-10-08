@@ -9,7 +9,9 @@ import {
   fetchAllBoardResults,
   saveBoardResultCohort,
   deleteBoardResultCohort,
-  seedDefaultBoardResults
+  seedDefaultBoardResults,
+  deduplicateBoardCohorts,
+  deduplicateToppers
 } from '../services/boardResultsService';
 import { showToast } from './common/GlobalToast';
 
@@ -35,7 +37,7 @@ export default function ClassBoardResultsSection({
       setLoading(true);
       const data = await fetchAllBoardResults(force);
       if (Array.isArray(data) && data.length > 0) {
-        setAllCohorts(data);
+        setAllCohorts(deduplicateBoardCohorts(data));
       }
     } catch (err) {
       console.warn('[ClassBoardResultsSection] Using cached/default board results:', err);
@@ -50,8 +52,9 @@ export default function ClassBoardResultsSection({
 
   const classCohorts = useMemo(() => {
     const filtered = allCohorts.filter(c => c.class === selectedClass);
-    if (filtered.length > 0) return filtered;
-    return BOARD_RESULTS_BY_CLASS[selectedClass] || CLASS_10_BOARD_RESULTS;
+    const deduped = deduplicateBoardCohorts(filtered);
+    if (deduped.length > 0) return deduped;
+    return deduplicateBoardCohorts(BOARD_RESULTS_BY_CLASS[selectedClass] || CLASS_10_BOARD_RESULTS);
   }, [allCohorts, selectedClass]);
 
   const [selectedCohortId, setSelectedCohortId] = useState(() => classCohorts[0]?.id || '10th-regular-2024-25-oct-nov');
@@ -278,16 +281,23 @@ export default function ClassBoardResultsSection({
     if (!editFormData) return;
     setSavingCohort(true);
     try {
-      const saved = await saveBoardResultCohort(editFormData, userEmail);
-      setAllCohorts(prev => {
-        const idx = prev.findIndex(c => c.id === saved.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = saved;
-          return next;
+      // Check for duplicate roll numbers among toppers
+      const toppers = editFormData.toppers || [];
+      const seenRolls = new Set();
+      for (const t of toppers) {
+        const roll = String(t.rollNo || '').trim();
+        if (roll) {
+          if (seenRolls.has(roll)) {
+            showToast(`Duplicate roll number "${roll}" detected in school toppers. Each student must have a unique roll number.`, 'warning');
+            setSavingCohort(false);
+            return;
+          }
+          seenRolls.add(roll);
         }
-        return [saved, ...prev];
-      });
+      }
+
+      const saved = await saveBoardResultCohort(editFormData, userEmail);
+      setAllCohorts(prev => deduplicateBoardCohorts([saved, ...prev.filter(c => c.id !== saved.id)]));
       showToast('JKBOSE Board Results Statement saved successfully!', 'success');
       setIsEditModalOpen(false);
     } catch (err) {
@@ -320,7 +330,21 @@ export default function ClassBoardResultsSection({
     e.preventDefault();
     setSavingCohort(true);
     try {
-      const slug = `${selectedClass}-${newSessionData.session.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now().toString(36)}`;
+      // Guard against creating duplicate sessions for the same class
+      const sessionLabel = (newSessionData.examPeriod || '').trim().toLowerCase();
+      const alreadyExists = classCohorts.some(c => (c.examPeriod || '').trim().toLowerCase() === sessionLabel);
+      if (alreadyExists) {
+        showToast(`An examination session "${newSessionData.examPeriod}" already exists for Class ${selectedClass}. Edit the existing session instead of creating a duplicate.`, 'warning');
+        setSavingCohort(false);
+        return;
+      }
+
+      const periodSlug = (newSessionData.examPeriod || newSessionData.session || 'regular')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      const slug = `${selectedClass}-${periodSlug}`;
+
       const payload = {
         id: slug,
         class: selectedClass,
@@ -344,7 +368,7 @@ export default function ClassBoardResultsSection({
       };
 
       const saved = await saveBoardResultCohort(payload, userEmail);
-      setAllCohorts(prev => [saved, ...prev]);
+      setAllCohorts(prev => deduplicateBoardCohorts([saved, ...prev]));
       setSelectedCohortId(saved.id);
       showToast(`Added examination session ${newSessionData.examPeriod}!`, 'success');
       setIsAddModalOpen(false);
@@ -814,7 +838,7 @@ export default function ClassBoardResultsSection({
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
                   {cohort.toppers.map((t, idx) => (
                     <tr
-                      key={t.rollNo || idx}
+                      key={`${t.rollNo || 'topper'}_${idx}`}
                       className={idx % 2 === 1 ? 'bg-slate-50/60 dark:bg-slate-800/30' : 'bg-white dark:bg-slate-900'}
                     >
                       <td className="py-1.5 px-2.5 font-mono font-medium">{t.rollNo}</td>
