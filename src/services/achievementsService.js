@@ -80,6 +80,21 @@ function normalizeRegKey(val) {
   return String(val).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+/**
+ * Normalizes an academic session to canonical DB format ('2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2025-26', etc.)
+ */
+export function normalizeCanonicalAchievementSession(session, examOrEvent = '') {
+  if (!session) return '2024-25 (Oct-Nov)';
+  const s = String(session).trim();
+  const e = String(examOrEvent || '').trim().toLowerCase();
+  if (s === '2024-25 (Oct-Nov)' || s === '2024-25 (Mar-Apr)') return s;
+  if (s === '2024-25' || s === '2024–25') {
+    if (e.includes('mar') || e.includes('apr')) return '2024-25 (Mar-Apr)';
+    return '2024-25 (Oct-Nov)';
+  }
+  return s;
+}
+
 export const DEFAULT_ACHIEVEMENTS = [
   {
     id: 'ach_zaidan_neet_2026',
@@ -138,7 +153,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     studentName: 'Tabish Rasool Allie',
     fatherName: 'Ghulam Rasool Allie',
     className: '12th',
-    session: '2024-25',
+    session: '2024-25 (Oct-Nov)',
     stream: 'Science',
     boardRegNo: '2101000000980041',
     examRollNo: '301046053',
@@ -163,7 +178,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     studentName: 'Zaidan Wani',
     fatherName: 'Bilal Ahmad Wani',
     className: '11th',
-    session: '2024-25',
+    session: '2024-25 (Mar-Apr)',
     stream: 'Science',
     boardRegNo: '2201000001160003',
     examRollNo: '201002066',
@@ -188,7 +203,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     studentName: 'Hadeeqa Tabasum',
     fatherName: 'Imtiyaz Ahmad Itoo',
     className: '11th',
-    session: '2024-25',
+    session: '2024-25 (Mar-Apr)',
     stream: 'Science',
     boardRegNo: '2201010001160068',
     examRollNo: '201002067',
@@ -213,7 +228,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     studentName: 'Hadeeqa Tabasum',
     fatherName: 'Imtiyaz Ahmad Itoo',
     className: '12th',
-    session: '2024-25',
+    session: '2024-25 (Oct-Nov)',
     stream: 'Science',
     boardRegNo: '2201010001160068',
     examRollNo: '301003054',
@@ -238,7 +253,7 @@ export const DEFAULT_ACHIEVEMENTS = [
     studentName: 'Ajvaa Ibrahim Ganie',
     fatherName: 'Mohammad Ibrahim Ganie',
     className: '12th',
-    session: '2024-25',
+    session: '2024-25 (Oct-Nov)',
     stream: 'Science',
     boardRegNo: '2201000000030010',
     examRollNo: '301003037',
@@ -515,7 +530,19 @@ export async function lookupStudentForAchievement({
   }
 
   // 1. Fetch scoped cohort from admissions and master registers
-  const sessionsToTry = Array.from(new Set([targetSession, currentSession, '2024-25', '2025-26', '2023-24']));
+  const candidateSessions = [
+    targetSession,
+    ...(targetSession && /oct|nov/i.test(targetSession) ? ['2024-25 (Oct-Nov)', '2024-25'] : []),
+    ...(targetSession && /mar|apr/i.test(targetSession) ? ['2024-25 (Mar-Apr)', '2024-25'] : []),
+    ...(targetSession && targetSession.includes('2024-25') ? ['2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2024-25'] : []),
+    '2024-25 (Oct-Nov)',
+    '2024-25 (Mar-Apr)',
+    currentSession,
+    '2025-26',
+    '2024-25',
+    '2023-24'
+  ];
+  const sessionsToTry = Array.from(new Set(candidateSessions.filter(Boolean)));
   let pool = [];
 
   for (const sName of sessionsToTry) {
@@ -527,7 +554,7 @@ export async function lookupStudentForAchievement({
     } catch (_) {}
 
     try {
-      const reg = await getMasterRegistersScoped(sName);
+      const reg = await getMasterRegistersScoped({ session: sName });
       if (Array.isArray(reg) && reg.length > 0) {
         pool.push(...reg.map(x => ({ ...x, _detectedSession: sName })));
       }
@@ -574,7 +601,7 @@ export async function lookupStudentForAchievement({
       const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData.js');
       if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
         for (const cohort of CLEAN_PRACTICALS_SEED_DATA) {
-          const cohortStudents = cohort.students || [];
+          const cohortStudents = cohort.records || cohort.students || cohort.candidates || [];
           for (const s of cohortStudents) {
             const regNorm = normalizeRegKey(s.boardRegNo || s.regNo || '');
             const rNorm = String(s.examRollNo || s.classRollNo || s.rollNo || '').trim().toLowerCase();
@@ -585,15 +612,16 @@ export async function lookupStudentForAchievement({
             const isNameMatch = cleanName && nNorm.includes(cleanName);
 
             if (isRegMatch || isRollMatch || isNameMatch) {
+              const detectedSess = normalizeCanonicalAchievementSession(cohort.sessionText || cohort.session || targetSession);
               match = {
-                studentName: s.name,
-                fatherName: s.parentName,
-                className: cohort.class || '12th',
-                session: cohort.session || targetSession,
+                studentName: s.name || s.studentName,
+                fatherName: s.parentName || s.fatherName,
+                className: cohort.className || cohort.class || '12th',
+                session: detectedSess,
                 stream: s.stream || cohort.stream || 'Science',
-                boardRegNo: s.boardRegNo || boardRegNo,
-                examRollNo: s.examRollNo || s.classRollNo || '',
-                _detectedSession: cohort.session || targetSession
+                boardRegNo: s.boardRegNo || s.regNo || boardRegNo,
+                examRollNo: s.examRollNo || s.classRollNo || s.rollNo || '',
+                _detectedSession: detectedSess
               };
               break;
             }
@@ -602,6 +630,70 @@ export async function lookupStudentForAchievement({
         }
       }
     } catch (_) {}
+  }
+
+  // 3b. Fallback search into board results data
+  if (!match) {
+    try {
+      const { CLASS_BOARD_RESULTS_DATA } = await import('../data/classBoardResults.js');
+      if (Array.isArray(CLASS_BOARD_RESULTS_DATA)) {
+        for (const cohort of CLASS_BOARD_RESULTS_DATA) {
+          const cStudents = cohort.students || [];
+          for (const s of cStudents) {
+            const rNorm = String(s.rollNo || '').trim().toLowerCase();
+            const nNorm = String(s.studentName || s.name || '').trim().toLowerCase();
+            const isRollMatch = cleanRoll && rNorm === cleanRoll;
+            const isNameMatch = cleanName && nNorm.includes(cleanName);
+
+            if (isRollMatch || isNameMatch) {
+              const rawName = s.name || s.studentName || '';
+              const [sNameClean, parentageClean] = s.parentage
+                ? [s.studentName || s.name, s.parentage]
+                : (rawName.includes('(') ? [rawName.split('(')[0].trim(), rawName.split('(')[1].replace(')', '').trim()] : [rawName, '']);
+              const detectedSess = cohort.examPeriod?.includes('Oct-Nov')
+                ? '2024-25 (Oct-Nov)'
+                : (cohort.examPeriod?.includes('Mar-Apr') ? '2024-25 (Mar-Apr)' : normalizeCanonicalAchievementSession(targetSession));
+              match = {
+                studentName: sNameClean,
+                fatherName: parentageClean,
+                className: cohort.class || '12th',
+                session: detectedSess,
+                stream: s.stream || 'Science',
+                boardRegNo: boardRegNo || '',
+                examRollNo: s.rollNo || '',
+                _detectedSession: detectedSess
+              };
+              break;
+            }
+          }
+          if (match) break;
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 3c. Fallback search into default template achievements
+  if (!match) {
+    const achMatch = DEFAULT_ACHIEVEMENTS.find(a => {
+      const aReg = normalizeRegKey(a.boardRegNo || '');
+      const aRoll = String(a.examRollNo || '').trim().toLowerCase();
+      const aName = String(a.studentName || '').trim().toLowerCase();
+      return (cleanTargetReg && aReg === cleanTargetReg) || (cleanRoll && aRoll === cleanRoll) || (cleanName && aName.includes(cleanName));
+    });
+    if (achMatch) {
+      const detectedSess = normalizeCanonicalAchievementSession(achMatch.session, achMatch.examOrEvent);
+      match = {
+        studentName: achMatch.studentName,
+        fatherName: achMatch.fatherName,
+        className: achMatch.className || '12th',
+        session: detectedSess,
+        stream: achMatch.stream || 'Science',
+        boardRegNo: achMatch.boardRegNo || boardRegNo,
+        examRollNo: achMatch.examRollNo || '',
+        _detectedSession: detectedSess,
+        photoUrl: achMatch.photoUrl || ''
+      };
+    }
   }
 
   if (!match) {
@@ -619,13 +711,18 @@ export async function lookupStudentForAchievement({
   const sStream = match.stream || match['Stream'] || match['Stream for Class 11th'] || 'Science';
   const sReg = match.boardRegNo || match.regNo || match['Board Registration Number'] || boardRegNo || '';
   const sRoll = match.examRollNo || match.classRollNo || match.rollNo || match['Class Roll No'] || '';
-  const matchedSession = match._detectedSession || match.session || match.Session || targetSession;
+  const matchedSession = normalizeCanonicalAchievementSession(
+    match._detectedSession || match.session || match.Session || targetSession,
+    match.examOrEvent || ''
+  );
 
   // 5. Resolve Student Photograph
-  let resolvedPhotoUrl = '';
-  try {
-    resolvedPhotoUrl = await fetchStudentPhotoOnDemand(match);
-  } catch (_) {}
+  let resolvedPhotoUrl = match.photoUrl || '';
+  if (!resolvedPhotoUrl) {
+    try {
+      resolvedPhotoUrl = await fetchStudentPhotoOnDemand(match);
+    } catch (_) {}
+  }
 
   if (!resolvedPhotoUrl || resolvedPhotoUrl === '/logo.png') {
     resolvedPhotoUrl = formatPhotoDisplayUrl(getStudentPhotoUrl(match)) || '';

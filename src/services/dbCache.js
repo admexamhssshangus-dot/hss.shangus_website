@@ -475,7 +475,29 @@ export function unpackMasterRegisterDoc(docSnap) {
   if (!data || data.Status === 'Deleted' || data.status === 'Deleted' || data._deleted === true) return [];
 
   const chunkItems = data.items || data.students || data.records || data.data;
-  if (Array.isArray(chunkItems)) return [];
+  if (Array.isArray(chunkItems)) {
+    const docSession = data.Session || data.session || data['Academic Session'] || '';
+    const docClass = data.class || data.Class || data.className || data['Class'] || '';
+    const docStream = data.stream || data.Stream || data['Stream'] || '';
+    return chunkItems.flatMap((item, idx) => {
+      if (!item || typeof item !== 'object' || item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return [];
+      return [{
+        ...item,
+        id: item.id || `${docSnap.id || 'mr'}_${idx}`,
+        _docId: docSnap.id,
+        _source: 'masterRegisters',
+        _srcCollection: 'masterRegisters',
+        Session: item.Session || item.session || docSession,
+        session: item.session || item.Session || docSession,
+        Class: item.Class || item.class || docClass,
+        class: item.class || item.Class || docClass,
+        Stream: item.Stream || item.stream || docStream,
+        stream: item.stream || item.Stream || docStream,
+        status: item.status || item.Status || 'Approved',
+        Status: item.Status || item.status || 'Approved'
+      }];
+    });
+  }
 
   // Standalone individual student document in masterRegisters
   const docId = docSnap.id || data.id || '';
@@ -565,7 +587,9 @@ function unpackAdmissionsDocument(docSnap) {
  * Historical sessions are kept in separate private memory entries so they can
  * never replace the current-session default directory.
  */
-export async function getAdmissionsBySession({ session, forceRefresh = false, onBackgroundUpdate = null } = {}) {
+export async function getAdmissionsBySession(options = {}) {
+  const opts = typeof options === 'string' ? { session: options } : (options || {});
+  const { session, forceRefresh = false, onBackgroundUpdate = null } = opts;
   const cleanSession = normalizeAcademicSessionScope(session) || getCurrentAcademicSession();
   const isCurrentSession = cleanSession === getCurrentAcademicSession();
 
@@ -750,11 +774,12 @@ export async function getMasterRegistersByScope({ session, className, stream, fo
  * NEVER executes an un-scoped getDocs on masterRegisters (which would read 6,020 documents).
  */
 export async function getMasterRegistersScoped(options = {}) {
+  const opts = typeof options === 'string' ? { session: options } : (options || {});
   // A full archive read is deliberate and used only by tools that explicitly
   // request it (backups, broad historical search, certificate work).  The old
   // implementation silently returned the default session even for forceAll,
   // which made those tools appear to have missing records.
-  if (options?.forceAll === true) {
+  if (opts?.forceAll === true) {
     try {
       const snapshot = await getDocs(collection(db, 'masterRegisters'));
       const allRecords = snapshot.docs.flatMap(unpackMasterRegisterDoc);
@@ -776,12 +801,12 @@ export async function getMasterRegistersScoped(options = {}) {
 
   // If only a class or stream is supplied, it still means the configured
   // current session—not every matching class in the archive.
-  if (options?.session || options?.className || options?.class || options?.stream) {
+  if (opts?.session || opts?.className || opts?.class || opts?.stream) {
     return getMasterRegistersByScope({
-      session: options.session || getCurrentAcademicSession(),
-      className: options.className || options.class,
-      stream: options.stream,
-      forceRefresh: options.forceRefresh
+      session: opts.session || getCurrentAcademicSession(),
+      className: opts.className || opts.class,
+      stream: opts.stream,
+      forceRefresh: opts.forceRefresh
     });
   }
 
@@ -790,7 +815,7 @@ export async function getMasterRegistersScoped(options = {}) {
   try {
     return await getMasterRegistersByScope({
       session: getCurrentAcademicSession(),
-      forceRefresh: options?.forceRefresh
+      forceRefresh: opts?.forceRefresh
     });
   } catch (err) {
     console.warn('[dbCache] getMasterRegistersScoped default cohort note:', err);

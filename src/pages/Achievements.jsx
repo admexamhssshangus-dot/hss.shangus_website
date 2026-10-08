@@ -9,7 +9,7 @@ import SEO from '../components/SEO';
 import PublicPageSkeleton from '../components/PublicPageSkeleton';
 import ClassBoardResultsSection from '../components/ClassBoardResultsSection';
 import HonoreePhotoAvatar from '../components/HonoreePhotoAvatar';
-import { fetchPublishedAchievements } from '../services/achievementsService';
+import { fetchPublishedAchievements, normalizeCanonicalAchievementSession } from '../services/achievementsService';
 
 // Category color mappings & metadata
 const CATEGORY_META = {
@@ -112,9 +112,10 @@ export default function Achievements() {
 
   // Available sessions in dataset
   const availableSessions = useMemo(() => {
-    const set = new Set(['2025-26', '2024-25']);
+    const set = new Set(['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2023-24']);
     achievements.forEach(item => {
-      if (item.session) set.add(item.session);
+      const s = normalizeCanonicalAchievementSession(item.session, item.examOrEvent);
+      if (s) set.add(s);
     });
     return Array.from(set).sort((a, b) => b.localeCompare(a));
   }, [achievements]);
@@ -129,7 +130,12 @@ export default function Achievements() {
       if (selectedClass !== 'all' && item.className !== selectedClass) return false;
 
       // Session filter
-      if (selectedSession !== 'all' && item.session !== selectedSession) return false;
+      if (selectedSession !== 'all') {
+        const itemSess = normalizeCanonicalAchievementSession(item.session, item.examOrEvent);
+        if (itemSess !== selectedSession && item.session !== selectedSession && !(selectedSession === '2024-25' && (itemSess.includes('2024-25') || (item.session || '').includes('2024-25')))) {
+          return false;
+        }
+      }
 
       // Search query
       if (searchQuery.trim()) {
@@ -505,7 +511,7 @@ export default function Achievements() {
                     </h3>
                     {selectedItem.session && (
                       <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-bold border border-slate-200 dark:border-slate-600">
-                        Session {selectedItem.session}
+                        Session {normalizeCanonicalAchievementSession(selectedItem.session, selectedItem.examOrEvent)}
                       </span>
                     )}
                   </div>

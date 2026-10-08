@@ -2,34 +2,36 @@
 
 ## Commit Message
 
-`fix(achievements): deduplication protection across board cohorts, toppers ledger, and student honors`
+`fix(achievements): align canonical academic sessions with database '2024-25 (Oct-Nov)' format and improve multi-source student auto-lookup`
 
 ## Files Changed
 
-1. [src/services/boardResultsService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/boardResultsService.js):
-   - Added `deduplicateBoardCohorts`: Deduplicates cohorts by both unique document ID and canonical composite key (`${class}__${examPeriod}`).
-   - Added `deduplicateToppers`: Prevents multiple entries for the same student or roll number in a cohort.
-   - Enforced deterministic canonical ID generation (`${class}-${periodSlug}`) to guarantee idempotent writes when saving or re-saving examination cohorts.
-   - Deduplicated return payloads in `fetchAllBoardResults` and batch seeds in `seedDefaultBoardResults`.
+1. [src/services/dbCache.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/dbCache.js):
+   - Enhanced `getMasterRegistersScoped` and `getAdmissionsBySession` to accept string session arguments (e.g. `'2024-25 (Oct-Nov)'`) seamlessly alongside option objects.
+   - Enhanced `unpackMasterRegisterDoc` to unpack array records if chunked or container documents exist in `masterRegisters`.
 
-2. [src/components/ClassBoardResultsSection.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/components/ClassBoardResultsSection.jsx):
-   - Applied `deduplicateBoardCohorts` to `loadCohorts` and `classCohorts` so the session dropdown never shows duplicate session options.
-   - Guarded `handleSaveNewSession` to block creating examination sessions that already exist for the selected class.
-   - Guarded `handleSaveEdit` to detect and alert on duplicate roll numbers entered in the toppers list.
-   - Used composite keys (`${t.rollNo || 'topper'}_${idx}`) for toppers rows to eliminate any potential React key collisions.
+2. [src/services/achievementsService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/achievementsService.js):
+   - Added `normalizeCanonicalAchievementSession` helper to translate legacy or bare sessions into canonical database cycles (`'2024-25 (Oct-Nov)'` and `'2024-25 (Mar-Apr)'`).
+   - Upgraded `lookupStudentForAchievement` to prioritize and query canonical sessions (`'2024-25 (Oct-Nov)'`, `'2024-25 (Mar-Apr)'`, `'2025-26'`).
+   - Added support for `cohort.records` in `cleanPracticalsSeedData.js` so that students like Zaidan Wani (`2201000001160003`, Roll: `301003053`) are immediately found.
+   - Added search fallbacks across `CLASS_BOARD_RESULTS_DATA` and `DEFAULT_ACHIEVEMENTS`.
+   - Updated `DEFAULT_ACHIEVEMENTS` template records to use canonical database sessions (`'2024-25 (Oct-Nov)'` for Class 12th Regular and `'2024-25 (Mar-Apr)'` for Class 11th Regular).
 
 3. [src/portal/admin/AchievementsCMSManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AchievementsCMSManager.jsx):
-   - Added ID deduplication to `loadData` to prevent duplicate achievement cards or table rows.
-   - Added duplicate verification guard in `handleSave` to warn administrators if an achievement for the same student, session, and category/event already exists.
+   - Updated `STUDENT AUTO-LOOKUP FROM DATABASE` session dropdown to explicitly provide `2024-25 (Oct-Nov)`, `2024-25 (Mar-Apr)`, `2025-26`, `2024-25 (All Cycles)`, and `2023-24`.
+   - Replaced plain text `Academic Session` field with an institutional select dropdown offering `2024-25 (Oct-Nov)` and canonical sessions matching the Class dropdown.
+   - Initialized modal creation and edit session states to `'2024-25 (Oct-Nov)'` using `normalizeCanonicalAchievementSession`.
+   - Displayed canonical session format across table rows, card badges, and top filter toolbar.
+   - Auto-populates found student demographics, photo, and exact session upon clicking `Fetch`.
 
-4. [src/services/achievementsService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/achievementsService.js):
-   - Added document ID deduplication in `fetchAllAchievementsAdmin` and `fetchPublishedAchievements` for defense-in-depth data purity.
+4. [src/pages/Achievements.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/Achievements.jsx):
+   - Integrated `normalizeCanonicalAchievementSession` into public Hall of Fame session filtering, card badges, and citation details modal.
 
 ---
 
 ## Verification
 
-- **Build Verification**: `npm run build` completed with **Exit Code 0** with zero breaking errors. All 12 public static pages and SEO regression checks passed.
+- **Build Verification**: `npm run build` completed with **Exit Code 0** and zero breaking errors. All 12 public static pages and SEO regression checks passed.
 - **Firebase Security Rules**: Security rules remain active and verified in Cloud Firestore.
 
 ---
@@ -43,7 +45,7 @@
 2. **If You Want to Amend or Re-commit**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "fix(achievements): deduplication protection across board cohorts, toppers ledger, and student honors"
+   git commit -m "fix(achievements): align canonical academic sessions with database '2024-25 (Oct-Nov)' format and improve multi-source student auto-lookup"
    ```
 3. **Push to Remote Repository** *(Strict Manual Policy)*:
    ```bash

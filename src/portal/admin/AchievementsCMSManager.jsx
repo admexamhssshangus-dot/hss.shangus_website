@@ -14,7 +14,8 @@ import {
   lookupStudentForAchievement,
   seedDefaultAchievements,
   toggleAchievementPublished,
-  toggleAchievementFeatured
+  toggleAchievementFeatured,
+  normalizeCanonicalAchievementSession
 } from '../../services/achievementsService';
 import { getCurrentAcademicSession } from '../../services/dbCache';
 import { compressImageFile } from '../../utils/imageCompressor';
@@ -103,7 +104,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
     studentName: '',
     fatherName: '',
     className: '12th',
-    session: getCurrentAcademicSession() || '2025-26',
+    session: '2024-25 (Oct-Nov)',
     stream: 'Science',
     boardRegNo: '',
     examRollNo: '',
@@ -123,7 +124,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
   });
 
   // Fast-Lookup State in Modal
-  const [lookupSession, setLookupSession] = useState(getCurrentAcademicSession() || '2025-26');
+  const [lookupSession, setLookupSession] = useState('2024-25 (Oct-Nov)');
   const [lookupClass, setLookupClass] = useState('12th');
   const [lookupRegNo, setLookupRegNo] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -195,7 +196,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
           studentName: s.studentName || prev.studentName,
           fatherName: s.fatherName || prev.fatherName,
           className: s.className || prev.className,
-          session: s.session || prev.session,
+          session: s.session || lookupSession || prev.session,
           stream: s.stream || prev.stream,
           boardRegNo: s.boardRegNo || lookupRegNo.trim() || prev.boardRegNo,
           examRollNo: s.examRollNo || prev.examRollNo,
@@ -203,9 +204,9 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
         }));
         setLookupFeedback({
           type: 'success',
-          message: `Found student "${s.studentName}"! Reg No: ${s.boardRegNo || lookupRegNo.trim()}, demographics and photo loaded.`
+          message: `Found student "${s.studentName}"! Reg No: ${s.boardRegNo || lookupRegNo.trim()}, Session: ${s.session || lookupSession}, demographics and photo loaded.`
         });
-        showToast(`Auto-filled details for ${s.studentName}`, 'success');
+        showToast(`Auto-filled details for ${s.studentName} (${s.session || lookupSession})`, 'success');
       } else {
         setLookupFeedback({
           type: 'warn',
@@ -240,7 +241,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
   const handleOpenCreate = (categoryPreset = 'jkbose') => {
     setEditingItem(null);
     setLookupFeedback(null);
-    setLookupSession(getCurrentAcademicSession() || '2025-26');
+    setLookupSession('2024-25 (Oct-Nov)');
     setLookupClass('12th');
     setLookupRegNo('');
     setFormData({
@@ -249,11 +250,11 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
       studentName: '',
       fatherName: '',
       className: '12th',
-      session: getCurrentAcademicSession() || '2025-26',
+      session: '2024-25 (Oct-Nov)',
       stream: 'Science',
       boardRegNo: '',
       examRollNo: '',
-      examOrEvent: categoryPreset === 'jkbose' ? 'JKBOSE Annual Regular' : '',
+      examOrEvent: categoryPreset === 'jkbose' ? 'JKBOSE Class 12th Regular 2024-25 (Oct-Nov)' : '',
       scoreOrMarks: '',
       rankOrPosition: '',
       isUtPositionHolder: false,
@@ -274,7 +275,8 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
   const handleOpenEdit = (item) => {
     setEditingItem(item);
     setLookupFeedback(null);
-    setLookupSession(item.session || getCurrentAcademicSession() || '2025-26');
+    const properSession = normalizeCanonicalAchievementSession(item.session, item.examOrEvent);
+    setLookupSession(properSession);
     setLookupClass(item.className || '12th');
     setLookupRegNo(item.boardRegNo || item.examRollNo || '');
     setFormData({
@@ -283,7 +285,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
       studentName: item.studentName || '',
       fatherName: item.fatherName || '',
       className: item.className || '12th',
-      session: item.session || getCurrentAcademicSession() || '2025-26',
+      session: properSession,
       stream: item.stream || '',
       boardRegNo: item.boardRegNo || '',
       examRollNo: item.examRollNo || '',
@@ -400,9 +402,10 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
 
   // Available sessions in dataset
   const availableSessions = useMemo(() => {
-    const set = new Set(['2025-26', '2024-25', '2023-24']);
+    const set = new Set(['2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2023-24']);
     achievements.forEach(item => {
-      if (item.session) set.add(item.session);
+      const s = normalizeCanonicalAchievementSession(item.session, item.examOrEvent);
+      if (s) set.add(s);
     });
     return Array.from(set).sort((a, b) => b.localeCompare(a));
   }, [achievements]);
@@ -437,8 +440,12 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
         (item.rankOrPosition && item.rankOrPosition.toLowerCase().includes(q)) ||
         (item.utPositionOrRank && item.utPositionOrRank.toLowerCase().includes(q));
 
+      const itemSess = normalizeCanonicalAchievementSession(item.session, item.examOrEvent);
       const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-      const matchesSession = sessionFilter === 'all' || item.session === sessionFilter;
+      const matchesSession = sessionFilter === 'all' ||
+        itemSess === sessionFilter ||
+        item.session === sessionFilter ||
+        (sessionFilter === '2024-25' && (itemSess.includes('2024-25') || (item.session || '').includes('2024-25')));
       const matchesClass = classFilter === 'all' || item.className === classFilter;
       const matchesUt = !utOnly || Boolean(item.isUtPositionHolder);
       const matchesStatus = statusFilter === 'all' ||
@@ -753,7 +760,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
                                   </div>
                                 )}
                                 <div className="text-[10px] text-teal-700 dark:text-teal-400 font-bold">
-                                  Class {item.className} {item.stream ? `(${item.stream})` : ''} • Session {item.session}
+                                  Class {item.className} {item.stream ? `(${item.stream})` : ''} • Session {normalizeCanonicalAchievementSession(item.session, item.examOrEvent)}
                                 </div>
                               </div>
                             </div>
@@ -913,7 +920,7 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
                             <div className="flex items-center gap-1 flex-wrap">
                               {item.session && (
                                 <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
-                                  {item.session}
+                                  {normalizeCanonicalAchievementSession(item.session, item.examOrEvent)}
                                 </span>
                               )}
                               {item.className && (
@@ -1093,8 +1100,10 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
                     onChange={(e) => setLookupSession(e.target.value)}
                     className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs"
                   >
+                    <option value="2024-25 (Oct-Nov)">2024-25 (Oct-Nov)</option>
+                    <option value="2024-25 (Mar-Apr)">2024-25 (Mar-Apr)</option>
                     <option value="2025-26">2025-26</option>
-                    <option value="2024-25">2024-25</option>
+                    <option value="2024-25">2024-25 (All Cycles)</option>
                     <option value="2023-24">2023-24</option>
                     <option value="all">Any Session</option>
                   </select>
@@ -1245,13 +1254,21 @@ export default function AchievementsCMSManager({ user, userEmail = 'admin' }) {
 
                   <div>
                     <label className="block text-[9.5px] font-bold text-slate-500 mb-0.5">Academic Session</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 2024-25"
+                    <select
                       value={formData.session}
                       onChange={(e) => setFormData(prev => ({ ...prev, session: e.target.value }))}
                       className="w-full px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    />
+                    >
+                      <option value="2024-25 (Oct-Nov)">2024-25 (Oct-Nov)</option>
+                      <option value="2024-25 (Mar-Apr)">2024-25 (Mar-Apr)</option>
+                      <option value="2025-26">2025-26</option>
+                      <option value="2024-25">2024-25</option>
+                      <option value="2023-24">2023-24</option>
+                      <option value="2022-23">2022-23</option>
+                      {formData.session && !['2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2025-26', '2024-25', '2023-24', '2022-23'].includes(formData.session) && (
+                        <option value={formData.session}>{formData.session}</option>
+                      )}
+                    </select>
                   </div>
 
                   <div className="sm:col-span-2">
