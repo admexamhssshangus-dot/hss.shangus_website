@@ -1784,7 +1784,7 @@ export default function OfficialLetterWriterView({
   // ─── Load Draft from History Handler ───
   const handleLoadDraftFromHistory = (rec) => {
     if (!rec) return;
-    if (rec.refNo) setRefNo(rec.refNo);
+    // Note: Do not copy historical refNo when loading as draft, retaining current studio Ref No
     if (rec.dateStr) setDateStr(rec.dateStr);
     if (rec.extraData?.copyToText !== undefined) setCopyToText(rec.extraData.copyToText);
     if (rec.extraData?.signatoryName) setSignatoryName(rec.extraData.signatoryName);
@@ -1800,7 +1800,7 @@ export default function OfficialLetterWriterView({
       editorRef.current.innerHTML = rec.bodyHtml;
       pushSnapshot();
     }
-    showToast('Official letter draft loaded from history archive.', 'info');
+    showToast('Official letter draft loaded from history archive (retained current Ref No).', 'info');
   };
 
   // Print Letter (with auto cloud history logging)

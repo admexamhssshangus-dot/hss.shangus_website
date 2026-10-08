@@ -4159,7 +4159,7 @@ export default function StudentCertificateStudioView({
   const handleLoadDraftFromHistory = (rec) => {
     if (!rec) return;
     if (rec.title) setCertificateTitle(rec.title);
-    if (rec.refNo) setRefNo(rec.refNo);
+    // Note: Do not copy historical refNo when loading as draft, retaining current studio Ref No
     if (rec.dateStr) setDateStr(rec.dateStr);
     if (rec.templateId) setSelectedTemplateId(rec.templateId);
 
@@ -4181,7 +4181,7 @@ export default function StudentCertificateStudioView({
     if (rec.extraData?.metaDetails) {
       if (rec.extraData.metaDetails.admissionDate) setAdmissionDate(rec.extraData.metaDetails.admissionDate);
       if (rec.extraData.metaDetails.admissionNo) setAdmissionNo(rec.extraData.metaDetails.admissionNo);
-      if (rec.extraData.metaDetails.certificateNo) setRefNo(rec.extraData.metaDetails.certificateNo);
+      // Do not copy certificateNo from historical metaDetails
       if (rec.extraData.metaDetails.regNo) setRegNo(rec.extraData.metaDetails.regNo);
     }
     if (rec.extraData?.officeTitle) setOfficeTitle(rec.extraData.officeTitle);
@@ -4215,7 +4215,7 @@ export default function StudentCertificateStudioView({
         editorRef.current.innerHTML = rec.bodyHtml;
       }
     }
-    showToast('Certificate draft loaded from history archive.', 'info');
+    showToast('Certificate draft loaded from history archive (retained current Ref No).', 'info');
   };
 
   // ─── Gemini AI Handlers ───

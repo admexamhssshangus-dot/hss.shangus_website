@@ -929,6 +929,20 @@ export default function DocumentHistoryModal({
                     <span>Word (.docx)</span>
                   </button>
                 )}
+                {!isAdmissionFormDoc(previewDoc) && onLoadAsDraft && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      handleLoadAsDraft(previewDoc, e);
+                      setPreviewDoc(null);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Load content into editor as a new draft (retains current Ref No)"
+                  >
+                    <FileEdit size={12} />
+                    <span>Load as Draft</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setPreviewDoc(null)}

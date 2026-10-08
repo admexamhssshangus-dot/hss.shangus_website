@@ -2,35 +2,30 @@
 
 ## Commit Message
 
-`feat(studios): add labeled ref no increment steppers to official letter writer and student certificates`
+`fix(history): deduplicate history by ref no and date and retain active ref when loading drafts`
 
 ## Files Changed
 
-1. [src/services/certificateRegistryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/certificateRegistryService.js):
-   - **Smart Reference Number Parsing & Stepping**:
-     - Exported `parseRefParts(refStr)`: Intelligently isolates the exact dispatch/serial number that should be incremented from arbitrary institutional prefixes (e.g. `HSS/SHG/Bonafide/`, `HSS/SHG/2026/`, `HSS/`) and suffixes (e.g. `/2026`, `/26`).
-     - Added support for 2-digit year suffixes (`/26`) and automatic synthesis for prefixes ending in slashes (e.g. `HSS/SHG/2026/` -> starts sequential numbering cleanly at `01`).
-     - Exported `stepRefNumber(refStr, delta)`: Accurately increments or decrements the serial number (+1 / -1) while strictly preserving leading zero padding, institutional prefixes, and academic year suffixes without truncation.
-     - Exported `updateRefSerial(refStr, newSerialVal)`: Directly updates the serial number with custom input while preserving full reference formatting.
-     - Updated `parseGeneralRefNo` and `formatGeneralRefNo` to stop stripping `HSS/SHG` into `HSS` and stop truncating 4-digit years like `2026`.
+1. [src/services/docHistoryService.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/docHistoryService.js):
+   - **Print History Deduplication by Ref No & Date**:
+     - Updated `saveGeneratedDocToHistory`: When saving or printing a document where `refNo` and `dateStr` are identical to an existing record, the service no longer creates a new document ID or duplicate copy in print history.
+     - Performs multi-tier deduplication checks (first in local storage cache across all time, then via Cloud Firestore query by `refNo`).
+     - Updates the existing document in-place with the latest HTML snapshot, action type, and updated timestamp while preserving original creation date (`createdAt`).
+     - Added `deduplicateSameRefAndDate(list)` in `fetchGeneratedDocHistory`: Merges and sanitizes history so that existing duplicates sharing the exact same reference number and issue date are consolidated into a single clean entry.
 
-2. [src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx):
-   - **Labeled Reference Number Increment Controls**:
-     - Upgraded `currentFigure`, `handleUpdateFigure`, and `handleStepFigure` to utilize `parseRefParts`, `stepRefNumber`, and `updateRefSerial`.
-     - **Live Canvas Header (General Ref No)**: Added a labeled, print-hidden badge `Inc Part: [ currentFigure ]` alongside `[-1]` and `[+1]` stepper buttons directly adjacent to the inline Reference Number input.
-     - **Live Canvas Header (TC/DC Certificate No)**: Added the labeled `Inc Part: [ currentFigure ]` badge with `[-1]` and `[+1]` buttons beside the Certificate Serial field.
-     - **Setup Drawer (`# Setup`)**: Relabeled the figure stepper from ambiguous `Fig:` to explicit `Inc Part:` with informative tooltip.
-     - **Reference & Date Modal**: Clarified the counter section as `Serial № (Inc Part)` with explanation: *"The numerical portion of the reference number to be incremented"*.
+2. [src/portal/admin/OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx):
+   - **Retain Working Ref No When Loading Drafts**:
+     - In `handleLoadDraftFromHistory`, removed copying of `rec.refNo`. Loading an archived letter draft now preserves the current active sequential Reference Number in the editor.
+     - Updated confirmation toast: *"Official letter draft loaded from history archive (retained current Ref No)."*
 
-3. [src/portal/admin/OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx):
-   - **Reference Number Increment Steppers for Official Letters**:
-     - Imported `parseRefParts`, `stepRefNumber`, and `updateRefSerial` from `certificateRegistryService`.
-     - Added `letterRefParts`, `letterCurrentFigure`, `handleStepRefNumber(delta)`, and `handleUpdateRefSerial(val)`.
-     - **Live A4 Canvas Header**: Added an inline, print-hidden `Inc Part: [ letterCurrentFigure ]` badge with `[-1]` and `[+1]` buttons right beside the `Ref. No.:` editable input.
-     - **Setup Drawer (`# Setup`)**: Added a labeled `Inc Part:` manual figure input and sequential steppers (`[-1] [ input ] [+1 Next]`) alongside the Reference No. field.
-     - **Mobile Setup Modal**: Added the labeled `Inc Part:` stepper control inside the mobile setup sheet.
-     - **Reference & Date Pop-up Modal**: Added the dedicated `Serial № (Inc Part)` stepper card at the top of the reference editor modal.
-     - **Header Tools Modal**: Integrated the labeled `Inc Part:` stepper beside Reference No.
+3. [src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx):
+   - **Retain Working Ref No When Loading Drafts**:
+     - In `handleLoadDraftFromHistory`, removed copying of `rec.refNo` and `rec.extraData.metaDetails.certificateNo`. Loading an archived certificate draft preserves the current sequential Reference Number in the studio.
+     - Updated confirmation toast: *"Certificate draft loaded from history archive (retained current Ref No)."*
+
+4. [src/portal/admin/DocumentHistoryModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/DocumentHistoryModal.jsx):
+   - **Preview Modal Draft Action**:
+     - Added an inline `Load as Draft` button in the document preview modal header, allowing administrators to load any previewed letter or certificate directly into the studio as a new draft while keeping their current reference number.
 
 ---
 
@@ -50,7 +45,7 @@
 2. **If You Want to Amend or Re-commit**:
    ```bash
    git reset --soft HEAD~1
-   git commit -m "feat(studios): add labeled ref no increment steppers to official letter writer and student certificates"
+   git commit -m "fix(history): deduplicate history by ref no and date and retain active ref when loading drafts"
    ```
 3. **Push Changes Remotely (Manual Execution)**:
    ```bash

@@ -13,9 +13,9 @@ import {
   deleteDoc,
   writeBatch,
   query,
+  where,
   orderBy,
-  limit,
-  serverTimestamp
+  limit
 } from 'firebase/firestore';
 
 const COLLECTION_DOC_HISTORY = 'generatedDocumentHistory';
@@ -288,58 +288,97 @@ export async function saveGeneratedDocToHistory({
     cleanExtraData.studentPhotoUrl = null; // Can be re-resolved on demand from DB photo cache
   }
 
-  // 1. Smart Deduplication: Check if an identical document was saved/printed in recent window (15 mins)
+  const normalizedDateStr = String(dateStr || new Date().toLocaleDateString('en-GB')).trim();
+
+  // 1. Deduplication: When Ref No and Date are the same, do NOT make a duplicate copy in print history
   let cached = [];
-  let existingRecentDoc = null;
+  let existingDoc = null;
   try {
     const rawCache = localStorage.getItem(LOCAL_HISTORY_CACHE_KEY);
     if (rawCache) cached = JSON.parse(rawCache) || [];
 
-    const fifteenMinsAgo = Date.now() - 15 * 60 * 1000;
-    existingRecentDoc = cached.find(item => {
-      if (item.docType !== docType) return false;
-      const itemTime = new Date(item.createdAt || 0).getTime();
-      if (itemTime < fifteenMinsAgo) return false;
+    const isCertCategory = t => ['bonafide', 'discharge', 'certificate'].includes(String(t || '').toLowerCase());
 
-      // Match by exact reference number
-      if (normalizedRefNo && item.refNo && item.refNo === normalizedRefNo) return true;
-
-      // Match by recipient + title + subject
-      if (normalizedRecipient && item.recipientOrStudent && item.recipientOrStudent.toLowerCase() === normalizedRecipient.toLowerCase() && item.title === normalizedTitle) {
-        if (!resolvedSubject || !item.subject || item.subject.toLowerCase() === resolvedSubject.toLowerCase()) {
-          return true;
+    // Priority 1: Match by exact (refNo + dateStr) — no time limit, strictly prevents duplicate copies
+    if (normalizedRefNo && normalizedDateStr) {
+      existingDoc = cached.find(item => {
+        const itemRef = String(item.refNo || '').trim().toLowerCase();
+        const itemDate = String(item.dateStr || '').trim().toLowerCase();
+        if (itemRef !== normalizedRefNo.toLowerCase() || itemDate !== normalizedDateStr.toLowerCase()) {
+          return false;
         }
-      }
+        if (isCertCategory(item.docType) && isCertCategory(docType)) return true;
+        return String(item.docType || '').toLowerCase() === String(docType || '').toLowerCase();
+      });
+    }
 
-      return false;
-    });
+    // Priority 2: Fallback for drafts without refNo within recent 15 mins window
+    if (!existingDoc && !normalizedRefNo) {
+      const fifteenMinsAgo = Date.now() - 15 * 60 * 1000;
+      existingDoc = cached.find(item => {
+        if (item.docType !== docType) return false;
+        const itemTime = new Date(item.createdAt || 0).getTime();
+        if (itemTime < fifteenMinsAgo) return false;
+
+        if (normalizedRecipient && item.recipientOrStudent && item.recipientOrStudent.toLowerCase() === normalizedRecipient.toLowerCase() && item.title === normalizedTitle) {
+          if (!resolvedSubject || !item.subject || item.subject.toLowerCase() === resolvedSubject.toLowerCase()) {
+            return true;
+          }
+        }
+        return false;
+      });
+    }
   } catch (_) {}
 
-  // Reuse existing ID if updating a recent document, or create fresh unique ID
-  const id = existingRecentDoc?.id || `dochist_${docType}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  // If not found in local cache and refNo + dateStr are present, query Firestore for matching refNo
+  if (!existingDoc && normalizedRefNo && normalizedDateStr) {
+    try {
+      const colRef = collection(db, COLLECTION_DOC_HISTORY);
+      const q = query(colRef, where('refNo', '==', normalizedRefNo), limit(10));
+      const snapshot = await getDocs(q);
+      snapshot.forEach(docSnap => {
+        if (existingDoc) return;
+        const data = docSnap.data();
+        if (data && String(data.dateStr || '').trim().toLowerCase() === normalizedDateStr.toLowerCase()) {
+          const isCertCategory = t => ['bonafide', 'discharge', 'certificate'].includes(String(t || '').toLowerCase());
+          if ((isCertCategory(data.docType) && isCertCategory(docType)) || String(data.docType || '').toLowerCase() === String(docType || '').toLowerCase()) {
+            existingDoc = { id: docSnap.id, ...data };
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('Firestore deduplication query check warning:', err);
+    }
+  }
+
+  // Reuse existing ID if document with same refNo and date already exists (no duplicate copy in history)
+  const id = existingDoc?.id || `dochist_${docType}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const originalCreatedAt = existingDoc?.createdAt || nowIso;
 
   const rawPayload = {
+    ...(existingDoc || {}),
     id,
     docType, // 'bonafide' | 'letter' | 'discharge'
     title: normalizedTitle,
     subject: resolvedSubject,
     refNo: normalizedRefNo,
-    dateStr: String(dateStr || new Date().toLocaleDateString('en-GB')).trim(),
+    dateStr: normalizedDateStr,
     recipientOrStudent: normalizedRecipient,
-    studentDetails: studentDetails && typeof studentDetails === 'object' ? studentDetails : null,
+    studentDetails: studentDetails && typeof studentDetails === 'object' ? studentDetails : (existingDoc?.studentDetails || null),
     bodyHtml: String(bodyHtml || '').trim(),
     actionType: String(actionType || 'Saved to Cloud').trim(),
-    templateId: String(templateId || '').trim(),
-    templateName: String(templateName || '').trim(),
-    extraData: cleanExtraData,
-    createdAt: nowIso,
-    serverCreatedAt: serverTimestamp(),
+    templateId: String(templateId || existingDoc?.templateId || '').trim(),
+    templateName: String(templateName || existingDoc?.templateName || '').trim(),
+    extraData: { ...(existingDoc?.extraData || {}), ...cleanExtraData },
+    createdAt: originalCreatedAt,
+    updatedAt: nowIso,
+    lastPrintedAt: actionType.toLowerCase().includes('print') ? nowIso : (existingDoc?.lastPrintedAt || null),
     immutable: true
   };
 
   const recordPayload = sanitizeFirestoreData(rawPayload);
 
-  // 2. Optimistically update local cache
+  // 2. Optimistically update local cache without duplicate copy
   try {
     const updated = [recordPayload, ...cached.filter(item => item.id !== id)].slice(0, 1000);
     localStorage.setItem(LOCAL_HISTORY_CACHE_KEY, JSON.stringify(updated));
@@ -351,7 +390,7 @@ export async function saveGeneratedDocToHistory({
   // 3. Persist to Cloud Firestore
   try {
     const docRef = doc(db, COLLECTION_DOC_HISTORY, id);
-    await setDoc(docRef, recordPayload);
+    await setDoc(docRef, recordPayload, { merge: true });
     return { id, success: true };
   } catch (err) {
     console.error('Failed to write document history to Firestore:', err);
@@ -436,11 +475,12 @@ export async function fetchGeneratedDocHistory({
       cachedList.forEach(item => map.set(item.id, item));
       cloudRecords.forEach(item => map.set(item.id, item));
 
-      const merged = sanitizeRecords(Array.from(map.values())).sort((a, b) => {
-        const timeA = new Date(a.createdAt || 0).getTime();
-        const timeB = new Date(b.createdAt || 0).getTime();
+      const sorted = sanitizeRecords(Array.from(map.values())).sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
         return timeB - timeA;
       });
+      const merged = deduplicateSameRefAndDate(sorted);
 
       localStorage.setItem(LOCAL_HISTORY_CACHE_KEY, JSON.stringify(merged));
       
@@ -450,8 +490,39 @@ export async function fetchGeneratedDocHistory({
     console.warn('Firestore history fetch error (using local cache):', err);
   }
 
-  const sanitizedCached = sanitizeRecords(cachedList);
+  const sortedCached = sanitizeRecords(cachedList).sort((a, b) => {
+    const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+  const sanitizedCached = deduplicateSameRefAndDate(sortedCached);
   return filterByDocType(sanitizedCached, docType);
+}
+
+/**
+ * Deduplicates records: When Ref No and Date are the same for the same document family,
+ * preserve only the latest version so redundant historical print copies do not clutter history.
+ */
+function deduplicateSameRefAndDate(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Map();
+  const result = [];
+  for (const item of list) {
+    const ref = String(item.refNo || '').trim().toLowerCase();
+    const dt = String(item.dateStr || '').trim().toLowerCase();
+    const isCert = ['bonafide', 'discharge', 'certificate'].includes(String(item.docType || '').toLowerCase());
+    const typeGroup = isCert ? 'certificate' : String(item.docType || 'doc').toLowerCase();
+
+    if (ref && dt) {
+      const key = `${typeGroup}::${ref}::${dt}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.set(key, true);
+    }
+    result.push(item);
+  }
+  return result;
 }
 
 /**
