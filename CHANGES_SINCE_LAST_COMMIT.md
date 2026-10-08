@@ -2,16 +2,28 @@
 
 ## Commit Message
 
-`refactor(beneficiary): remove duplicate column matrix from sidebar and prevent duplicate student entries`
+`fix(admin): restore earlier toolbar button setup in Letterhead, Certificates, and ID Card Studio`
 
 ## Files Changed
 
-1. **[src/portal/admin/BeneficiarySanctionOrdersView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BeneficiarySanctionOrdersView.jsx)**
-   - Removed redundant Section 4 ("Column Customization Matrix") from the sidebar since column move controls (`ChevronLeft`/`ChevronRight`), delete (`Trash2`), inline rename, and addition (`+ Col`) are now positioned directly within the live document table headers.
-   - Added a "Reset Columns" button with icon directly to the header of the in-table `+ Col` dropdown menu so resetting columns to preset defaults remains instant and accessible on the table canvas.
-   - Renumbered remaining sidebar sections cleanly (Section 1: Enrolment, Section 2: Title & Styling, Section 3: Certification Paragraph, Section 4: Signatory Blocks).
-   - Removed obsolete `showDbColDropdown` state and unused `SlidersHorizontal` icon import.
-   - Added automatic duplicate checks to both Single Student Search and Bulk Reg Numbers fetching so duplicate student records cannot be inadvertently enrolled into the beneficiary list.
+1. **[src/portal/admin/OfficialLetterWriterView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx)**
+   - Restored earlier "Setup" toolbar button with `Sliders` icon and amber highlight styling for opening the official letterhead & reference setup drawer.
+   - Removed external window event listener and unused imports (`PanelRightClose`, `PanelRightOpen`).
+
+2. **[src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)**
+   - Restored earlier "Setup" toolbar button with `Sliders` icon and amber highlight styling for certificate layout & letterhead setup.
+   - Removed external window event listener and unused imports (`PanelRightClose`, `PanelRightOpen`).
+
+3. **[src/portal/admin/StudentIdCardManager.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentIdCardManager.jsx)**
+   - Restored earlier "Filters" toolbar button with `Filter` icon and amber highlight styling for the layout & filters sidebar.
+   - Removed external window event listener and unused imports (`PanelRightClose`, `PanelRightOpen`).
+
+4. **[src/portal/admin/AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx)**
+   - Removed the global header "Controls" button from the main admin navigation bar, keeping each module's toolbar self-contained and clean.
+   - Cleaned up unused imports (`PanelRightClose`, `PanelRightOpen`).
+
+5. **[src/portal/admin/BeneficiarySanctionOrdersView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BeneficiarySanctionOrdersView.jsx)**
+   - Removed obsolete global window event listener (`hss-toggle-studio-setup`) since the module has its own dedicated toolbar button.
 
 ---
 
@@ -30,7 +42,7 @@ If you wish to edit the commit message or modify files before pushing:
 git reset --soft HEAD~1
 # Make desired adjustments, then:
 git add .
-git commit -m "refactor(beneficiary): remove duplicate column matrix from sidebar and prevent duplicate student entries"
+git commit -m "fix(admin): restore earlier toolbar button setup in Letterhead, Certificates, and ID Card Studio"
 ```
 
 ### 3. Push to Remote Repository

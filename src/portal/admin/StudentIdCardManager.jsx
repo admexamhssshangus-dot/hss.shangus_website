@@ -16,8 +16,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Printer, CheckSquare, Square, Eye, RefreshCw, X,
   Shield, Check, ArrowLeftRight, Grid,
-  Upload, Save, Sliders, ChevronDown, ChevronUp, Layers, RotateCcw, CheckCircle, Filter, Palette,
-  PanelRightClose, PanelRightOpen
+  Upload, Save, Sliders, ChevronDown, ChevronUp, Layers, RotateCcw, CheckCircle, Filter, Palette
 } from 'lucide-react';
 import ModernLoader from '../../components/ModernLoader';
 import {
@@ -242,16 +241,6 @@ function StudentIdCardManager({ students = [], allStudents, onClose }) {
     cancelGenerationRef.current = true;
     generationIdRef.current += 1;
     document.body.classList.remove('id-card-print-mode');
-  }, []);
-
-  // Sync with global dashboard header Controls toggle event
-  useEffect(() => {
-    const handleToggle = (e) => {
-      if (e?.detail?.targetModule && !['idCards', 'idcard'].includes(e.detail.targetModule)) return;
-      setShowFiltersPanel(prev => typeof e?.detail?.open === 'boolean' ? e.detail.open : !prev);
-    };
-    window.addEventListener('hss-toggle-studio-setup', handleToggle);
-    return () => window.removeEventListener('hss-toggle-studio-setup', handleToggle);
   }, []);
 
   const handleCancelGeneration = () => {
@@ -1209,23 +1198,18 @@ function StudentIdCardManager({ students = [], allStudents, onClose }) {
               <span>⚡ PRINT ({rangeMode === 'range' ? `${rangeFrom}–${rangeTo}` : targetStudents.length})</span>
             </button>
 
-            {/* Controls Sidebar / Layout & Filters Toggle */}
+            {/* Layout & Filters Toggle */}
             <button
               type="button"
               onClick={() => setShowFiltersPanel(prev => !prev)}
-              title={showFiltersPanel ? "Hide Controls Sidebar" : "Show Controls Sidebar"}
-              className={`h-7 flex items-center gap-1 text-[11px] font-bold px-2 rounded-md border transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                showFiltersPanel
-                  ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
-                  : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+              title="Layout & Filters"
+              className={`px-1.5 py-0.5 rounded-lg border font-extrabold text-[10.5px] cursor-pointer flex items-center gap-0.5 transition-all ${showFiltersPanel 
+                ? 'bg-amber-800 text-white border-amber-900' 
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
               }`}
             >
-              {showFiltersPanel ? (
-                <PanelRightClose size={13} className="shrink-0" />
-              ) : (
-                <PanelRightOpen size={13} className="shrink-0" />
-              )}
-              <span className="hidden sm:inline">Controls</span>
+              <Filter size={11} />
+              <span className="hidden xl:inline">Filters</span>
             </button>
 
             {/* Seal & Sign Button */}

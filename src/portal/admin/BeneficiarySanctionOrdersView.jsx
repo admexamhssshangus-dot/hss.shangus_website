@@ -1161,16 +1161,6 @@ export default function BeneficiarySanctionOrdersView({
     }
   };
 
-  // Sync with global dashboard header Controls toggle event
-  useEffect(() => {
-    const handleToggle = (e) => {
-      if (e?.detail?.targetModule && !['beneficiaryStudio', 'beneficiaryOrders', 'sanctionOrders', 'beneficiaries', 'beneficiaryList', 'mutualBenefitFund', 'mbfStudio'].includes(e.detail.targetModule)) return;
-      setShowControlsPanel(prev => typeof e?.detail?.open === 'boolean' ? e.detail.open : !prev);
-    };
-    window.addEventListener('hss-toggle-studio-setup', handleToggle);
-    return () => window.removeEventListener('hss-toggle-studio-setup', handleToggle);
-  }, []);
-
   return (
     <div className="w-full flex flex-col min-h-[calc(100vh-140px)] bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 rounded-xl overflow-hidden font-sans border border-slate-200 dark:border-slate-800">
       {/* ─── ACTION CONTROLS TOOLBAR (COMPACT HIGH-DENSITY) ─── */}

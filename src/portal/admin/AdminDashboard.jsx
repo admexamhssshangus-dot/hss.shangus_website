@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, ChevronDown, Wrench, Sliders, ArrowLeft, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Lock, ChevronDown, Wrench, Sliders, ArrowLeft } from 'lucide-react';
 import SEO from '../../components/SEO';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown, { ADMIN_TOOL_MODULES, isUserPermittedForModule } from './AdminToolsDropdown';
@@ -647,35 +647,8 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Right Slot: Controls Toggle + Admin Tools Dropdown Button */}
+                {/* Right Slot: Admin Tools Dropdown Button */}
                 <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 ml-auto">
-
-                  {/* Controls / Sidebar Toggle Button (Unified across all 4 studios) */}
-                  {(activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate' || activeTab === 'idCards' || activeTab === 'beneficiaryStudio' || activeTab === 'beneficiaryOrders' || activeTab === 'sanctionOrders' || activeTab === 'mbfStudio' || activeTab === 'mutualBenefitFund') && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextState = !isStudioSetupOpen;
-                        setIsStudioSetupOpen(nextState);
-                        window.dispatchEvent(new CustomEvent('hss-toggle-studio-setup', {
-                          detail: { targetModule: activeTab, open: nextState }
-                        }));
-                      }}
-                      className={`h-6 sm:h-7 px-1.5 sm:px-2 rounded sm:rounded-lg border font-bold text-[9.5px] sm:text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1 active:scale-95 shrink-0 ${
-                        isStudioSetupOpen
-                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
-                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-                      }`}
-                      title={isStudioSetupOpen ? "Hide Controls Sidebar" : "Show Controls Sidebar"}
-                    >
-                      {isStudioSetupOpen ? (
-                        <PanelRightClose size={12} className="shrink-0" />
-                      ) : (
-                        <PanelRightOpen size={12} className="shrink-0" />
-                      )}
-                      <span className="hidden sm:inline">Controls</span>
-                    </button>
-                  )}
 
                   {/* Administrative Tools Switcher Dropdown (Positioned on Right Side) */}
                   <div className="relative inline-block text-left" ref={dropdownRef}>
