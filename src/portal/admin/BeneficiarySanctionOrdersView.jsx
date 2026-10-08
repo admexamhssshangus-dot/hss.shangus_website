@@ -10,7 +10,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { printBeneficiarySanctionOrder } from '../../utils/beneficiaryPrintUtils';
 import {
   Printer, Download, FileSpreadsheet, FileText, Plus, Trash2, Edit3,
-  Save, RotateCcw, Check, Search, SlidersHorizontal, Layers, Settings2,
+  Save, RotateCcw, Check, Search, Layers, Settings2,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, HelpCircle, X, Calendar,
   Hash, IndianRupee, Users, CheckSquare, Square, UserCheck, RefreshCw,
   Copy, PlusCircle, Sparkles, Share2, Eye, EyeOff, GripVertical, CheckCircle2,
@@ -317,7 +317,6 @@ export default function BeneficiarySanctionOrdersView({
   const [newColWidth, setNewColWidth] = useState(12);
 
   // ─── Add Standard DB Column Dropdown ───
-  const [showDbColDropdown, setShowDbColDropdown] = useState(false);
   const [showInTableAddMenu, setShowInTableAddMenu] = useState(false);
   const inTableAddColRef = useRef(null);
 
@@ -508,10 +507,21 @@ export default function BeneficiarySanctionOrdersView({
 
     setIsFetchingRegs(true);
     // Split by commas, newlines, tabs, semicolons or spaces
-    const tokens = rawText
+    const rawTokens = rawText
       .split(/[\r\n,;\t]+/)
       .map(t => t.trim())
       .filter(t => t.length > 0 && !/^(reg|no|sno|serial)$/i.test(t));
+
+    // Deduplicate within pasted input itself
+    const seenPasted = new Set();
+    const tokens = [];
+    rawTokens.forEach(t => {
+      const lower = t.toLowerCase();
+      if (!seenPasted.has(lower)) {
+        seenPasted.add(lower);
+        tokens.push(t);
+      }
+    });
 
     if (tokens.length === 0) {
       setIsFetchingRegs(false);
@@ -519,12 +529,35 @@ export default function BeneficiarySanctionOrdersView({
       return;
     }
 
+    // Set of already added registration numbers and student IDs in current list
+    const existingRegs = new Set(
+      beneficiaries
+        .map(b => cleanRegNoVal(b.boardRegNo || extractBoardRegNo(b._rawStudent)).toLowerCase())
+        .filter(Boolean)
+    );
+
     let addedCount = 0;
     let manualCount = 0;
+    let skippedDuplicatesCount = 0;
     const newRows = [];
 
     tokens.forEach((token, idx) => {
+      const cleanToken = cleanRegNoVal(token).toLowerCase();
+      if (cleanToken && existingRegs.has(cleanToken)) {
+        skippedDuplicatesCount++;
+        return;
+      }
+
       const found = findStudentByReg(token);
+      const foundReg = found ? cleanRegNoVal(extractBoardRegNo(found)).toLowerCase() : cleanToken;
+      if (foundReg && existingRegs.has(foundReg)) {
+        skippedDuplicatesCount++;
+        return;
+      }
+      if (foundReg) {
+        existingRegs.add(foundReg);
+      }
+
       const rowId = `ben_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 4)}`;
 
       if (found) {
@@ -573,19 +606,25 @@ export default function BeneficiarySanctionOrdersView({
     setBulkRegInput('');
     setIsFetchingRegs(false);
 
-    if (manualCount > 0) {
-      showToast(
-        `Added ${addedCount} student(s) from DB. ${manualCount} unrecognized Reg No(s) added as editable rows.`,
-        'info'
-      );
-    } else {
-      showToast(`Successfully fetched and added ${addedCount} student(s) from database!`, 'success');
-    }
+    let msg = `Added ${addedCount} student(s) from DB.`;
+    if (manualCount > 0) msg += ` ${manualCount} unrecognized Reg No(s) added as editable rows.`;
+    if (skippedDuplicatesCount > 0) msg += ` (${skippedDuplicatesCount} duplicate entries skipped).`;
+    showToast(msg, addedCount > 0 ? 'success' : 'info');
   };
 
   // ─── Add Single Student from Autocomplete ───
   const handleAddSingleStudent = (st) => {
     if (!st) return;
+    const cleanReg = cleanRegNoVal(extractBoardRegNo(st)).toLowerCase();
+    const isAlreadyAdded = beneficiaries.some(b => {
+      const bReg = cleanRegNoVal(b.boardRegNo || extractBoardRegNo(b._rawStudent)).toLowerCase();
+      return (cleanReg && bReg && cleanReg === bReg) || (b._rawStudent?.id && st.id && b._rawStudent.id === st.id);
+    });
+    if (isAlreadyAdded) {
+      showToast(`"${extractStudentName(st)}" is already added in the beneficiary list`, 'warning');
+      return;
+    }
+
     const rowId = `ben_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const newRow = {
       id: rowId,
@@ -688,7 +727,6 @@ export default function BeneficiarySanctionOrdersView({
   const handleAddDbColumn = (colDef) => {
     if (activeColumns.some(c => c.key === colDef.key)) {
       showToast(`Column "${colDef.label}" is already added`, 'info');
-      setShowDbColDropdown(false);
       return;
     }
     const newCol = {
@@ -707,7 +745,6 @@ export default function BeneficiarySanctionOrdersView({
       }
       return row;
     }));
-    setShowDbColDropdown(false);
     showToast(`Added column "${colDef.label}"`, 'success');
   };
 
@@ -1483,15 +1520,29 @@ export default function BeneficiarySanctionOrdersView({
                         {/* Quick Add Column Menu in Table */}
                         {showInTableAddMenu && (
                           <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 w-56 max-h-64 overflow-y-auto p-1.5 text-xs text-left">
-                            <div className="flex items-center justify-between pb-1 mb-1 border-b border-slate-100 dark:border-slate-800 font-black text-[9.5px] uppercase text-teal-700 dark:text-teal-400">
-                              <span>Add Column</span>
-                              <button
-                                type="button"
-                                onClick={() => setShowInTableAddMenu(false)}
-                                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-                              >
-                                <X size={12} />
-                              </button>
+                            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-200 dark:border-slate-800 font-black text-[9.5px] uppercase text-teal-700 dark:text-teal-400">
+                              <span>Columns ({activeColumns.length})</span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleResetColumns();
+                                    setShowInTableAddMenu(false);
+                                  }}
+                                  className="text-[9.5px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:underline cursor-pointer flex items-center gap-0.5"
+                                  title="Reset columns to template preset defaults"
+                                >
+                                  <RotateCcw size={10} />
+                                  <span>Reset</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowInTableAddMenu(false)}
+                                  className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
                             </div>
 
                             <button
@@ -2080,125 +2131,7 @@ export default function BeneficiarySanctionOrdersView({
               </div>
             </div>
 
-            {/* SECTION 4: Column Customization Matrix */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <SlidersHorizontal size={14} className="text-emerald-600" />
-                  Columns ({activeColumns.length})
-                </h2>
-
-                <div className="flex items-center gap-1">
-                  {/* Standard DB Column Dropdown */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowDbColDropdown(!showDbColDropdown)}
-                      className="text-[10px] font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 rounded text-teal-700 dark:text-teal-300 hover:bg-teal-50"
-                    >
-                      + DB Col
-                    </button>
-                    {showDbColDropdown && (
-                      <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 w-52 max-h-56 overflow-y-auto p-1.5 text-xs">
-                        {DB_COLUMN_GROUPS.map(g => (
-                          <div key={g.category} className="mb-2">
-                            <div className="text-[9px] font-black uppercase text-slate-400 px-1.5 py-0.5">
-                              {g.category}
-                            </div>
-                            {g.columns.map(c => (
-                              <button
-                                key={c.key}
-                                onClick={() => handleAddDbColumn(c)}
-                                className="w-full text-left px-1.5 py-1 hover:bg-teal-50 dark:hover:bg-slate-800 rounded flex items-center justify-between text-xs"
-                              >
-                                <span>{c.label}</span>
-                                {activeColumns.some(x => x.key === c.key) && (
-                                  <Check size={12} className="text-teal-600" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Custom Column Button */}
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCustomColModal(true)}
-                    className="text-[10px] font-bold bg-teal-600 text-white px-1.5 py-0.5 rounded hover:bg-teal-700 cursor-pointer"
-                  >
-                    + Custom
-                  </button>
-
-                  {/* Reset Defaults button */}
-                  <button
-                    type="button"
-                    onClick={handleResetColumns}
-                    className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 px-1.5 py-0.5 rounded cursor-pointer"
-                    title="Reset to default columns preset"
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
-
-              {/* Active Columns List */}
-              <div className="space-y-1 max-h-44 overflow-y-auto pr-0.5">
-                {activeColumns.map((col, idx) => (
-                  <div
-                    key={col.key}
-                    className="flex items-center justify-between p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-xs"
-                  >
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                      <span className="text-[9px] font-mono text-slate-400 w-3">{idx + 1}.</span>
-                      <input
-                        type="text"
-                        value={col.label}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setActiveColumns(prev => prev.map((c, i) => i === idx ? { ...c, label: val } : c));
-                        }}
-                        className="font-semibold text-slate-800 dark:text-slate-200 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:outline-hidden text-xs py-0 truncate flex-1"
-                      />
-                      {col.isCustom && (
-                        <span className="text-[8px] uppercase px-1 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold shrink-0">
-                          {col.type || 'custom'}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-0.5 ml-1 shrink-0">
-                      <button
-                        onClick={() => handleMoveColumn(idx, -1)}
-                        disabled={idx === 0}
-                        className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-20"
-                        title="Move Up"
-                      >
-                        <ArrowUp size={11} />
-                      </button>
-                      <button
-                        onClick={() => handleMoveColumn(idx, 1)}
-                        disabled={idx === activeColumns.length - 1}
-                        className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 disabled:opacity-20"
-                        title="Move Down"
-                      >
-                        <ArrowDown size={11} />
-                      </button>
-                      <button
-                        onClick={() => handleRemoveColumn(col.key)}
-                        className="p-0.5 hover:bg-rose-50 text-rose-500 rounded"
-                        title="Remove Column"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* SECTION 5: Certification Text Paragraph */}
+            {/* SECTION 3: Certification Text Paragraph */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
               <label className="flex items-center gap-1.5 cursor-pointer">
                 <input
@@ -2234,7 +2167,7 @@ export default function BeneficiarySanctionOrdersView({
               )}
             </div>
 
-            {/* SECTION 6: Signatures Configuration */}
+            {/* SECTION 4: Signatures Configuration */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
               <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                 <UserCheck size={14} className="text-purple-600" />
