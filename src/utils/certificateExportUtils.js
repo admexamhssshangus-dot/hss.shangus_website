@@ -483,10 +483,31 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   if (contextData.withdrawalDate && !contextData.withdrawalDate.includes('{')) {
     replaceLiteral(contextData.withdrawalDate, '{WITHDRAWAL_DATE}');
   }
+  replaceLiteral(contextData.aadhaarNo || contextData.aadhar, '{AADHAAR_NUMBER}');
+  replaceLiteral(contextData.pen, '{PEN_NUMBER}');
+  replaceLiteral(contextData.apaarId || contextData.apaar, '{APAAR_ID}');
+  replaceLiteral(contextData.prevSchool, '{PREVIOUS_SCHOOL}');
+  replaceLiteral(contextData.prevBoard, '{PREVIOUS_BOARD}');
+  replaceLiteral(contextData.prevRollNo, '{PREVIOUS_ROLL_NO}');
+  replaceLiteral(contextData.prevYear, '{PREVIOUS_YEAR}');
+  replaceLiteral(contextData.prevMarks, '{PREVIOUS_MARKS}');
+  replaceLiteral(contextData.dietRegNo, '{DIET_REG_NO}');
+  replaceLiteral(contextData.rationCard, '{RATION_CARD_NO}');
+  replaceLiteral(contextData.socioCategory, '{SOCIO_CATEGORY}');
+  replaceLiteral(contextData.bloodGroup, '{BLOOD_GROUP}');
+  replaceLiteral(contextData.bankAccount, '{BANK_ACCOUNT}');
+  replaceLiteral(contextData.bankName, '{BANK_NAME}');
+  replaceLiteral(contextData.ifsc, '{IFSC_CODE}');
+  replaceLiteral(contextData.mobile, '{MOBILE_NO}');
+  replaceLiteral(contextData.parentMobile, '{PARENT_MOBILE}');
+  replaceLiteral(contextData.email, '{EMAIL_ADDRESS}');
 
   // Retokenize any active custom fields
-  if (Array.isArray(contextData.customFields)) {
-    contextData.customFields.forEach(f => {
+  const allCustomFields = (Array.isArray(contextData.customFields))
+    ? contextData.customFields
+    : (Array.isArray(contextData?.options?.customFields) ? contextData.options.customFields : []);
+  if (Array.isArray(allCustomFields)) {
+    allCustomFields.forEach(f => {
       if (f.label && f.value) {
         const token = `{${f.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`;
         replaceLiteral(String(f.value), token);
@@ -957,17 +978,33 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     return '';
   };
 
-  result = result.replace(/\{(?:MOBILE_NO|MOBILE|PHONE|CONTACT_NO)\}/gi, formatBlank(resolvePresetVal(['mobile', 'mobile_no', 'Mobile', 'Mobile Number', 'Phone', 'contact_no', 'phone']), '----------'));
-  result = result.replace(/\{(?:EMAIL_ADDRESS|EMAIL)\}/gi, formatBlank(resolvePresetVal(['email', 'Email', 'email_address']), '------------------------'));
-  result = result.replace(/\{(?:ADMISSION_FORM_NO|FORM_NO)\}/gi, formatBlank(resolvePresetVal(['formNo', 'form_no', 'Form No', 'Form Number', 'FormNumber', 'id']), '--------'));
-  result = result.replace(/\{(?:AADHAAR_NUMBER|AADHAAR_NO|AADHAAR|AADHAR)\}/gi, formatBlank(resolvePresetVal(['aadhar', 'aadhar_no', 'Aadhar', 'Aadhaar', 'aadhaar_no', 'Aadhar Number', 'aadhaar']), '------------'));
-  result = result.replace(/\{(?:CATEGORY|SOCIAL_CATEGORY)\}/gi, formatBlank(resolvePresetVal(['category', 'Category', 'Social Category', 'social_category', 'reserved_category', 'Cat._JKBOSE']), 'OM'));
+  result = result.replace(/\{(?:MOBILE_NO|MOBILE|PHONE|CONTACT_NO)\}/gi, formatBlank(resolvePresetVal(['mobile', 'mobile_no', 'Mobile', 'Mobile Number', 'Phone', 'contact_no', 'phone', "Mobile No. (with working WhatsApp)", "Student's Contact"]), '----------'));
+  result = result.replace(/\{(?:EMAIL_ADDRESS|EMAIL)\}/gi, formatBlank(resolvePresetVal(['email', 'Email', 'email_address', 'Email Address', 'emailId', 'Email ID']), '------------------------'));
+  result = result.replace(/\{(?:ADMISSION_FORM_NO|FORM_NO)\}/gi, formatBlank(resolvePresetVal(['formNo', 'form_no', 'Form No', 'Form Number', 'FormNumber', 'id', 'Application ID', 'appId']), '--------'));
+  result = result.replace(/\{(?:AADHAAR_NUMBER|AADHAAR_NO|AADHAAR|AADHAR)\}/gi, formatBlank(resolvePresetVal(['aadhar', 'aadhar_no', 'Aadhar', 'Aadhaar', 'aadhaar_no', 'Aadhar Number', 'aadhaar', 'Aadhar No.', 'Aadhaar No.']), '------------'));
+  result = result.replace(/\{(?:CATEGORY|SOCIAL_CATEGORY)\}/gi, formatBlank(resolvePresetVal(['category', 'Category', 'Social Category', 'social_category', 'reserved_category', 'Cat._JKBOSE', 'Social category']), 'OM'));
+  result = result.replace(/\{(?:SOCIO_CATEGORY|SOCIO_ECONOMIC_CATEGORY|RATION_CARD_TYPE)\}/gi, formatBlank(resolvePresetVal(['socioEconomicCategory', 'socioCategory', 'Socio-economic category', 'Ration Card Type', 'rationCardType']), '----'));
+  result = result.replace(/\{(?:RATION_CARD_NO|RATION_CARD)\}/gi, formatBlank(resolvePresetVal(['rationCardNo', 'rationCard', 'ration_card', 'Ration Card No.', 'Ration Card Number', 'Ration Card']), '--------------'));
+  result = result.replace(/\{(?:DISABILITY|DISABILITY_STATUS|CWSN)\}/gi, formatBlank(resolvePresetVal(['disability', 'Type of Disability', 'Whether Any Disability', 'cwsn', 'CWSN']), 'None'));
   result = result.replace(/\{BLOOD_GROUP\}/gi, formatBlank(resolvePresetVal(['blood_group', 'Blood Group', 'bloodGroup', 'BloodGroup', 'blood_grp']), '----'));
-  result = result.replace(/\{(?:PEN_NUMBER|PEN_NO|PEN)\}/gi, formatBlank(resolvePresetVal(['pen', 'pen_no', 'PEN', 'PEN No', 'PEN Number', 'pen_number', 'Permanent Education No']), '--------------'));
-  result = result.replace(/\{PREVIOUS_SCHOOL\}/gi, formatBlank(resolvePresetVal(['prev_school', 'previous_school', 'Previous School', 'Institution Last Attended', 'school_last_attended']), '------------------------'));
-  result = result.replace(/\{MARKS_PERCENTAGE\}/gi, formatBlank(resolvePresetVal(['percentage', 'Percentage', 'marks_percentage', 'Marks %', 'percent', 'Percentage / GPA']), '------'));
-  result = result.replace(/\{(?:SUBJECTS|SUBJECTS_OFFERED)\}/gi, formatBlank(resolvePresetVal(['subjects', 'Subjects', 'subjects_offered', 'Subjects Offered', 'subject_combination', 'Subjects Selected', 'subs']), '------------------------'));
-  result = result.replace(/\{(?:GUARDIAN_CONTACT|PARENT_MOBILE)\}/gi, formatBlank(resolvePresetVal(['parent_mobile', 'guardian_mobile', 'Father Mobile', 'father_mobile', 'Parent Contact']), '----------'));
+  result = result.replace(/\{(?:PEN_NUMBER|PEN_NO|PEN)\}/gi, formatBlank(resolvePresetVal(['pen', 'pen_no', 'PEN', 'PEN No', 'PEN Number', 'pen_number', 'Permanent Education No', 'PEN number (given by UDISE portal)', 'PEN number']), '--------------'));
+  result = result.replace(/\{(?:APAAR_ID|APAAR_NUMBER|APAAR)\}/gi, formatBlank(resolvePresetVal(['apaarId', 'apaar_id', 'APAAR ID', 'APAAR Id', 'apaarNumber', 'APAAR', 'apaar']), '------------'));
+  result = result.replace(/\{(?:MOTHER_TONGUE|MOTHER_TONGUE_LANG)\}/gi, formatBlank(resolvePresetVal(['motherTongue', 'mother_tongue', 'Your Mother Tongue', 'Mother Tongue', 'Mother tongue']), 'Kashmiri'));
+  result = result.replace(/\{RELIGION\}/gi, formatBlank(resolvePresetVal(['religion', 'Religion']), 'Islam'));
+  result = result.replace(/\{(?:ADMISSION_TYPE|ADMISSION_CATEGORY)\}/gi, formatBlank(resolvePresetVal(['admissionType', 'Admission Type (Class 11th)', 'Admission Type (Class 12th)', 'Admission Type']), 'Regular'));
+  result = result.replace(/\{(?:OLD_ADMISSION_NO|OLD_ADM_NO)\}/gi, formatBlank(resolvePresetVal(['oldAdmNo', 'old_adm_no', 'Old Admission No.', 'Old Adm No', 'Old Admission Number']), '--------'));
+  result = result.replace(/\{(?:PREVIOUS_SCHOOL|PREV_SCHOOL)\}/gi, formatBlank(resolvePresetVal(['prev_school', 'previous_school', 'Previous School', 'Institution Last Attended', 'school_last_attended', 'Name of Previous School (Class 10th)', 'Name of Previous School (Class 11th)', 'Previous School Attended']), '------------------------'));
+  result = result.replace(/\{(?:PREVIOUS_BOARD|PREV_BOARD)\}/gi, formatBlank(resolvePresetVal(['previousBoard', 'prevBoard', 'prev_board', 'Name of Previous Board (Class 10th)', 'Name of Previous Board (Class 11th)', 'Previous Board', 'Board']), 'JKBOSE'));
+  result = result.replace(/\{(?:PREVIOUS_ROLL_NO|PREV_ROLL_NO)\}/gi, formatBlank(resolvePresetVal(['prevRollNo', 'prev_roll_no', 'Exam Roll Number of Class 10th', 'Exam Roll Number of Class 11th', 'Previous Exam Roll No.', '10th Roll No.']), '------------'));
+  result = result.replace(/\{(?:PREVIOUS_YEAR|PASSING_YEAR|PREV_YEAR)\}/gi, formatBlank(resolvePresetVal(['passingYear', 'prevYear', 'prev_year', 'Year of Passing Class 10th', 'Year of Passing Class 11th', 'Year of Passing']), '--------'));
+  result = result.replace(/\{(?:PREVIOUS_MARKS|PREV_MARKS)\}/gi, formatBlank(resolvePresetVal(['prevMarks', 'Total Marks Obtained in Class 10th', 'Total Marks Obtained in Class 11th', 'marksObtained', 'Marks Obtained']), '------'));
+  result = result.replace(/\{(?:DIET_REG_NO|DIET_REGISTRATION_NO)\}/gi, formatBlank(resolvePresetVal(['dietRegNo', 'dietRegistrationNo', 'DIET Registration No.', 'DIET/Board Reg. No.', 'DIET Reg. No.', 'DIET Reg No']), '------------'));
+  result = result.replace(/\{(?:MARKS_PERCENTAGE|PERCENTAGE)\}/gi, formatBlank(resolvePresetVal(['percentage', 'Percentage', 'marks_percentage', 'Marks %', 'percent', 'Percentage / GPA']), '------'));
+  result = result.replace(/\{(?:SUBJECTS|SUBJECTS_OFFERED)\}/gi, formatBlank(resolvePresetVal(['subjects', 'Subjects', 'subjects_offered', 'Subjects Offered', 'subject_combination', 'Subjects Selected', 'subs', 'selectedSubjects']), '------------------------'));
+  result = result.replace(/\{(?:GUARDIAN_CONTACT|PARENT_MOBILE)\}/gi, formatBlank(resolvePresetVal(['parent_mobile', 'guardian_mobile', 'Father Mobile', 'father_mobile', 'Parent Contact', "Parent's Mobile No. (must be working)", 'Parent Mobile', "Father's Mobile", 'parentContact']), '----------'));
+  result = result.replace(/\{(?:BANK_ACCOUNT|BANK_ACC_NO|ACCOUNT_NO)\}/gi, formatBlank(resolvePresetVal(['bankAccount', 'bank_account', 'Bank Account No.', 'Account No.', 'accountNo', 'Account Number']), '----------------'));
+  result = result.replace(/\{BANK_NAME\}/gi, formatBlank(resolvePresetVal(['bankName', 'bank_name', 'Bank Name', 'Name of Bank', 'Bank']), 'J&K Bank'));
+  result = result.replace(/\{(?:IFSC_CODE|IFSC)\}/gi, formatBlank(resolvePresetVal(['ifsc', 'ifscCode', 'IFSC code', 'IFSC Code', 'IFSC']), 'JAKA0...'));
 
   // Any extra field present in raw record automatically interpolates
   if (rawStudent && typeof rawStudent === 'object') {
@@ -1052,8 +1089,16 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = replacePronounSmart(result, /\{(?:PRONOUN_HIMSELF_HERSELF|HIMSELF_HERSELF)\}/gi, pronounHimselfHerselfCap, pronounHimselfHerself);
 
   // Custom dynamic fields interpolation
-  if (options && Array.isArray(options.customFields)) {
-    options.customFields.forEach(f => {
+  const allCustomFields = (options && Array.isArray(options.customFields))
+    ? options.customFields
+    : (Array.isArray(studentData?.customFields)
+      ? studentData.customFields
+      : (Array.isArray(mergedProps?.customFields)
+        ? mergedProps.customFields
+        : []));
+
+  if (Array.isArray(allCustomFields) && allCustomFields.length > 0) {
+    allCustomFields.forEach(f => {
       if (f.label && f.value !== undefined) {
         const safeToken = f.label.toUpperCase().replace(/[^A-Z0-9]/g, '_');
         const regex = new RegExp(`\\{${safeToken}\\}`, 'g');

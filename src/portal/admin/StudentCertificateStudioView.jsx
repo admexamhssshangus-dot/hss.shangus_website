@@ -1175,6 +1175,8 @@ export default function StudentCertificateStudioView({
   // ─── Custom Dynamic Fields (Add/Remove/Edit values on the fly) ───
   const [customFields, setCustomFields] = useState([]);
   const [showFieldManagerModal, setShowFieldManagerModal] = useState(false);
+  const [modalFieldCategory, setModalFieldCategory] = useState('All');
+  const [modalFieldSearch, setModalFieldSearch] = useState('');
   const [newCustomFieldName, setNewCustomFieldName] = useState('');
   const [newCustomFieldValue, setNewCustomFieldValue] = useState('');
 
@@ -2916,19 +2918,47 @@ export default function StudentCertificateStudioView({
 
   // ─── Preset Firestore Student Fields & Auto-Pick Handlers ───
   const FIRESTORE_PRESET_FIELDS = [
-    { label: 'Mobile No', keys: ['mobile', 'mobile_no', 'Mobile', 'Mobile Number', 'Phone', 'contact_no', 'phone'] },
-    { label: 'Email Address', keys: ['email', 'Email', 'email_address'] },
-    { label: 'Admission Form No', keys: ['formNo', 'form_no', 'Form No', 'Form Number', 'FormNumber', 'id'] },
-    { label: 'Aadhaar Number', keys: ['aadhar', 'aadhar_no', 'Aadhar', 'Aadhaar', 'aadhaar_no', 'Aadhar Number', 'aadhaar'] },
-    { label: 'Category', keys: ['category', 'Category', 'Social Category', 'social_category', 'reserved_category'] },
-    { label: 'Blood Group', keys: ['blood_group', 'Blood Group', 'bloodGroup', 'BloodGroup', 'blood_grp'] },
-    { label: 'PEN Number', keys: ['pen', 'pen_no', 'PEN', 'PEN No', 'PEN Number', 'pen_number', 'Permanent Education No'] },
-    { label: 'Previous School', keys: ['prev_school', 'previous_school', 'Previous School', 'Institution Last Attended', 'school_last_attended'] },
-    { label: 'Marks Percentage', keys: ['percentage', 'Percentage', 'marks_percentage', 'Marks %', 'percent', 'Percentage / GPA'] },
-    { label: 'Subjects', keys: ['subjects', 'Subjects', 'subjects_offered', 'Subjects Offered', 'subject_combination', 'Subjects Selected'] },
-    { label: 'Admission Date', keys: ['admission_date', 'Admission Date', 'adm_date', 'date_of_admission', 'Date of Admission'] },
-    { label: 'Guardian Contact', keys: ['parent_mobile', 'guardian_mobile', 'Father Mobile', 'father_mobile', 'Parent Contact'] },
-    { label: 'Village / Tehsil', keys: ['village', 'Village', 'tehsil', 'Tehsil', 'residence_village'] }
+    // 1. Identity & Government IDs
+    { label: 'Aadhaar Number', category: 'Identity & Govt IDs', keys: ['aadhar', 'aadhar_no', 'Aadhar', 'Aadhaar', 'aadhaar_no', 'Aadhar Number', 'aadhaar', 'Aadhar No.', 'Aadhaar No.'] },
+    { label: 'PEN Number', category: 'Identity & Govt IDs', keys: ['pen', 'pen_no', 'PEN', 'PEN No', 'PEN Number', 'pen_number', 'Permanent Education No', 'PEN number (given by UDISE portal)', 'PEN number'] },
+    { label: 'APAAR ID', category: 'Identity & Govt IDs', keys: ['apaarId', 'apaar_id', 'APAAR ID', 'APAAR Id', 'apaarNumber', 'APAAR', 'apaar'] },
+    { label: 'Category', category: 'Identity & Govt IDs', keys: ['category', 'Category', 'Social Category', 'social_category', 'reserved_category', 'Cat._JKBOSE', 'Social category'] },
+    { label: 'Socio Category', category: 'Identity & Govt IDs', keys: ['socioEconomicCategory', 'socioCategory', 'Socio-economic category', 'Ration Card Type', 'rationCardType'] },
+    { label: 'Ration Card No', category: 'Identity & Govt IDs', keys: ['rationCardNo', 'rationCard', 'ration_card', 'Ration Card No.', 'Ration Card Number', 'Ration Card'] },
+    { label: 'Disability Status', category: 'Identity & Govt IDs', keys: ['disability', 'Type of Disability', 'Whether Any Disability', 'cwsn', 'CWSN'] },
+    { label: 'Blood Group', category: 'Identity & Govt IDs', keys: ['blood_group', 'Blood Group', 'bloodGroup', 'BloodGroup', 'blood_grp'] },
+    { label: 'Mother Tongue', category: 'Identity & Govt IDs', keys: ['motherTongue', 'mother_tongue', 'Your Mother Tongue', 'Mother Tongue', 'Mother tongue'] },
+    { label: 'Religion', category: 'Identity & Govt IDs', keys: ['religion', 'Religion'] },
+
+    // 2. Academic History & Board Details
+    { label: 'Exam Roll No', category: 'Academic History & Board', keys: ['currExamRollNo', 'examRollNo', 'boardRollNo', 'Exam R.No. (Current)', 'Exam Roll No. (Board)', 'jkboseRollNo', 'board_roll_no', 'exam_roll_no', 'Exam Roll No.', 'Exam Roll No'] },
+    { label: 'Previous School', category: 'Academic History & Board', keys: ['prev_school', 'previous_school', 'Previous School', 'Institution Last Attended', 'school_last_attended', 'Name of Previous School (Class 10th)', 'Name of Previous School (Class 11th)', 'Previous School Attended'] },
+    { label: 'Previous Board', category: 'Academic History & Board', keys: ['previousBoard', 'prevBoard', 'prev_board', 'Name of Previous Board (Class 10th)', 'Name of Previous Board (Class 11th)', 'Previous Board', 'Board'] },
+    { label: 'Previous Roll No', category: 'Academic History & Board', keys: ['prevRollNo', 'prev_roll_no', 'Exam Roll Number of Class 10th', 'Exam Roll Number of Class 11th', 'Previous Exam Roll No.', '10th Roll No.'] },
+    { label: 'Passing Year', category: 'Academic History & Board', keys: ['passingYear', 'prevYear', 'prev_year', 'Year of Passing Class 10th', 'Year of Passing Class 11th', 'Year of Passing'] },
+    { label: 'Previous Marks', category: 'Academic History & Board', keys: ['prevMarks', 'Total Marks Obtained in Class 10th', 'Total Marks Obtained in Class 11th', 'marksObtained', 'Marks Obtained'] },
+    { label: 'DIET Reg No', category: 'Academic History & Board', keys: ['dietRegNo', 'dietRegistrationNo', 'DIET Registration No.', 'DIET/Board Reg. No.', 'DIET Reg. No.', 'DIET Reg No'] },
+    { label: 'Marks Percentage', category: 'Academic History & Board', keys: ['percentage', 'Percentage', 'marks_percentage', 'Marks %', 'percent', 'Percentage / GPA'] },
+    { label: 'Subjects', category: 'Academic History & Board', keys: ['subjects', 'Subjects', 'subjects_offered', 'Subjects Offered', 'subject_combination', 'Subjects Selected', 'subs', 'selectedSubjects'] },
+
+    // 3. Institutional Enrollment
+    { label: 'Admission Form No', category: 'Enrollment & School', keys: ['formNo', 'form_no', 'Form No', 'Form Number', 'FormNumber', 'id', 'Application ID', 'appId'] },
+    { label: 'Admission No', category: 'Enrollment & School', keys: ['admNo', 'admissionNo', 'Admission Number', 'Adm. No.', 'Adm No.', 'Admission No.', 'Admission No'] },
+    { label: 'Old Admission No', category: 'Enrollment & School', keys: ['oldAdmNo', 'old_adm_no', 'Old Admission No.', 'Old Adm No', 'Old Admission Number'] },
+    { label: 'Admission Date', category: 'Enrollment & School', keys: ['admission_date', 'Admission Date', 'adm_date', 'date_of_admission', 'Date of Admission'] },
+    { label: 'Admission Type', category: 'Enrollment & School', keys: ['admissionType', 'Admission Type (Class 11th)', 'Admission Type (Class 12th)', 'Admission Type'] },
+    { label: 'Conduct Status', category: 'Enrollment & School', keys: ['conductStatus', 'conduct_remark', 'Conduct', 'conduct', 'Behaviour', 'behaviour'] },
+
+    // 4. Contact, Address & Banking
+    { label: 'Mobile No', category: 'Contact & Banking', keys: ['mobile', 'mobile_no', 'Mobile', 'Mobile Number', 'Phone', 'contact_no', 'phone', "Mobile No. (with working WhatsApp)", "Student's Contact"] },
+    { label: 'Guardian Contact', category: 'Contact & Banking', keys: ['parent_mobile', 'guardian_mobile', 'Father Mobile', 'father_mobile', 'Parent Contact', "Parent's Mobile No. (must be working)", 'Parent Mobile', "Father's Mobile", 'parentContact'] },
+    { label: 'Email Address', category: 'Contact & Banking', keys: ['email', 'Email', 'email_address', 'Email Address', 'emailId', 'Email ID'] },
+    { label: 'Village / Tehsil', category: 'Contact & Banking', keys: ['village', 'Village', 'tehsil', 'Tehsil', 'residence_village', 'Name of your village', 'Village/Town'] },
+    { label: 'District', category: 'Contact & Banking', keys: ['district', 'District'] },
+    { label: 'PIN Code', category: 'Contact & Banking', keys: ['pincode', 'pinCode', 'pin', 'PIN code', 'PIN Code', 'Pincode'] },
+    { label: 'Bank Account No', category: 'Contact & Banking', keys: ['bankAccount', 'bank_account', 'Bank Account No.', 'Account No.', 'accountNo', 'Account Number'] },
+    { label: 'Bank Name', category: 'Contact & Banking', keys: ['bankName', 'bank_name', 'Bank Name', 'Name of Bank', 'Bank'] },
+    { label: 'IFSC Code', category: 'Contact & Banking', keys: ['ifsc', 'ifscCode', 'IFSC code', 'IFSC Code', 'IFSC'] }
   ];
 
   const findValueInStudentRaw = (st, keys) => {
@@ -2981,6 +3011,8 @@ export default function StudentCertificateStudioView({
     if (existing) {
       if (defaultValue && !existing.value) {
         handleUpdateCustomField(existing.id, 'value', defaultValue);
+      } else {
+        handleDeleteCustomField(existing.id);
       }
       return;
     }
@@ -2990,6 +3022,27 @@ export default function StudentCertificateStudioView({
       value: defaultValue
     };
     setCustomFields(prev => [...prev, newField]);
+  };
+
+  const handleAutoAddAllAvailableStudentFields = () => {
+    if (!selectedStudent) return;
+    const toAdd = [];
+    FIRESTORE_PRESET_FIELDS.forEach(preset => {
+      const val = findValueInStudentRaw(selectedStudent, preset.keys);
+      if (val && !customFields.some(f => f.label.toLowerCase() === preset.label.toLowerCase())) {
+        toAdd.push({
+          id: `cf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          label: preset.label,
+          value: val
+        });
+      }
+    });
+    if (toAdd.length > 0) {
+      setCustomFields(prev => [...prev, ...toAdd]);
+      showToast(`Added ${toAdd.length} student fields from record.`, 'success');
+    } else {
+      showToast('All available fields from this record are already active.', 'info');
+    }
   };
 
   // ─── Custom Dynamic Fields Handlers (Temporary In-Memory Overrides) ───
@@ -3067,7 +3120,31 @@ export default function StudentCertificateStudioView({
   const [savedRange, setSavedRange] = useState(null);
   const savedRangeRef = useRef(null);
   const [showInsertFieldDropdown, setShowInsertFieldDropdown] = useState(false);
+  const [insertFieldSearch, setInsertFieldSearch] = useState('');
+  const [insertFieldDropdownCoords, setInsertFieldDropdownCoords] = useState(null);
   const insertFieldDropdownRef = useRef(null);
+
+  const handleToggleInsertFieldDropdown = (e) => {
+    e?.preventDefault();
+    if (!showInsertFieldDropdown) {
+      if (insertFieldDropdownRef.current) {
+        const rect = insertFieldDropdownRef.current.getBoundingClientRect();
+        const top = Math.min(rect.bottom + 6, window.innerHeight - 380);
+        const menuWidth = 330;
+        let left = rect.right - menuWidth;
+        if (left < 10) left = 10;
+        if (left + menuWidth > window.innerWidth - 10) {
+          left = window.innerWidth - menuWidth - 10;
+        }
+        setInsertFieldDropdownCoords({ top, left });
+      }
+      setInsertFieldSearch('');
+      setShowInsertFieldDropdown(true);
+      setShowAskGeminiMenu(false);
+    } else {
+      setShowInsertFieldDropdown(false);
+    }
+  };
 
   const [activeFormats, setActiveFormats] = useState({
     bold: false,
@@ -6718,7 +6795,7 @@ export default function StudentCertificateStudioView({
                 <h3 className="text-[11px] sm:text-xs font-black text-[#800000] uppercase tracking-[1.5px] m-0">
                   {officeTitle || 'OFFICE OF THE PRINCIPAL'}
                 </h3>
-                <h1 className="text-base sm:text-lg font-black text-[#0a192f] tracking-wide uppercase m-0 mt-0.5 font-serif">
+                <h1 className="text-base sm:text-lg font-extrabold text-[#0a192f] tracking-wider uppercase m-0 mt-0.5 select-none font-sans sm:font-serif">
                   {institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}
                 </h1>
                 <p className="text-[10px] text-slate-600 font-semibold m-0 mt-0.5">
@@ -6750,31 +6827,23 @@ export default function StudentCertificateStudioView({
                       className="studio-inline-input font-mono font-bold text-slate-900 dark:text-white bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[240px] sm:max-w-[360px] text-[10px] sm:text-xs placeholder:text-[9px] print:border-none print:bg-transparent print:p-0 print:max-w-none print:w-auto"
                       style={{ fontSize: '11px', height: '22px' }}
                     />
-                    <div className="print:hidden inline-flex items-center gap-1 bg-teal-50/90 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800/80 rounded px-1.5 py-0.5 shadow-2xs shrink-0">
-                      <span className="text-[8.5px] font-black uppercase text-teal-800 dark:text-teal-300 whitespace-nowrap">
-                        Inc Part:
-                      </span>
-                      <span className="text-[9.5px] font-mono font-black text-teal-700 dark:text-teal-200 bg-white dark:bg-slate-800 px-1 rounded border border-teal-100 dark:border-teal-900" title="This numerical portion of the reference number increments">
-                        {currentFigure}
-                      </span>
-                      <div className="inline-flex items-center rounded overflow-hidden border border-teal-300/60 dark:border-teal-700">
-                        <button
-                          type="button"
-                          onClick={() => handleStepFigure(-1)}
-                          className="px-1 py-0.5 text-[8.5px] font-black text-teal-800 dark:text-teal-200 hover:bg-teal-100 dark:hover:bg-teal-900 border-r border-teal-200 dark:border-teal-700 cursor-pointer"
-                          title="Step figure down (-1)"
-                        >
-                          -1
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleStepFigure(1)}
-                          className="px-1 py-0.5 text-[8.5px] font-black text-teal-800 dark:text-teal-200 hover:bg-teal-100 dark:hover:bg-teal-900 cursor-pointer"
-                          title="Advance figure (+1 Next)"
-                        >
-                          +1
-                        </button>
-                      </div>
+                    <div className="print:hidden inline-flex items-center rounded border border-teal-300/80 dark:border-teal-700 bg-white dark:bg-slate-800 shadow-2xs shrink-0 overflow-hidden" title={`Incremental serial: ${currentFigure}`}>
+                      <button
+                        type="button"
+                        onClick={() => handleStepFigure(-1)}
+                        className="px-1.5 py-0.5 text-[9px] font-bold text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/50 border-r border-teal-200 dark:border-teal-700 cursor-pointer transition-colors"
+                        title="Step reference serial down (-1)"
+                      >
+                        -
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStepFigure(1)}
+                        className="px-1.5 py-0.5 text-[9px] font-bold text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/50 cursor-pointer transition-colors"
+                        title="Advance reference serial up (+1)"
+                      >
+                        +
+                      </button>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 group/date shrink-0">
@@ -6842,31 +6911,23 @@ export default function StudentCertificateStudioView({
                         aria-label="Certificate Serial Number"
                         className="font-mono font-black text-red-600 bg-transparent border-b border-dashed border-red-300/80 hover:border-red-500 focus:border-red-600 focus:bg-red-50/40 rounded px-0.5 py-0 outline-none transition-all w-24 text-[9.5px] print:border-none print:bg-transparent print:p-0"
                       />
-                      <div className="print:hidden inline-flex items-center gap-1 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded px-1.5 py-0.5 shadow-2xs shrink-0">
-                        <span className="text-[8.5px] font-black uppercase text-red-800 dark:text-red-300 whitespace-nowrap">
-                          Inc Part:
-                        </span>
-                        <span className="text-[9.5px] font-mono font-black text-red-700 dark:text-red-200 bg-white dark:bg-slate-800 px-1 rounded border border-red-100 dark:border-red-900" title="This numerical certificate serial increments">
-                          {currentFigure}
-                        </span>
-                        <div className="inline-flex items-center rounded overflow-hidden border border-red-300/60 dark:border-red-700">
-                          <button
-                            type="button"
-                            onClick={() => handleStepFigure(-1)}
-                            className="px-1 py-0.5 text-[8.5px] font-black text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 border-r border-red-200 dark:border-red-700 cursor-pointer"
-                            title="Step TC/DC number down (-1)"
-                          >
-                            -1
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleStepFigure(1)}
-                            className="px-1 py-0.5 text-[8.5px] font-black text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 cursor-pointer"
-                            title="Advance TC/DC number (+1)"
-                          >
-                            +1
-                          </button>
-                        </div>
+                      <div className="print:hidden inline-flex items-center rounded border border-red-200 dark:border-red-800 bg-white dark:bg-slate-800 shadow-2xs shrink-0 overflow-hidden" title={`Certificate serial: ${currentFigure}`}>
+                        <button
+                          type="button"
+                          onClick={() => handleStepFigure(-1)}
+                          className="px-1.5 py-0.5 text-[9px] font-bold text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/50 border-r border-red-200 dark:border-red-800 cursor-pointer transition-colors"
+                          title="Step TC/DC serial down (-1)"
+                        >
+                          -
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStepFigure(1)}
+                          className="px-1.5 py-0.5 text-[9px] font-bold text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/50 cursor-pointer transition-colors"
+                          title="Advance TC/DC serial up (+1)"
+                        >
+                          +
+                        </button>
                       </div>
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
@@ -7159,10 +7220,7 @@ export default function StudentCertificateStudioView({
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setShowInsertFieldDropdown(!showInsertFieldDropdown);
-                          setShowAskGeminiMenu(false);
-                        }}
+                        onClick={handleToggleInsertFieldDropdown}
                         className="h-7 px-2 rounded-lg bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95"
                         title="Insert student database fields at cursor"
                       >
@@ -7170,382 +7228,233 @@ export default function StudentCertificateStudioView({
                         <span>Field</span>
                       </button>
 
-                      {showInsertFieldDropdown && (
-                    <div className={`absolute right-0 top-full mt-1.5 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[999999] p-2 space-y-1 text-xs animate-fadeIn divide-y divide-slate-100 dark:divide-slate-800 max-h-[75vh] overflow-y-auto`}>
-                      <div className="px-1.5 py-1 flex items-center justify-between">
-                        <div className="flex items-center gap-1 text-[10px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider">
-                          <PlusCircle size={10} className="text-teal-600" />
-                          <span>Insert Student Field</span>
-                        </div>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { setShowInsertFieldDropdown(false); setShowFieldManagerModal(true); }}
-                          className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-teal-700 dark:text-teal-300 hover:bg-slate-200 text-[9px] font-extrabold border border-slate-200 dark:border-slate-700 flex items-center gap-1 cursor-pointer"
-                          title="Edit or add temporary dynamic field values"
-                        >
-                          <Sliders size={9} />
-                          <span>✍️ Edit Values</span>
-                        </button>
-                      </div>
+                      {showInsertFieldDropdown && typeof document !== 'undefined' && createPortal(
+                        <>
+                          <div
+                            className="fixed inset-0 z-[999998]"
+                            onClick={() => setShowInsertFieldDropdown(false)}
+                          />
+                          <div
+                            style={{
+                              position: 'fixed',
+                              top: insertFieldDropdownCoords?.top ?? 120,
+                              left: insertFieldDropdownCoords?.left ?? 200,
+                              width: '330px',
+                              maxHeight: '75vh',
+                              zIndex: 999999
+                            }}
+                            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2.5 space-y-2 text-xs flex flex-col animate-fadeIn"
+                          >
+                            <div className="px-1 py-0.5 flex items-center justify-between shrink-0">
+                              <div className="flex items-center gap-1.5 text-[10.5px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider">
+                                <PlusCircle size={12} className="text-teal-600" />
+                                <span>Insert Student Field</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => { setShowInsertFieldDropdown(false); setShowFieldManagerModal(true); }}
+                                  className="px-2 py-0.5 rounded-lg bg-teal-50 dark:bg-slate-800 text-teal-700 dark:text-teal-300 hover:bg-teal-100 text-[9px] font-extrabold border border-teal-200 dark:border-slate-700 flex items-center gap-1 cursor-pointer"
+                                  title="Edit or add temporary dynamic field values"
+                                >
+                                  <Sliders size={9} />
+                                  <span>✍️ Edit Values</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowInsertFieldDropdown(false)}
+                                  className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                                  title="Close"
+                                >
+                                  <X size={13} />
+                                </button>
+                              </div>
+                            </div>
 
-                      {/* Group 1: Student & Parents */}
-                      <div className="pt-1 space-y-0.5">
-                        <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">Student & Parents</div>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{STUDENT_NAME}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Student Name</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{studentName || '{STUDENT_NAME}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{FATHER_NAME}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Father's Name</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{fatherName || '{FATHER_NAME}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{MOTHER_NAME}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Mother's Name</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{motherName || '{MOTHER_NAME}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{GENDER_TITLE}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Student Title (Mr./Ms.)</span>
-                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{includeSalutations ? (gender === 'F' ? 'Ms.' : 'Mr.') : 'Hidden'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{FATHER_TITLE}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Father Title (Mr.)</span>
-                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{includeSalutations ? 'Mr.' : 'Hidden'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{MOTHER_TITLE}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Mother Title (Mrs.)</span>
-                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{includeSalutations ? 'Mrs.' : 'Hidden'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{PRONOUN_SON_DAUGHTER}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Son / Daughter</span>
-                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'daughter' : 'son'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{PRONOUN_SO_DO}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Relation (S/o / D/o)</span>
-                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'D/o' : 'S/o'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{PRONOUN_HIS_HER}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Possessive (His / Her)</span>
-                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'Her' : 'His'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{PRONOUN_HE_SHE}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Pronoun (He / She)</span>
-                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'She' : 'He'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{PRONOUN_HIM_HER}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Object (him / her)</span>
-                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'her' : 'him'}</span>
-                        </button>
-                      </div>
+                            <div className="relative shrink-0">
+                              <input
+                                type="text"
+                                value={insertFieldSearch}
+                                onChange={(e) => setInsertFieldSearch(e.target.value)}
+                                placeholder="🔍 Filter fields (name, roll, pen, bank...)"
+                                autoFocus
+                                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                              />
+                              {insertFieldSearch && (
+                                <button
+                                  type="button"
+                                  onClick={() => setInsertFieldSearch('')}
+                                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                >
+                                  <X size={11} />
+                                </button>
+                              )}
+                            </div>
 
-                      {/* Group 2: Academic Credentials */}
-                      <div className="pt-1 space-y-0.5">
-                        <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">Class & Roll / Reg</div>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{CLASS}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Class</span>
-                          <span className="text-[9px] text-slate-400">{className || '{CLASS}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{STREAM}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Stream</span>
-                          <span className="text-[9px] text-slate-400">{stream || '{STREAM}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{ROLL_NO}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Class Roll No</span>
-                          <span className="text-[9px] text-slate-400 font-mono">{rollNo || '{ROLL_NO}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{REG_NO}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Registration No</span>
-                          <span className="text-[9px] text-slate-400 font-mono">{regNo || '{REG_NO}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{ADMISSION_NO}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Admission No</span>
-                          <span className="text-[9px] text-slate-400 font-mono">{admissionNo || '{ADMISSION_NO}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{ADMISSION_DATE}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Admission Date</span>
-                          <span className="text-[9px] text-slate-400 font-mono">{admissionDate || '{ADMISSION_DATE}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{SESSION}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Academic Session</span>
-                          <span className="text-[9px] text-slate-400">{session || '{SESSION}'}</span>
-                        </button>
-                      </div>
+                            <div className="overflow-y-auto max-h-[52vh] space-y-2.5 pr-1 divide-y divide-slate-100 dark:divide-slate-800">
+                              {/* Build categorized groups */}
+                              {(() => {
+                                const q = insertFieldSearch.trim().toLowerCase();
+                                const groups = [
+                                  {
+                                    category: 'Student & Parents',
+                                    items: [
+                                      { label: 'Student Name', token: '{STUDENT_NAME}', value: studentName },
+                                      { label: "Father's Name", token: '{FATHER_NAME}', value: fatherName },
+                                      { label: "Mother's Name", token: '{MOTHER_NAME}', value: motherName },
+                                      { label: 'Student Title (Mr./Ms.)', token: '{GENDER_TITLE}', value: includeSalutations ? (gender === 'F' ? 'Ms.' : 'Mr.') : 'Hidden' },
+                                      { label: 'Father Title (Mr.)', token: '{FATHER_TITLE}', value: includeSalutations ? 'Mr.' : 'Hidden' },
+                                      { label: 'Mother Title (Mrs.)', token: '{MOTHER_TITLE}', value: includeSalutations ? 'Mrs.' : 'Hidden' },
+                                      { label: 'Son / Daughter', token: '{PRONOUN_SON_DAUGHTER}', value: gender === 'F' ? 'daughter' : 'son' },
+                                      { label: 'Relation (S/o / D/o)', token: '{PRONOUN_SO_DO}', value: gender === 'F' ? 'D/o' : 'S/o' },
+                                      { label: 'Possessive (His / Her)', token: '{PRONOUN_HIS_HER}', value: gender === 'F' ? 'Her' : 'His' },
+                                      { label: 'Pronoun (He / She)', token: '{PRONOUN_HE_SHE}', value: gender === 'F' ? 'She' : 'He' },
+                                      { label: 'Object (him / her)', token: '{PRONOUN_HIM_HER}', value: gender === 'F' ? 'her' : 'him' }
+                                    ]
+                                  },
+                                  {
+                                    category: 'Class & Enrollment',
+                                    items: [
+                                      { label: 'Class', token: '{CLASS}', value: className },
+                                      { label: 'Stream', token: '{STREAM}', value: stream },
+                                      { label: 'Class Roll No', token: '{ROLL_NO}', value: rollNo },
+                                      { label: 'Registration No', token: '{REG_NO}', value: regNo },
+                                      { label: 'Admission No', token: '{ADMISSION_NO}', value: admissionNo },
+                                      { label: 'Admission Date', token: '{ADMISSION_DATE}', value: admissionDate },
+                                      { label: 'Admission Form No', token: '{ADMISSION_FORM_NO}', value: findValueInStudentRaw(selectedStudent, ['formNo', 'form_no', 'Form No', 'id']) },
+                                      { label: 'Academic Session', token: '{SESSION}', value: session },
+                                      { label: 'Certificate Date', token: '{DATE}', value: dateStr },
+                                      { label: 'Reference / Dispatch No', token: '{REF_NO}', value: refNo },
+                                      { label: 'Withdrawal Date', token: '{WITHDRAWAL_DATE}', value: withdrawalDate }
+                                    ]
+                                  },
+                                  {
+                                    category: 'DOB & Residence',
+                                    items: [
+                                      { label: 'DOB (DD-MM-YYYY)', token: '{DOB_FIGURES}', value: parsedDob?.figures },
+                                      { label: 'DOB (in Words)', token: '{DOB_WORDS}', value: parsedDob?.words },
+                                      { label: 'Full Address', token: '{ADDRESS}', value: address },
+                                      { label: 'Village / Town', token: '{VILLAGE}', value: resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).village },
+                                      { label: 'Tehsil', token: '{TEHSIL}', value: resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).tehsil },
+                                      { label: 'District', token: '{DISTRICT}', value: resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).district }
+                                    ]
+                                  },
+                                  {
+                                    category: 'TC/DC & JKBOSE Exam',
+                                    items: [
+                                      { label: 'Exam / Board Roll No', token: '{EXAM_ROLL_NO}', value: tcExamRoll },
+                                      { label: 'Exam Session', token: '{EXAM_SESSION}', value: tcExamMode || session },
+                                      { label: 'Result Status', token: '{RESULT_STATUS}', value: tcResultStatus },
+                                      { label: 'Marks Obtained', token: '{MARKS_OBTAINED}', value: tcMarksObtained },
+                                      { label: 'Max Marks', token: '{MAX_MARKS}', value: tcMaxMarks || '500' },
+                                      { label: 'Division / Distinction', token: '{DIVISION_DISTINCTION}', value: tcDivision }
+                                    ]
+                                  },
+                                  {
+                                    category: 'Identity & Govt IDs',
+                                    items: [
+                                      { label: 'Aadhaar Number', token: '{AADHAAR_NUMBER}', value: findValueInStudentRaw(selectedStudent, ['aadhar', 'aadhar_no', 'Aadhar', 'Aadhaar']) },
+                                      { label: 'PEN Number', token: '{PEN_NUMBER}', value: findValueInStudentRaw(selectedStudent, ['pen', 'pen_no', 'PEN', 'PEN Number']) },
+                                      { label: 'APAAR ID', token: '{APAAR_ID}', value: findValueInStudentRaw(selectedStudent, ['apaarId', 'apaar_id', 'APAAR ID']) },
+                                      { label: 'Category', token: '{CATEGORY}', value: findValueInStudentRaw(selectedStudent, ['category', 'Category', 'Social Category']) },
+                                      { label: 'Socio Category', token: '{SOCIO_CATEGORY}', value: findValueInStudentRaw(selectedStudent, ['socioEconomicCategory', 'socioCategory']) },
+                                      { label: 'Ration Card No', token: '{RATION_CARD_NO}', value: findValueInStudentRaw(selectedStudent, ['rationCardNo', 'rationCard', 'Ration Card No.']) },
+                                      { label: 'Blood Group', token: '{BLOOD_GROUP}', value: findValueInStudentRaw(selectedStudent, ['blood_group', 'Blood Group', 'bloodGroup']) },
+                                      { label: 'Disability Status', token: '{DISABILITY_STATUS}', value: findValueInStudentRaw(selectedStudent, ['disability', 'Type of Disability', 'cwsn']) },
+                                      { label: 'Mother Tongue', token: '{MOTHER_TONGUE}', value: findValueInStudentRaw(selectedStudent, ['motherTongue', 'mother_tongue']) },
+                                      { label: 'Religion', token: '{RELIGION}', value: findValueInStudentRaw(selectedStudent, ['religion', 'Religion']) }
+                                    ]
+                                  },
+                                  {
+                                    category: 'Contact, History & Banking',
+                                    items: [
+                                      { label: 'Mobile No', token: '{MOBILE_NO}', value: findValueInStudentRaw(selectedStudent, ['mobile', 'mobile_no', 'Mobile', 'Phone']) },
+                                      { label: 'Guardian Contact', token: '{GUARDIAN_CONTACT}', value: findValueInStudentRaw(selectedStudent, ['parent_mobile', 'guardian_mobile', 'Father Mobile']) },
+                                      { label: 'Email Address', token: '{EMAIL_ADDRESS}', value: findValueInStudentRaw(selectedStudent, ['email', 'Email', 'email_address']) },
+                                      { label: 'Previous School', token: '{PREVIOUS_SCHOOL}', value: findValueInStudentRaw(selectedStudent, ['prev_school', 'previous_school', 'Previous School']) },
+                                      { label: 'Previous Board', token: '{PREVIOUS_BOARD}', value: findValueInStudentRaw(selectedStudent, ['previousBoard', 'prevBoard', 'Previous Board']) },
+                                      { label: 'Previous Roll No', token: '{PREVIOUS_ROLL_NO}', value: findValueInStudentRaw(selectedStudent, ['prevRollNo', 'prev_roll_no']) },
+                                      { label: 'Passing Year', token: '{PASSING_YEAR}', value: findValueInStudentRaw(selectedStudent, ['passingYear', 'prevYear']) },
+                                      { label: 'Previous Marks', token: '{PREVIOUS_MARKS}', value: findValueInStudentRaw(selectedStudent, ['prevMarks', 'marksObtained']) },
+                                      { label: 'DIET Reg No', token: '{DIET_REG_NO}', value: findValueInStudentRaw(selectedStudent, ['dietRegNo', 'dietRegistrationNo']) },
+                                      { label: 'Subjects', token: '{SUBJECTS}', value: findValueInStudentRaw(selectedStudent, ['subjects', 'Subjects', 'subs']) },
+                                      { label: 'Bank Account No', token: '{BANK_ACCOUNT_NO}', value: findValueInStudentRaw(selectedStudent, ['bankAccount', 'bank_account', 'Bank Account No.']) },
+                                      { label: 'Bank Name', token: '{BANK_NAME}', value: findValueInStudentRaw(selectedStudent, ['bankName', 'bank_name', 'Bank Name']) },
+                                      { label: 'IFSC Code', token: '{IFSC_CODE}', value: findValueInStudentRaw(selectedStudent, ['ifsc', 'ifscCode', 'IFSC Code']) }
+                                    ]
+                                  }
+                                ];
 
-                      {/* Group 3: DOB & Address */}
-                      <div className="pt-1 space-y-0.5">
-                        <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">DOB & Residence</div>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{DOB_FIGURES}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>DOB (DD-MM-YYYY)</span>
-                          <span className="text-[9px] text-slate-400">{parsedDob?.figures || '{DOB_FIGURES}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{DOB_WORDS}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>DOB (in Words)</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{parsedDob?.words || '{DOB_WORDS}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{ADDRESS}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Full Address</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{address || '{ADDRESS}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{VILLAGE}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Village / Town</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).village || '{VILLAGE}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{TEHSIL}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Tehsil</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).tehsil || '{TEHSIL}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{DISTRICT}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>District</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{resolveStudentLocality(selectedStudent, selectedStudent?.raw || selectedStudent, address).district || '{DISTRICT}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{DATE}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Certificate Date</span>
-                          <span className="text-[9px] text-slate-400">{dateStr || '{DATE}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{REF_NO}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Reference / Dispatch No</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{refNo || '{REF_NO}'}</span>
-                        </button>
-                      </div>
+                                if (customFields && customFields.length > 0) {
+                                  groups.push({
+                                    category: 'Custom Dynamic Fields',
+                                    items: customFields.map(cf => ({
+                                      label: cf.label,
+                                      token: `{${cf.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`,
+                                      value: cf.value
+                                    }))
+                                  });
+                                }
 
-                      {/* Group 4: TC/DC & Exam Results */}
-                      <div className="pt-1 space-y-0.5">
-                        <div className="px-2 text-[8.5px] font-bold text-amber-600 dark:text-amber-400 uppercase">TC/DC & JKBOSE Exam</div>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{EXAM_ROLL_NO}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Exam / Board Roll No</span>
-                          <span className="text-[9px] text-slate-400 font-mono truncate max-w-[120px]">{tcExamRoll || '{EXAM_ROLL_NO}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{EXAM_SESSION}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Exam Session</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{tcExamMode || session || '{EXAM_SESSION}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{RESULT_STATUS}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Result Status</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{tcResultStatus || '{RESULT_STATUS}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{MARKS_OBTAINED}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Marks Obtained</span>
-                          <span className="text-[9px] text-slate-400 font-mono truncate max-w-[120px]">{tcMarksObtained || '{MARKS_OBTAINED}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{MAX_MARKS}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Max Marks</span>
-                          <span className="text-[9px] text-slate-400 font-mono truncate max-w-[120px]">{tcMaxMarks || '500'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{DIVISION_DISTINCTION}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Division / Distinction</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{tcDivision || '{DIVISION_DISTINCTION}'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder('{WITHDRAWAL_DATE}'); setShowInsertFieldDropdown(false); }}
-                          className="w-full px-2 py-1 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-950/60 font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Withdrawal Date</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{withdrawalDate || '{WITHDRAWAL_DATE}'}</span>
-                        </button>
-                      </div>
+                                const filteredGroups = groups.map(g => {
+                                  const filteredItems = g.items.filter(item => {
+                                    if (!q) return true;
+                                    return (
+                                      item.label.toLowerCase().includes(q) ||
+                                      item.token.toLowerCase().includes(q) ||
+                                      String(item.value || '').toLowerCase().includes(q)
+                                    );
+                                  });
+                                  return { ...g, items: filteredItems };
+                                }).filter(g => g.items.length > 0);
 
-                      {/* Group 5: Student Database Fields */}
-                      <div className="pt-1 space-y-0.5">
-                        <div className="px-2 text-[8.5px] font-bold text-teal-700 dark:text-teal-400 uppercase flex items-center justify-between">
-                          <span>Database Fields</span>
-                          <span className="text-[7.5px] text-slate-400 font-normal">From Record</span>
-                        </div>
-                        {FIRESTORE_PRESET_FIELDS.slice(0, 8).map((preset) => {
-                          const studentVal = findValueInStudentRaw(selectedStudent, preset.keys);
-                          const tokenName = `{${preset.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`;
-                          return (
-                            <button
-                              key={preset.label}
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { handleInsertPlaceholder(tokenName); setShowInsertFieldDropdown(false); }}
-                              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                            >
-                              <span className="truncate">{preset.label}</span>
-                              <span className="text-[9px] text-slate-400 truncate max-w-[120px] font-mono">
-                                {studentVal || tokenName}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                                if (filteredGroups.length === 0) {
+                                  return (
+                                    <div className="py-6 text-center text-slate-400 text-xs">
+                                      No fields found matching "{insertFieldSearch}"
+                                    </div>
+                                  );
+                                }
 
-                      {/* Bottom Quick Manager Link */}
-                      <div className="pt-1.5 pb-0.5">
-                        <button
-                          type="button"
-                          onClick={() => { setShowInsertFieldDropdown(false); setShowFieldManagerModal(true); }}
-                          className="w-full py-1 px-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs transition-all"
-                        >
-                          <PlusCircle size={10} />
-                          <span>➕ Manage / Edit Custom & DB Fields</span>
-                        </button>
-                      </div>
+                                return filteredGroups.map((group, gIdx) => (
+                                  <div key={group.category} className={gIdx > 0 ? "pt-2 space-y-0.5" : "space-y-0.5"}>
+                                    <div className="px-1.5 py-0.5 text-[8.5px] font-black uppercase text-teal-700 dark:text-teal-400 tracking-wider">
+                                      {group.category}
+                                    </div>
+                                    {group.items.map(item => (
+                                      <button
+                                        key={item.token}
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => { handleInsertPlaceholder(item.token); setShowInsertFieldDropdown(false); }}
+                                        className="w-full px-2 py-1 rounded-lg text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer transition-colors"
+                                      >
+                                        <span className="truncate pr-1.5 text-slate-800 dark:text-slate-200">{item.label}</span>
+                                        <span className="text-[9px] text-slate-400 font-mono truncate max-w-[120px] text-right">
+                                          {item.value || item.token}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                ));
+                              })()}
+                            </div>
+
+                            <div className="pt-1 shrink-0 border-t border-slate-100 dark:border-slate-800">
+                              <button
+                                type="button"
+                                onClick={() => { setShowInsertFieldDropdown(false); setShowFieldManagerModal(true); }}
+                                className="w-full py-1.5 px-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs transition-all"
+                              >
+                                <PlusCircle size={11} />
+                                <span>➕ Manage / Edit Custom & DB Fields</span>
+                              </button>
+                            </div>
+                          </div>
+                        </>,
+                        document.body
+                      )}
                     </div>
-                  )}
-                </div>
 
 
 
@@ -8786,51 +8695,97 @@ export default function StudentCertificateStudioView({
 
             {/* Custom Dynamic Fields Section (Add / Remove & Pick from Database) */}
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider flex items-center gap-1.5">
                   <Sparkles size={12} />
                   <span>2. Custom & Database Fields</span>
                 </div>
-                <span className="text-[9.5px] font-bold text-slate-400">
-                  {customFields.length} custom fields active
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAutoAddAllAvailableStudentFields}
+                    className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-[9px] font-black flex items-center gap-1 cursor-pointer transition-all shadow-2xs active:scale-95"
+                    title="Scan selected student record and auto-add all non-empty fields"
+                  >
+                    <Sparkles size={10} className="text-amber-600" />
+                    <span>Auto-Add From Record</span>
+                  </button>
+                  <span className="text-[9.5px] font-bold text-slate-400">
+                    {customFields.length} active
+                  </span>
+                </div>
               </div>
 
               {/* Standard Database Quick-Pick Badges */}
-              <div className="p-3 rounded-2xl bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-800/60 space-y-2">
-                <div className="flex items-center justify-between text-[9px] font-black uppercase text-teal-800 dark:text-teal-300">
-                  <span>Pick from Database Fields</span>
-                  <span className="text-[8.5px] font-normal text-slate-500">Auto-filled from selected student record</span>
+              <div className="p-3 rounded-2xl bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-800/60 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[9px] font-black uppercase text-teal-800 dark:text-teal-300">
+                    <span>Pick from Database Fields</span>
+                    <span className="ml-1.5 text-[8.5px] font-normal text-slate-500">Auto-filled from student record</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={modalFieldSearch}
+                    onChange={(e) => setModalFieldSearch(e.target.value)}
+                    placeholder="🔍 Filter fields..."
+                    className="px-2 py-0.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900 text-[9.5px] font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500 w-36"
+                  />
                 </div>
 
-                <div className="flex flex-wrap gap-1.5">
-                  {FIRESTORE_PRESET_FIELDS.map((preset) => {
-                    const studentVal = findValueInStudentRaw(selectedStudent, preset.keys);
-                    const isAdded = customFields.some(f => f.label.toLowerCase() === preset.label.toLowerCase());
+                {/* Category Filter Pills */}
+                <div className="flex flex-wrap gap-1">
+                  {['All', 'Identity & Govt IDs', 'Academic History & Board', 'Enrollment & School', 'Contact & Banking'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setModalFieldCategory(cat)}
+                      className={`px-2 py-0.5 rounded-md text-[8.5px] font-bold border transition-colors cursor-pointer ${
+                        modalFieldCategory === cat
+                          ? 'bg-teal-700 text-white border-teal-800'
+                          : 'bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-teal-200/60 dark:border-teal-800/60 hover:bg-teal-100/50'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
 
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => handlePickFirestoreField(preset.label, studentVal)}
-                        className={`px-2.5 py-1 rounded-lg text-[9.5px] font-bold border flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs ${
-                          isAdded
-                            ? 'bg-teal-700 text-white border-teal-800 shadow-xs'
-                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-teal-100/60 dark:hover:bg-teal-950/80 hover:border-teal-400'
-                        }`}
-                        title={studentVal ? `Value: ${studentVal}` : 'Click to add field'}
-                      >
-                        <span>{isAdded ? '✓' : '➕'} {preset.label}</span>
-                        {studentVal && (
-                          <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-mono truncate max-w-[90px] ${
-                            isAdded ? 'bg-teal-800 text-teal-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                          }`}>
-                            {studentVal}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-0.5">
+                  {FIRESTORE_PRESET_FIELDS
+                    .filter((preset) => {
+                      if (modalFieldCategory !== 'All' && preset.category !== modalFieldCategory) return false;
+                      if (!modalFieldSearch.trim()) return true;
+                      const q = modalFieldSearch.trim().toLowerCase();
+                      const studentVal = findValueInStudentRaw(selectedStudent, preset.keys);
+                      return preset.label.toLowerCase().includes(q) || String(studentVal).toLowerCase().includes(q);
+                    })
+                    .map((preset) => {
+                      const studentVal = findValueInStudentRaw(selectedStudent, preset.keys);
+                      const isAdded = customFields.some(f => f.label.toLowerCase() === preset.label.toLowerCase());
+
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => handlePickFirestoreField(preset.label, studentVal)}
+                          className={`px-2 py-1 rounded-lg text-[9px] font-bold border flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs ${
+                            isAdded
+                              ? 'bg-teal-700 text-white border-teal-800 shadow-xs'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-teal-100/60 dark:hover:bg-teal-950/80 hover:border-teal-400'
+                          }`}
+                          title={studentVal ? `Value: ${studentVal}` : 'Click to add field'}
+                        >
+                          <span>{isAdded ? '✓' : '➕'} {preset.label}</span>
+                          {studentVal && (
+                            <span className={`text-[8px] px-1.5 py-0.2 rounded font-mono truncate max-w-[85px] ${
+                              isAdded ? 'bg-teal-800 text-teal-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                            }`}>
+                              {studentVal}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                 </div>
 
                 {/* Extra Raw Record Fields Dropdown */}
