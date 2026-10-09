@@ -1294,8 +1294,8 @@ export default function BeneficiarySanctionOrdersView({
     <div className="w-full flex flex-col h-[calc(100vh-155px)] max-h-[calc(100vh-155px)] min-h-[500px] bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 rounded-xl overflow-hidden font-sans border border-slate-200 dark:border-slate-800 shadow-xs">
       {/* ─── ACTION CONTROLS TOOLBAR (COMPACT HIGH-DENSITY) ─── */}
       <div className="flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-2 sm:px-3 py-1 flex items-center justify-between shadow-2xs z-30 min-h-[38px] gap-2 print:hidden overflow-x-auto">
-        {/* Left side: Preset selector & Orientation */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Left side: Preset selector, Orientation, and Related Document Styling Controls */}
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
           {/* Quick Preset Selector */}
           <select
             value={activePresetId}
@@ -1303,7 +1303,7 @@ export default function BeneficiarySanctionOrdersView({
               const p = TEMPLATE_PRESETS.find(x => x.id === e.target.value);
               if (p) handleApplyPreset(p);
             }}
-            className="h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-2xs max-w-[160px] sm:max-w-[240px] truncate shrink-0"
+            className="h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-2xs max-w-[150px] sm:max-w-[210px] truncate shrink-0"
             title="Select Sanction Order Template Preset"
           >
             {TEMPLATE_PRESETS.map(p => (
@@ -1314,7 +1314,7 @@ export default function BeneficiarySanctionOrdersView({
           </select>
 
           {/* Orientation Toggle */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700 text-xs shrink-0 h-7">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700 text-xs shrink-0 h-7" title="Document Page Orientation">
             <button
               type="button"
               onClick={() => setOrientation('landscape')}
@@ -1338,6 +1338,89 @@ export default function BeneficiarySanctionOrdersView({
               Portrait
             </button>
           </div>
+
+          <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-0.5 shrink-0 hidden sm:block" />
+
+          {/* Row Spacing (Moved besides Orientation) */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700 text-xs shrink-0 h-7" title="Table Row Spacing Density">
+            <span className="text-[10px] font-bold text-slate-500 uppercase px-1 hidden md:inline">Spacing:</span>
+            {[
+              { key: 'compact', label: 'Compact' },
+              { key: 'standard', label: 'Normal' },
+              { key: 'spacious', label: 'Spaced' }
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setRowPaddingPreset(item.key)}
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  rowPaddingPreset === item.key
+                    ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-2xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+                title={`Row Spacing: ${item.label}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-0.5 shrink-0 hidden sm:block" />
+
+          {/* Font Size Stepper & Dropdown (Moved besides Orientation) */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-300 dark:border-slate-700 px-1 shrink-0 h-7 shadow-2xs" title="Table Font Size">
+            <span className="text-[10px] font-bold text-slate-500 uppercase pr-1 hidden lg:inline">Font:</span>
+            <button
+              type="button"
+              title="Decrease Font Size (A⁻)"
+              onClick={() => handleAdjustFontSize(-1)}
+              className="w-5 h-5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer"
+            >
+              A⁻
+            </button>
+            <select
+              value={tableFontSize}
+              onChange={(e) => setTableFontSize(e.target.value)}
+              className="h-6 px-1 bg-transparent text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+              title="Select Table Font Size"
+            >
+              <option value="8pt">8 pt</option>
+              <option value="8.5pt">8.5 pt</option>
+              <option value="9pt">9 pt</option>
+              <option value="9.5pt">9.5 pt (Standard)</option>
+              <option value="10pt">10 pt</option>
+              <option value="10.5pt">10.5 pt</option>
+              <option value="11pt">11 pt</option>
+              <option value="11.5pt">11.5 pt</option>
+              <option value="12pt">12 pt</option>
+              <option value="13pt">13 pt</option>
+              <option value="14pt">14 pt</option>
+            </select>
+            <button
+              type="button"
+              title="Increase Font Size (A⁺)"
+              onClick={() => handleAdjustFontSize(1)}
+              className="w-5 h-5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer"
+            >
+              A⁺
+            </button>
+          </div>
+
+          <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-0.5 shrink-0 hidden sm:block" />
+
+          {/* Font Family Selector (Moved besides Orientation) */}
+          <select
+            value={documentFontFamily}
+            onChange={(e) => setDocumentFontFamily(e.target.value)}
+            className="h-7 px-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md text-slate-800 dark:text-slate-200 outline-none cursor-pointer shrink-0 max-w-[130px] truncate"
+            title="Document Font Family"
+          >
+            <option value="'Times New Roman', Times, serif">Times New Roman</option>
+            <option value="'Arial', Helvetica, sans-serif">Arial</option>
+            <option value="'Georgia', serif">Georgia</option>
+            <option value="'Calibri', sans-serif">Calibri</option>
+            <option value="'Courier New', monospace">Courier New</option>
+          </select>
         </div>
 
         {/* Right side: Action Controls Shortcuts */}
@@ -2350,6 +2433,100 @@ export default function BeneficiarySanctionOrdersView({
                   </div>
                 </div>
 
+                {/* Registration Nos (Bulk) & Non-student/Vendor Row on the EXACT SAME ROW */}
+                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between gap-1.5">
+                    {/* Left: REGISTRATION NOS [BULK] */}
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1 whitespace-nowrap">
+                        <span>Registration Nos</span>
+                        <span className="text-[8.5px] font-black px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 uppercase leading-none">
+                          Bulk
+                        </span>
+                      </span>
+                      {bulkTokensCount > 0 && (
+                        <span className="text-[9px] font-mono font-bold text-teal-600 dark:text-teal-400">
+                          ({bulkTokensCount})
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Right: [Paste Reg Nos] and [+ Blank Row] side-by-side on same row */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleToggleBulkRegInput}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-md border cursor-pointer flex items-center gap-1 transition-all shadow-2xs whitespace-nowrap ${
+                          showBulkRegInput
+                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+                            : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700 hover:bg-teal-100'
+                        }`}
+                        title="Toggle paste bulk registration numbers input box"
+                      >
+                        {showBulkRegInput ? <EyeOff size={11} className="text-teal-600" /> : <Eye size={11} className="text-teal-600" />}
+                        <span>{showBulkRegInput ? "Hide Reg Box" : "Paste Reg Nos"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleAddManualRow}
+                        className="text-[10px] font-bold px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer flex items-center gap-1 transition-all shadow-2xs whitespace-nowrap"
+                        title="Add non-student or vendor blank row"
+                      >
+                        <Plus size={11} className="text-teal-600" />
+                        <span>+ Blank Row</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Collapsible Bulk Registration Input Area */}
+                  {showBulkRegInput && (
+                    <div className="space-y-1.5 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700/80">
+                      <textarea
+                        value={bulkRegInput}
+                        onChange={(e) => setBulkRegInput(e.target.value)}
+                        rows={2}
+                        placeholder="Paste Registration Numbers separated by spaces, commas or newlines..."
+                        className="w-full min-h-[48px] text-xs font-mono bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 focus:ring-1 focus:ring-teal-500 focus:outline-hidden resize-y shadow-2xs"
+                      />
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleFetchBulkRegs}
+                          disabled={isFetchingRegs || !bulkRegInput.trim()}
+                          className={`flex-1 h-7 flex items-center justify-center gap-1 text-xs font-bold px-2 rounded-md transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
+                            !bulkRegInput.trim()
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none'
+                              : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-98'
+                          }`}
+                        >
+                          {isFetchingRegs ? (
+                            <>
+                              <RefreshCw size={11} className="animate-spin shrink-0" />
+                              <span>Fetching...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={11} className="shrink-0" />
+                              <span>Fetch & Add {bulkTokensCount > 0 ? `(${bulkTokensCount})` : ''}</span>
+                            </>
+                          )}
+                        </button>
+                        {bulkRegInput && (
+                          <button
+                            type="button"
+                            onClick={() => setBulkRegInput('')}
+                            className="h-7 px-2 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Quick Student Finder */}
                 <div className="relative pt-1 border-t border-slate-100 dark:border-slate-800 space-y-1">
                   <div className="flex items-center justify-between">
@@ -2415,80 +2592,6 @@ export default function BeneficiarySanctionOrdersView({
                             </div>
                           </div>
                         ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Bulk Registration Numbers Ingestion Drawer */}
-                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                        Paste Reg Numbers
-                      </label>
-                      {bulkTokensCount > 0 && (
-                        <span className="text-[9px] font-mono font-bold text-teal-600 dark:text-teal-400">
-                          ({bulkTokensCount})
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleToggleBulkRegInput}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md border cursor-pointer flex items-center gap-1 transition-all shadow-2xs whitespace-nowrap ${
-                        showBulkRegInput
-                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
-                          : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700 hover:bg-teal-100'
-                      }`}
-                    >
-                      {showBulkRegInput ? <EyeOff size={10} /> : <Eye size={10} />}
-                      <span>{showBulkRegInput ? "Hide Box" : "Show Box"}</span>
-                    </button>
-                  </div>
-
-                  {showBulkRegInput && (
-                    <div className="space-y-1.5">
-                      <textarea
-                        value={bulkRegInput}
-                        onChange={(e) => setBulkRegInput(e.target.value)}
-                        rows={2}
-                        placeholder="Paste Registration Numbers separated by spaces, commas or newlines..."
-                        className="w-full min-h-[48px] text-xs font-mono bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 focus:ring-1 focus:ring-teal-500 focus:outline-hidden resize-y shadow-2xs"
-                      />
-
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={handleFetchBulkRegs}
-                          disabled={isFetchingRegs || !bulkRegInput.trim()}
-                          className={`flex-1 h-7 flex items-center justify-center gap-1 text-xs font-bold px-2 rounded-md transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
-                            !bulkRegInput.trim()
-                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none'
-                              : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-98'
-                          }`}
-                        >
-                          {isFetchingRegs ? (
-                            <>
-                              <RefreshCw size={11} className="animate-spin shrink-0" />
-                              <span>Fetching...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles size={11} className="shrink-0" />
-                              <span>Fetch & Add {bulkTokensCount > 0 ? `(${bulkTokensCount})` : ''}</span>
-                            </>
-                          )}
-                        </button>
-                        {bulkRegInput && (
-                          <button
-                            type="button"
-                            onClick={() => setBulkRegInput('')}
-                            className="h-7 px-2 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 cursor-pointer"
-                          >
-                            Clear
-                          </button>
-                        )}
                       </div>
                     </div>
                   )}

@@ -1372,6 +1372,13 @@ export default function StudentCertificateStudioView({
     return () => { isMounted = false; };
   }, [selectedTemplateId]);
 
+  // TC/DC Active check: Only show Result Hub and Bulk TC Generator when TC/DC is selected
+  const isTcDcActive = useMemo(() => {
+    if (selectedTemplateId?.startsWith('tc_dc')) return true;
+    const currentTpl = [...customTemplates, ...BUILTIN_CERTIFICATE_TEMPLATES].find(t => t.id === selectedTemplateId);
+    return Boolean(currentTpl?.isTcDc || currentTpl?.category === 'Transfer & Character Certificates (TC/DC)' || currentTpl?.category?.includes('TC/DC'));
+  }, [selectedTemplateId, customTemplates]);
+
   const saveCertificateTitleToCloud = useCallback(async (newTitle) => {
     const clean = (newTitle || '').trim();
     if (!clean || !isTcDcActive) return;
@@ -1505,13 +1512,6 @@ export default function StudentCertificateStudioView({
     setShowSettingsDrawer(false);
     if (onToggleSettingsDrawer) onToggleSettingsDrawer(false);
   }, [onToggleSettingsDrawer]);
-
-  // TC/DC Active check: Only show Result Hub and Bulk TC Generator when TC/DC is selected
-  const isTcDcActive = useMemo(() => {
-    if (selectedTemplateId?.startsWith('tc_dc')) return true;
-    const currentTpl = [...customTemplates, ...BUILTIN_CERTIFICATE_TEMPLATES].find(t => t.id === selectedTemplateId);
-    return Boolean(currentTpl?.isTcDc || currentTpl?.category === 'Transfer & Character Certificates (TC/DC)' || currentTpl?.category?.includes('TC/DC'));
-  }, [selectedTemplateId, customTemplates]);
 
   const signatories = useMemo(() => {
     if (isTcDcActive) {
