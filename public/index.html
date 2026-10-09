@@ -4,6 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
+    <!-- Immediate Canonical Domain Redirection for Legacy Deployments -->
+    <script>
+      (function() {
+        try {
+          var h = window.location.hostname;
+          if (h === 'admexamhssshangus.web.app' || h === 'admexamhssshangus.firebaseapp.com' || h === 'hsssdb.web.app' || h === 'hsssdb.firebaseapp.com') {
+            window.location.replace('https://hssshangus.in' + window.location.pathname + window.location.search + window.location.hash);
+          }
+        } catch (_) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />

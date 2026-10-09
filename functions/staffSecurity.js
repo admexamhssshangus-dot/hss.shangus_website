@@ -20,7 +20,7 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
     return nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
   }
   const portalOrigin = () => {
-    const url = new URL(process.env.STAFF_PORTAL_ORIGIN || 'https://admexamhssshangus.web.app');
+    const url = new URL(process.env.STAFF_PORTAL_ORIGIN || 'https://hssshangus.in');
     if (url.protocol !== 'https:') throw new Error('STAFF_PORTAL_ORIGIN must use HTTPS.');
     return url.origin;
   };

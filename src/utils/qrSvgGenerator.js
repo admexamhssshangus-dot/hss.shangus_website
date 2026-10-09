@@ -46,19 +46,19 @@ export function generateVerificationSignature(reg = '', roll = '', fNo = '', cer
   return Math.abs(hash).toString(36).toUpperCase();
 }
 
+export const CANONICAL_SITE_ORIGIN = 'https://hssshangus.in';
+
 /**
  * Resolves the public canonical verification origin.
- * Prevents loopback/localhost URLs (e.g. http://localhost:3000) from ever being baked into
- * physical printed certificates, ID cards, or admission forms, which smartphones cannot scan.
+ * Prevents loopback/localhost URLs (e.g. http://localhost:3000) or legacy test domains
+ * from ever being baked into physical printed certificates, ID cards, or admission forms.
+ * All issued student credentials encode the official canonical institutional origin: https://hssshangus.in
  */
 export function getPublicVerificationOrigin() {
-  if (typeof window !== 'undefined' && window.location && window.location.origin) {
-    const org = window.location.origin;
-    if (!org.includes('localhost') && !org.includes('127.0.0.1') && !org.includes('::1')) {
-      return org;
-    }
+  if (process.env.REACT_APP_VERIFICATION_ORIGIN) {
+    return process.env.REACT_APP_VERIFICATION_ORIGIN.replace(/\/+$/, '');
   }
-  return 'https://admexamhssshangus.web.app';
+  return CANONICAL_SITE_ORIGIN;
 }
 
 /**

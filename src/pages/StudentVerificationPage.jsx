@@ -156,8 +156,48 @@ function areClassesCompatible(classA, classB) {
   return true;
 }
 
+// Smart Home Link: Uses client-side Link when on canonical origin or local dev,
+// but uses direct canonical anchor href="https://hssshangus.in/" when accessed via legacy or third-party domain
+function NavHomeLink({ to = '/', className = '', children, ...props }) {
+  const isExternalDomain = typeof window !== 'undefined' &&
+    window.location.hostname &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1' &&
+    window.location.hostname !== 'hssshangus.in';
+
+  if (isExternalDomain) {
+    return (
+      <a href={`https://hssshangus.in${to}`} className={className} {...props}>
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <Link to={to} className={className} {...props}>
+      {children}
+    </Link>
+  );
+}
+
 export default function StudentVerificationPage() {
   const [searchParams] = useSearchParams();
+
+  // 🔄 Automatic Canonical Redirection for Legacy Firebase Hosting domains
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const hostname = (window.location.hostname || '').toLowerCase();
+      const legacyDomains = [
+        'admexamhssshangus.web.app',
+        'admexamhssshangus.firebaseapp.com',
+        'hsssdb.web.app',
+        'hsssdb.firebaseapp.com'
+      ];
+      if (legacyDomains.includes(hostname)) {
+        window.location.replace(`https://hssshangus.in${window.location.pathname}${window.location.search}${window.location.hash}`);
+      }
+    }
+  }, []);
 
   // Extract parameters with support for legacy, camelCase, and alternate casing
   const rawReg = searchParams.get('reg') || searchParams.get('regNo') || searchParams.get('boardRegNo') || '';
@@ -530,12 +570,12 @@ export default function StudentVerificationPage() {
       <div className="max-w-lg mx-auto space-y-2 sm:space-y-3 relative z-10">
         {/* Navigation Bar */}
         <div className="flex items-center justify-between px-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-          <Link
+          <NavHomeLink
             to="/"
             className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
           >
             <ArrowLeft size={13} /> School Home
-          </Link>
+          </NavHomeLink>
           <div className="flex items-center gap-1 font-mono text-[10px] text-emerald-600 dark:text-emerald-400">
             <Lock size={10} />
             <span>256-Bit SSL Secured</span>
@@ -591,12 +631,12 @@ export default function StudentVerificationPage() {
                   <p className="font-semibold text-slate-700 dark:text-slate-300 mb-0.5">Authenticity Guaranteed</p>
                   All credentials issued by Govt HSS Shangus feature digital verification backed by institutional registry records.
                 </div>
-                <Link
+                <NavHomeLink
                   to="/"
                   className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors"
                 >
                   <School size={12} /> Return to School Portal
-                </Link>
+                </NavHomeLink>
               </div>
             ) : state.error ? (
               /* Error / Not Found State */
@@ -627,12 +667,12 @@ export default function StudentVerificationPage() {
                 </div>
 
                 <div className="pt-0.5 text-center">
-                  <Link
+                  <NavHomeLink
                     to="/"
                     className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors"
                   >
                     <ArrowLeft size={12} /> Back to Homepage
-                  </Link>
+                  </NavHomeLink>
                 </div>
               </div>
             ) : student ? (
@@ -825,9 +865,9 @@ export default function StudentVerificationPage() {
 
         {/* Minimal Footer */}
         <div className="flex items-center justify-between text-[10px] sm:text-[10.5px] font-semibold text-slate-500 dark:text-slate-400 px-0.5">
-          <Link to="/" className="hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 transition-colors">
+          <NavHomeLink to="/" className="hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 transition-colors">
             <ArrowLeft size={11} /> Portal Home
-          </Link>
+          </NavHomeLink>
           <div className="flex items-center gap-1.5">
             <span className="text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
               <CheckCircle2 size={11} /> Verified System

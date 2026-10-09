@@ -2,16 +2,23 @@
 
 ## Commit Message
 
-`fix(portal): resolve Student Data & Board Ingestion Hub launcher dead-loop in admin dashboard`
+`fix(verification): canonicalize certificate qr code origin to hssshangus.in and auto-forward legacy domains`
 
 ## Files Changed
 
-1. **[src/portal/admin/AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx)**
-   - **Resolved Launcher No-Op Deadlock**: Removed the legacy `if (tab === 'boardSync')` interceptor inside `setActiveTab` that was forcing active tab state back to `'reports'`, deleting the URL tab query, and setting `triggerAction('boardSync')` in a circular delegation loop with `AdvancedReports.jsx`.
-   - **Full Page Workspace Activation**: Allowed `boardSync` to transition normally through the standard tab mounting flow: prefetching `./BulkFieldOverwriteModal`, updating URL state (`?tab=boardSync`), saving session storage, and unhiding the full-page `BulkFieldOverwriteModal` workspace container (`key="board-sync-container"`).
-   - **Catalog Alias Normalization**: Normalized catalog aliases (`jkboseSync`, `ingestionHub`, `bulkOverwrite`, `bulk`) directly to `boardSync` so all searches and launchers activate the module cleanly.
-   - **Cleaned Up `triggerAction` Initialization**: Removed redundant `searchParams.get('tab') === 'boardSync'` check from `triggerAction` state initialization, preventing unwanted side effects when navigating to the full-page hub.
-   - **Independent Direct Entry Routing**: Configured `getInitialTab()` to preserve `directEntry` as an independent tab rather than collapsing it into `boardSync`, maintaining distinct `'express'` mode on initial load.
+1. **[src/utils/qrSvgGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/qrSvgGenerator.js)**
+   - **Canonical QR Origin Resolution**: Updated `getPublicVerificationOrigin()` to return the official live institutional domain `https://hssshangus.in` (or `process.env.REACT_APP_VERIFICATION_ORIGIN` if explicitly provided) instead of falling back to the legacy Firebase hosting URL `https://admexamhssshangus.web.app`.
+   - **Eliminated Stale QR Target Generation**: Ensures all newly generated or previewed certificates (Bonafide, Transfer/Discharge, Character, Provisional, etc.), student ID cards, and admission forms generate QR codes pointing exclusively to `https://hssshangus.in/verify-student?...`, preventing mobile scans from landing on outdated deployments.
+
+2. **[src/pages/StudentVerificationPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/StudentVerificationPage.jsx)**
+   - **Automatic Legacy Domain Redirection**: Added an immediate `useEffect` hook that detects if the verification page is accessed via legacy Firebase domains (`admexamhssshangus.web.app`, `admexamhssshangus.firebaseapp.com`, `hsssdb.web.app`, `hsssdb.firebaseapp.com`) and automatically redirects to `https://hssshangus.in` while preserving all search parameters (`reg`, `roll`, `cert`, `sig`, etc.).
+   - **Smart `NavHomeLink` Navigation**: Replaced `<Link to="/">` with `NavHomeLink` for all return buttons ("School Home", "Return to School Portal", "Back to Homepage", and "Portal Home"). If loaded on legacy or third-party domains, it renders a direct link to `https://hssshangus.in/` so the user is never trapped in a stale deployment; when on `hssshangus.in` or local development, it preserves seamless client-side SPA routing.
+
+3. **[public/index.html](file:///d:/Shk_Gulfam/Projects/hss_shangus/public/index.html)**
+   - **Zero-Latency Head Redirection**: Added an inline canonical enforcer script in `<head>` that instantly forwards legacy Firebase hosting domains to `https://hssshangus.in` before bundle loading, ensuring users scanning older, physically printed certificates are immediately forwarded to the live site.
+
+4. **[functions/staffSecurity.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/functions/staffSecurity.js)**
+   - **Updated Staff Portal Fallback**: Changed default fallback origin for `STAFF_PORTAL_ORIGIN` from `https://admexamhssshangus.web.app` to `https://hssshangus.in`.
 
 ---
 
@@ -30,7 +37,7 @@ If you wish to edit the commit message or make adjustments:
 git reset --soft HEAD~1
 # Make desired adjustments...
 git add .
-git commit -m "fix(portal): resolve Student Data & Board Ingestion Hub launcher dead-loop in admin dashboard"
+git commit -m "fix(verification): canonicalize certificate qr code origin to hssshangus.in and auto-forward legacy domains"
 ```
 
 ### 3. How to Push to Remote Repository
