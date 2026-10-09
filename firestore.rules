@@ -93,10 +93,10 @@ service cloud.firestore {
       );
     }
     function canReadStudents() {
-      return canUseAny(['reports', 'admRegisterSuite', 'customRoster', 'boardSync', 'analyticsReports', 'idCards', 'practicals', 'attendanceMgmt', 'gkTest']) || isTeacher();
+      return canUseAny(['reports', 'admRegisterSuite', 'customRoster', 'boardSync', 'analyticsReports', 'idCards', 'practicals', 'attendanceMgmt', 'gkTest', 'certStudio']) || isTeacher();
     }
     function canEditStudents() {
-      return canUseAny(['reports', 'admRegisterSuite', 'customRoster', 'boardSync', 'directEntry']);
+      return canUseAny(['reports', 'admRegisterSuite', 'customRoster', 'boardSync', 'directEntry', 'certStudio']);
     }
     function settingsModule(documentId) {
       return documentId in ['certificateRegistry', 'certificateStudio'] ? 'certStudio' :

@@ -8,9 +8,10 @@ import { createPortal } from 'react-dom';
 import {
   X, Award, Printer, Search,
   FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Unlock, Edit3, Save,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Copy
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Copy,
+  ExternalLink, Check
 } from 'lucide-react';
-import { getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, invalidateCollectionCache } from '../../services/dbCache';
+import { getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, invalidateCollectionCache, invalidateStudentCaches } from '../../services/dbCache';
 import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
 import {
   fetchLastIssuedCertificateNumber,
@@ -71,6 +72,43 @@ const sortIdentityRecordsByNearestSession = (records, targetSession) => {
   });
 };
 
+/**
+ * Standard pending field evaluator for official certificates.
+ * Focuses strictly on essential certificate fields without repeating
+ * bulk ingestion operations handled by the Board Ingestion Hub.
+ */
+const computeStudentPendingFields = (student, withdrawalDateOverride) => {
+  const pending = [];
+  const regNo = student.regNo;
+  const admNo = student.admNo;
+  const admDate = student.admDate;
+  const dob = student.dobRaw || student.dob;
+  const gender = student.gender;
+  const father = student.fatherName;
+  const withdrawalDate = student.withdrawalDate || withdrawalDateOverride;
+
+  if (!regNo || regNo === '—' || !String(regNo).trim()) pending.push('Registration No.');
+  if (!admNo || admNo === '—' || !String(admNo).trim()) pending.push('Admission No.');
+  if (!admDate || admDate === '—' || !String(admDate).trim()) pending.push('Admission Date');
+  if (!dob || dob === '—' || !String(dob).trim()) pending.push('Date of Birth');
+  if (!gender || !String(gender).trim()) pending.push('Gender');
+  if (!father || father === '—' || !String(father).trim()) pending.push("Father's Name");
+  if (!withdrawalDate || !String(withdrawalDate).trim()) pending.push('Withdrawal Date');
+
+  if (student.isPassed) {
+    if (!student.marksObtained) pending.push('Marks Obtained');
+    if (!student.division) pending.push('Division');
+  } else if (student.isReap) {
+    if (!student.reappSubjects) pending.push('Re-appear Subjects');
+  }
+
+  if (student.certificateConflict) {
+    pending.push('Certificate number conflict across registrations');
+  }
+
+  return pending;
+};
+
 // Each issuance atomically writes the student row plus a permanent number lock;
 // duplicates may also backfill the previous number lock. Stay below Firestore's
 // 500-write transaction ceiling in the worst case.
@@ -96,7 +134,7 @@ export default function BulkCertificateGeneratorModal({
   const handleRefreshData = async () => {
     setIsRefreshingData(true);
     try {
-      invalidateCollectionCache('masterRegisters');
+      invalidateStudentCaches();
       const fresh = await getMasterRegistersScoped({ forceAll: true, forceRefresh: true });
       if (Array.isArray(fresh) && fresh.length > 0) {
         const unpacked = unpackMasterRegisterStudents(fresh);
@@ -112,6 +150,19 @@ export default function BulkCertificateGeneratorModal({
       }
     } finally {
       setIsRefreshingData(false);
+    }
+  };
+
+  // Launch the dedicated Student Data & Board Ingestion Hub for mass data tasks
+  const handleOpenBoardIngestionHub = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hss-switch-tab', { detail: { tab: 'boardSync' } }));
+    }
+    if (typeof onClose === 'function') {
+      onClose();
+    }
+    if (typeof showToast === 'function') {
+      showToast('Navigating to Student Data & Board Ingestion Hub for mass sync...', 'info');
     }
   };
 
@@ -420,7 +471,7 @@ export default function BulkCertificateGeneratorModal({
         scopedMetadataRaw['Exam R.No. (Current)'] || scopedMetadataRaw.currExamRoll || scopedMetadataRaw.examRollNo || '—';
       const examMode = resInfo.examMode ||
         scopedResultRaw['Exam Mode (Current)'] || scopedResultRaw.currExamMode || scopedResultRaw.examMode ||
-        scopedMetadataRaw['Exam Mode (Current)'] || scopedMetadataRaw.currExamMode || scopedMetadataRaw.examMode || '';
+        scopedMetadataRaw['Exam Mode (Current)'] || scopedMetadataRaw.currExamMode || scopedMetadataRaw.examMode || 'Regular';
 
       const isPassed = resInfo.isPassed;
       const isReap = resInfo.isReap;
@@ -435,24 +486,6 @@ export default function BulkCertificateGeneratorModal({
       if (isPassed) resultStatus = 'Passed';
       else if (isReap) resultStatus = 'Re-appear';
       else if (isFailed) resultStatus = 'Failed';
-
-      const pendingFields = [];
-      if (!regNo || regNo === '—') pendingFields.push('Registration No.');
-      if (!admNo || admNo === '—') pendingFields.push('Admission No.');
-      if (!admDate || admDate === '—') pendingFields.push('Admission Date');
-      if (!dobRaw || dobRaw === '—') pendingFields.push('Date of Birth');
-      if (!gender) pendingFields.push('Gender');
-      if (!father || father === '—') pendingFields.push("Father's Name");
-      if (!mother || mother === '—') pendingFields.push("Mother's Name");
-      if (!village || village === '—') pendingFields.push('Village / Address');
-      if (!examRollNo || examRollNo === '—') pendingFields.push('Exam Roll No.');
-      if (!examMode) pendingFields.push('Exam Mode');
-      if (!hasResult) pendingFields.push('Exam Result');
-      if (!withdrawalDate && !withdrawalDateOverride) pendingFields.push('Withdrawal / Result Date');
-      if (isPassed && !marksObtained) pendingFields.push('Marks Obtained');
-      if (isPassed && !division) pendingFields.push('Division');
-      if (isReap && !reappSubjects) pendingFields.push('Re-appear Subjects');
-      if (certificateConflict) pendingFields.push('Certificate number belongs to multiple registration numbers');
 
       const baseStudent = {
         id,
@@ -477,7 +510,6 @@ export default function BulkCertificateGeneratorModal({
         certificateSourceRecord,
         certificateConflict,
         certificateOwnerRegKeys: Array.from(certificateOwners),
-        pendingFields,
         examRollNo,
         resultStatus,
         division,
@@ -489,36 +521,20 @@ export default function BulkCertificateGeneratorModal({
         isReap,
         isFailed
       };
+      baseStudent.pendingFields = computeStudentPendingFields(baseStudent, withdrawalDateOverride);
 
       const override = localStudentOverrides[id];
       if (override) {
         const merged = { ...baseStudent, ...override };
         if (override.dob) merged.dobRaw = override.dob;
-        const newPending = [];
-        if (!merged.regNo || merged.regNo === '—') newPending.push('Registration No.');
-        if (!merged.admNo || merged.admNo === '—') newPending.push('Admission No.');
-        if (!merged.admDate || merged.admDate === '—') newPending.push('Admission Date');
-        if (!merged.dobRaw || merged.dobRaw === '—') newPending.push('Date of Birth');
-        if (!merged.gender) newPending.push('Gender');
-        if (!merged.fatherName || merged.fatherName === '—') newPending.push("Father's Name");
-        if (!merged.motherName || merged.motherName === '—') newPending.push("Mother's Name");
-        if (!merged.village || merged.village === '—') newPending.push('Village / Address');
-        if (!merged.examRollNo || merged.examRollNo === '—') newPending.push('Exam Roll No.');
-        if (!merged.examMode) newPending.push('Exam Mode');
-        if (!merged.withdrawalDate && !withdrawalDateOverride) newPending.push('Withdrawal / Result Date');
         const normalizedResult = String(merged.resultStatus || '').trim().toLowerCase();
         const hasRes = Boolean(normalizedResult && !['—', 'awaiting', 'awaiting result', 'pending', 'not declared'].includes(normalizedResult));
-        if (!hasRes) newPending.push('Exam Result');
         const passed = merged.resultStatus === 'Passed';
         const reap = merged.resultStatus === 'Reap' || merged.resultStatus === 'Re-appear';
-        if (passed && !merged.marksObtained) newPending.push('Marks Obtained');
-        if (passed && !merged.division) newPending.push('Division');
-        if (reap && !merged.reappSubjects) newPending.push('Re-appear Subjects');
-        if (merged.certificateConflict) newPending.push('Certificate number belongs to multiple registration numbers');
-        merged.pendingFields = newPending;
         merged.hasResult = hasRes;
         merged.isPassed = passed;
         merged.isReap = reap;
+        merged.pendingFields = computeStudentPendingFields(merged, withdrawalDateOverride);
         return merged;
       }
 
@@ -1090,63 +1106,81 @@ export default function BulkCertificateGeneratorModal({
   return createPortal(
     <>
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl w-full max-w-[1280px] max-h-[94vh] sm:max-h-[90vh] shadow-2xl flex flex-col overflow-hidden my-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl w-full max-w-[1280px] max-h-[95vh] sm:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
         
-        {/* ════════ MODAL HEADER ════════ */}
-        <div className="p-3 sm:p-3.5 bg-gradient-to-r from-teal-950 via-slate-900 to-slate-900 text-white flex items-center justify-between gap-3 border-b border-teal-800/40">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-teal-600/30 border border-teal-500/40 flex items-center justify-center text-teal-300 shadow-inner shrink-0">
-              <Award size={22} />
+        {/* ════════ MODAL HEADER (MINIMAL & REFINED) ════════ */}
+        <div className="px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-teal-950 via-slate-900 to-slate-900 text-white flex items-center justify-between gap-3 border-b border-teal-800/40">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-teal-600/30 border border-teal-500/40 flex items-center justify-center text-teal-300 shadow-inner shrink-0">
+              <Award size={18} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-lg font-black tracking-tight text-white">Bulk TC / Discharge Certificate Hub</h2>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                <h2 className="text-sm sm:text-base font-black tracking-tight text-white truncate">Bulk TC / Discharge Certificate Hub</h2>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-500/30 shrink-0">
                   Dual-Page Batch Engine
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-800/90 border border-slate-600 flex items-center gap-1.5" style={{ color: '#cbd5e1' }}>
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-800/90 border border-slate-700 text-slate-300 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>{combinedStudentPool.length} Verified Records</span>
+                  <span>{combinedStudentPool.length} Records</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={handleRefreshData}
-                  disabled={isRefreshingData}
-                  className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-800/80 hover:bg-teal-700 text-teal-200 border border-teal-600/50 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                  title="Force refresh student records and latest results directly from cloud database"
-                >
-                  <RefreshCw size={10} className={isRefreshingData ? 'animate-spin' : ''} />
-                  <span>{isRefreshingData ? 'Syncing...' : 'Sync Cloud'}</span>
-                </button>
               </div>
-              <p className="text-[11px] font-medium mt-0.5 truncate" style={{ color: '#cbd5e1' }}>
+              <p className="text-[10.5px] font-medium text-slate-400 truncate hidden sm:block">
                 Multi-Class & Session Filtering • Auto Sequential Numbering • 2-Page Sequential Batch Prints
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Quick launcher to Board Ingestion Hub for mass sync */}
+            <button
+              type="button"
+              onClick={handleOpenBoardIngestionHub}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/50 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+              title="Open Student Data & Board Ingestion Hub for bulk Excel / CSV / Gazette imports"
+            >
+              <FileSpreadsheet size={11} className="text-indigo-400" />
+              <span className="hidden md:inline">Ingestion Hub</span>
+              <ExternalLink size={10} />
+            </button>
+
+            {/* Cloud Sync Button */}
+            <button
+              type="button"
+              onClick={handleRefreshData}
+              disabled={isRefreshingData}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase bg-teal-900/60 hover:bg-teal-800 text-teal-200 border border-teal-700/50 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+              title="Force refresh student records and latest results directly from cloud database"
+            >
+              <RefreshCw size={11} className={isRefreshingData ? 'animate-spin' : ''} />
+              <span className="hidden md:inline">{isRefreshingData ? 'Syncing...' : 'Sync Cloud'}</span>
+            </button>
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer ml-1"
+              title="Close modal"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
-        {/* ════════ CONTROLS & CONFIGURATION TOOLBAR ════════ */}
-        <div className="p-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 space-y-2.5">
+        {/* ════════ CONTROLS & CONFIGURATION TOOLBAR (COMPACT & ERGONOMIC) ════════ */}
+        <div className="px-3 py-2 sm:px-3.5 sm:py-2.5 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 space-y-2">
           
-          {/* Row 1: Filters */}
+          {/* Row 1: Filters Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
             
             {/* Class Filter */}
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Class</label>
+              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Class</label>
               <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                className="w-full h-7.5 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
               >
                 <option value="12th">Class 12th</option>
                 <option value="11th">Class 11th</option>
@@ -1161,11 +1195,11 @@ export default function BulkCertificateGeneratorModal({
 
             {/* Session Filter */}
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Session</label>
+              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Session</label>
               <select
                 value={selectedSession}
                 onChange={(e) => setSelectedSession(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                className="w-full h-7.5 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
               >
                 <option value="ALL">All Sessions ({combinedStudentPool.length})</option>
                 {availableSessions.map(s => (
@@ -1176,11 +1210,11 @@ export default function BulkCertificateGeneratorModal({
 
             {/* Stream Filter */}
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Stream</label>
+              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Stream</label>
               <select
                 value={selectedStream}
                 onChange={(e) => setSelectedStream(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                className="w-full h-7.5 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
               >
                 <option value="ALL">All Streams</option>
                 {availableStreams.map(s => (
@@ -1191,11 +1225,11 @@ export default function BulkCertificateGeneratorModal({
 
             {/* Result Status Filter */}
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Exam Result</label>
+              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Exam Result</label>
               <select
                 value={selectedResultStatus}
                 onChange={(e) => setSelectedResultStatus(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                className="w-full h-7.5 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
               >
                 <option value="ALL">All Students</option>
                 <option value="Passed">Passed Only</option>
@@ -1208,28 +1242,38 @@ export default function BulkCertificateGeneratorModal({
 
             {/* Live Search */}
             <div className="col-span-2 sm:col-span-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Search</label>
+              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Search</label>
               <div className="relative">
-                <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+                <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Name, Reg, Roll..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-8 pl-7 pr-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500"
+                  className="w-full h-7.5 pl-7 pr-6 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    title="Clear search"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
             </div>
 
           </div>
 
           {/* Row 2: Sequential Numbering & Batch Overrides */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-[.78fr_.78fr_.82fr_1fr_1.35fr_.9fr] gap-2 pt-1.5 border-t border-slate-200 dark:border-slate-800/60 text-xs items-end">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[.78fr_.85fr_.85fr_1.05fr_1.35fr_.85fr] gap-2 pt-1.5 border-t border-slate-200 dark:border-slate-800/60 text-xs items-end">
             
             {/* Last Issued Cert No Input */}
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5" title="The last certificate number recorded in your physical register">
-                Last Issued Cert No.
+              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5" title="The last certificate number recorded in your physical register">
+                Last Issued No.
               </label>
               <input
                 type="number"
@@ -1242,20 +1286,20 @@ export default function BulkCertificateGeneratorModal({
 
             {/* Next Starting Cert No Input */}
             <div>
-              <label className="text-[10px] font-black text-rose-700 dark:text-rose-400 uppercase tracking-wider block mb-0.5" title="The certificate number to start assigning from for this batch">
+              <label className="text-[9.5px] font-black text-teal-700 dark:text-teal-400 uppercase tracking-wider block mb-0.5" title="The certificate number to start assigning from for this batch">
                 Next Starting No. →
               </label>
               <input
                 type="number"
                 value={startCertNo}
                 onChange={(e) => handleStartCertNoChange(e.target.value)}
-                className="w-full h-7 px-2 rounded-lg bg-rose-50/70 dark:bg-rose-950/40 border-2 border-rose-400 dark:border-rose-700 text-xs font-black text-rose-800 dark:text-rose-300 focus:ring-2 focus:ring-rose-500"
+                className="w-full h-7 px-2 rounded-lg bg-teal-50/70 dark:bg-teal-950/40 border border-teal-500 dark:border-teal-600 text-xs font-black text-teal-800 dark:text-teal-200 focus:ring-1 focus:ring-teal-500"
                 placeholder="e.g. 1368"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
                 Issue Date
               </label>
               <input
@@ -1268,20 +1312,20 @@ export default function BulkCertificateGeneratorModal({
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
-                Withdrawal / Result Date
+              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5" title="Applies default withdrawal date across all certificates in this batch">
+                Withdrawal Date (Batch)
               </label>
               <input
                 type="text"
                 value={withdrawalDateOverride}
                 onChange={(e) => setWithdrawalDateOverride(e.target.value)}
                 className="w-full h-7 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-white"
-                placeholder="14-01-2026"
+                placeholder="e.g. 14-01-2026"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
                 Exam Session Title
               </label>
               <input
@@ -1295,10 +1339,10 @@ export default function BulkCertificateGeneratorModal({
 
             <div>
               <div className="flex items-center justify-between mb-0.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">
                   Page Margin
                 </label>
-                <span className="font-mono font-black text-[10px] text-teal-700 dark:text-teal-400">
+                <span className="font-mono font-black text-[9.5px] text-teal-700 dark:text-teal-400">
                   {Number(pageMargin).toFixed(2)}"
                 </span>
               </div>
@@ -1317,15 +1361,15 @@ export default function BulkCertificateGeneratorModal({
 
           {/* Sequential Range Info Banner */}
           {newSelectedCount > 0 && (
-            <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-rose-100/70 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-[11px] font-bold animate-fadeIn">
+            <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-800 text-teal-900 dark:text-teal-200 text-[11px] font-bold animate-fadeIn">
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
+                <span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse"></span>
                 <span>Sequential Range:</span>
-                <span className="font-mono font-black text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-rose-300 dark:border-rose-700">
+                <span className="font-mono font-black text-teal-700 dark:text-teal-300 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-teal-300 dark:border-teal-700">
                   #{startCertNo}
                 </span>
                 <span>to</span>
-                <span className="font-mono font-black text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-rose-300 dark:border-rose-700">
+                <span className="font-mono font-black text-teal-700 dark:text-teal-300 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-teal-300 dark:border-teal-700">
                   #{sequentialEndNo}
                 </span>
               </span>
@@ -1337,17 +1381,17 @@ export default function BulkCertificateGeneratorModal({
 
         </div>
 
-        {/* ════════ SELECTION STATS & SELECTION BAR ════════ */}
-        <div className="px-3.5 py-2 bg-slate-100 dark:bg-slate-850 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-200 dark:border-slate-800">
-          <div className="flex flex-wrap items-center gap-2">
+        {/* ════════ SELECTION STATS & SELECTION BAR (CLEAN & CONSOLIDATED) ════════ */}
+        <div className="px-3 py-1.5 sm:px-3.5 bg-slate-100 dark:bg-slate-850 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-200 dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={handleToggleSelectAll}
-              className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 font-bold text-slate-700 dark:text-white hover:bg-slate-50 cursor-pointer shadow-2xs text-[11px]"
+              className="px-2.5 py-0.5 rounded-lg bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 font-bold text-slate-700 dark:text-white hover:bg-slate-50 cursor-pointer shadow-2xs text-[11px]"
             >
               {isAllSelected ? 'Deselect All' : `Select All (${totalFiltered})`}
             </button>
-            <span className="font-extrabold text-slate-800 dark:text-slate-200 text-[11px]">
+            <span className="font-extrabold text-slate-800 dark:text-slate-200 text-[11px] mr-1">
               Selected: <span className="text-teal-600 dark:text-teal-400 font-black">{totalSelected}</span> of {totalFiltered}
             </span>
 
@@ -1395,7 +1439,7 @@ export default function BulkCertificateGeneratorModal({
             <button
               type="button"
               onClick={() => setSortByIssued(v => !v)}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-bold text-[10.5px] cursor-pointer transition-colors ${
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-bold text-[10.5px] cursor-pointer transition-colors ${
                 sortByIssued
                   ? 'bg-indigo-600 text-white border-indigo-700'
                   : 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50'
@@ -1403,27 +1447,28 @@ export default function BulkCertificateGeneratorModal({
               title="Sort table with issued certificate holders first"
             >
               <ArrowUpDown size={11} />
-              <span>{sortByIssued ? 'Sorted: Issued First' : 'Sort: Issued First'}</span>
+              <span>{sortByIssued ? 'Issued First' : 'Default Order'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowPendingOnly(value => !value)}
-              className={`px-2 py-1 rounded-lg border font-bold text-[10px] cursor-pointer ${showPendingOnly ? 'bg-amber-500 text-white border-amber-600' : 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'}`}
+              className={`px-2 py-0.5 rounded-lg border font-bold text-[10px] cursor-pointer transition-colors ${showPendingOnly ? 'bg-amber-500 text-white border-amber-600' : 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'}`}
+              title="Toggle to view only students with missing certificate fields"
             >
-              {showPendingOnly ? 'Showing Pending Only' : 'Show Pending Fields'}
+              {showPendingOnly ? 'Showing Incomplete' : 'Missing Fields Only'}
             </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
-            <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-              {resultStats.passed} Passed
+            <span className="px-2 py-0.5 rounded-md bg-emerald-100/80 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/80">
+              {resultStats.passed} Pass
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-              {resultStats.reappear} Re-appear
+            <span className="px-2 py-0.5 rounded-md bg-amber-100/80 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/80">
+              {resultStats.reappear} Reap
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
-              {resultStats.awaiting} Awaiting / In-Course
+            <span className="px-2 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+              {resultStats.awaiting} Awaiting
             </span>
 
             {/* Page Size Selector */}
@@ -1475,7 +1520,7 @@ export default function BulkCertificateGeneratorModal({
                       <th className="p-2 w-28">Reg No / Adm No</th>
                       <th className="p-2 w-32">Exam Roll & Session</th>
                       <th className="p-2">Exam Result Status</th>
-                      <th className="p-2 w-28 text-center">Pending / Edit</th>
+                      <th className="p-2 w-28 text-center">Status / Edit</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
@@ -1545,7 +1590,7 @@ export default function BulkCertificateGeneratorModal({
                                 </button>
                               </span>
                             ) : isChecked ? (
-                              <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-black text-xs border border-rose-300 dark:border-rose-800 shadow-2xs">
+                              <span className="px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-200 font-black text-xs border border-teal-300 dark:border-teal-800 shadow-2xs">
                                 #{prospectiveCertNo || ((parseInt(startCertNo, 10) || 1368) + sNo - 1)}
                               </span>
                             ) : (
@@ -1611,11 +1656,24 @@ export default function BulkCertificateGeneratorModal({
                             <button
                               type="button"
                               onClick={() => openPendingFieldsEditor(st)}
-                              title={st.pendingFields.length > 0 ? `Pending: ${st.pendingFields.join(', ')}` : 'Review or update certificate fields'}
-                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-bold text-[9.5px] cursor-pointer ${st.pendingFields.length > 0 ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700' : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'}`}
+                              title={st.pendingFields.length > 0 ? `Missing essential fields: ${st.pendingFields.join(', ')}` : 'All mandatory certificate fields verified. Click to edit.'}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-bold text-[9.5px] cursor-pointer transition-colors ${
+                                st.pendingFields.length > 0
+                                  ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800/80 hover:bg-amber-100'
+                                  : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800/80 hover:bg-emerald-100'
+                              }`}
                             >
-                              <Edit3 size={10} />
-                              {st.pendingFields.length > 0 ? `${st.pendingFields.length} Pending` : 'Complete'}
+                              {st.pendingFields.length > 0 ? (
+                                <>
+                                  <Edit3 size={10} className="text-amber-600" />
+                                  <span>{st.pendingFields.length} Missing</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check size={10} className="text-emerald-600" />
+                                  <span>Ready</span>
+                                </>
+                              )}
                             </button>
                           </td>
                         </tr>
@@ -1746,70 +1804,136 @@ export default function BulkCertificateGeneratorModal({
     </div>
     {editingStudent && (
       <div
-        className="fixed inset-0 z-[100002] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn"
+        className="fixed inset-0 z-[100002] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn"
         onClick={(e) => { if (e.target === e.currentTarget) setEditingStudent(null); }}
       >
-        <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between">
+        <div className="w-full max-w-2xl max-h-[92vh] overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col">
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between bg-slate-50 dark:bg-slate-850">
             <div>
-              <h3 className="font-black text-slate-900 dark:text-white">Complete Certificate Fields</h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">{editingStudent.studentName} • Reg: {editingStudent.regNo || '—'} • Changes are saved permanently to Firestore.</p>
+              <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">Complete Certificate Fields</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">{editingStudent.studentName} • Reg: {editingStudent.regNo || '—'} • Changes save permanently to Firestore.</p>
             </div>
-            <button type="button" onClick={() => setEditingStudent(null)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"><X size={17} /></button>
+            <button type="button" onClick={() => setEditingStudent(null)} className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600"><X size={17} /></button>
           </div>
-          <div className="p-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              ['studentName', "Student's Name"],
-              ['fatherName', "Father's Name"],
-              ['motherName', "Mother's Name"],
-              ['regNo', 'Registration No.'],
-              ['admNo', 'Admission No.'],
-              ['admDate', 'Admission Date'],
-              ['dob', 'Date of Birth'],
-              ['village', 'Village / Address'],
-              ['examRollNo', 'Exam Roll No.'],
-              ['examMode', 'Exam Mode'],
-              ['marksObtained', 'Marks Obtained'],
-              ['maxMarks', 'Maximum Marks'],
-              ['division', 'Division / Distinction'],
-              ['reappSubjects', 'Re-appear Subjects']
-            ].map(([key, label]) => (
-              <label key={key} className="text-[10px] font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                <span className="flex items-center justify-between mb-1">
-                  {label}
-                  {editingStudent.pendingFields.some(field => field.toLowerCase().includes(label.replace('.', '').toLowerCase().split(' / ')[0])) && <span className="text-amber-600">Pending</span>}
-                </span>
-                <input
-                  type="text"
-                  value={editValues[key] || ''}
-                  onChange={(e) => setEditValues(values => ({ ...values, [key]: e.target.value }))}
-                  className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white"
-                />
-              </label>
-            ))}
-            <label className="text-[10px] font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              <span className="block mb-1">Gender</span>
-              <select value={editValues.gender || ''} onChange={(e) => setEditValues(values => ({ ...values, gender: e.target.value }))} className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white">
-                <option value="">Select gender</option>
-                <option value="Female (F)">Female</option>
-                <option value="Male (M)">Male</option>
-              </select>
-            </label>
-            <label className="text-[10px] font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              <span className="block mb-1">Exam Result</span>
-              <select value={editValues.resultStatus || ''} onChange={(e) => setEditValues(values => ({ ...values, resultStatus: e.target.value }))} className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white">
-                <option value="">Select result</option>
-                <option value="Passed">Passed</option>
-                <option value="Reap">Re-appear</option>
-                <option value="Failed">Failed</option>
-                <option value="Awaiting Result">Awaiting Result / In-Course</option>
-              </select>
-            </label>
+
+          {/* Mass Ingestion Notice banner */}
+          <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/40 border-b border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between gap-2 text-[11px]">
+            <span className="text-indigo-900 dark:text-indigo-200 font-medium truncate">
+              💡 Need to update multiple students at once?
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingStudent(null);
+                handleOpenBoardIngestionHub();
+              }}
+              className="inline-flex items-center gap-1 font-black text-indigo-700 dark:text-indigo-300 hover:underline shrink-0 cursor-pointer"
+            >
+              <span>Open Ingestion Hub</span>
+              <ExternalLink size={11} />
+            </button>
           </div>
-          <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2 bg-slate-50 dark:bg-slate-950">
-            <button type="button" onClick={() => setEditingStudent(null)} disabled={isSavingFields} className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 font-bold text-xs">Cancel</button>
-            <button type="button" onClick={handleSavePendingFields} disabled={isSavingFields} className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-xs flex items-center gap-1.5 disabled:opacity-50">
-              {isSavingFields ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+
+          <div className="p-4 overflow-y-auto space-y-4 text-xs">
+            {/* Group 1: Student Identity & School Data */}
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 border-b border-slate-200 dark:border-slate-800 pb-1">
+                Student Identity & School Record
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {[
+                  ['studentName', "Student's Name"],
+                  ['fatherName', "Father's Name"],
+                  ['motherName', "Mother's Name"],
+                  ['regNo', 'Registration No.'],
+                  ['admNo', 'Admission No.'],
+                  ['admDate', 'Admission Date'],
+                  ['dob', 'Date of Birth'],
+                  ['village', 'Village / Address']
+                ].map(([key, label]) => (
+                  <label key={key} className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                    <span className="flex items-center justify-between mb-0.5">
+                      <span>{label}</span>
+                      {editingStudent.pendingFields.some(field => field.toLowerCase().includes(label.replace('.', '').toLowerCase().split(' / ')[0])) && (
+                        <span className="text-[9px] font-black text-amber-600 dark:text-amber-400">Missing</span>
+                      )}
+                    </span>
+                    <input
+                      type="text"
+                      value={editValues[key] || ''}
+                      onChange={(e) => setEditValues(values => ({ ...values, [key]: e.target.value }))}
+                      className="w-full h-8 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white"
+                    />
+                  </label>
+                ))}
+
+                <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                  <span className="block mb-0.5">Gender</span>
+                  <select
+                    value={editValues.gender || ''}
+                    onChange={(e) => setEditValues(values => ({ ...values, gender: e.target.value }))}
+                    className="w-full h-8 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Female (F)">Female</option>
+                    <option value="Male (M)">Male</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            {/* Group 2: Board Exam & Results */}
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 border-b border-slate-200 dark:border-slate-800 pb-1">
+                Board Exam & Result Status
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {[
+                  ['examRollNo', 'Exam Roll No.'],
+                  ['examMode', 'Exam Mode'],
+                  ['marksObtained', 'Marks Obtained'],
+                  ['maxMarks', 'Maximum Marks'],
+                  ['division', 'Division / Distinction'],
+                  ['reappSubjects', 'Re-appear Subjects']
+                ].map(([key, label]) => (
+                  <label key={key} className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                    <span className="flex items-center justify-between mb-0.5">
+                      <span>{label}</span>
+                      {editingStudent.pendingFields.some(field => field.toLowerCase().includes(label.replace('.', '').toLowerCase().split(' / ')[0])) && (
+                        <span className="text-[9px] font-black text-amber-600 dark:text-amber-400">Missing</span>
+                      )}
+                    </span>
+                    <input
+                      type="text"
+                      value={editValues[key] || ''}
+                      onChange={(e) => setEditValues(values => ({ ...values, [key]: e.target.value }))}
+                      className="w-full h-8 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white"
+                    />
+                  </label>
+                ))}
+
+                <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 col-span-1 sm:col-span-2">
+                  <span className="block mb-0.5">Exam Result Status</span>
+                  <select
+                    value={editValues.resultStatus || ''}
+                    onChange={(e) => setEditValues(values => ({ ...values, resultStatus: e.target.value }))}
+                    className="w-full h-8 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    <option value="">Select result status</option>
+                    <option value="Passed">Passed</option>
+                    <option value="Reap">Re-appear</option>
+                    <option value="Failed">Failed</option>
+                    <option value="Awaiting Result">Awaiting Result / In-Course</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 py-2.5 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2 bg-slate-50 dark:bg-slate-950">
+            <button type="button" onClick={() => setEditingStudent(null)} disabled={isSavingFields} className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 font-bold text-xs hover:bg-slate-300">Cancel</button>
+            <button type="button" onClick={handleSavePendingFields} disabled={isSavingFields} className="px-4 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-xs flex items-center gap-1.5 disabled:opacity-50">
+              {isSavingFields ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
               Save Permanently
             </button>
           </div>
