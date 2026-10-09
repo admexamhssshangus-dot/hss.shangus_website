@@ -2,21 +2,20 @@
 
 ## Commit Message
 
-`fix(portal): resolve cert studio temporal dead zone error and align sanction order controls`
+`fix(mbf-studio): add deletion confirmations and clean duplicate plus symbols from buttons`
 
 ## Files Changed
 
-1. **[src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)**
-   - **Resolved `isTcDcActive` Initialization ReferenceError**:
-     - Moved the `isTcDcActive` `useMemo` declaration above `saveCertificateTitleToCloud` and dependent `useEffect` hooks so it is fully initialized before being referenced in callback and effect dependencies.
-     - Fixed runtime crash (`ReferenceError: Cannot access 'isTcDcActive' before initialization`) caught by `ModuleErrorBoundary` on opening the Certificate Studio (`?tab=certStudio`).
-
-2. **[src/portal/admin/BeneficiarySanctionOrdersView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BeneficiarySanctionOrdersView.jsx)**
-   - **Promoted Document Styling Controls to Top Header**:
-     - Moved Table Row Spacing (`Compact`, `Normal`, `Spaced`), Font Size stepper (`A⁻` / `A⁺`) & dropdown (`8pt` to `14pt`), and Font Family selector (`Times New Roman`, `Arial`, `Georgia`, `Calibri`, `Courier New`) directly beside **Orientation** in the top bar above the preview sheet.
-   - **Arranged Registration Nos [Bulk] & + Blank Row on the Exact Same Row**:
-     - Consolidated `REGISTRATION NOS [BULK]` label (with live token count badge), `[👁 Paste Reg Nos]` toggle button, and `[+ Blank Row]` (non-student / vendor row creator) onto the exact same horizontal flex row in Tab 1, eliminating redundant vertical row height.
-     - Structured the collapsible bulk paste input area to cleanly open immediately underneath without disrupting the rest of the student fetcher flow.
+1. **[src/portal/admin/BeneficiarySanctionOrdersView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/BeneficiarySanctionOrdersView.jsx)**
+   - **Added Explicit Deletion & Reset Confirmations**:
+     - `handleRemoveColumn`: Prompts with a window confirmation (`Are you sure you want to remove the column "..." from the table?`) before unmounting columns, protecting admins from accidental column loss when clicking the header trash icon or sidebar column tags.
+     - `handleDeleteRow`: Prompts with an explicit confirmation (`Are you sure you want to delete the beneficiary entry for "..."?`) before removing beneficiary rows.
+     - `handleResetColumns`: Prompts with a confirmation (`Reset all table columns back to preset defaults? Any custom columns will be removed.`) before resetting active columns to preset defaults.
+   - **Cleaned Up Duplicate `+` Symbols on Buttons**:
+     - Removed duplicate plus signs in the in-table add column button (`+ + Col` -> `+ Column`).
+     - Removed duplicate plus signs in the in-table column menu (`+ Create Custom Column...` -> `Create Custom Column...`).
+     - Cleaned up blank row buttons across both the secondary action grid and Tab 1 (`+ Blank` / `+ Blank Row` -> `+ Blank Row` without double `+`).
+     - Updated the empty table state message to refer to `"Column"` and `"Blank Row"` buttons.
 
 ---
 
@@ -35,7 +34,7 @@ If you wish to edit the commit message or make adjustments:
 git reset --soft HEAD~1
 # Make desired adjustments...
 git add .
-git commit -m "fix(portal): resolve cert studio temporal dead zone error and align sanction order controls"
+git commit -m "fix(mbf-studio): add deletion confirmations and clean duplicate plus symbols from buttons"
 ```
 
 ### 3. How to Push to Remote Repository

@@ -797,7 +797,15 @@ export default function BeneficiarySanctionOrdersView({
 
   // ─── Delete Row ───
   const handleDeleteRow = (rowId) => {
+    const target = beneficiaries.find(r => r.id === rowId);
+    const label = target?.studentName
+      ? `"${target.studentName}"`
+      : (target?.boardRegNo ? `Reg No: ${target.boardRegNo}` : 'this row');
+    if (!window.confirm(`Are you sure you want to delete the beneficiary entry for ${label}?`)) {
+      return;
+    }
     setBeneficiaries(prev => prev.filter(r => r.id !== rowId));
+    showToast(`Deleted row for ${label}`, 'info');
   };
 
   // ─── Reorder Rows ───
@@ -903,13 +911,19 @@ export default function BeneficiarySanctionOrdersView({
       return;
     }
     const target = activeColumns.find(c => c.key === colKey);
-    setActiveColumns(prev => prev.filter(c => c.key !== colKey));
-    if (target) {
-      showToast(`Removed column "${target.label}"`, 'info');
+    if (!target) return;
+    const colName = target.label || colKey;
+    if (!window.confirm(`Are you sure you want to remove the column "${colName}" from the table?`)) {
+      return;
     }
+    setActiveColumns(prev => prev.filter(c => c.key !== colKey));
+    showToast(`Removed column "${colName}"`, 'info');
   };
 
   const handleResetColumns = () => {
+    if (!window.confirm('Reset all table columns back to preset defaults? Any custom columns will be removed.')) {
+      return;
+    }
     const defaultCols = TEMPLATE_PRESETS.find(p => p.id === activePresetId)?.columns || TEMPLATE_PRESETS[0].columns;
     setActiveColumns(defaultCols);
     showToast('Reset table columns to preset default', 'info');
@@ -1699,16 +1713,16 @@ export default function BeneficiarySanctionOrdersView({
                     ))}
 
                     {/* Screen-only Action / Add Column Header */}
-                    <th className="print:hidden border border-slate-900 px-1 py-1 w-14 text-center align-middle bg-slate-100">
+                    <th className="print:hidden border border-slate-900 px-1 py-1 w-16 text-center align-middle bg-slate-100">
                       <div className="relative inline-block text-left" ref={inTableAddColRef}>
                         <button
                           type="button"
                           onClick={() => setShowInTableAddMenu(prev => !prev)}
                           className="h-6 px-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs whitespace-nowrap"
-                          title="Add column to table (+ DB Col or + Custom)"
+                          title="Add column to table (DB Column or Custom)"
                         >
                           <Plus size={11} />
-                          <span>+ Col</span>
+                          <span>Column</span>
                         </button>
 
                         {/* Quick Add Column Menu in Table */}
@@ -1748,7 +1762,7 @@ export default function BeneficiarySanctionOrdersView({
                               className="w-full text-left px-2 py-1.5 mb-1.5 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 text-teal-800 dark:text-teal-200 rounded font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                             >
                               <PlusCircle size={13} className="text-teal-600 shrink-0" />
-                              <span>+ Create Custom Column...</span>
+                              <span>Create Custom Column...</span>
                             </button>
 
                             <div className="text-[9px] font-black uppercase text-slate-400 px-1 py-0.5">
@@ -1790,7 +1804,7 @@ export default function BeneficiarySanctionOrdersView({
                         colSpan={activeColumns.length + 1}
                         className="border border-slate-900 p-8 text-center text-slate-400 font-sans italic"
                       >
-                        No beneficiaries added yet. Use the controls panel on the right or "+ Col" / "+ Blank" to fetch student registration numbers or add rows.
+                        No beneficiaries added yet. Use the controls panel on the right or the "Column" / "Blank Row" buttons to add rows or fetch student records.
                       </td>
                     </tr>
                   ) : (
@@ -2049,7 +2063,7 @@ export default function BeneficiarySanctionOrdersView({
                   title="Add blank editable row (vendor / non-student)"
                 >
                   <Plus size={11} className="text-teal-600" />
-                  <span>+ Blank</span>
+                  <span>Blank Row</span>
                 </button>
                 <button
                   type="button"
@@ -2474,7 +2488,7 @@ export default function BeneficiarySanctionOrdersView({
                         title="Add non-student or vendor blank row"
                       >
                         <Plus size={11} className="text-teal-600" />
-                        <span>+ Blank Row</span>
+                        <span>Blank Row</span>
                       </button>
                     </div>
                   </div>
