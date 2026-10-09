@@ -15,7 +15,8 @@ import {
   Hash, IndianRupee, Users, CheckSquare, Square, UserCheck, RefreshCw,
   Copy, PlusCircle, Sparkles, Share2, Eye, EyeOff, GripVertical, CheckCircle2,
   AlertCircle, Building2, CreditCard, ShieldCheck, Award, ArrowLeft,
-  PanelRightClose, PanelRightOpen
+  PanelRightClose, PanelRightOpen,
+  Undo, Redo, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, Palette, Type
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -177,8 +178,6 @@ export default function BeneficiarySanctionOrdersView({
   // ─── Active Preset & Orientation ───
   const [activePresetId, setActivePresetId] = useState('mutual_benefit');
   const [orientation, setOrientation] = useState('portrait'); // 'portrait' | 'landscape'
-  const [tableFontSize, setTableFontSize] = useState('9.5px');
-  const [rowPaddingPreset, setRowPaddingPreset] = useState('compact'); // 'compact' | 'standard' | 'spacious'
   const [showControlsPanel, setShowControlsPanel] = useState(true);
   const [customSidebarWidth, setCustomSidebarWidth] = useState(null); // null = default 1/3 flex split
 
@@ -272,6 +271,119 @@ export default function BeneficiarySanctionOrdersView({
 
   // ─── Beneficiary Row Records ───
   const [beneficiaries, setBeneficiaries] = useState([]);
+
+  // ─── Font & Formatting State ───
+  const [documentFontFamily, setDocumentFontFamily] = useState("'Times New Roman', Times, serif");
+  const [tableFontSize, setTableFontSize] = useState('9.5pt');
+  const [rowPaddingPreset, setRowPaddingPreset] = useState('compact'); // 'compact' | 'standard' | 'spacious'
+  const [sidebarTab, setSidebarTab] = useState('students'); // 'students' | 'content' | 'signatures'
+  const [showColorPalette, setShowColorPalette] = useState(false);
+  const [activeFormats, setActiveFormats] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+    strike: false,
+    h1: false,
+    h2: false,
+    p: true,
+    alignLeft: false,
+    alignCenter: false,
+    alignRight: false,
+    justify: false
+  });
+
+  const FONT_SIZE_STEPS = ['8pt', '8.5pt', '9pt', '9.5pt', '10pt', '10.5pt', '11pt', '11.5pt', '12pt', '13pt', '14pt'];
+
+  const handleAdjustFontSize = (delta) => {
+    const currentIdx = FONT_SIZE_STEPS.indexOf(tableFontSize);
+    if (currentIdx !== -1) {
+      const nextIdx = Math.max(0, Math.min(FONT_SIZE_STEPS.length - 1, currentIdx + delta));
+      setTableFontSize(FONT_SIZE_STEPS[nextIdx]);
+    } else {
+      setTableFontSize('9.5pt');
+    }
+  };
+
+  const checkActiveFormats = useCallback(() => {
+    try {
+      setActiveFormats({
+        bold: document.queryCommandState('bold') || false,
+        italic: document.queryCommandState('italic') || false,
+        underline: document.queryCommandState('underline') || false,
+        strike: document.queryCommandState('strikeThrough') || false,
+        alignLeft: document.queryCommandState('justifyLeft') || false,
+        alignCenter: document.queryCommandState('justifyCenter') || false,
+        alignRight: document.queryCommandState('justifyRight') || false,
+        justify: document.queryCommandState('justifyFull') || false,
+        h1: false,
+        h2: false,
+        p: true
+      });
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    const handleSelChange = () => {
+      checkActiveFormats();
+    };
+    document.addEventListener('selectionchange', handleSelChange);
+    return () => document.removeEventListener('selectionchange', handleSelChange);
+  }, [checkActiveFormats]);
+
+  const executeFormat = (command, value = null) => {
+    try {
+      document.execCommand('styleWithCSS', false, true);
+    } catch {}
+
+    try {
+      if (command === 'formatBlock') {
+        const targetClean = (value || 'p').replace(/[<>]/g, '').toLowerCase();
+        let sel = window.getSelection();
+        let currentBlock = null;
+        if (sel && sel.rangeCount > 0) {
+          let node = sel.getRangeAt(0).commonAncestorContainer;
+          if (node.nodeType === 3) node = node.parentNode;
+          currentBlock = node?.closest('h1, h2, h3, h4, h5, h6, p, blockquote, div');
+        }
+        const currentTag = currentBlock?.tagName?.toLowerCase() || 'p';
+        const isSameTag = currentTag === targetClean;
+        const newTag = (isSameTag && targetClean !== 'p') ? 'p' : targetClean;
+        let success = document.execCommand('formatBlock', false, `<${newTag}>`);
+        if (!success) {
+          document.execCommand('formatBlock', false, newTag);
+        }
+      } else {
+        document.execCommand(command, false, value);
+      }
+    } catch (err) {
+      console.warn('Formatting command note:', err);
+    }
+    checkActiveFormats();
+  };
+
+  const applyTextColor = (color) => {
+    try {
+      document.execCommand('styleWithCSS', false, true);
+      document.execCommand('foreColor', false, color);
+    } catch (err) {
+      console.warn('Apply text color note:', err);
+    }
+    checkActiveFormats();
+    setShowColorPalette(false);
+  };
+
+  const OFFICIAL_PALETTE = [
+    { name: 'Black', hex: '#000000' },
+    { name: 'Maroon', hex: '#800000' },
+    { name: 'Navy', hex: '#0a192f' },
+    { name: 'Dark Slate', hex: '#1e293b' },
+    { name: 'Slate Gray', hex: '#475569' },
+    { name: 'Forest Emerald', hex: '#047857' },
+    { name: 'Teal Blue', hex: '#0d9488' },
+    { name: 'Royal Blue', hex: '#2563eb' },
+    { name: 'Crimson', hex: '#dc2626' },
+    { name: 'Gold Amber', hex: '#b45309' },
+  ];
 
   // ─── Bulk Reg No Ingestion & Data Fetching State ───
   const [selectedSession, setSelectedSession] = useState('2025-26');
@@ -864,6 +976,7 @@ export default function BeneficiarySanctionOrdersView({
       refNo,
       dateStr,
       documentTitle,
+      fontFamily: documentFontFamily,
       showPreamble,
       preambleText: resolvedPreambleText,
       activeColumns,
@@ -1190,7 +1303,7 @@ export default function BeneficiarySanctionOrdersView({
               const p = TEMPLATE_PRESETS.find(x => x.id === e.target.value);
               if (p) handleApplyPreset(p);
             }}
-            className="h-7 text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-slate-700 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-2xs max-w-[150px] sm:max-w-[210px] truncate shrink-0"
+            className="h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-2xs max-w-[160px] sm:max-w-[240px] truncate shrink-0"
             title="Select Sanction Order Template Preset"
           >
             {TEMPLATE_PRESETS.map(p => (
@@ -1207,7 +1320,7 @@ export default function BeneficiarySanctionOrdersView({
               onClick={() => setOrientation('landscape')}
               className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 orientation === 'landscape'
-                  ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-2xs'
+                  ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-2xs font-bold'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -1218,7 +1331,7 @@ export default function BeneficiarySanctionOrdersView({
               onClick={() => setOrientation('portrait')}
               className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 orientation === 'portrait'
-                  ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-2xs'
+                  ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-2xs font-bold'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -1227,20 +1340,20 @@ export default function BeneficiarySanctionOrdersView({
           </div>
         </div>
 
-        {/* Right side: Action Controls */}
-        <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto">
-          {/* History / Drafts */}
+        {/* Right side: Action Controls Shortcuts */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Quick Print Button */}
           <button
             type="button"
-            onClick={() => setShowHistoryModal(true)}
-            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
-            title="Document History & Saved Drafts"
+            onClick={handlePrint}
+            className="h-7 flex items-center gap-1 text-xs font-bold px-2.5 rounded-md bg-teal-600 hover:bg-teal-700 text-white transition-all shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
+            title="Print or Save as PDF (Ctrl+P)"
           >
-            <RotateCcw size={12} className="text-slate-500 shrink-0" />
-            <span>History</span>
+            <Printer size={12} className="shrink-0" />
+            <span className="hidden sm:inline">Print / PDF</span>
           </button>
 
-          {/* Save to Cloud */}
+          {/* Quick Save Draft Button */}
           <button
             type="button"
             onClick={handleSaveToCloud}
@@ -1248,40 +1361,7 @@ export default function BeneficiarySanctionOrdersView({
             title="Save draft to Cloud History"
           >
             <Save size={12} className="text-teal-600 shrink-0" />
-            <span>Save</span>
-          </button>
-
-          {/* Excel Export */}
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-colors shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
-            title="Export full Excel file"
-          >
-            <FileSpreadsheet size={12} className="shrink-0" />
-            <span>Excel</span>
-          </button>
-
-          {/* Word Export */}
-          <button
-            type="button"
-            onClick={handleExportDocx}
-            className="h-7 flex items-center gap-1 text-[11px] font-semibold px-2 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
-            title="Export Word document"
-          >
-            <FileText size={12} className="shrink-0" />
-            <span>Word</span>
-          </button>
-
-          {/* Print / PDF Button */}
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="h-7 flex items-center gap-1.5 text-xs font-bold px-2.5 rounded-md bg-teal-600 hover:bg-teal-700 text-white transition-all shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
-            title="Print or Save as PDF (Ctrl+P)"
-          >
-            <Printer size={13} className="shrink-0" />
-            <span>Print / PDF</span>
+            <span className="hidden sm:inline">Save</span>
           </button>
 
           {/* Sidebar Controls Toggle */}
@@ -1443,14 +1523,26 @@ export default function BeneficiarySanctionOrdersView({
 
             {/* 3. Bank Debit Directive Preamble (if active) */}
             {showPreamble && resolvedPreambleText && (
-              <div className="text-[12px] font-semibold my-2 px-1 text-slate-800 leading-relaxed font-serif">
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                onBlur={(e) => setPreambleText(e.currentTarget.innerText)}
+                className="text-[12px] font-semibold my-2 px-1 text-slate-800 leading-relaxed font-serif outline-none border border-transparent hover:border-dashed hover:border-slate-300 focus:border-teal-500 focus:bg-teal-50/20 rounded p-1 transition-all cursor-text"
+                title="Click to directly edit Bank Debit Directive on sheet"
+              >
                 {resolvedPreambleText}
               </div>
             )}
 
             {/* 4. Document Subtitle / Banner */}
             <div className="text-center my-2 font-bold text-[14px] uppercase tracking-wide">
-              <span className="px-3 py-0.5 border-b-2 border-slate-900 inline-block">
+              <span
+                contentEditable
+                suppressContentEditableWarning
+                onBlur={(e) => setDocumentTitle(e.currentTarget.innerText.trim())}
+                className="px-3 py-0.5 border-b-2 border-slate-900 inline-block outline-none hover:bg-slate-100/60 focus:bg-teal-50/40 rounded transition-all cursor-text"
+                title="Click to directly edit Document Title on sheet"
+              >
                 {documentTitle}
               </span>
             </div>
@@ -1746,7 +1838,13 @@ export default function BeneficiarySanctionOrdersView({
 
             {/* 7. Bottom Certification Paragraph (Matches Sample 1) */}
             {showCertification && resolvedCertificationText && (
-              <div className="my-3 px-1 text-[11px] text-justify leading-relaxed font-serif text-slate-800">
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                onBlur={(e) => setCertificationText(e.currentTarget.innerText)}
+                className="my-3 px-1 text-[11px] text-justify leading-relaxed font-serif text-slate-800 outline-none border border-transparent hover:border-dashed hover:border-slate-300 focus:border-teal-500 focus:bg-teal-50/20 rounded p-1.5 transition-all cursor-text"
+                title="Click to directly edit Committee Certification Note on sheet (Rich Text Formatting supported)"
+              >
                 {resolvedCertificationText.split('\n\n').map((paragraph, pIdx) => (
                   <p key={pIdx} className="mb-1.5 last:mb-0">
                     {paragraph}
@@ -1808,7 +1906,7 @@ export default function BeneficiarySanctionOrdersView({
         {showControlsPanel && (
           <aside
             ref={asideRef}
-            className={`border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/90 h-full min-h-0 overflow-y-auto custom-scrollbar overscroll-contain p-2.5 sm:p-3 pb-16 shadow-xs print:hidden min-w-0 transition-all ${
+            className={`border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/95 h-full min-h-0 overflow-y-auto custom-scrollbar overscroll-contain p-2.5 sm:p-3 pb-16 shadow-xs print:hidden min-w-0 transition-all flex flex-col gap-2.5 ${
               customSidebarWidth ? 'flex-none' : 'w-full lg:w-1/3'
             }`}
             style={
@@ -1817,21 +1915,404 @@ export default function BeneficiarySanctionOrdersView({
                 : { flex: '1 1 0%' }
             }
           >
-            {/* Modern High-Density Minimal Stack (Cards flow vertically on standard sidebar, or 2 cols if wide >= 680px) */}
-            <div
-              className="grid gap-2.5 items-start"
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))' }}
-            >
-              {/* ─── CARD 1: Student Fetcher & Ingestion Operations ─── */}
+            {/* ─── DOCKED ACTION BUTTONS (Matching Student Bonafides & Official Letterhead Writer) ─── */}
+            <div className="space-y-1.5 bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+              {/* Primary 4-Button Action Grid */}
+              <div className="grid grid-cols-4 gap-1.5">
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="h-8 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer"
+                  title="Print or Save as PDF (Ctrl+P)"
+                >
+                  <Printer size={13} className="shrink-0" />
+                  <span>Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportDocx}
+                  className="h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer"
+                  title="Export to Word (.docx)"
+                >
+                  <FileText size={13} className="shrink-0" />
+                  <span>Word</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer"
+                  title="Export to Excel (.xlsx)"
+                >
+                  <FileSpreadsheet size={13} className="shrink-0" />
+                  <span>Excel</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveToCloud}
+                  className="h-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer"
+                  title="Save draft to Cloud History"
+                >
+                  <Save size={13} className="text-teal-600 shrink-0" />
+                  <span>Save</span>
+                </button>
+              </div>
+
+              {/* Secondary Operational Shortcuts */}
+              <div className="grid grid-cols-4 gap-1.5 text-[10px] pt-0.5">
+                <button
+                  type="button"
+                  onClick={handleAddManualRow}
+                  className="h-6.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-md flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  title="Add blank editable row (vendor / non-student)"
+                >
+                  <Plus size={11} className="text-teal-600" />
+                  <span>+ Blank</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowFillAmountModal(true)}
+                  className="h-6.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-md flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  title="Bulk Fill Amount (₹600 / ₹800)"
+                >
+                  <IndianRupee size={11} className="text-emerald-600" />
+                  <span>Fill ₹</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(true)}
+                  className="h-6.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-md flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  title="Document Drafts & History"
+                >
+                  <RotateCcw size={11} className="text-slate-500" />
+                  <span>History</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetColumns}
+                  className="h-6.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-md flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  title="Reset table columns to preset default"
+                >
+                  <RotateCcw size={11} className="text-amber-600" />
+                  <span>Reset</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ─── DEDICATED RICH TEXT & FORMATTING TOOLBAR ─── */}
+            <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1.5">
+              {/* Toolbar Sub-row 1: Undo/Redo | Tags | Font Size Stepper | Bold/Italic/Underline/Strike/Color */}
+              <div className="flex items-center justify-between gap-1">
+                {/* Undo / Redo */}
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    title="Undo (Ctrl+Z)"
+                    onClick={() => executeFormat('undo')}
+                    className="w-6 h-6 rounded flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    <Undo size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Redo (Ctrl+Y)"
+                    onClick={() => executeFormat('redo')}
+                    className="w-6 h-6 rounded flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    <Redo size={11} />
+                  </button>
+                </div>
+
+                <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                {/* Paragraph / Headings */}
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    title="Normal Body (¶)"
+                    onClick={() => executeFormat('formatBlock', '<p>')}
+                    className="w-6 h-6 rounded font-black text-[10px] flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    ¶
+                  </button>
+                  <button
+                    type="button"
+                    title="Heading 1"
+                    onClick={() => executeFormat('formatBlock', '<h1>')}
+                    className="w-6 h-6 rounded font-black text-[10px] flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    H1
+                  </button>
+                  <button
+                    type="button"
+                    title="Heading 2"
+                    onClick={() => executeFormat('formatBlock', '<h2>')}
+                    className="w-6 h-6 rounded font-black text-[10px] flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    H2
+                  </button>
+                </div>
+
+                <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                {/* Font Size Stepper (A⁻ / Size Select / A⁺) */}
+                <div className="flex items-center bg-slate-100/80 dark:bg-slate-800/80 rounded-md border border-slate-200 dark:border-slate-700 px-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    title="Decrease Font Size (A⁻)"
+                    onClick={() => handleAdjustFontSize(-1)}
+                    className="w-5 h-5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer"
+                  >
+                    A⁻
+                  </button>
+                  <select
+                    value={tableFontSize}
+                    onChange={(e) => setTableFontSize(e.target.value)}
+                    className="h-5 px-0.5 bg-transparent text-[10px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                    title="Select Font Size"
+                  >
+                    <option value="8pt">8pt</option>
+                    <option value="8.5pt">8.5pt</option>
+                    <option value="9pt">9pt</option>
+                    <option value="9.5pt">9.5pt</option>
+                    <option value="10pt">10pt</option>
+                    <option value="10.5pt">10.5pt</option>
+                    <option value="11pt">11pt</option>
+                    <option value="11.5pt">11.5pt</option>
+                    <option value="12pt">12pt</option>
+                    <option value="13pt">13pt</option>
+                    <option value="14pt">14pt</option>
+                  </select>
+                  <button
+                    type="button"
+                    title="Increase Font Size (A⁺)"
+                    onClick={() => handleAdjustFontSize(1)}
+                    className="w-5 h-5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-[10px] flex items-center justify-center cursor-pointer"
+                  >
+                    A⁺
+                  </button>
+                </div>
+
+                <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                {/* Bold / Italic / Underline / Strike / Color */}
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    title="Bold (Ctrl+B)"
+                    onClick={() => executeFormat('bold')}
+                    className={`w-6 h-6 rounded flex items-center justify-center transition-colors cursor-pointer ${
+                      activeFormats.bold ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 font-black border border-amber-300' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Bold size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Italic (Ctrl+I)"
+                    onClick={() => executeFormat('italic')}
+                    className={`w-6 h-6 rounded flex items-center justify-center transition-colors cursor-pointer ${
+                      activeFormats.italic ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 font-black border border-amber-300' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Italic size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Underline (Ctrl+U)"
+                    onClick={() => executeFormat('underline')}
+                    className={`w-6 h-6 rounded flex items-center justify-center transition-colors cursor-pointer ${
+                      activeFormats.underline ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 font-black border border-amber-300' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Underline size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Strikethrough"
+                    onClick={() => executeFormat('strikeThrough')}
+                    className={`w-6 h-6 rounded flex items-center justify-center transition-colors cursor-pointer ${
+                      activeFormats.strike ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 font-black border border-amber-300' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Strikethrough size={11} />
+                  </button>
+
+                  {/* Color Palette Popover */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      title="Text Color"
+                      onClick={() => setShowColorPalette(!showColorPalette)}
+                      className="w-6 h-6 rounded flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    >
+                      <Palette size={11} />
+                    </button>
+                    {showColorPalette && (
+                      <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 shadow-xl z-50 grid grid-cols-5 gap-1.5 w-36">
+                        {OFFICIAL_PALETTE.map((c) => (
+                          <button
+                            key={c.hex}
+                            type="button"
+                            onClick={() => applyTextColor(c.hex)}
+                            className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 cursor-pointer hover:scale-110 transition-transform shadow-2xs"
+                            style={{ backgroundColor: c.hex }}
+                            title={c.name}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Toolbar Sub-row 2: Alignment | Font Family | Row Spacing Density */}
+              <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                {/* Alignment: Left / Center / Right / Justify */}
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    title="Align Left"
+                    onClick={() => executeFormat('justifyLeft')}
+                    className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer ${activeFormats.alignLeft ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                  >
+                    <AlignLeft size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Align Center"
+                    onClick={() => executeFormat('justifyCenter')}
+                    className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer ${activeFormats.alignCenter ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                  >
+                    <AlignCenter size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Align Right"
+                    onClick={() => executeFormat('justifyRight')}
+                    className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer ${activeFormats.alignRight ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                  >
+                    <AlignRight size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Justify"
+                    onClick={() => executeFormat('justifyFull')}
+                    className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer ${activeFormats.justify ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                  >
+                    <AlignJustify size={11} />
+                  </button>
+                </div>
+
+                <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                {/* Font Family Selector */}
+                <select
+                  value={documentFontFamily}
+                  onChange={(e) => setDocumentFontFamily(e.target.value)}
+                  className="h-5.5 px-1 text-[10px] font-medium bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md text-slate-800 dark:text-slate-200 outline-none cursor-pointer max-w-[110px] truncate"
+                  title="Document Font Family"
+                >
+                  <option value="'Times New Roman', Times, serif">Times New Roman</option>
+                  <option value="'Arial', Helvetica, sans-serif">Arial</option>
+                  <option value="'Georgia', serif">Georgia</option>
+                  <option value="'Calibri', sans-serif">Calibri</option>
+                  <option value="'Courier New', monospace">Courier New</option>
+                </select>
+
+                <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+                {/* Row Spacing Density: Compact / Normal / Spaced */}
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700 p-0.5 shadow-2xs">
+                  {[
+                    { key: 'compact', label: 'Cmp' },
+                    { key: 'standard', label: 'Std' },
+                    { key: 'spacious', label: 'Spc' }
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setRowPaddingPreset(item.key)}
+                      className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all cursor-pointer ${
+                        rowPaddingPreset === item.key
+                          ? 'bg-teal-600 text-white shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                      title={`Row Spacing: ${item.key}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* ─── SEGMENTED 3-TAB CONTROLS NAVIGATOR (Zero-scroll architecture!) ─── */}
+            <div className="flex rounded-xl bg-slate-200/80 dark:bg-slate-800/80 p-0.5 border border-slate-300 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setSidebarTab('students')}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  sidebarTab === 'students'
+                    ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Users size={12} className={sidebarTab === 'students' ? 'text-teal-600' : ''} />
+                <span>Students ({beneficiaries.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSidebarTab('content')}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  sidebarTab === 'content'
+                    ? 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <FileText size={12} className={sidebarTab === 'content' ? 'text-amber-600' : ''} />
+                <span>Text & Orders</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSidebarTab('signatures')}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  sidebarTab === 'signatures'
+                    ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <UserCheck size={12} className={sidebarTab === 'signatures' ? 'text-purple-600' : ''} />
+                <span>Signatures</span>
+              </button>
+            </div>
+
+            {/* ─── TAB 1: BENEFICIARIES & STUDENT FETCHER ─── */}
+            {sidebarTab === 'students' && (
               <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5 min-w-0">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <Users size={14} className="text-teal-600 shrink-0" />
-                    <span>Student Fetcher</span>
-                  </h3>
-                  <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 px-2 py-0.5 rounded-full">
-                    {beneficiaries.length} Enrolled
-                  </span>
+                {/* Enrolled Summary Banner */}
+                <div className="flex items-center justify-between bg-teal-50/60 dark:bg-teal-950/40 p-2 rounded-lg border border-teal-200/70 dark:border-teal-800/60">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-extrabold text-teal-900 dark:text-teal-200">
+                      {beneficiaries.length} Enrolled
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                    <span className="text-[11px] font-mono font-bold text-teal-700 dark:text-teal-300">
+                      Total: ₹ {formattedTotalAmount}
+                    </span>
+                  </div>
+                  {beneficiaries.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Clear all enrolled beneficiary rows from table?')) {
+                          setBeneficiaries([]);
+                        }
+                      }}
+                      className="text-[10px] text-rose-600 hover:text-rose-700 dark:text-rose-400 font-bold hover:underline cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  )}
                 </div>
 
                 {/* Session & Class Cohort Filters */}
@@ -1843,7 +2324,7 @@ export default function BeneficiarySanctionOrdersView({
                     <select
                       value={selectedSession}
                       onChange={(e) => setSelectedSession(e.target.value)}
-                      className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                      className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden cursor-pointer"
                     >
                       {CANONICAL_ACADEMIC_SESSIONS.slice(0, 10).map(s => (
                         <option key={s} value={s}>{s}</option>
@@ -1858,7 +2339,7 @@ export default function BeneficiarySanctionOrdersView({
                     <select
                       value={selectedClass}
                       onChange={(e) => setSelectedClass(e.target.value)}
-                      className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                      className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden cursor-pointer"
                     >
                       <option value="All">All Classes (9th–12th)</option>
                       <option value="9th">Class 9th</option>
@@ -1869,113 +2350,8 @@ export default function BeneficiarySanctionOrdersView({
                   </div>
                 </div>
 
-                {/* Registration Numbers Bulk Area & Quick Student Finder */}
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between gap-1.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                        Registration Nos
-                      </label>
-                      <span className="text-[8.5px] bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 px-1.5 py-0.5 rounded font-semibold uppercase">
-                        Bulk
-                      </span>
-                      {bulkTokensCount > 0 && (
-                        <span className="text-[9px] font-mono font-bold text-teal-600 dark:text-teal-400 whitespace-nowrap">
-                          ({bulkTokensCount})
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {showBulkRegInput && bulkRegInput && (
-                        <button
-                          type="button"
-                          onClick={() => setBulkRegInput('')}
-                          className="text-[9.5px] text-slate-400 hover:text-slate-600 font-bold px-1 cursor-pointer"
-                        >
-                          Clear
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={handleToggleBulkRegInput}
-                        className={`text-[10px] font-bold px-2 py-1 rounded-md border cursor-pointer flex items-center gap-1 transition-all shadow-2xs whitespace-nowrap ${
-                          showBulkRegInput
-                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
-                            : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700 hover:bg-teal-100'
-                        }`}
-                        title={showBulkRegInput ? "Hide bulk input box" : "Paste multiple registration numbers"}
-                      >
-                        {showBulkRegInput ? <EyeOff size={11} /> : <Eye size={11} />}
-                        <span>{showBulkRegInput ? "Hide Paste Box" : "Paste Reg Nos"}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {showBulkRegInput ? (
-                    <div className="space-y-2">
-                      <textarea
-                        value={bulkRegInput}
-                        onChange={(e) => setBulkRegInput(e.target.value)}
-                        rows={2}
-                        placeholder="Paste Registration Numbers separated by spaces, commas or newlines..."
-                        className="w-full min-h-[50px] text-xs font-mono bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md p-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden resize-y shadow-2xs"
-                      />
-
-                      {/* Action Buttons: Fetch & Add + Blank */}
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={handleFetchBulkRegs}
-                          disabled={isFetchingRegs || !bulkRegInput.trim()}
-                          className={`flex-1 h-7 flex items-center justify-center gap-1 text-xs font-bold px-2.5 rounded-md transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
-                            !bulkRegInput.trim()
-                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none'
-                              : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-98'
-                          }`}
-                          title="Fetch and add students from database by pasted Registration Numbers"
-                        >
-                          {isFetchingRegs ? (
-                            <>
-                              <RefreshCw size={12} className="animate-spin shrink-0" />
-                              <span>Fetching...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles size={12} className="shrink-0" />
-                              <span>Fetch & Add {bulkTokensCount > 0 ? `(${bulkTokensCount})` : ''}</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleAddManualRow}
-                          className="h-7 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold px-2.5 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
-                          title="Add blank editable row (e.g. non-student vendor / shop)"
-                        >
-                          <Plus size={12} />
-                          <span>Blank Row</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between pt-0.5">
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400">Non-student / vendor row:</span>
-                      <button
-                        type="button"
-                        onClick={handleAddManualRow}
-                        className="h-6 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10.5px] font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
-                        title="Add blank editable row (e.g. non-student vendor / shop)"
-                      >
-                        <Plus size={11} />
-                        <span>Blank Row</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
                 {/* Quick Student Finder */}
-                <div className="relative pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                <div className="relative pt-1 border-t border-slate-100 dark:border-slate-800 space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                       Quick Student Finder
@@ -2044,40 +2420,126 @@ export default function BeneficiarySanctionOrdersView({
                   )}
                 </div>
 
-                {/* Bulk Amount Helper Button & Clear */}
-                {beneficiaries.length > 0 && (
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                {/* Bulk Registration Numbers Ingestion Drawer */}
+                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Paste Reg Numbers
+                      </label>
+                      {bulkTokensCount > 0 && (
+                        <span className="text-[9px] font-mono font-bold text-teal-600 dark:text-teal-400">
+                          ({bulkTokensCount})
+                        </span>
+                      )}
+                    </div>
                     <button
-                      onClick={() => setShowFillAmountModal(true)}
-                      className="text-[11px] text-teal-700 dark:text-teal-300 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                      type="button"
+                      onClick={handleToggleBulkRegInput}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md border cursor-pointer flex items-center gap-1 transition-all shadow-2xs whitespace-nowrap ${
+                        showBulkRegInput
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+                          : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700 hover:bg-teal-100'
+                      }`}
                     >
-                      <IndianRupee size={11} />
-                      Fill Amounts (₹600 / ₹800)
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Clear all enrolled beneficiary rows from table?')) {
-                          setBeneficiaries([]);
-                        }
-                      }}
-                      className="text-[11px] text-rose-600 hover:underline font-semibold cursor-pointer"
-                    >
-                      Clear All
+                      {showBulkRegInput ? <EyeOff size={10} /> : <Eye size={10} />}
+                      <span>{showBulkRegInput ? "Hide Box" : "Show Box"}</span>
                     </button>
                   </div>
-                )}
+
+                  {showBulkRegInput && (
+                    <div className="space-y-1.5">
+                      <textarea
+                        value={bulkRegInput}
+                        onChange={(e) => setBulkRegInput(e.target.value)}
+                        rows={2}
+                        placeholder="Paste Registration Numbers separated by spaces, commas or newlines..."
+                        className="w-full min-h-[48px] text-xs font-mono bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 focus:ring-1 focus:ring-teal-500 focus:outline-hidden resize-y shadow-2xs"
+                      />
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleFetchBulkRegs}
+                          disabled={isFetchingRegs || !bulkRegInput.trim()}
+                          className={`flex-1 h-7 flex items-center justify-center gap-1 text-xs font-bold px-2 rounded-md transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
+                            !bulkRegInput.trim()
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none'
+                              : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-98'
+                          }`}
+                        >
+                          {isFetchingRegs ? (
+                            <>
+                              <RefreshCw size={11} className="animate-spin shrink-0" />
+                              <span>Fetching...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={11} className="shrink-0" />
+                              <span>Fetch & Add {bulkTokensCount > 0 ? `(${bulkTokensCount})` : ''}</span>
+                            </>
+                          )}
+                        </button>
+                        {bulkRegInput && (
+                          <button
+                            type="button"
+                            onClick={() => setBulkRegInput('')}
+                            className="h-7 px-2 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Table Columns Manager */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Table Columns ({activeColumns.length})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCustomColModal(true)}
+                      className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Plus size={10} />
+                      <span>Custom Col</span>
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto custom-scrollbar p-1 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200/80 dark:border-slate-700/80">
+                    {activeColumns.map((col, idx) => (
+                      <span
+                        key={col.key}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 shadow-2xs"
+                      >
+                        <span className="truncate max-w-[90px]">{col.label}</span>
+                        {activeColumns.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveColumn(col.key)}
+                            className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                            title={`Remove column ${col.label}`}
+                          >
+                            <X size={10} />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
+            )}
 
-              {/* ─── CARD 2: Document Title & Styling ─── */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5 min-w-0">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <FileText size={14} className="text-amber-600 shrink-0" />
-                  <span>Document Title & Styling</span>
-                </h3>
-
+            {/* ─── TAB 2: DOCUMENT ORDERS & TEXT TEMPLATES ─── */}
+            {sidebarTab === 'content' && (
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-3 min-w-0">
+                {/* Document Subtitle / Banner */}
                 <div>
                   <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-                    Document Subtitle / Banner
+                    Document Subtitle / Banner Title
                   </label>
                   <input
                     type="text"
@@ -2085,54 +2547,29 @@ export default function BeneficiarySanctionOrdersView({
                     onChange={(e) => setDocumentTitle(e.target.value)}
                     className="w-full h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
                   />
-                </div>
-
-                {/* Table Density & Font Size Controls */}
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <div>
-                    <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-                      Row Spacing
-                    </label>
-                    <div className="flex rounded-md border border-slate-300 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800/80 text-[10px]">
-                      {[
-                        { key: 'compact', label: 'Compact' },
-                        { key: 'standard', label: 'Normal' },
-                        { key: 'spacious', label: 'Spaced' }
-                      ].map(item => (
-                        <button
-                          key={item.key}
-                          type="button"
-                          onClick={() => setRowPaddingPreset(item.key)}
-                          className={`flex-1 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
-                            rowPaddingPreset === item.key
-                              ? 'bg-teal-600 text-white font-bold shadow-2xs'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-                      Font Size
-                    </label>
-                    <select
-                      value={tableFontSize}
-                      onChange={(e) => setTableFontSize(e.target.value)}
-                      className="w-full h-6 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
-                    >
-                      <option value="8.5px">8.5 pt (Compact)</option>
-                      <option value="9.5px">9.5 pt (Standard)</option>
-                      <option value="10.5px">10.5 pt (Medium)</option>
-                      <option value="11.5px">11.5 pt (Large)</option>
-                    </select>
+                  {/* Quick Preset Title Chips */}
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[
+                      'List of Beneficiaries for Mutual Benefit Fund, 2025-26',
+                      'Sanction Order — Institutional Poor Fund Assistance, 2025-26',
+                      'List of Beneficiaries',
+                      'Financial Aid & Welfare Disbursement Roll'
+                    ].map((titlePreset) => (
+                      <button
+                        key={titlePreset}
+                        type="button"
+                        onClick={() => setDocumentTitle(titlePreset)}
+                        className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 truncate max-w-[150px] cursor-pointer"
+                        title={titlePreset}
+                      >
+                        {titlePreset}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Bank Debit Directive Toggle */}
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                {/* Bank Debit Directive Toggle & Template */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
@@ -2140,13 +2577,14 @@ export default function BeneficiarySanctionOrdersView({
                       onChange={(e) => setShowPreamble(e.target.checked)}
                       className="rounded text-teal-600 focus:ring-teal-500"
                     />
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Bank Debit Directive
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                      <CreditCard size={13} className="text-blue-600" />
+                      <span>Bank Debit Directive Preamble</span>
                     </span>
                   </label>
 
                   {showPreamble && (
-                    <div className="space-y-2 pl-4 pt-2">
+                    <div className="space-y-2 pl-3.5 pt-1 border-l-2 border-blue-200 dark:border-blue-800">
                       <div>
                         <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-0.5">
                           Source Account Number
@@ -2161,9 +2599,10 @@ export default function BeneficiarySanctionOrdersView({
                       </div>
 
                       <div>
-                        <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-0.5">
-                          Directive Template
-                        </label>
+                        <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 mb-0.5">
+                          <span className="font-semibold">Directive Template</span>
+                          <span className="font-mono text-[9px] text-blue-600">Tags: {'{totalAmount}'}, {'{accountNumber}'}</span>
+                        </div>
                         <textarea
                           value={preambleText}
                           onChange={(e) => setPreambleText(e.target.value)}
@@ -2174,113 +2613,175 @@ export default function BeneficiarySanctionOrdersView({
                     </div>
                   )}
                 </div>
-              </div>
 
-              {/* ─── CARD 3: Committee Certification Note ─── */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-2 min-w-0">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showCertification}
-                    onChange={(e) => setShowCertification(e.target.checked)}
-                    className="rounded text-teal-600 focus:ring-teal-500"
-                  />
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <ShieldCheck size={14} className="text-teal-600 shrink-0" />
-                    <span>Committee Certification Note</span>
-                  </span>
-                </label>
-
-                {showCertification && (
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400">
-                      <span className="font-semibold">Certification Template</span>
+                {/* Committee Certification Note Toggle & Template */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showCertification}
+                        onChange={(e) => setShowCertification(e.target.checked)}
+                        className="rounded text-teal-600 focus:ring-teal-500"
+                      />
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                        <ShieldCheck size={13} className="text-teal-600" />
+                        <span>Committee Certification Note</span>
+                      </span>
+                    </label>
+                    {showCertification && (
                       <button
                         type="button"
                         onClick={() => setCertificationText(TEMPLATE_PRESETS[0].certificationTemplate)}
-                        className="text-teal-600 dark:text-teal-400 hover:underline font-bold cursor-pointer"
+                        className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline font-bold cursor-pointer"
                       >
                         Reset Default
                       </button>
-                    </div>
-                    <textarea
-                      value={certificationText}
-                      onChange={(e) => setCertificationText(e.target.value)}
-                      rows={3}
-                      className="w-full text-xs font-serif bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md p-2 leading-relaxed focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
-                    />
+                    )}
                   </div>
-                )}
+
+                  {showCertification && (
+                    <div className="space-y-1 pt-1">
+                      <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400">
+                        <span className="font-semibold">Certification Template</span>
+                        <span className="font-mono text-[9px] text-teal-600">Tags: {'{totalAmount}'}, {'{session}'}</span>
+                      </div>
+                      <textarea
+                        value={certificationText}
+                        onChange={(e) => setCertificationText(e.target.value)}
+                        rows={4}
+                        className="w-full text-xs font-serif bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md p-2 leading-relaxed focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                      />
+                      <p className="text-[10px] text-slate-400 italic">
+                        Tip: You can also click directly into this paragraph on the preview canvas to type or format text!
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
 
-              {/* ─── CARD 4: Signatory Blocks ─── */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5 min-w-0">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <UserCheck size={14} className="text-purple-600 shrink-0" />
-                  <span>Signatory Blocks</span>
-                </h3>
-
+            {/* ─── TAB 3: SIGNATURES & LETTERHEAD CONFIGURATION ─── */}
+            {sidebarTab === 'signatures' && (
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-3 min-w-0">
+                {/* Signature Style Mode */}
                 <div>
                   <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-                    Signature Style
+                    Signatory Layout Style
                   </label>
                   <select
                     value={signaturesMode}
                     onChange={(e) => setSignaturesMode(e.target.value)}
-                    className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                    className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 font-bold focus:ring-1 focus:ring-teal-500 focus:outline-hidden cursor-pointer"
                   >
-                    <option value="committee">Committee Members (1–5)</option>
-                    <option value="principal">Designated Signatory (Right-aligned)</option>
-                    <option value="both">Both (Committee + Designated)</option>
+                    <option value="committee">Committee Members (1–5 numbered slots)</option>
+                    <option value="principal">Designated Signatory (Right-aligned / Principal)</option>
+                    <option value="both">Both (Committee Grid + Designated Signatory)</option>
                   </select>
                 </div>
 
+                {/* Committee Signatures Options */}
                 {(signaturesMode === 'committee' || signaturesMode === 'both') && (
-                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-                    <div className="col-span-2">
+                  <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                    <div className="text-[10px] font-black uppercase text-purple-700 dark:text-purple-300">
+                      Committee Configuration
+                    </div>
+                    <div>
                       <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-                        Committee Title
+                        Committee Title Header
                       </label>
                       <input
                         type="text"
                         value={committeeHeader}
                         onChange={(e) => setCommitteeHeader(e.target.value)}
-                        className="w-full h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                        className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
                       />
                     </div>
-                    <div className="col-span-1">
-                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1 whitespace-nowrap">
-                        Slots (1–5)
+                    <div>
+                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                        Member Slots ({committeeMemberCount})
                       </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={5}
-                        value={committeeMemberCount}
-                        onChange={(e) => setCommitteeMemberCount(Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 1)))}
-                        className="w-full h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-center focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
-                      />
+                      <div className="flex items-center gap-1.5">
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setCommitteeMemberCount(num)}
+                            className={`flex-1 h-7 rounded-md font-bold text-xs border transition-all cursor-pointer ${
+                              committeeMemberCount === num
+                                ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
+                                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                            }`}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
 
+                {/* Designated Signatory Options */}
                 {(signaturesMode === 'principal' || signaturesMode === 'both') && (
-                  <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                    <div className="text-[10px] font-black uppercase text-blue-700 dark:text-blue-300">
+                      Designated Signatory
+                    </div>
                     <div>
                       <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-                        Designated Signatory Title
+                        Signatory Title
                       </label>
                       <input
                         type="text"
                         value={principalTitle}
                         onChange={(e) => setPrincipalTitle(e.target.value)}
-                        className="w-full h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                        placeholder="e.g. Principal"
+                        className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                        Signatory Subtitle (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={principalSubtitle}
+                        onChange={(e) => setPrincipalSubtitle(e.target.value)}
+                        placeholder="e.g. Govt. Hr. Sec. School Shangus"
+                        className="w-full h-7 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
                       />
                     </div>
                   </div>
                 )}
+
+                {/* Letterhead Banner Metadata Customizer */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                  <div className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">
+                    Official School Letterhead Header
+                  </div>
+                  <div className="space-y-1.5">
+                    <div>
+                      <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">Office Title</label>
+                      <input
+                        type="text"
+                        value={officeTitle}
+                        onChange={(e) => setOfficeTitle(e.target.value)}
+                        className="w-full h-6.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-1.5"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">Institution Name</label>
+                      <input
+                        type="text"
+                        value={institutionName}
+                        onChange={(e) => setInstitutionName(e.target.value)}
+                        className="w-full h-6.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-1.5"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </aside>
         )}
       </div>

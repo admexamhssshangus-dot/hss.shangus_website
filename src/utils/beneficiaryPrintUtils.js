@@ -28,6 +28,7 @@ export function printBeneficiarySanctionOrder({
   committeeHeader = 'Signatures of committee members',
   principalTitle = 'Principal',
   principalSubtitle = 'Govt. Hr. Sec. School Shangus',
+  fontFamily = "'Times New Roman', Times, serif",
   tableFontSize = '9.5pt',
   rowPaddingPreset = 'compact'
 }) {
@@ -61,7 +62,7 @@ export function printBeneficiarySanctionOrder({
           print-color-adjust: exact !important;
         }
         html, body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          font-family: ${fontFamily || "'Times New Roman', Times, serif"};
           color: #0f172a;
           background: #ffffff;
           margin: 0;
@@ -351,7 +352,9 @@ export function printBeneficiarySanctionOrder({
         <!-- Certification Paragraph (if active) -->
         ${showCertification && certificationText ? `
           <div class="cert-box">
-            ${certificationText.split('\n\n').map(p => `<p>${p}</p>`).join('')}
+            ${certificationText.includes('<p>') || certificationText.includes('<div>')
+              ? certificationText
+              : certificationText.split('\n\n').map(p => `<p>${p}</p>`).join('')}
           </div>
         ` : ''}
 
