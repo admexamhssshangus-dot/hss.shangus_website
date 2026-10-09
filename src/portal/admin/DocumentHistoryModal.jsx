@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  History, Search, Printer, Download, Eye, RotateCcw,
+  History, Search, Printer, Download, Eye, EyeOff, RotateCcw,
   Trash2, X, FileText, Award, Calendar, User, Hash,
   CheckCircle2, Filter, AlertTriangle, ExternalLink,
   ChevronRight, RefreshCw, FileEdit, CheckSquare, Square,
@@ -131,6 +131,7 @@ export default function DocumentHistoryModal({
   const [moduleFilter, setModuleFilter] = useState(defaultFilter);
   const [actionFilter, setActionFilter] = useState('all'); // 'all' | 'Printed' | 'Downloaded' | 'Saved'
   const [viewMode, setViewMode] = useState(defaultView); // 'archive' | 'catalog'
+  const [hideAdmissionForms, setHideAdmissionForms] = useState(true); // Hidden by default for clean audit history
   
   // Multi-Selection State for Bulk Deletion
   const [selectedDocIds, setSelectedDocIds] = useState(new Set());
@@ -199,8 +200,10 @@ export default function DocumentHistoryModal({
       }
     });
 
+    const activeTotal = hideAdmissionForms ? (historyRecords.length - admission) : historyRecords.length;
+
     return {
-      all: historyRecords.length,
+      all: activeTotal,
       discharge,
       bonafide,
       letter,
@@ -208,11 +211,16 @@ export default function DocumentHistoryModal({
       idcard,
       admission
     };
-  }, [historyRecords]);
+  }, [historyRecords, hideAdmissionForms]);
 
   // Filtered Records
   const filteredRecords = useMemo(() => {
     let list = historyRecords;
+
+    // Hide admission forms in one go if hideAdmissionForms is active and moduleFilter is not specifically 'admission'
+    if (hideAdmissionForms && moduleFilter !== 'admission') {
+      list = list.filter(r => !isAdmissionFormDoc(r));
+    }
 
     // Module / Category Filter
     if (moduleFilter === 'discharge') {
@@ -504,7 +512,9 @@ export default function DocumentHistoryModal({
                   {viewMode === 'catalog' ? 'Official Document Catalog & Despatch Register' : 'Document History & Cloud Archive'}
                 </h2>
                 <span className="text-[10px] font-mono bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 px-1.5 py-0.2 rounded-md font-bold">
-                  {historyRecords.length} Saved
+                  {hideAdmissionForms && categoryCounts.admission > 0
+                    ? `${categoryCounts.all} Saved (${categoryCounts.admission} Hidden)`
+                    : `${historyRecords.length} Saved`}
                 </span>
               </div>
               <p className="text-[10.5px] text-indigo-200/80 font-medium">
@@ -679,22 +689,61 @@ export default function DocumentHistoryModal({
                   <span>ID Cards ({categoryCounts.idcard})</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setModuleFilter('admission')}
-                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
-                    moduleFilter === 'admission'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <ClipboardList size={11} />
-                  <span>Admissions ({categoryCounts.admission})</span>
-                </button>
+                {!hideAdmissionForms && (
+                  <button
+                    type="button"
+                    onClick={() => setModuleFilter('admission')}
+                    className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                      moduleFilter === 'admission'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <ClipboardList size={11} />
+                    <span>Admissions ({categoryCounts.admission})</span>
+                  </button>
+                )}
               </div>
 
               {/* Action Filter Tabs & Quick Register Button */}
               <div className="flex items-center gap-2">
+                {/* 1-Click Hide/Unhide Admissions in Archive */}
+                {categoryCounts.admission > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHideAdmissionForms(prev => {
+                        const next = !prev;
+                        if (next && moduleFilter === 'admission') {
+                          setModuleFilter('all');
+                        }
+                        showToast(
+                          next
+                            ? `Admission forms (${categoryCounts.admission}) hidden in one go`
+                            : `Admission forms (${categoryCounts.admission}) shown in archive`,
+                          'info'
+                        );
+                        return next;
+                      });
+                    }}
+                    className={`px-2 py-1 rounded-xl text-[10.5px] font-bold cursor-pointer transition-all border flex items-center gap-1 shadow-2xs ${
+                      hideAdmissionForms
+                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-100'
+                        : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800 hover:bg-indigo-100'
+                    }`}
+                    title={
+                      hideAdmissionForms
+                        ? `Admission forms (${categoryCounts.admission}) are hidden. Click to show in one go.`
+                        : `Admission forms (${categoryCounts.admission}) are visible. Click to hide in one go.`
+                    }
+                  >
+                    {hideAdmissionForms ? <EyeOff size={11} className="text-amber-600 shrink-0" /> : <Eye size={11} className="text-indigo-600 shrink-0" />}
+                    <span className="whitespace-nowrap">
+                      {hideAdmissionForms ? `Admissions Hidden (${categoryCounts.admission})` : `Admissions Shown (${categoryCounts.admission})`}
+                    </span>
+                  </button>
+                )}
+
                 <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[10px] font-bold">
                   <span className="px-1.5 text-slate-400 uppercase tracking-wider text-[9px] font-black">Action:</span>
                   {['all', 'Printed', 'Downloaded', 'Saved'].map((act) => (

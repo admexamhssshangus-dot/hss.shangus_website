@@ -8,7 +8,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   BookOpen, Calendar, Printer, FileSpreadsheet, Search, Filter,
   ArrowUpDown, ChevronDown, CheckCircle2, Award, FileText,
-  CreditCard, Contact, RotateCcw, X, Eye, Download, IndianRupee,
+  CreditCard, Contact, RotateCcw, X, Eye, EyeOff, Download, IndianRupee,
   Layers, Check, ExternalLink, RefreshCw, FileBadge, User, Hash,
   Clock, ShieldAlert, Sparkles, Building2, HelpCircle, CheckSquare, Square
 } from 'lucide-react';
@@ -466,6 +466,7 @@ export default function OfficialDocumentCatalogView({
   const [searchQuery, setSearchQuery] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [selectedDocIds, setSelectedDocIds] = useState(new Set());
+  const [hideAdmissionForms, setHideAdmissionForms] = useState(true); // Hidden by default for clean outward institutional register
 
   // ─── Time Range Calculations ───
   const rangeBounds = useMemo(() => {
@@ -561,40 +562,51 @@ export default function OfficialDocumentCatalogView({
     });
   }, [records, rangeBounds]);
 
+  // ─── Total Admission Forms Count in Period ───
+  const totalAdmissionFormsCount = useMemo(() => {
+    return timeFilteredRecords.filter(r => isAdmissionFormDoc(r)).length;
+  }, [timeFilteredRecords]);
+
+  // ─── Active Records (Filtered when hideAdmissionForms is true) ───
+  const activeTimeFilteredRecords = useMemo(() => {
+    if (!hideAdmissionForms) return timeFilteredRecords;
+    return timeFilteredRecords.filter(r => !isAdmissionFormDoc(r));
+  }, [timeFilteredRecords, hideAdmissionForms]);
+
   // ─── Extract Unique Accounts / Generating Users for Filter ───
   const availableAccounts = useMemo(() => {
     const counts = {};
-    timeFilteredRecords.forEach(r => {
+    activeTimeFilteredRecords.forEach(r => {
       const acct = getRecordAccount(r);
       counts[acct] = (counts[acct] || 0) + 1;
     });
     return Object.entries(counts)
       .map(([account, count]) => ({ account, count }))
       .sort((a, b) => b.count - a.count);
-  }, [timeFilteredRecords]);
+  }, [activeTimeFilteredRecords]);
 
   // ─── Extract Section Counts for Segmented Control ───
   const sectionCounts = useMemo(() => {
     let accountsCount = 0;
     let admsExamsCount = 0;
     let customCount = 0;
-    timeFilteredRecords.forEach(r => {
+    activeTimeFilteredRecords.forEach(r => {
       const sec = inferRecordSection(r);
       if (sec === 'accounts') accountsCount++;
       else if (sec === 'adms_exams') admsExamsCount++;
       else customCount++;
     });
     return {
-      all: timeFilteredRecords.length,
+      all: activeTimeFilteredRecords.length,
       accounts: accountsCount,
       adms_exams: admsExamsCount,
       custom: customCount
     };
-  }, [timeFilteredRecords]);
+  }, [activeTimeFilteredRecords]);
 
   // ─── Filtered and Chronologically Sorted Records ───
   const { catalogRecords, stats } = useMemo(() => {
-    let list = [...timeFilteredRecords];
+    let list = [...activeTimeFilteredRecords];
 
     // Compute metrics across the filtered time period (before secondary filters)
     let totalCount = list.length;
@@ -686,10 +698,12 @@ export default function OfficialDocumentCatalogView({
         sanctions: sanctionCount,
         idCards: idCardCount,
         admissions: admissionCount,
+        totalAdmissionFormsCount,
+        hideAdmissionForms,
         totalSanctionAmount
       }
     };
-  }, [timeFilteredRecords, sectionFilter, accountFilter, moduleFilter, searchQuery, sortOrder]);
+  }, [activeTimeFilteredRecords, sectionFilter, accountFilter, moduleFilter, searchQuery, sortOrder, totalAdmissionFormsCount, hideAdmissionForms]);
 
   // ─── Grouped by Classification (when groupMode === 'classified') ───
   const classifiedGroups = useMemo(() => {
@@ -777,6 +791,23 @@ export default function OfficialDocumentCatalogView({
 
   const handleClearSelection = () => {
     setSelectedDocIds(new Set());
+  };
+
+  // ─── 1-Click Hide/Unhide Admission Forms Handler ───
+  const handleToggleHideAdmissions = () => {
+    setHideAdmissionForms(prev => {
+      const next = !prev;
+      if (next && moduleFilter === 'admission') {
+        setModuleFilter('all');
+      }
+      showToast(
+        next
+          ? `Admission forms (${totalAdmissionFormsCount}) hidden from register & print`
+          : `Admission forms (${totalAdmissionFormsCount}) shown in register & print`,
+        'info'
+      );
+      return next;
+    });
   };
 
   // Determine records targeted by print or export (selected if any, otherwise all filtered)
@@ -998,7 +1029,7 @@ export default function OfficialDocumentCatalogView({
             OFFICIAL DESPATCH & DOCUMENT REGISTER ${isSelective ? '(SELECTIVE AUDIT)' : ''}
           </div>
           <div class="register-meta">
-            Period: ${rangeBounds.label} | Records: ${targetRecords.length}${isSelective ? ` (Selected of ${catalogRecords.length})` : ''}
+            Period: ${rangeBounds.label} | Records: ${targetRecords.length}${isSelective ? ` (Selected of ${catalogRecords.length})` : ''}${hideAdmissionForms && totalAdmissionFormsCount > 0 ? ` | Admissions Hidden (${totalAdmissionFormsCount})` : ''}
           </div>
         </div>
 
@@ -1009,6 +1040,7 @@ export default function OfficialDocumentCatalogView({
           <div class="kpi-item">Certificates: ${stats.certs}</div>
           <div class="kpi-item">Sanctions: ${stats.sanctions}${formattedAmount}</div>
           <div class="kpi-item">ID Cards: ${stats.idCards}</div>
+          ${!hideAdmissionForms && stats.admissions > 0 ? `<div class="kpi-item">Admissions: ${stats.admissions}</div>` : ''}
           <div class="kpi-item">Printed: ${new Date().toLocaleString('en-GB')}</div>
         </div>
 
@@ -1184,9 +1216,9 @@ export default function OfficialDocumentCatalogView({
         ['Student Bonafides & Certificates', 'BON/DTC', stats.certs, stats.total > 0 ? ((stats.certs / stats.total) * 100).toFixed(1) + '%' : '0%', '—'],
         ['Mutual Benefit Fund & Sanction Orders', 'MBF', stats.sanctions, stats.total > 0 ? ((stats.sanctions / stats.total) * 100).toFixed(1) + '%' : '0%', `₹ ${stats.totalSanctionAmount.toLocaleString('en-IN')}`],
         ['Student Identity Cards Batches', 'IDC', stats.idCards, stats.total > 0 ? ((stats.idCards / stats.total) * 100).toFixed(1) + '%' : '0%', '—'],
-        ['Admission Application Forms', 'ADM', stats.admissions, stats.total > 0 ? ((stats.admissions / stats.total) * 100).toFixed(1) + '%' : '0%', '—'],
+        ['Admission Application Forms', 'ADM', hideAdmissionForms ? `Hidden (${totalAdmissionFormsCount})` : stats.admissions, (!hideAdmissionForms && stats.total > 0) ? ((stats.admissions / stats.total) * 100).toFixed(1) + '%' : '0%', '—'],
         [],
-        ['TOTAL DOCUMENTS IN PERIOD', 'ALL', stats.total, '100%', stats.totalSanctionAmount > 0 ? `₹ ${stats.totalSanctionAmount.toLocaleString('en-IN')}` : '—']
+        ['TOTAL DOCUMENTS IN REGISTER', 'ALL', stats.total, '100%', stats.totalSanctionAmount > 0 ? `₹ ${stats.totalSanctionAmount.toLocaleString('en-IN')}` : '—']
       ];
 
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
@@ -1328,7 +1360,7 @@ export default function OfficialDocumentCatalogView({
                 className="h-7 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-2xs cursor-pointer max-w-[170px] truncate"
                 title="Filter by generating staff account / issuer"
               >
-                <option value="all">All Accounts ({timeFilteredRecords.length})</option>
+                <option value="all">All Accounts ({activeTimeFilteredRecords.length})</option>
                 {availableAccounts.map(item => (
                   <option key={item.account} value={item.account}>
                     {formatAccountDisplay(item.account)} ({item.count})
@@ -1336,6 +1368,29 @@ export default function OfficialDocumentCatalogView({
                 ))}
               </select>
             </div>
+
+            {/* 1-Click Hide/Unhide Admissions in One Go */}
+            {totalAdmissionFormsCount > 0 && (
+              <button
+                type="button"
+                onClick={handleToggleHideAdmissions}
+                className={`h-7 px-2 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all border shadow-2xs ${
+                  hideAdmissionForms
+                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+                    : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+                }`}
+                title={
+                  hideAdmissionForms
+                    ? `Admission forms (${totalAdmissionFormsCount}) are hidden from catalog & print. Click to show in one go.`
+                    : `Admission forms (${totalAdmissionFormsCount}) are visible. Click to hide in one go from catalog & print.`
+                }
+              >
+                {hideAdmissionForms ? <EyeOff size={13} className="text-amber-600 shrink-0" /> : <Eye size={13} className="text-indigo-600 shrink-0" />}
+                <span className="whitespace-nowrap">
+                  {hideAdmissionForms ? `Admissions Hidden (${totalAdmissionFormsCount})` : `Admissions Shown (${totalAdmissionFormsCount})`}
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Action Buttons: Export Excel & Print Register */}
@@ -1433,7 +1488,7 @@ export default function OfficialDocumentCatalogView({
               <span>ID Cards ({stats.idCards})</span>
             </button>
 
-            {stats.admissions > 0 && (
+            {!hideAdmissionForms && stats.admissions > 0 && (
               <button
                 type="button"
                 onClick={() => setModuleFilter('admission')}
