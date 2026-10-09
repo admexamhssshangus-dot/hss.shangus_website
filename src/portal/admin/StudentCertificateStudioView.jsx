@@ -1469,6 +1469,21 @@ export default function StudentCertificateStudioView({
     }
   }, [showSettingsDrawerProp]);
 
+  useEffect(() => {
+    const handleToggle = (e) => {
+      if (e?.detail?.targetModule && e.detail.targetModule !== 'certStudio' && e.detail.targetModule !== 'certificate') {
+        return;
+      }
+      if (typeof e?.detail?.open === 'boolean') {
+        setShowSettingsDrawer(e.detail.open);
+      } else {
+        setShowSettingsDrawer(prev => !prev);
+      }
+    };
+    window.addEventListener('hss-toggle-studio-setup', handleToggle);
+    return () => window.removeEventListener('hss-toggle-studio-setup', handleToggle);
+  }, []);
+
   const handleCloseSettings = useCallback(() => {
     setShowSettingsDrawer(false);
     if (onToggleSettingsDrawer) onToggleSettingsDrawer(false);
@@ -7554,6 +7569,25 @@ export default function StudentCertificateStudioView({
                 >
                   <History size={11} className="text-indigo-600 dark:text-indigo-400" />
                   <span>History</span>
+                </button>
+
+                {/* Setup / Letterhead & Signatories Drawer Toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !showSettingsDrawer;
+                    setShowSettingsDrawer(next);
+                    if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
+                  }}
+                  className={`h-7 px-2 rounded-lg border font-bold text-[10px] flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95 ${
+                    showSettingsDrawer
+                      ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 ring-1 ring-amber-400 shadow-xs'
+                      : 'bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-800'
+                  }`}
+                  title="Configure Certificate Letterhead, Signatories, Header & Layout Setup"
+                >
+                  <Sliders size={11} className={showSettingsDrawer ? 'text-amber-600' : 'text-amber-700 dark:text-amber-400'} />
+                  <span>Setup</span>
                 </button>
               </div>
             </div>
