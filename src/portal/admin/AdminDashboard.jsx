@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, ChevronDown, Wrench, Sliders, ArrowLeft } from 'lucide-react';
+import { Lock, ChevronDown, Wrench, ArrowLeft } from 'lucide-react';
 import SEO from '../../components/SEO';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown, { ADMIN_TOOL_MODULES, isUserPermittedForModule } from './AdminToolsDropdown';
@@ -351,12 +351,6 @@ export default function AdminDashboard() {
     }
   }, [user, activeTab, setActiveTab]);
 
-  const [isStudioSetupOpen, setIsStudioSetupOpen] = useState(false);
-
-  // Automatically reset Studio Setup drawer/modal state when switching tabs
-  useEffect(() => {
-    setIsStudioSetupOpen(false);
-  }, [activeTab]);
 
   const [, setCounts] = useState(() => {
     const initialCachedApps = getCachedCollectionSync('admissions');
@@ -647,32 +641,8 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Right Slot: Setup Button + Admin Tools Dropdown Button */}
+                {/* Right Slot: Admin Tools Dropdown Button */}
                 <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 ml-auto">
-
-                  {/* Setup / Configuration Button (Shown for letterhead and certificate studios) */}
-                  {(activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate') && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextState = !isStudioSetupOpen;
-                        setIsStudioSetupOpen(nextState);
-                        window.dispatchEvent(new CustomEvent('hss-toggle-studio-setup', {
-                          detail: { targetModule: activeTab, open: nextState }
-                        }));
-                      }}
-                      className={`h-6 sm:h-7 px-1.5 sm:px-2.5 rounded sm:rounded-lg border font-bold text-[9.5px] sm:text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1 active:scale-95 shrink-0 ${
-                        isStudioSetupOpen
-                          ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 ring-1 ring-amber-400 shadow-xs'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                      }`}
-                      title="Configure Letterhead, Signatories, Header & Layout Setup"
-                    >
-                      <Sliders size={12} className={isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'} />
-                      <span>Setup</span>
-                    </button>
-                  )}
-
                   {/* Administrative Tools Switcher Dropdown (Positioned on Right Side) */}
                   <div className="relative inline-block text-left" ref={dropdownRef}>
                     <button
@@ -998,8 +968,6 @@ export default function AdminDashboard() {
                     >
                       <OfficialLetterWriterView
                         onClose={handleCloseToReports}
-                        showSettingsDrawerProp={isStudioSetupOpen}
-                        onToggleSettingsDrawer={(val) => setIsStudioSetupOpen(typeof val === 'boolean' ? val : !isStudioSetupOpen)}
                       />
                     </div>
                   )}
@@ -1016,8 +984,6 @@ export default function AdminDashboard() {
                         allStudents={identityStudents}
                         identityStudents={identityStudents}
                         onClose={handleCloseToReports}
-                        showSettingsDrawerProp={isStudioSetupOpen}
-                        onToggleSettingsDrawer={(val) => setIsStudioSetupOpen(typeof val === 'boolean' ? val : !isStudioSetupOpen)}
                       />
                     </div>
                   )}
