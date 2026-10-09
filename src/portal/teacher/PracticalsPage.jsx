@@ -4595,9 +4595,9 @@ export default function PracticalsPage() {
                   }`}
                   title={Boolean(existingAwardInfo?.lockedOtherTeacherAward) ? "Printing restricted for other teachers' awards" : "Print Evaluation Sheets & Award Rolls"}
                 >
-                  <Printer size={13} />
+                  <Printer size={14} className="shrink-0" />
                   <span className="hidden sm:inline">Print</span>
-                  <ChevronDown size={11} className={`transition-transform duration-200 shrink-0 ${showPrintMenu ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={11} className={`hidden sm:inline transition-transform duration-200 shrink-0 ${showPrintMenu ? 'rotate-180' : ''}`} />
                 </button>
 
                 {showPrintMenu && (

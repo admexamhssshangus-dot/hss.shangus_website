@@ -2,14 +2,13 @@
 
 ## Commit Message
 
-`fix(portal): remove duplicate setup buttons and streamline header controls`
+`fix(practicals): refine mobile print button icon presentation and audit portal state`
 
 ## Files Changed
 
-1. **[src/portal/admin/AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx)**
-   - **Eliminated Duplicate Setup Button**: Removed redundant header-level `# Setup` button (`<Sliders /> Setup`) that was conditionally rendered in the subnavigation bar next to the `Modules` dropdown for `officialLetter`, `certStudio`, and `certificate` tabs.
-   - **Preserved Native Studio Control**: Both [StudentCertificateStudioView](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx) and [OfficialLetterWriterView](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/OfficialLetterWriterView.jsx) now exclusively control their own configuration drawer via their dedicated toolbar action buttons (`[Setup]`), maintaining a clean single source of truth across both desktop and compact mobile ribbons without dual-button visual clutter.
-   - **Code Clean-up**: Removed obsolete `isStudioSetupOpen` local state, unused `Sliders` icon import, and redundant external drawer-sync props from the module mounts.
+1. **[src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)**
+   - **Refined Mobile Print Button**: Cleaned up the compact print dropdown button on mobile screens by hiding the redundant `<ChevronDown>` on narrow viewports (`hidden sm:inline`) and centering the `<Printer size={14} />` icon. This prevents icon overlapping and text clipping within the 32x32px square mobile toolbar item.
+   - **Audit of Practicals Portal State**: Audited the session resolution, empty state detection, and administration lock workflows. Confirmed that the "Admin Lock" banner and the "Historical Practical Roster Detected" prompt (with the 1-click `Load 2024-25 (Oct-Nov) Roster` action) are functioning accurately as institutional security and data protection guardrails.
 
 ---
 
@@ -28,7 +27,7 @@ If you wish to edit the commit message or make adjustments:
 git reset --soft HEAD~1
 # Make desired adjustments...
 git add .
-git commit -m "fix(portal): remove duplicate setup buttons and streamline header controls"
+git commit -m "fix(practicals): refine mobile print button icon presentation and audit portal state"
 ```
 
 ### 3. How to Push to Remote Repository
