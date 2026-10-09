@@ -1808,7 +1808,7 @@ export default function BeneficiarySanctionOrdersView({
         {showControlsPanel && (
           <aside
             ref={asideRef}
-            className={`border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 h-full min-h-0 overflow-y-auto custom-scrollbar overscroll-contain p-2 sm:p-2.5 pb-16 shadow-xs print:hidden min-w-0 transition-all ${
+            className={`border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/90 h-full min-h-0 overflow-y-auto custom-scrollbar overscroll-contain p-2.5 sm:p-3 pb-16 shadow-xs print:hidden min-w-0 transition-all ${
               customSidebarWidth ? 'flex-none' : 'w-full lg:w-1/3'
             }`}
             style={
@@ -1817,461 +1817,468 @@ export default function BeneficiarySanctionOrdersView({
                 : { flex: '1 1 0%' }
             }
           >
-            {/* Multicolumn Container for High-Density Compact Layout */}
+            {/* Modern High-Density Minimal Stack (Cards flow vertically on standard sidebar, or 2 cols if wide >= 680px) */}
             <div
-              className="grid gap-2 sm:gap-2.5 items-start"
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
+              className="grid gap-2.5 items-start"
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))' }}
             >
-              {/* ─── COLUMN 1: Student Fetcher & Ingestion Operations ─── */}
-              <div className="space-y-2 sm:space-y-2.5 min-w-0">
-                {/* SECTION 1: Bulk Reg No Ingestion & Data Fetching */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2 sm:p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <Users size={14} className="text-teal-600" />
-                      Student Fetcher
-                    </h2>
-                    <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/60 px-1.5 py-0.2 rounded-full">
-                      {beneficiaries.length} Enrolled
-                    </span>
+              {/* ─── CARD 1: Student Fetcher & Ingestion Operations ─── */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5 min-w-0">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Users size={14} className="text-teal-600 shrink-0" />
+                    <span>Student Fetcher</span>
+                  </h3>
+                  <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 px-2 py-0.5 rounded-full">
+                    {beneficiaries.length} Enrolled
+                  </span>
+                </div>
+
+                {/* Session & Class Cohort Filters */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                      Session
+                    </label>
+                    <select
+                      value={selectedSession}
+                      onChange={(e) => setSelectedSession(e.target.value)}
+                      className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                    >
+                      {CANONICAL_ACADEMIC_SESSIONS.slice(0, 10).map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
                   </div>
 
-                  {/* Session & Class Filters */}
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <div>
-                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Session</label>
-                      <select
-                        value={selectedSession}
-                        onChange={(e) => setSelectedSession(e.target.value)}
-                        className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0 font-medium"
-                      >
-                        {CANONICAL_ACADEMIC_SESSIONS.slice(0, 10).map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Class Cohort</label>
-                      <select
-                        value={selectedClass}
-                        onChange={(e) => setSelectedClass(e.target.value)}
-                        className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0 font-medium"
-                      >
-                        <option value="All">All Classes (9th–12th)</option>
-                        <option value="9th">Class 9th</option>
-                        <option value="10th">Class 10th</option>
-                        <option value="11th">Class 11th</option>
-                        <option value="12th">Class 12th</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                      Class Cohort
+                    </label>
+                    <select
+                      value={selectedClass}
+                      onChange={(e) => setSelectedClass(e.target.value)}
+                      className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                    >
+                      <option value="All">All Classes (9th–12th)</option>
+                      <option value="9th">Class 9th</option>
+                      <option value="10th">Class 10th</option>
+                      <option value="11th">Class 11th</option>
+                      <option value="12th">Class 12th</option>
+                    </select>
                   </div>
+                </div>
 
-                  {/* Reg No(s) Bulk Area & Quick Student Finder Combined */}
-                  <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700/60 space-y-1.5">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-[9px] font-bold uppercase text-slate-700 dark:text-slate-300">
-                          Reg No(s)
-                        </label>
-                        <span className="text-[8px] bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 px-1 py-0.2 rounded font-semibold uppercase">
-                          Bulk Entry
-                        </span>
-                        {bulkTokensCount > 0 && (
-                          <span className="text-[8.5px] font-mono font-bold text-teal-600 dark:text-teal-400">
-                            ({bulkTokensCount} detected)
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {showBulkRegInput && bulkRegInput && (
-                          <button
-                            type="button"
-                            onClick={() => setBulkRegInput('')}
-                            className="text-[9px] text-slate-400 hover:text-slate-600 cursor-pointer font-bold"
-                          >
-                            Clear
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleToggleBulkRegInput}
-                          className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border cursor-pointer flex items-center gap-1 transition-all ${
-                            showBulkRegInput
-                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
-                              : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-400 hover:bg-teal-100'
-                          }`}
-                          title={showBulkRegInput ? "Hide Reg No(s) bulk text box" : "Unhide / Show Reg No(s) bulk text box"}
-                        >
-                          {showBulkRegInput ? <EyeOff size={11} /> : <Eye size={11} />}
-                          <span>{showBulkRegInput ? "Hide Reg No(s)" : "Unhide Reg No(s)"}</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {showBulkRegInput ? (
-                      <div className="space-y-1.5">
-                        <textarea
-                          value={bulkRegInput}
-                          onChange={(e) => setBulkRegInput(e.target.value)}
-                          rows={2}
-                          placeholder="Paste or enter Registration Numbers separated by spaces, commas or newlines..."
-                          className="w-full min-h-[50px] text-[11px] font-mono bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 focus:ring-1 focus:ring-teal-500 focus:outline-hidden resize-y shadow-2xs"
-                        />
-
-                        {/* Action Buttons: Fetch & Add + Blank */}
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={handleFetchBulkRegs}
-                            disabled={isFetchingRegs || !bulkRegInput.trim()}
-                            className={`flex-1 h-7 flex items-center justify-center gap-1 text-xs font-bold px-2 rounded-md transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
-                              !bulkRegInput.trim()
-                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none'
-                                : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-98'
-                            }`}
-                            title="Fetch and add students from database by pasted Registration Numbers"
-                          >
-                            {isFetchingRegs ? (
-                              <>
-                                <RefreshCw size={12} className="animate-spin shrink-0" />
-                                <span>Fetching...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Sparkles size={12} className="shrink-0" />
-                                <span>Fetch & Add {bulkTokensCount > 0 ? `(${bulkTokensCount})` : ''}</span>
-                              </>
-                            )}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={handleAddManualRow}
-                            className="h-7 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
-                            title="Add blank editable row (e.g. non-student vendor / shop)"
-                          >
-                            <Plus size={13} />
-                            <span>+ Blank</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between pt-0.5">
-                        <span className="text-[9.5px] text-slate-500 dark:text-slate-400">Add non-student or vendor:</span>
-                        <button
-                          type="button"
-                          onClick={handleAddManualRow}
-                          className="h-6 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
-                          title="Add blank editable row (e.g. non-student vendor / shop)"
-                        >
-                          <Plus size={12} />
-                          <span>+ Blank Row</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick Student Finder Bar — Merged Search across Name, Roll, and Reg No */}
-                  <div className="relative pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <label className="text-[9px] font-bold uppercase text-slate-700 dark:text-slate-300">
-                        Quick Student Finder (Name, Roll, or Reg No)
+                {/* Registration Numbers Bulk Area & Quick Student Finder */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                        Registration Nos
                       </label>
-                      {studentSearchQuery && (
+                      <span className="text-[8.5px] bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 px-1.5 py-0.5 rounded font-semibold uppercase">
+                        Bulk
+                      </span>
+                      {bulkTokensCount > 0 && (
+                        <span className="text-[9px] font-mono font-bold text-teal-600 dark:text-teal-400 whitespace-nowrap">
+                          ({bulkTokensCount})
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {showBulkRegInput && bulkRegInput && (
                         <button
                           type="button"
-                          onClick={() => setStudentSearchQuery('')}
-                          className="text-[9px] text-slate-400 hover:text-slate-600"
+                          onClick={() => setBulkRegInput('')}
+                          className="text-[9.5px] text-slate-400 hover:text-slate-600 font-bold px-1 cursor-pointer"
                         >
                           Clear
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={handleToggleBulkRegInput}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-md border cursor-pointer flex items-center gap-1 transition-all shadow-2xs whitespace-nowrap ${
+                          showBulkRegInput
+                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+                            : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700 hover:bg-teal-100'
+                        }`}
+                        title={showBulkRegInput ? "Hide bulk input box" : "Paste multiple registration numbers"}
+                      >
+                        {showBulkRegInput ? <EyeOff size={11} /> : <Eye size={11} />}
+                        <span>{showBulkRegInput ? "Hide Paste Box" : "Paste Reg Nos"}</span>
+                      </button>
                     </div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={studentSearchQuery}
-                        onChange={(e) => {
-                          setStudentSearchQuery(e.target.value);
-                          setShowSearchDropdown(true);
-                        }}
-                        onFocus={() => setShowSearchDropdown(true)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && searchResults.length > 0) {
-                            e.preventDefault();
-                            handleAddSingleStudent(searchResults[0]);
-                          }
-                        }}
-                        placeholder="Search by name, roll no, or reg no... (Press Enter)"
-                        className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md pl-6 pr-2 py-0 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
-                      />
-                      <Search size={12} className="absolute left-2 top-2 text-slate-400" />
-                    </div>
-
-                    {/* Autocomplete Dropdown */}
-                    {showSearchDropdown && searchResults.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto">
-                        <div className="p-1">
-                          {searchResults.map((st, i) => (
-                            <div
-                              key={st.id || i}
-                              onClick={() => handleAddSingleStudent(st)}
-                              className="p-1.5 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-md cursor-pointer flex items-center justify-between text-xs transition-colors"
-                            >
-                              <div>
-                                <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
-                                  {extractStudentName(st)}
-                                </div>
-                                <div className="text-[10px] text-slate-500">
-                                  {extractParentage(st) || extractFatherName(st)} • Cl: {extractClass(st)}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="font-mono text-[10px] text-teal-600 dark:text-teal-400 font-bold">
-                                  {cleanRegNoVal(extractBoardRegNo(st)) || 'No Reg'}
-                                </div>
-                                <div className="text-[9px] text-slate-400">
-                                  A/c: {extractBankAccount(st) || '—'}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
-                  {/* Bulk Amount Helper Button & Clear */}
-                  {beneficiaries.length > 0 && (
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-700/40">
+                  {showBulkRegInput ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={bulkRegInput}
+                        onChange={(e) => setBulkRegInput(e.target.value)}
+                        rows={2}
+                        placeholder="Paste Registration Numbers separated by spaces, commas or newlines..."
+                        className="w-full min-h-[50px] text-xs font-mono bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-md p-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden resize-y shadow-2xs"
+                      />
+
+                      {/* Action Buttons: Fetch & Add + Blank */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleFetchBulkRegs}
+                          disabled={isFetchingRegs || !bulkRegInput.trim()}
+                          className={`flex-1 h-7 flex items-center justify-center gap-1 text-xs font-bold px-2.5 rounded-md transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
+                            !bulkRegInput.trim()
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none'
+                              : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-98'
+                          }`}
+                          title="Fetch and add students from database by pasted Registration Numbers"
+                        >
+                          {isFetchingRegs ? (
+                            <>
+                              <RefreshCw size={12} className="animate-spin shrink-0" />
+                              <span>Fetching...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={12} className="shrink-0" />
+                              <span>Fetch & Add {bulkTokensCount > 0 ? `(${bulkTokensCount})` : ''}</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleAddManualRow}
+                          className="h-7 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold px-2.5 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+                          title="Add blank editable row (e.g. non-student vendor / shop)"
+                        >
+                          <Plus size={12} />
+                          <span>Blank Row</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between pt-0.5">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">Non-student / vendor row:</span>
                       <button
-                        onClick={() => setShowFillAmountModal(true)}
-                        className="text-[11px] text-teal-700 dark:text-teal-300 hover:underline font-bold flex items-center gap-1"
+                        type="button"
+                        onClick={handleAddManualRow}
+                        className="h-6 flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10.5px] font-semibold px-2 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+                        title="Add blank editable row (e.g. non-student vendor / shop)"
                       >
-                        <IndianRupee size={11} />
-                        Fill Amounts (₹600 / ₹800)
+                        <Plus size={11} />
+                        <span>Blank Row</span>
                       </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Student Finder */}
+                <div className="relative pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Quick Student Finder
+                    </label>
+                    {studentSearchQuery && (
                       <button
-                        onClick={() => {
-                          if (window.confirm('Clear all enrolled beneficiary rows from table?')) {
-                            setBeneficiaries([]);
-                          }
-                        }}
-                        className="text-[11px] text-rose-600 hover:underline font-semibold"
+                        type="button"
+                        onClick={() => setStudentSearchQuery('')}
+                        className="text-[9.5px] text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
                       >
-                        Clear All
+                        Clear
                       </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={studentSearchQuery}
+                      onChange={(e) => {
+                        setStudentSearchQuery(e.target.value);
+                        setShowSearchDropdown(true);
+                      }}
+                      onFocus={() => setShowSearchDropdown(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && searchResults.length > 0) {
+                          e.preventDefault();
+                          handleAddSingleStudent(searchResults[0]);
+                        }
+                      }}
+                      placeholder="Search by name, roll no, or reg no... (Press Enter)"
+                      className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md pl-6 pr-2 py-0 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                    />
+                    <Search size={12} className="absolute left-2 top-2 text-slate-400" />
+                  </div>
+
+                  {/* Autocomplete Dropdown */}
+                  {showSearchDropdown && searchResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto">
+                      <div className="p-1">
+                        {searchResults.map((st, i) => (
+                          <div
+                            key={st.id || i}
+                            onClick={() => handleAddSingleStudent(st)}
+                            className="p-1.5 hover:bg-teal-50 dark:hover:bg-slate-800 rounded-md cursor-pointer flex items-center justify-between text-xs transition-colors"
+                          >
+                            <div>
+                              <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                                {extractStudentName(st)}
+                              </div>
+                              <div className="text-[10px] text-slate-500">
+                                {extractParentage(st) || extractFatherName(st)} • Cl: {extractClass(st)}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-mono text-[10px] text-teal-600 dark:text-teal-400 font-bold">
+                                {cleanRegNoVal(extractBoardRegNo(st)) || 'No Reg'}
+                              </div>
+                              <div className="text-[9px] text-slate-400">
+                                A/c: {extractBankAccount(st) || '—'}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bulk Amount Helper Button & Clear */}
+                {beneficiaries.length > 0 && (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      onClick={() => setShowFillAmountModal(true)}
+                      className="text-[11px] text-teal-700 dark:text-teal-300 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <IndianRupee size={11} />
+                      Fill Amounts (₹600 / ₹800)
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Clear all enrolled beneficiary rows from table?')) {
+                          setBeneficiaries([]);
+                        }
+                      }}
+                      className="text-[11px] text-rose-600 hover:underline font-semibold cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ─── CARD 2: Document Title & Styling ─── */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5 min-w-0">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <FileText size={14} className="text-amber-600 shrink-0" />
+                  <span>Document Title & Styling</span>
+                </h3>
+
+                <div>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                    Document Subtitle / Banner
+                  </label>
+                  <input
+                    type="text"
+                    value={documentTitle}
+                    onChange={(e) => setDocumentTitle(e.target.value)}
+                    className="w-full h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                  />
+                </div>
+
+                {/* Table Density & Font Size Controls */}
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div>
+                    <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                      Row Spacing
+                    </label>
+                    <div className="flex rounded-md border border-slate-300 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800/80 text-[10px]">
+                      {[
+                        { key: 'compact', label: 'Compact' },
+                        { key: 'standard', label: 'Normal' },
+                        { key: 'spacious', label: 'Spaced' }
+                      ].map(item => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => setRowPaddingPreset(item.key)}
+                          className={`flex-1 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                            rowPaddingPreset === item.key
+                              ? 'bg-teal-600 text-white font-bold shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                      Font Size
+                    </label>
+                    <select
+                      value={tableFontSize}
+                      onChange={(e) => setTableFontSize(e.target.value)}
+                      className="w-full h-6 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                    >
+                      <option value="8.5px">8.5 pt (Compact)</option>
+                      <option value="9.5px">9.5 pt (Standard)</option>
+                      <option value="10.5px">10.5 pt (Medium)</option>
+                      <option value="11.5px">11.5 pt (Large)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Bank Debit Directive Toggle */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showPreamble}
+                      onChange={(e) => setShowPreamble(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Bank Debit Directive
+                    </span>
+                  </label>
+
+                  {showPreamble && (
+                    <div className="space-y-2 pl-4 pt-2">
+                      <div>
+                        <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-0.5">
+                          Source Account Number
+                        </label>
+                        <input
+                          type="text"
+                          value={sourceAccountNo}
+                          onChange={(e) => setSourceAccountNo(e.target.value)}
+                          placeholder="e.g. 0137040500000421"
+                          className="w-full h-7 text-xs font-mono bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-0.5">
+                          Directive Template
+                        </label>
+                        <textarea
+                          value={preambleText}
+                          onChange={(e) => setPreambleText(e.target.value)}
+                          rows={2}
+                          className="w-full text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 font-serif focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* ─── COLUMN 2: Document Layout, Title, Certification & Signatory Blocks ─── */}
-              <div className="space-y-2 sm:space-y-2.5 min-w-0">
-                {/* SECTION 2: Document Title & Styling */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2 sm:p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-                  <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <FileText size={14} className="text-amber-600" />
-                    Document Title & Styling
-                  </h2>
+              {/* ─── CARD 3: Committee Certification Note ─── */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-2 min-w-0">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showCertification}
+                    onChange={(e) => setShowCertification(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <ShieldCheck size={14} className="text-teal-600 shrink-0" />
+                    <span>Committee Certification Note</span>
+                  </span>
+                </label>
 
-                  <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                      Document Subtitle / Banner
-                    </label>
-                    <input
-                      type="text"
-                      value={documentTitle}
-                      onChange={(e) => setDocumentTitle(e.target.value)}
-                      className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
-                    />
-                  </div>
-
-                  {/* Table Density & Font Size Controls */}
-                  <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                    <div>
-                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Row Spacing</label>
-                      <div className="flex rounded-md border border-slate-300 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-900 text-[10px]">
-                        {['compact', 'standard', 'spacious'].map(p => (
-                          <button
-                            key={p}
-                            onClick={() => setRowPaddingPreset(p)}
-                            className={`flex-1 py-0.5 rounded capitalize font-medium ${
-                              rowPaddingPreset === p
-                                ? 'bg-teal-600 text-white font-bold'
-                                : 'text-slate-600 dark:text-slate-400'
-                            }`}
-                          >
-                            {p === 'standard' ? 'norm' : p === 'spacious' ? 'spc' : 'cpt'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Font Size</label>
-                      <select
-                        value={tableFontSize}
-                        onChange={(e) => setTableFontSize(e.target.value)}
-                        className="w-full h-6 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1"
+                {showCertification && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400">
+                      <span className="font-semibold">Certification Template</span>
+                      <button
+                        type="button"
+                        onClick={() => setCertificationText(TEMPLATE_PRESETS[0].certificationTemplate)}
+                        className="text-teal-600 dark:text-teal-400 hover:underline font-bold cursor-pointer"
                       >
-                        <option value="8.5px">8.5 pt</option>
-                        <option value="9.5px">9.5 pt</option>
-                        <option value="10.5px">10.5 pt</option>
-                        <option value="11.5px">11.5 pt</option>
-                      </select>
+                        Reset Default
+                      </button>
                     </div>
-                  </div>
-
-                  {/* Bank Debit Directive Toggle */}
-                  <div className="pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                    <label className="flex items-center gap-1.5 cursor-pointer mb-1.5">
-                      <input
-                        type="checkbox"
-                        checked={showPreamble}
-                        onChange={(e) => setShowPreamble(e.target.checked)}
-                        className="rounded text-teal-600 focus:ring-teal-500"
-                      />
-                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        Bank Debit Directive Paragraph
-                      </span>
-                    </label>
-
-                    {showPreamble && (
-                      <div className="space-y-1.5 pl-4">
-                        <div>
-                          <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                            Source Account Number
-                          </label>
-                          <input
-                            type="text"
-                            value={sourceAccountNo}
-                            onChange={(e) => setSourceAccountNo(e.target.value)}
-                            placeholder="e.g. 0137040500000421"
-                            className="w-full h-7 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                            Directive Template
-                          </label>
-                          <textarea
-                            value={preambleText}
-                            onChange={(e) => setPreambleText(e.target.value)}
-                            rows={2}
-                            className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 font-serif"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* SECTION 3: Certification Text Paragraph */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2 sm:p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={showCertification}
-                      onChange={(e) => setShowCertification(e.target.checked)}
-                      className="rounded text-teal-600 focus:ring-teal-500"
+                    <textarea
+                      value={certificationText}
+                      onChange={(e) => setCertificationText(e.target.value)}
+                      rows={3}
+                      className="w-full text-xs font-serif bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md p-2 leading-relaxed focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
                     />
-                    <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                      <ShieldCheck size={14} className="text-teal-600" />
-                      Committee Certification Paragraph
-                    </span>
-                  </label>
+                  </div>
+                )}
+              </div>
 
-                  {showCertification && (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[9px] text-slate-500">
-                        <span>Certification Template</span>
-                        <button
-                          type="button"
-                          onClick={() => setCertificationText(TEMPLATE_PRESETS[0].certificationTemplate)}
-                          className="text-teal-600 hover:underline font-bold"
-                        >
-                          Reset Text
-                        </button>
-                      </div>
-                      <textarea
-                        value={certificationText}
-                        onChange={(e) => setCertificationText(e.target.value)}
-                        rows={3}
-                        className="w-full text-xs font-serif bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-1.5 leading-relaxed focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+              {/* ─── CARD 4: Signatory Blocks ─── */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5 min-w-0">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <UserCheck size={14} className="text-purple-600 shrink-0" />
+                  <span>Signatory Blocks</span>
+                </h3>
+
+                <div>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                    Signature Style
+                  </label>
+                  <select
+                    value={signaturesMode}
+                    onChange={(e) => setSignaturesMode(e.target.value)}
+                    className="w-full h-7 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                  >
+                    <option value="committee">Committee Members (1–5)</option>
+                    <option value="principal">Designated Signatory (Right-aligned)</option>
+                    <option value="both">Both (Committee + Designated)</option>
+                  </select>
+                </div>
+
+                {(signaturesMode === 'committee' || signaturesMode === 'both') && (
+                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <div className="col-span-2">
+                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                        Committee Title
+                      </label>
+                      <input
+                        type="text"
+                        value={committeeHeader}
+                        onChange={(e) => setCommitteeHeader(e.target.value)}
+                        className="w-full h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
                       />
                     </div>
-                  )}
-                </div>
-
-                {/* SECTION 4: Signatures Configuration */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-2 sm:p-2.5 bg-slate-50/80 dark:bg-slate-800/40 space-y-2">
-                  <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <UserCheck size={14} className="text-purple-600" />
-                    Signatory Blocks
-                  </h2>
-
-                  <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                      Signature Style
-                    </label>
-                    <select
-                      value={signaturesMode}
-                      onChange={(e) => setSignaturesMode(e.target.value)}
-                      className="w-full h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 font-medium"
-                    >
-                      <option value="committee">Committee Members (1–5 Lines)</option>
-                      <option value="principal">Designated Signatory (Right-aligned)</option>
-                      <option value="both">Both (Committee + Designated)</option>
-                    </select>
+                    <div className="col-span-1">
+                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1 whitespace-nowrap">
+                        Slots (1–5)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={committeeMemberCount}
+                        onChange={(e) => setCommitteeMemberCount(Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 1)))}
+                        className="w-full h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-center focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                      />
+                    </div>
                   </div>
+                )}
 
-                  {(signaturesMode === 'committee' || signaturesMode === 'both') && (
-                    <div className="grid grid-cols-3 gap-1.5">
-                      <div className="col-span-2">
-                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                          Committee Title
-                        </label>
-                        <input
-                          type="text"
-                          value={committeeHeader}
-                          onChange={(e) => setCommitteeHeader(e.target.value)}
-                          className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5 whitespace-nowrap">
-                          Slots (1–5)
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={5}
-                          value={committeeMemberCount}
-                          onChange={(e) => setCommitteeMemberCount(Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 1)))}
-                          className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2 text-center"
-                        />
-                      </div>
+                {(signaturesMode === 'principal' || signaturesMode === 'both') && (
+                  <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <div>
+                      <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                        Designated Signatory Title
+                      </label>
+                      <input
+                        type="text"
+                        value={principalTitle}
+                        onChange={(e) => setPrincipalTitle(e.target.value)}
+                        className="w-full h-7 text-xs font-bold bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-md px-2 focus:ring-1 focus:ring-teal-500 focus:outline-hidden"
+                      />
                     </div>
-                  )}
-
-                  {(signaturesMode === 'principal' || signaturesMode === 'both') && (
-                    <div className="space-y-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
-                      <div>
-                        <label className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">
-                          Designated Signatory Title
-                        </label>
-                        <input
-                          type="text"
-                          value={principalTitle}
-                          onChange={(e) => setPrincipalTitle(e.target.value)}
-                          className="w-full h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </aside>
