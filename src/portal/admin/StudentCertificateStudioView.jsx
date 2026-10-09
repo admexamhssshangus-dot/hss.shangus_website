@@ -1205,8 +1205,13 @@ export default function StudentCertificateStudioView({
   const [institutionAddress, setInstitutionAddress] = useState('District Anantnag, Kashmir — 192201 (J&K)');
   const [certificateTitle, setCertificateTitle] = useState(() => {
     try {
-      const saved = localStorage.getItem('hss_certificate_studio_title');
-      return (saved && saved !== 'CERTIFICATE') ? saved : 'BONAFIDE CERTIFICATE';
+      const defId = localStorage.getItem('hss_default_cert_template_id') || 'bonafide_dob';
+      if (defId.startsWith('tc_dc')) {
+        const savedTcDc = localStorage.getItem('hss_tc_dc_title');
+        return savedTcDc || 'Discharge/Transfer cum Character Certificate';
+      }
+      const found = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === defId);
+      return found?.certificateTitle || 'BONAFIDE CERTIFICATE';
     } catch {
       return 'BONAFIDE CERTIFICATE';
     }
@@ -1342,6 +1347,7 @@ export default function StudentCertificateStudioView({
   }, []);
 
   // Cloud Persistence for Certificate Title Banner on Firebase (guarded against generic 'CERTIFICATE')
+  // Strictly isolated: only syncs default title for TC/DC certificates, preserving general template titles
   useEffect(() => {
     let isMounted = true;
     const loadCertificateBannerFromCloud = async () => {
@@ -1351,8 +1357,11 @@ export default function StudentCertificateStudioView({
           const data = docSnap.data();
           const cloudBanner = data.defaultCertificateTitle || data.certificateTitle;
           if (cloudBanner && typeof cloudBanner === 'string' && cloudBanner.trim() && cloudBanner.trim() !== 'CERTIFICATE') {
-            setCertificateTitle(cloudBanner.trim());
-            try { localStorage.setItem('hss_certificate_studio_title', cloudBanner.trim()); } catch {}
+            try { localStorage.setItem('hss_tc_dc_title', cloudBanner.trim()); } catch {}
+            // STRICT ISOLATION: Only apply to TC/DC templates; never overwrite general certificate titles
+            if (selectedTemplateId?.startsWith('tc_dc')) {
+              setCertificateTitle(cloudBanner.trim());
+            }
           }
         }
       } catch (err) {
@@ -1361,14 +1370,14 @@ export default function StudentCertificateStudioView({
     };
     loadCertificateBannerFromCloud();
     return () => { isMounted = false; };
-  }, []);
+  }, [selectedTemplateId]);
 
   const saveCertificateTitleToCloud = useCallback(async (newTitle) => {
     const clean = (newTitle || '').trim();
-    if (!clean) return;
+    if (!clean || !isTcDcActive) return;
     setIsSavingCertTitle(true);
     try {
-      try { localStorage.setItem('hss_certificate_studio_title', clean); } catch {}
+      try { localStorage.setItem('hss_tc_dc_title', clean); } catch {}
       await setDoc(doc(db, 'systemSettings', 'certificateRegistry'), {
         defaultCertificateTitle: clean,
         certificateTitle: clean,
@@ -1381,16 +1390,16 @@ export default function StudentCertificateStudioView({
     } finally {
       setIsSavingCertTitle(false);
     }
-  }, []);
+  }, [isTcDcActive]);
 
-  // Debounced cloud sync when certificateTitle changes
+  // Debounced cloud sync when certificateTitle changes for TC/DC
   useEffect(() => {
-    if (!certificateTitle || !certificateTitle.trim()) return;
+    if (!certificateTitle || !certificateTitle.trim() || !isTcDcActive) return;
     const timer = setTimeout(() => {
       saveCertificateTitleToCloud(certificateTitle);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [certificateTitle, saveCertificateTitleToCloud]);
+  }, [certificateTitle, isTcDcActive, saveCertificateTitleToCloud]);
 
   // Advance sequential reference number for general certificates (1454 -> 1455 -> ...)
   const advanceGeneralRefNumber = useCallback(async (currentRef = null) => {
@@ -2037,9 +2046,9 @@ export default function StudentCertificateStudioView({
     }
 
     // Auto-update Ref No immediately: TC/DC uses existing/next serial, general certs use sequential dispatch figure
-    const existingCertNo = extractStudentCertificateNumber(primaryRaw);
     let immediateRef = '';
     if (isTcDcTemplate) {
+      const existingCertNo = extractStudentCertificateNumber(primaryRaw);
       if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
         immediateRef = extractCertificateSerial(existingCertNo) || String(existingCertNo).trim();
       }
@@ -2087,7 +2096,7 @@ export default function StudentCertificateStudioView({
         village: immediateLocality.village,
         tehsil: immediateLocality.tehsil,
         district: immediateLocality.district,
-        certificateNo: immediateRef,
+        certificateNo: isTcDcTemplate ? immediateRef : (immediateRef || ''),
         raw: primaryRaw
       });
       editorRef.current.innerHTML = sanitizeCertificateHtml(immediateHtml);
@@ -2182,7 +2191,7 @@ export default function StudentCertificateStudioView({
             village: enrichedLocality.village,
             tehsil: enrichedLocality.tehsil,
             district: enrichedLocality.district,
-            certificateNo: immediateRef,
+            certificateNo: isTcDcTemplate ? immediateRef : (immediateRef || ''),
             raw: enrichedRaw
           });
           editorRef.current.innerHTML = sanitizeCertificateHtml(reinterpolatedHtml);
@@ -2304,7 +2313,7 @@ export default function StudentCertificateStudioView({
         village: resolvedLocality.village,
         tehsil: resolvedLocality.tehsil,
         district: resolvedLocality.district,
-        certificateNo: finalAssignedRef,
+        certificateNo: finalIsTcDc ? finalAssignedRef : (finalAssignedRef || ''),
         raw
       });
       editorRef.current.innerHTML = sanitizeCertificateHtml(finalResolvedHtml);
@@ -2490,15 +2499,50 @@ export default function StudentCertificateStudioView({
   // ─── Select Template Handler ───
   const handleSelectTemplate = (tpl) => {
     const sanitizedTpl = sanitizeTemplateObject(tpl);
+    const selectingTcDc = Boolean(sanitizedTpl.isTcDc || sanitizedTpl.id?.startsWith('tc_dc_'));
     setSelectedTemplateId(sanitizedTpl.id);
     const cleanBody = retokenizeCertificateBody(sanitizedTpl.bodyHtml, buildRetokenizeContext());
     setTemplateBody(cleanBody);
     setCustomCanvasHtml(null);
 
-    const canonicalTitle = (sanitizedTpl.certificateTitle && sanitizedTpl.certificateTitle !== 'CERTIFICATE')
-      ? sanitizedTpl.certificateTitle
-      : (BUILTIN_CERTIFICATE_TEMPLATES.find(b => b.id === sanitizedTpl.id)?.certificateTitle || sanitizedTpl.name || 'CERTIFICATE');
-    setCertificateTitle(canonicalTitle);
+    // Strictly isolate template title between TC/DC and General Certificates
+    if (selectingTcDc) {
+      let tcDcTitle = sanitizedTpl.certificateTitle || 'Discharge/Transfer cum Character Certificate';
+      try {
+        const savedTcDc = localStorage.getItem('hss_tc_dc_title');
+        if (savedTcDc) tcDcTitle = savedTcDc;
+      } catch {}
+      setCertificateTitle(tcDcTitle);
+    } else {
+      const canonicalTitle = (sanitizedTpl.certificateTitle && sanitizedTpl.certificateTitle !== 'CERTIFICATE')
+        ? sanitizedTpl.certificateTitle
+        : (BUILTIN_CERTIFICATE_TEMPLATES.find(b => b.id === sanitizedTpl.id)?.certificateTitle || sanitizedTpl.name || 'BONAFIDE CERTIFICATE');
+      setCertificateTitle(canonicalTitle);
+    }
+
+    // Strictly isolate numbering between TC/DC and General Certificates
+    let newAssignedRef = '';
+    if (selectingTcDc) {
+      const issuedCertificateNo = extractStudentCertificateNumber(selectedStudent);
+      if (issuedCertificateNo) {
+        newAssignedRef = extractCertificateSerial(issuedCertificateNo) || issuedCertificateNo;
+        setRefNo(newAssignedRef);
+      } else {
+        setRefNo('');
+        fetchLastIssuedCertificateNumber()
+          .then(lastNo => {
+            const nextSerial = String(lastNo + 1);
+            setRefNo(nextSerial);
+          })
+          .catch(error => showToast(error.message || 'Certificate registry could not be verified.', 'error'));
+      }
+    } else {
+      const cleanPrefix = (sanitizedTpl.refPrefix || generalRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
+      const figure = generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
+      const shortYear = String(generalRefYear || new Date().getFullYear()).slice(-2);
+      newAssignedRef = formatGeneralRefNo(cleanPrefix, figure, shortYear);
+      setRefNo(newAssignedRef);
+    }
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const resInfo = extractStudentResultMarks(raw);
@@ -2527,7 +2571,7 @@ export default function StudentCertificateStudioView({
         session,
         address,
         gender,
-        refNo,
+        refNo: newAssignedRef || refNo,
         date: dateStr,
         includeSalutations,
         customFields,
@@ -2547,7 +2591,7 @@ export default function StudentCertificateStudioView({
         village: locality.village,
         tehsil: locality.tehsil,
         district: locality.district,
-        certificateNo: refNo || extractStudentCertificateNumber(raw) || '',
+        certificateNo: selectingTcDc ? (newAssignedRef || refNo || extractStudentCertificateNumber(raw) || '') : (newAssignedRef || refNo || ''),
         raw
       });
       editorRef.current.innerHTML = sanitizeCertificateHtml(immediateHtml);
@@ -2567,23 +2611,6 @@ export default function StudentCertificateStudioView({
       if (sanitizedTpl.showPhoto && !studentPhotoUrl) {
         fetchAndResolveStudentPhoto();
       }
-    }
-    const issuedCertificateNo = extractStudentCertificateNumber(selectedStudent);
-    const selectingTcDc = Boolean(sanitizedTpl.isTcDc || sanitizedTpl.id?.startsWith('tc_dc_'));
-    if (selectingTcDc) {
-      if (issuedCertificateNo) {
-        setRefNo(extractCertificateSerial(issuedCertificateNo) || issuedCertificateNo);
-      } else {
-        setRefNo('');
-        fetchLastIssuedCertificateNumber()
-          .then(lastNo => setRefNo(String(lastNo + 1)))
-          .catch(error => showToast(error.message || 'Certificate registry could not be verified.', 'error'));
-      }
-    } else {
-      const cleanPrefix = (sanitizedTpl.refPrefix || generalRefPrefix || 'HSS').replace(/^HSS\/SHG(\/|$)/i, 'HSS$1');
-      const figure = generalRefSerial || DEFAULT_INITIAL_GENERAL_REF_SERIAL;
-      const shortYear = String(generalRefYear || new Date().getFullYear()).slice(-2);
-      setRefNo(formatGeneralRefNo(cleanPrefix, figure, shortYear));
     }
     if (!isDesktop) {
       setShowMobileOptionsModal(false);
@@ -2650,7 +2677,7 @@ export default function StudentCertificateStudioView({
         village,
         tehsil,
         district,
-        certificateNo: refNo || extractStudentCertificateNumber(raw) || '—'
+        certificateNo: isTcDcActive ? (refNo || extractStudentCertificateNumber(raw) || '—') : (refNo || '—')
       });
 
       if (!next) {
@@ -2709,7 +2736,7 @@ export default function StudentCertificateStudioView({
     const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
 
     const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
-    const ccDcNo = refNo || extractStudentCertificateNumber(raw) || '';
+    const effectiveCertNo = isTcDcActive ? (refNo || extractStudentCertificateNumber(raw) || '') : (refNo || '');
     const effAdmDate = admissionDate || extractStudentAdmissionDate(raw) || '';
     const effAdmNo = admissionNo || extractStudentAdmissionNumber(raw) || '';
     const locality = resolveStudentLocality(selectedStudent, raw, address);
@@ -2747,7 +2774,7 @@ export default function StudentCertificateStudioView({
       village: locality.village,
       tehsil: locality.tehsil,
       district: locality.district,
-      certificateNo: ccDcNo,
+      certificateNo: effectiveCertNo,
       raw
     });
   }, [
@@ -3132,6 +3159,7 @@ export default function StudentCertificateStudioView({
 
   const handleToggleInsertFieldDropdown = (e) => {
     e?.preventDefault();
+    saveCurrentSelection();
     if (!showInsertFieldDropdown) {
       if (insertFieldDropdownRef.current) {
         const rect = insertFieldDropdownRef.current.getBoundingClientRect();
@@ -3995,8 +4023,8 @@ export default function StudentCertificateStudioView({
       '{WITHDRAWAL_DATE}': effectiveWd,
       '{RESULT_DATE}': effectiveWd,
       '{CONDUCT_STATUS}': 'Satisfactory',
-      '{CERTIFICATE_NO}': refNo || '',
-      '{TC_DC_NO}': refNo || ''
+      '{CERTIFICATE_NO}': isTcDcActive ? (refNo || extractStudentCertificateNumber(raw) || '') : (refNo || ''),
+      '{TC_DC_NO}': isTcDcActive ? (refNo || extractStudentCertificateNumber(raw) || '') : (refNo || '')
     };
 
     if (tokenMap[str.toUpperCase()]) {
@@ -4041,7 +4069,7 @@ export default function StudentCertificateStudioView({
         village: locality.village,
         tehsil: locality.tehsil,
         district: locality.district,
-        certificateNo: refNo || extractStudentCertificateNumber(raw) || '',
+        certificateNo: isTcDcActive ? (refNo || extractStudentCertificateNumber(raw) || '') : (refNo || ''),
         raw
       });
     }
@@ -4053,46 +4081,56 @@ export default function StudentCertificateStudioView({
     if (!editorRef.current) return;
     const textToInsert = resolveTokenOrText(rawTokenOrText);
     pushSnapshot();
-    editorRef.current.focus();
 
-    const activeRange = savedRangeRef.current || savedRange;
-    if (activeRange && window.getSelection) {
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(activeRange);
+    // 1. Locate preserved range before any focus shift can alter it
+    let targetRange = savedRangeRef.current;
+    if (!targetRange || !editorRef.current.contains(targetRange.commonAncestorContainer)) {
+      targetRange = savedRange;
+    }
+    if (!targetRange || !editorRef.current.contains(targetRange.commonAncestorContainer)) {
+      if (typeof window !== 'undefined' && window.getSelection) {
+        const liveSel = window.getSelection();
+        if (liveSel && liveSel.rangeCount > 0 && editorRef.current.contains(liveSel.anchorNode)) {
+          targetRange = liveSel.getRangeAt(0);
+        }
+      }
     }
 
-    let inserted = false;
-    try {
-      inserted = document.execCommand('insertText', false, textToInsert);
-    } catch (err) {
-      console.warn('execCommand insertText error:', err);
-    }
-
-    if (!inserted) {
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
-        const range = sel.getRangeAt(0);
-        range.deleteContents();
+    if (targetRange && editorRef.current.contains(targetRange.commonAncestorContainer)) {
+      try {
+        targetRange.deleteContents();
         const textNode = document.createTextNode(textToInsert);
-        range.insertNode(textNode);
-        range.setStartAfter(textNode);
-        range.setEndAfter(textNode);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        savedRangeRef.current = range.cloneRange();
+        targetRange.insertNode(textNode);
+
+        const nextRange = document.createRange();
+        nextRange.setStartAfter(textNode);
+        nextRange.setEndAfter(textNode);
+
+        if (typeof window !== 'undefined' && window.getSelection) {
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(nextRange);
+        }
+
+        savedRangeRef.current = nextRange.cloneRange();
         setSavedRange(savedRangeRef.current);
-      } else {
+      } catch (err) {
+        console.warn('Direct range insertion failed, fallback to append:', err);
         const span = document.createElement('span');
         span.textContent = ` ${textToInsert}`;
         editorRef.current.appendChild(span);
       }
     } else {
-      if (window.getSelection && window.getSelection().rangeCount > 0) {
-        savedRangeRef.current = window.getSelection().getRangeAt(0).cloneRange();
-        setSavedRange(savedRangeRef.current);
-      }
+      // Fallback if no prior cursor position in editor: append at end
+      const span = document.createElement('span');
+      span.textContent = ` ${textToInsert}`;
+      editorRef.current.appendChild(span);
     }
+
+    // Restore focus to editor without scrolling
+    try {
+      editorRef.current.focus({ preventScroll: true });
+    } catch {}
 
     // Auto-clean any un-interpolated curly bracket tokens that might have been typed or inserted
     if (editorRef.current.innerHTML.includes('{') && editorRef.current.innerHTML.includes('}')) {
@@ -4141,7 +4179,7 @@ export default function StudentCertificateStudioView({
         village: locality.village,
         tehsil: locality.tehsil,
         district: locality.district,
-        certificateNo: refNo || extractStudentCertificateNumber(raw) || '',
+        certificateNo: isTcDcActive ? (refNo || extractStudentCertificateNumber(raw) || '') : (refNo || ''),
         raw
       });
       if (cleanedHtml !== editorRef.current.innerHTML) {
@@ -4165,8 +4203,9 @@ export default function StudentCertificateStudioView({
     const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
+      isTcDc: isTcDcActive,
       formNo: extractFormNo(raw),
-      certificateNo: refNo || extractStudentCertificateNumber(raw) || '—',
+      certificateNo: isTcDcActive ? (refNo || extractStudentCertificateNumber(raw) || '—') : (refNo || '—'),
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—'
@@ -4475,8 +4514,9 @@ export default function StudentCertificateStudioView({
     }
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
+      isTcDc: isTcDcActive,
       formNo: extractFormNo(raw),
-      certificateNo: effectiveRefNo || extractStudentCertificateNumber(raw) || '—',
+      certificateNo: isTcDcActive ? (effectiveRefNo || extractStudentCertificateNumber(raw) || '—') : (effectiveRefNo || '—'),
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—',
@@ -4633,8 +4673,9 @@ export default function StudentCertificateStudioView({
     }
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
+      isTcDc: isTcDcActive,
       formNo: extractFormNo(raw),
-      certificateNo: effectiveRefNo || extractStudentCertificateNumber(raw) || '—',
+      certificateNo: isTcDcActive ? (effectiveRefNo || extractStudentCertificateNumber(raw) || '—') : (effectiveRefNo || '—'),
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—',
@@ -5042,8 +5083,10 @@ export default function StudentCertificateStudioView({
 <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-amber-200/80 dark:border-amber-900/60">
                       <div>
                         <div className="flex items-center justify-between mb-0.5">
-                          <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block">Certificate / TC-DC No.</label>
-                          {selectedStudent && (refNo || extractStudentCertificateNumber(selectedStudent.raw || selectedStudent)) && (
+                          <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block">
+                            {isTcDcActive ? 'Discharge / TC-DC Certificate No.' : 'General Reference No.'}
+                          </label>
+                          {isTcDcActive && selectedStudent && (refNo || extractStudentCertificateNumber(selectedStudent.raw || selectedStudent)) && (
                             <button
                               type="button"
                               onClick={handleRevokeStudentCertificateNumber}
@@ -5063,7 +5106,7 @@ export default function StudentCertificateStudioView({
                             setRefNo(e.target.value);
                             setCustomCanvasHtml(null);
                           }}
-                          placeholder="Enter issued certificate number"
+                          placeholder={isTcDcActive ? 'e.g. 1368' : 'e.g. HSS/1454/26'}
                           className="w-full px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold text-[11px] outline-none focus:ring-1 focus:ring-amber-500"
                         />
                       </div>
@@ -7032,8 +7075,10 @@ export default function StudentCertificateStudioView({
                     checkTableContext();
                     checkActiveFormats();
                   }}
-                  onFocus={() => {
+                  onBlur={() => {
                     saveCurrentSelection();
+                  }}
+                  onFocus={() => {
                     checkTableContext();
                     checkActiveFormats();
                   }}
@@ -7225,7 +7270,10 @@ export default function StudentCertificateStudioView({
                     <div className="relative" ref={insertFieldDropdownRef}>
                       <button
                         type="button"
-                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          saveCurrentSelection();
+                        }}
                         onClick={handleToggleInsertFieldDropdown}
                         className="h-7 px-2 rounded-lg bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95"
                         title="Insert student database fields at cursor"

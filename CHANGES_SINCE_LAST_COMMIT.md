@@ -2,22 +2,25 @@
 
 ## Commit Message
 
-`fix(portal): resolve session dropdown loading state and enforce class-wide practical submission lock`
+`fix(cert-studio): fix caret placeholder insertion and isolate discharge cert numbering from general certs`
 
 ## Files Changed
 
-1. **[src/services/dbCache.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/dbCache.js)**
-   - **Fixed `getAdmissionsBySession` Empty Cache Fallback**: Removed `|| isCurrentSession` from the synchronous in-memory cache check so that when the in-memory cache has 0 student records matching the target session, it does not short-circuit returning `[]` and poisoning the session cache. Instead, it proceeds to fetch the full 551 students from Firestore.
+1. **[src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)**
+   - **Fixed Caret Position Placeholder Insertion**:
+     - Removed automatic selection capture from `onFocus` on the contentEditable `editorRef`, added `onBlur` capture, and ensured caret position is captured on `onMouseDown` when interacting with the "+ Field" button and dropdown trigger.
+     - Upgraded `handleInsertPlaceholder` from legacy `execCommand('insertText')` to direct DOM Range insertion (`deleteContents()`, `insertNode(textNode)`, `nextRange.setStartAfter(textNode)`, selection updating, and gentle focus). Field placeholders and student data attributes now insert precisely where the cursor was positioned instead of jumping to the top of the canvas.
+   - **Isolated Discharge / Transfer Certificate Numbering (`ccDcNo`)**:
+     - Restricted the institutional **Certificate Number** (`#1368`, sourced from `systemSettings/certificateRegistry` / `ccDcNo`) exclusively to Discharge / Transfer Certificates (`tc_dc_*`).
+     - General certificates (Bonafide, Character, DOB, Provisional, Migration NOC, Custom, etc.) now strictly use independent General Certificate Dispatch Reference sequences (e.g. `Ref No: HSS/1454/26`) and never consume, display, or fallback to the student's TC/DC number (`ccDcNo`).
+     - Dynamically computes and assigns the appropriate reference identifier (`HSS/...` for general certificates vs serial number for TC/DC) whenever switching templates in `handleSelectTemplate`.
+     - In the Details Drawer, dynamically displays `Discharge / TC-DC Certificate No.` with placeholder `e.g. 1368` for TC/DC, and `General Reference No.` with placeholder `e.g. HSS/1454/26` for all other templates, while restricting the Revoke Number action to TC/DC certificates.
+   - **Isolated Template Title Banners**:
+     - Guarded `loadCertificateBannerFromCloud` and `saveCertificateTitleToCloud` so cloud banner synchronization only applies to TC/DC certificates and never overwrites non-TC/DC template titles (e.g., `BONAFIDE CERTIFICATE`) with `DISCHARGE/TRANSFER CUM CHARACTER CERTIFICATE`.
 
-2. **[src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)**
-   - **Fixed Session Dropdown "Loading..." Glitch**: Updated session dropdown option rendering so that if a session's students are already indexed in memory (`opt.isLoaded` with `opt.count`), it displays the student count (e.g., `551`) immediately instead of displaying `Loading...`.
-   - **Guaranteed Cleanup of `loadingSessions`**: In the on-demand historical loader `useEffect`, bypassed the active global academic session (which is already loaded globally) and ensured that `loadingSessions` is always cleared in `finally` even if a component re-render sets `isCancelled = true`.
-
-3. **[src/portal/admin/CustomRosterDocumentBuilderView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/CustomRosterDocumentBuilderView.jsx)**
-   - **Synchronized Session Dropdown & Loader**: Applied the identical fix so loaded counts display first, the current academic session is never queued for redundant historical fetching, and `loadingSessions` cleans up reliably in `finally`.
-
-4. **[src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)**
-   - **Enforced Class-Wide Submission Lock Across All Sessions**: When administration closes practical submissions for a class (`!isSubmissionOpen || !isSubmissionOpenForCurrentClass`), marks editing, saving, and quick-fill operations are strictly locked across all sessions for that class. Added explicit lock checks to `handleApplyQuickFill` and disabled desktop and mobile Quick Fill action buttons (`Fill Empty`, `Fill Selected`, `Fill All`, `Clear`).
+2. **[src/utils/certificateExportUtils.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/certificateExportUtils.js)**
+   - **Dynamic Meta Grid Labels in Certificate Exports**:
+     - Updated print and Word (.docx) document generation so the metadata header renders `<span class="meta-label">Certificate No.:</span>` for Discharge/Transfer Certificates and `<span class="meta-label">Ref No.:</span>` for all other certificates.
 
 ---
 
@@ -36,7 +39,7 @@ If you wish to edit the commit message or make adjustments:
 git reset --soft HEAD~1
 # Make desired adjustments...
 git add .
-git commit -m "fix(portal): resolve session dropdown loading state and enforce class-wide practical submission lock"
+git commit -m "fix(cert-studio): fix caret placeholder insertion and isolate discharge cert numbering from general certs"
 ```
 
 ### 3. How to Push to Remote Repository

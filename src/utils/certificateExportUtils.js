@@ -1323,7 +1323,7 @@ export function printStudentCertificate({
           <div class="meta-and-qr-row">
             <div class="meta-grid-box">
               <div class="meta-grid-cell">
-                <span class="meta-label">Certificate No.:</span>
+                <span class="meta-label">${metaDetails?.isTcDc ? 'Certificate No.:' : 'Ref No.:'}</span>
                 <span class="meta-val val-red ${String(metaDetails.certificateNo || refNo || '').length > 18 ? 'val-long-ref' : ''}">${formatBlank(metaDetails.certificateNo || refNo, '----------------')}</span>
               </div>
               <div class="meta-grid-cell">
@@ -2222,7 +2222,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
             <div class="meta-and-qr-row">
               <div class="meta-grid-box">
                 <div class="meta-grid-cell">
-                  <span class="meta-label">Certificate No.:</span>
+                  <span class="meta-label">${metaDetails?.isTcDc ? 'Certificate No.:' : 'Ref No.:'}</span>
                   <span class="meta-val val-red ${String(metaDetails.certificateNo || '').length > 18 ? 'val-long-ref' : ''}">${formatBlank(metaDetails.certificateNo, '----------------')}</span>
                 </div>
                 <div class="meta-grid-cell">
