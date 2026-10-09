@@ -129,12 +129,36 @@ export const getRecordClassification = (r) => {
 };
 
 /**
- * Universal Date Parser supporting DD-MM-YYYY, DD/MM/YYYY, ISO 8601, and English dates
+ * Universal Date Parser supporting Firestore timestamps, DD-MM-YYYY, DD/MM/YYYY, ISO 8601, and English dates
  */
 export const parseRecordDate = (rec) => {
   if (!rec) return new Date(0);
   if (rec.createdAt) {
+    if (typeof rec.createdAt.toDate === 'function') {
+      const d = rec.createdAt.toDate();
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (typeof rec.createdAt.toMillis === 'function') {
+      const d = new Date(rec.createdAt.toMillis());
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (rec.createdAt.seconds) {
+      const d = new Date(rec.createdAt.seconds * 1000);
+      if (!isNaN(d.getTime())) return d;
+    }
     const d = new Date(rec.createdAt);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (rec.updatedAt) {
+    if (typeof rec.updatedAt.toDate === 'function') {
+      const d = rec.updatedAt.toDate();
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (rec.updatedAt.seconds) {
+      const d = new Date(rec.updatedAt.seconds * 1000);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const d = new Date(rec.updatedAt);
     if (!isNaN(d.getTime())) return d;
   }
   if (rec.dateStr) {
@@ -156,6 +180,23 @@ export const parseRecordDate = (rec) => {
     if (!isNaN(d.getTime())) return d;
   }
   return new Date(0);
+};
+
+/**
+ * Clean up raw HTML tags and entities like &nbsp;, &amp;, &quot; into plain legible text
+ */
+export const cleanHtmlEntities = (str) => {
+  if (!str) return '';
+  return String(str)
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
 };
 
 /**
@@ -231,7 +272,7 @@ export default function OfficialDocumentCatalogView({
   isLoading = false
 }) {
   // ─── Filter & View States ───
-  const [timeRange, setTimeRange] = useState('academic_2025_26'); // academic_2025_26 | academic_2024_25 | year_2026 | year_2025 | last_365 | last_180 | last_30 | custom | all
+  const [timeRange, setTimeRange] = useState('all'); // 'all' (default: all documents) | year_2026 | academic_2025_26 | academic_2026_27 | academic_2024_25 | year_2025 | last_365 | last_180 | last_30 | custom
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [moduleFilter, setModuleFilter] = useState('all'); // all | letter | cert | sanction | idcard | admission
@@ -246,23 +287,35 @@ export default function OfficialDocumentCatalogView({
     const currentYear = now.getFullYear();
 
     switch (timeRange) {
-      case 'academic_2025_26':
+      case 'all':
         return {
-          start: new Date(2025, 3, 1, 0, 0, 0), // 01-Apr-2025
-          end: new Date(2026, 2, 31, 23, 59, 59), // 31-Mar-2026
-          label: 'Academic Session 2025–26 (01 Apr 2025 – 31 Mar 2026)'
-        };
-      case 'academic_2024_25':
-        return {
-          start: new Date(2024, 3, 1, 0, 0, 0),
-          end: new Date(2025, 2, 31, 23, 59, 59),
-          label: 'Academic Session 2024–25 (01 Apr 2024 – 31 Mar 2025)'
+          start: new Date(0),
+          end: new Date(8640000000000000),
+          label: 'All-Time Historical Register'
         };
       case 'year_2026':
         return {
           start: new Date(2026, 0, 1, 0, 0, 0),
           end: new Date(2026, 11, 31, 23, 59, 59),
           label: 'Calendar Year 2026 (01 Jan 2026 – 31 Dec 2026)'
+        };
+      case 'academic_2025_26':
+        return {
+          start: new Date(2025, 3, 1, 0, 0, 0), // 01-Apr-2025
+          end: new Date(2026, 11, 31, 23, 59, 59), // 31-Dec-2026 (covers through full session in J&K)
+          label: 'Academic Session 2025–26 (01 Apr 2025 – 31 Dec 2026)'
+        };
+      case 'academic_2026_27':
+        return {
+          start: new Date(2026, 3, 1, 0, 0, 0), // 01-Apr-2026
+          end: new Date(2027, 2, 31, 23, 59, 59), // 31-Mar-2027
+          label: 'Academic Session 2026–27 (01 Apr 2026 – 31 Mar 2027)'
+        };
+      case 'academic_2024_25':
+        return {
+          start: new Date(2024, 3, 1, 0, 0, 0),
+          end: new Date(2025, 11, 31, 23, 59, 59),
+          label: 'Academic Session 2024–25 (01 Apr 2024 – 31 Dec 2025)'
         };
       case 'year_2025':
         return {
@@ -303,7 +356,6 @@ export default function OfficialDocumentCatalogView({
           label: `Custom Range (${customStartDate || 'Start'} to ${customEndDate || 'Present'})`
         };
       }
-      case 'all':
       default:
         return {
           start: new Date(0),
@@ -438,19 +490,15 @@ export default function OfficialDocumentCatalogView({
       return;
     }
 
-    const printWin = window.open('', '_blank');
-    if (!printWin) {
-      showToast('Please allow popups to open print preview', 'error');
-      return;
-    }
-
     const tableRowsHtml = catalogRecords.map((r, idx) => {
       const cls = getRecordClassification(r);
       const parsedDate = parseRecordDate(r);
       const dateText = formatDisplayDate(parsedDate);
       const refText = r.refNo || '—';
-      const subjectText = resolveRecordSubject(r) || r.title || 'Official Document';
+      const subjectText = cleanHtmlEntities(resolveRecordSubject(r) || r.title || 'Official Document');
       const info = extractIdentifyingInfo(r);
+      const cleanPrimary = cleanHtmlEntities(info.primary);
+      const cleanSecondary = cleanHtmlEntities(info.secondary);
       const actionText = r.actionType || 'Recorded';
 
       return `
@@ -463,11 +511,11 @@ export default function OfficialDocumentCatalogView({
           </td>
           <td style="font-size: 11px; line-height: 1.3;">
             <div style="font-weight: bold;">${subjectText}</div>
-            ${r.title && r.title !== subjectText ? `<div style="font-size: 9.5px; color: #555;">Title: ${r.title}</div>` : ''}
+            ${r.title && r.title !== subjectText ? `<div style="font-size: 9.5px; color: #555;">Title: ${cleanHtmlEntities(r.title)}</div>` : ''}
           </td>
           <td style="font-size: 11px; line-height: 1.3;">
-            <div style="font-weight: bold;">${info.primary}</div>
-            ${info.secondary ? `<div style="font-size: 9.5px; color: #444;">${info.secondary}</div>` : ''}
+            <div style="font-weight: bold;">${cleanPrimary}</div>
+            ${cleanSecondary ? `<div style="font-size: 9.5px; color: #444;">${cleanSecondary}</div>` : ''}
           </td>
           <td style="text-align: center; font-size: 10px;">${actionText}</td>
           <td style="font-size: 10px; color: #777;"></td>
@@ -665,19 +713,46 @@ export default function OfficialDocumentCatalogView({
           </div>
         </div>
 
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-            }, 300);
-          };
-        </script>
       </body>
       </html>
     `;
 
-    printWin.document.write(htmlContent);
-    printWin.document.close();
+    // Hidden offscreen iframe for clean, single print dialog without popup tab
+    let iframe = document.getElementById('despatch-catalog-print-frame');
+    if (iframe && iframe.parentNode) {
+      iframe.parentNode.removeChild(iframe);
+    }
+
+    iframe = document.createElement('iframe');
+    iframe.id = 'despatch-catalog-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '0';
+    iframe.style.width = '1024px';
+    iframe.style.height = '768px';
+    iframe.style.border = '0';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    let hasPrinted = false;
+    const triggerPrint = () => {
+      if (hasPrinted) return;
+      hasPrinted = true;
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        console.warn('Iframe print note:', err);
+      }
+    };
+
+    setTimeout(triggerPrint, 350);
   };
 
   // ─── Action: Export Official Despatch Register to Excel (.xlsx) ───
@@ -794,15 +869,16 @@ export default function OfficialDocumentCatalogView({
               onChange={(e) => setTimeRange(e.target.value)}
               className="h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-2xs cursor-pointer"
             >
-              <option value="academic_2025_26">Academic Year 2025–26 (01 Apr 2025 – 31 Mar 2026)</option>
-              <option value="academic_2024_25">Academic Year 2024–25 (01 Apr 2024 – 31 Mar 2025)</option>
+              <option value="all">All Records (All-Time Archive)</option>
               <option value="year_2026">Calendar Year 2026</option>
+              <option value="academic_2025_26">Academic Session 2025–26 (01 Apr 2025 – 31 Dec 2026)</option>
+              <option value="academic_2026_27">Academic Session 2026–27 (01 Apr 2026 – 31 Mar 2027)</option>
+              <option value="academic_2024_25">Academic Session 2024–25 (01 Apr 2024 – 31 Dec 2025)</option>
               <option value="year_2025">Calendar Year 2025</option>
               <option value="last_365">Past 1 Year (365 Days)</option>
               <option value="last_180">Past 6 Months</option>
               <option value="last_30">Past 30 Days</option>
               <option value="custom">Custom Date Range...</option>
-              <option value="all">All Records (All-Time Archive)</option>
             </select>
 
             {/* Custom Date Pickers */}
@@ -829,18 +905,6 @@ export default function OfficialDocumentCatalogView({
 
           {/* Action Buttons: Print Register & Export Excel */}
           <div className="flex items-center gap-1.5 ml-auto">
-            {onRefresh && (
-              <button
-                type="button"
-                onClick={onRefresh}
-                disabled={isLoading}
-                className="h-7 px-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
-                title="Refresh from Cloud"
-              >
-                <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
-                <span className="hidden sm:inline">Refresh</span>
-              </button>
-            )}
 
             <button
               type="button"
@@ -880,7 +944,7 @@ export default function OfficialDocumentCatalogView({
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              All 4 Modules ({stats.total})
+              All Documents ({stats.total})
             </button>
 
             <button
@@ -934,6 +998,21 @@ export default function OfficialDocumentCatalogView({
               <Contact size={11} />
               <span>ID Cards ({stats.idCards})</span>
             </button>
+
+            {stats.admissions > 0 && (
+              <button
+                type="button"
+                onClick={() => setModuleFilter('admission')}
+                className={`px-2 py-0.8 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                  moduleFilter === 'admission'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                <Layers size={11} />
+                <span>Admissions ({stats.admissions})</span>
+              </button>
+            )}
           </div>
 
           {/* Grouping & Sort Controls */}
@@ -1001,7 +1080,7 @@ export default function OfficialDocumentCatalogView({
         </div>
 
         {/* Third Row: KPI Summary Banner */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-800">
+        <div className={`grid grid-cols-2 ${stats.admissions > 0 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-800`}>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 flex items-center gap-2">
             <div className="w-7 h-7 rounded-md bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-400 flex items-center justify-center shrink-0">
               <BookOpen size={14} />
@@ -1053,6 +1132,18 @@ export default function OfficialDocumentCatalogView({
               <div className="text-xs font-black text-purple-600 dark:text-purple-400">{stats.idCards} Batches</div>
             </div>
           </div>
+
+          {stats.admissions > 0 && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-md bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                <Layers size={14} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[9px] uppercase font-bold text-slate-500">Admissions</div>
+                <div className="text-xs font-black text-indigo-600 dark:text-indigo-400">{stats.admissions} Forms</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1140,8 +1231,10 @@ function RegisterTable({ records, onPreviewRecord }) {
             const parsedDate = parseRecordDate(rec);
             const dateText = formatDisplayDate(parsedDate);
             const refText = rec.refNo || '—';
-            const subjectText = resolveRecordSubject(rec) || rec.title || 'Official Document';
+            const subjectText = cleanHtmlEntities(resolveRecordSubject(rec) || rec.title || 'Official Document');
             const info = extractIdentifyingInfo(rec);
+            const cleanPrimary = cleanHtmlEntities(info.primary);
+            const cleanSecondary = cleanHtmlEntities(info.secondary);
             const Icon = cls.icon;
 
             return (
@@ -1186,9 +1279,9 @@ function RegisterTable({ records, onPreviewRecord }) {
                   <div className="font-bold text-slate-900 dark:text-slate-100 text-xs line-clamp-1">
                     {subjectText}
                   </div>
-                  {rec.title && rec.title !== subjectText && (
+                  {rec.title && cleanHtmlEntities(rec.title) !== subjectText && (
                     <div className="text-[10px] text-slate-500 line-clamp-1">
-                      {rec.title}
+                      {cleanHtmlEntities(rec.title)}
                     </div>
                   )}
                 </td>
@@ -1196,11 +1289,11 @@ function RegisterTable({ records, onPreviewRecord }) {
                 {/* Issued To / Student / Addressee */}
                 <td className="py-2 px-3">
                   <div className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
-                    {info.primary}
+                    {cleanPrimary}
                   </div>
-                  {info.secondary && (
+                  {cleanSecondary && (
                     <div className="text-[10px] text-slate-500 font-mono">
-                      {info.secondary}
+                      {cleanSecondary}
                     </div>
                   )}
                 </td>

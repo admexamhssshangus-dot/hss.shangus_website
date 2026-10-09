@@ -407,7 +407,12 @@ export function printBeneficiarySanctionOrder({
   doc.write(html);
   doc.close();
 
+  let hasPrinted = false;
+  let fallbackTimer = null;
   const triggerPrint = () => {
+    if (hasPrinted) return;
+    hasPrinted = true;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
     try {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
@@ -421,7 +426,7 @@ export function printBeneficiarySanctionOrder({
   if (logoImg && !logoImg.complete) {
     logoImg.onload = () => setTimeout(triggerPrint, 150);
     logoImg.onerror = () => setTimeout(triggerPrint, 150);
-    setTimeout(triggerPrint, 500);
+    fallbackTimer = setTimeout(triggerPrint, 500);
   } else {
     setTimeout(triggerPrint, 150);
   }

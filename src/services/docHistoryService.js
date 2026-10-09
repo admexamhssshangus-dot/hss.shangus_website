@@ -66,7 +66,16 @@ export function isValidSubjectString(s) {
  */
 export function cleanSubjectString(raw) {
   if (!raw) return '';
-  let s = raw.replace(/<[^>]+>/g, '').trim();
+  let s = String(raw)
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
   // Strip leading punctuation: colons, hyphens, en/em dashes, dots, underscores, asterisks
   s = s.replace(/^(?:[:：\-–—._*#]|\s)+/, '').trim();
   // Strip trailing punctuation if it ends with dangling colon, hyphen, or dash
