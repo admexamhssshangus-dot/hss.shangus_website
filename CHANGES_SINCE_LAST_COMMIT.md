@@ -2,25 +2,16 @@
 
 ## Commit Message
 
-`fix(cert-studio): fix caret placeholder insertion and isolate discharge cert numbering from general certs`
+`fix(portal): resolve Student Data & Board Ingestion Hub launcher dead-loop in admin dashboard`
 
 ## Files Changed
 
-1. **[src/portal/admin/StudentCertificateStudioView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/StudentCertificateStudioView.jsx)**
-   - **Fixed Caret Position Placeholder Insertion**:
-     - Removed automatic selection capture from `onFocus` on the contentEditable `editorRef`, added `onBlur` capture, and ensured caret position is captured on `onMouseDown` when interacting with the "+ Field" button and dropdown trigger.
-     - Upgraded `handleInsertPlaceholder` from legacy `execCommand('insertText')` to direct DOM Range insertion (`deleteContents()`, `insertNode(textNode)`, `nextRange.setStartAfter(textNode)`, selection updating, and gentle focus). Field placeholders and student data attributes now insert precisely where the cursor was positioned instead of jumping to the top of the canvas.
-   - **Isolated Discharge / Transfer Certificate Numbering (`ccDcNo`)**:
-     - Restricted the institutional **Certificate Number** (`#1368`, sourced from `systemSettings/certificateRegistry` / `ccDcNo`) exclusively to Discharge / Transfer Certificates (`tc_dc_*`).
-     - General certificates (Bonafide, Character, DOB, Provisional, Migration NOC, Custom, etc.) now strictly use independent General Certificate Dispatch Reference sequences (e.g. `Ref No: HSS/1454/26`) and never consume, display, or fallback to the student's TC/DC number (`ccDcNo`).
-     - Dynamically computes and assigns the appropriate reference identifier (`HSS/...` for general certificates vs serial number for TC/DC) whenever switching templates in `handleSelectTemplate`.
-     - In the Details Drawer, dynamically displays `Discharge / TC-DC Certificate No.` with placeholder `e.g. 1368` for TC/DC, and `General Reference No.` with placeholder `e.g. HSS/1454/26` for all other templates, while restricting the Revoke Number action to TC/DC certificates.
-   - **Isolated Template Title Banners**:
-     - Guarded `loadCertificateBannerFromCloud` and `saveCertificateTitleToCloud` so cloud banner synchronization only applies to TC/DC certificates and never overwrites non-TC/DC template titles (e.g., `BONAFIDE CERTIFICATE`) with `DISCHARGE/TRANSFER CUM CHARACTER CERTIFICATE`.
-
-2. **[src/utils/certificateExportUtils.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/certificateExportUtils.js)**
-   - **Dynamic Meta Grid Labels in Certificate Exports**:
-     - Updated print and Word (.docx) document generation so the metadata header renders `<span class="meta-label">Certificate No.:</span>` for Discharge/Transfer Certificates and `<span class="meta-label">Ref No.:</span>` for all other certificates.
+1. **[src/portal/admin/AdminDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminDashboard.jsx)**
+   - **Resolved Launcher No-Op Deadlock**: Removed the legacy `if (tab === 'boardSync')` interceptor inside `setActiveTab` that was forcing active tab state back to `'reports'`, deleting the URL tab query, and setting `triggerAction('boardSync')` in a circular delegation loop with `AdvancedReports.jsx`.
+   - **Full Page Workspace Activation**: Allowed `boardSync` to transition normally through the standard tab mounting flow: prefetching `./BulkFieldOverwriteModal`, updating URL state (`?tab=boardSync`), saving session storage, and unhiding the full-page `BulkFieldOverwriteModal` workspace container (`key="board-sync-container"`).
+   - **Catalog Alias Normalization**: Normalized catalog aliases (`jkboseSync`, `ingestionHub`, `bulkOverwrite`, `bulk`) directly to `boardSync` so all searches and launchers activate the module cleanly.
+   - **Cleaned Up `triggerAction` Initialization**: Removed redundant `searchParams.get('tab') === 'boardSync'` check from `triggerAction` state initialization, preventing unwanted side effects when navigating to the full-page hub.
+   - **Independent Direct Entry Routing**: Configured `getInitialTab()` to preserve `directEntry` as an independent tab rather than collapsing it into `boardSync`, maintaining distinct `'express'` mode on initial load.
 
 ---
 
@@ -39,7 +30,7 @@ If you wish to edit the commit message or make adjustments:
 git reset --soft HEAD~1
 # Make desired adjustments...
 git add .
-git commit -m "fix(cert-studio): fix caret placeholder insertion and isolate discharge cert numbering from general certs"
+git commit -m "fix(portal): resolve Student Data & Board Ingestion Hub launcher dead-loop in admin dashboard"
 ```
 
 ### 3. How to Push to Remote Repository

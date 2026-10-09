@@ -157,7 +157,8 @@ function getInitialTab() {
     const searchParams = new URLSearchParams(window.location.search);
     const urlTab = searchParams.get('tab');
     if (urlTab) {
-      if (urlTab === 'bulk' || urlTab === 'boardSync' || urlTab === 'ingestionHub' || urlTab === 'bulkOverwrite' || urlTab === 'directEntry') return 'boardSync';
+      if (urlTab === 'directEntry') return 'directEntry';
+      if (urlTab === 'bulk' || urlTab === 'boardSync' || urlTab === 'ingestionHub' || urlTab === 'bulkOverwrite' || urlTab === 'jkboseSync') return 'boardSync';
       if (urlTab === 'curriculum' || urlTab === 'subjects' || urlTab === 'streams' || urlTab === 'feederSchools') return 'curriculum';
       if (urlTab === 'staff' || urlTab === 'permissions' || urlTab === 'staffPermissions') return 'staff';
       if (urlTab === 'controls' || urlTab === 'admissionControls' || urlTab === 'systemControls') return 'controls';
@@ -178,7 +179,8 @@ function getInitialTab() {
     if (hash && hash !== 'portal') return hash;
     const stored = sessionStorage.getItem('hss_admin_active_tab');
     if (stored) {
-      if (stored === 'bulk' || stored === 'boardSync' || stored === 'ingestionHub' || stored === 'bulkOverwrite' || stored === 'directEntry') return 'boardSync';
+      if (stored === 'directEntry') return 'directEntry';
+      if (stored === 'bulk' || stored === 'boardSync' || stored === 'ingestionHub' || stored === 'bulkOverwrite' || stored === 'jkboseSync') return 'boardSync';
       if (stored === 'analytics' || stored === 'statisticalReports') return 'analyticsReports';
       if (stored === 'curriculum' || stored === 'subjects' || stored === 'streams' || stored === 'feederSchools') return 'curriculum';
       if (stored === 'staff' || stored === 'permissions' || stored === 'staffPermissions') return 'staff';
@@ -263,18 +265,8 @@ export default function AdminDashboard() {
       } catch (_) {}
       tab = 'controls';
     }
-    if (tab === 'boardSync') {
-      setMountedTabs(prev => (prev.has('reports') ? prev : new Set(prev).add('reports')));
-      setActiveTabState('reports');
-      setTriggerAction('boardSync');
-      try {
-        sessionStorage.setItem('hss_admin_active_tab', 'reports');
-        const url = new URL(window.location.href);
-        url.searchParams.delete('tab');
-        url.searchParams.delete('subtab');
-        window.history.replaceState(null, '', url.toString());
-      } catch (_) {}
-      return;
+    if (tab === 'jkboseSync' || tab === 'ingestionHub' || tab === 'bulkOverwrite' || tab === 'bulk') {
+      tab = 'boardSync';
     }
 
     // Trigger instant chunk prefetch
@@ -361,13 +353,7 @@ export default function AdminDashboard() {
   });
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [triggerAction, setTriggerAction] = useState(() => {
-    try {
-      const searchParams = new URLSearchParams(window.location.search);
-      if (searchParams.get('tab') === 'boardSync') return 'boardSync';
-    } catch (_) {}
-    return null;
-  }); // 'analytics' | 'directEntry' | 'bulkTools' | 'boardSync'
+  const [triggerAction, setTriggerAction] = useState(null); // 'analytics' | 'bulkTools' | 'googleContacts'
   const [enableQuickCellEdit, setEnableQuickCellEditState] = useState(() => {
     try {
       return localStorage.getItem('hss_quick_cell_edit') === 'true';
