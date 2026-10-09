@@ -648,3 +648,59 @@ export async function updateStaffAccount({
   if (cleanOld !== cleanNew) clearStaffProfileCache(cleanNew);
   return result?.data || result;
 }
+
+/**
+ * Retrieves the verified list of all Administrative Accounts (SuperAdmin + Standard Admins)
+ * for document assignment, ownership filtering, and historical transfer.
+ * 
+ * @returns {Promise<Array<{ email: string, name: string, role: string, isSuperAdmin: boolean }>>}
+ */
+export async function fetchAdminAccountsList() {
+  const adminMap = new Map();
+
+  // 1. Seed with known bootstrap admins & foundational profiles
+  Object.entries(FALLBACK_STAFF_PROFILES).forEach(([email, prof]) => {
+    const isSA = prof.role === 'SuperAdmin' || prof.isSuperAdmin || isSuperAdminEmail(email);
+    const isAdm = prof.role === 'Admin' || prof.isAdmin || isBootstrapAdminEmail(email);
+    if (isSA || isAdm) {
+      adminMap.set(email.toLowerCase(), {
+        email: email.toLowerCase(),
+        name: prof.name || email.split('@')[0],
+        role: isSA ? 'SuperAdmin' : 'Admin',
+        isSuperAdmin: isSA
+      });
+    }
+  });
+
+  // 2. Query Firestore adminSettings/permissions if available to include any dynamically created admins
+  try {
+    const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
+    if (permSnap.exists() && Array.isArray(permSnap.data().users)) {
+      permSnap.data().users.forEach(u => {
+        const e = String(u.email || '').trim().toLowerCase();
+        if (e && u.active !== false && !u.deactivated) {
+          const isSA = u.role === 'SuperAdmin' || isSuperAdminEmail(e);
+          const isAdm = u.role === 'Admin' || isBootstrapAdminEmail(e);
+          if (isSA || isAdm) {
+            adminMap.set(e, {
+              email: e,
+              name: u.name || e.split('@')[0],
+              role: isSA ? 'SuperAdmin' : 'Admin',
+              isSuperAdmin: isSA
+            });
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Could not fetch dynamic admin permissions list, using fallback profiles:', err);
+  }
+
+  return Array.from(adminMap.values()).sort((a, b) => {
+    // SuperAdmin first, then alphabetical by name
+    if (a.isSuperAdmin && !b.isSuperAdmin) return -1;
+    if (!a.isSuperAdmin && b.isSuperAdmin) return 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+

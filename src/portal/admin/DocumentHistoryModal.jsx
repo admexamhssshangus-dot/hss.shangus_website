@@ -10,8 +10,10 @@ import {
   CheckCircle2, Filter, AlertTriangle, ExternalLink,
   ChevronRight, RefreshCw, FileEdit, CheckSquare, Square,
   Layers, ShieldAlert, ClipboardList, BookOpen, CreditCard,
-  Contact, FileBadge
+  Contact, FileBadge, ArrowRightLeft, UserCheck, Shield
 } from 'lucide-react';
+import { auth } from '../../services/firebase';
+import { isSuperAdminEmail } from '../../utils/authRoles';
 import {
   fetchGeneratedDocHistory,
   deleteGeneratedDocFromHistory,
@@ -19,7 +21,8 @@ import {
   extractLetterSubject,
   extractLetterRecipient,
   isValidSubjectString,
-  cleanSubjectString
+  cleanSubjectString,
+  isRecordOwnedBy
 } from '../../services/docHistoryService';
 import { showToast } from '../../components/common/GlobalToast';
 import {
@@ -36,6 +39,7 @@ import {
 } from '../../utils/pdfGenerator';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 import OfficialDocumentCatalogView, { isSanctionOrderDoc, isIdCardDoc } from './OfficialDocumentCatalogView';
+import ReassignDocOwnerModal from './ReassignDocOwnerModal';
 
 // Classification helper predicates
 export const isDischargeDoc = (r) => {
@@ -123,8 +127,33 @@ export default function DocumentHistoryModal({
   onClose,
   defaultFilter = 'all', // 'all' | 'discharge' | 'bonafide' | 'letter' | 'sanction' | 'idcard' | 'admission'
   onLoadAsDraft = null,
-  defaultView = 'archive' // 'archive' | 'catalog'
+  defaultView = 'archive', // 'archive' | 'catalog'
+  currentUser = null,
+  isSuperAdmin = false
 }) {
+  const [currentUserState, setCurrentUserState] = useState(() => currentUser || auth?.currentUser || null);
+
+  useEffect(() => {
+    if (currentUser) {
+      setCurrentUserState(currentUser);
+      return;
+    }
+    const unsub = auth?.onAuthStateChanged?.((u) => {
+      if (u) setCurrentUserState(u);
+    });
+    return () => { if (unsub) unsub(); };
+  }, [currentUser]);
+
+  const effectiveEmail = (currentUserState?.email || currentUser?.email || auth?.currentUser?.email || '').toLowerCase().trim();
+  const effectiveIsSuperAdmin = Boolean(
+    isSuperAdmin ||
+    currentUser?.role === 'SuperAdmin' ||
+    currentUser?.isSuperAdmin ||
+    currentUserState?.role === 'SuperAdmin' ||
+    currentUserState?.isSuperAdmin ||
+    isSuperAdminEmail(effectiveEmail)
+  );
+
   const [historyRecords, setHistoryRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,10 +162,14 @@ export default function DocumentHistoryModal({
   const [viewMode, setViewMode] = useState(defaultView); // 'archive' | 'catalog'
   const [hideAdmissionForms, setHideAdmissionForms] = useState(true); // Hidden by default for clean audit history
   
-  // Multi-Selection State for Bulk Deletion
+  // Multi-Selection State for Bulk Actions (Delete & Move)
   const [selectedDocIds, setSelectedDocIds] = useState(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
+  // Super Admin Document Owner Reassignment Modal State
+  const [reassignTargetDocs, setReassignTargetDocs] = useState([]);
+  const [showReassignModal, setShowReassignModal] = useState(false);
 
   // Preview Modal State
   const [previewDoc, setPreviewDoc] = useState(null);
@@ -149,7 +182,12 @@ export default function DocumentHistoryModal({
   const loadHistory = async () => {
     setIsLoading(true);
     try {
-      const records = await fetchGeneratedDocHistory({ docType: 'all', limitCount: 1000 });
+      const records = await fetchGeneratedDocHistory({
+        docType: 'all',
+        limitCount: 1000,
+        userEmail: effectiveEmail,
+        isSuperAdmin: effectiveIsSuperAdmin
+      });
       setHistoryRecords(records);
       setSelectedDocIds(new Set());
     } catch (e) {
@@ -165,7 +203,7 @@ export default function DocumentHistoryModal({
       setViewMode(defaultView);
       loadHistory();
     }
-  }, [isOpen, defaultFilter, defaultView]);
+  }, [isOpen, defaultFilter, defaultView, effectiveEmail, effectiveIsSuperAdmin]);
 
   useEffect(() => {
     const handleHistoryUpdate = () => {
@@ -173,7 +211,15 @@ export default function DocumentHistoryModal({
     };
     window.addEventListener('hss-doc-history-updated', handleHistoryUpdate);
     return () => window.removeEventListener('hss-doc-history-updated', handleHistoryUpdate);
-  }, [isOpen]);
+  }, [isOpen, effectiveEmail, effectiveIsSuperAdmin]);
+
+  // Standard Admin Scope: Only see their own documents
+  // Super Admin Scope: See all documents across all accounts
+  const scopedRecords = useMemo(() => {
+    const list = Array.isArray(historyRecords) ? historyRecords : [];
+    if (effectiveIsSuperAdmin) return list;
+    return list.filter(r => isRecordOwnedBy(r, effectiveEmail));
+  }, [historyRecords, effectiveIsSuperAdmin, effectiveEmail]);
 
   // Dynamic Category Counters across all four modules + admissions
   const categoryCounts = useMemo(() => {
@@ -184,7 +230,7 @@ export default function DocumentHistoryModal({
     let idcard = 0;
     let admission = 0;
 
-    historyRecords.forEach(r => {
+    scopedRecords.forEach(r => {
       if (isIdCardDoc(r)) {
         idcard++;
       } else if (isSanctionOrderDoc(r)) {
@@ -200,7 +246,7 @@ export default function DocumentHistoryModal({
       }
     });
 
-    const activeTotal = hideAdmissionForms ? (historyRecords.length - admission) : historyRecords.length;
+    const activeTotal = hideAdmissionForms ? (scopedRecords.length - admission) : scopedRecords.length;
 
     return {
       all: activeTotal,
@@ -211,11 +257,11 @@ export default function DocumentHistoryModal({
       idcard,
       admission
     };
-  }, [historyRecords, hideAdmissionForms]);
+  }, [scopedRecords, hideAdmissionForms]);
 
   // Filtered Records
   const filteredRecords = useMemo(() => {
-    let list = historyRecords;
+    let list = scopedRecords;
 
     // Hide admission forms in one go if hideAdmissionForms is active and moduleFilter is not specifically 'admission'
     if (hideAdmissionForms && moduleFilter !== 'admission') {
@@ -308,6 +354,26 @@ export default function DocumentHistoryModal({
   const handleSelectAllInCurrentCategory = () => {
     const ids = new Set(filteredRecords.map(r => r.id));
     setSelectedDocIds(ids);
+  };
+
+  // Super Admin Document Owner Reassignment Handlers
+  const handleOpenReassignSingle = (rec, e) => {
+    e?.stopPropagation();
+    setReassignTargetDocs([rec]);
+    setShowReassignModal(true);
+  };
+
+  const handleOpenReassignBulk = () => {
+    if (selectedDocIds.size === 0) return;
+    const selectedList = scopedRecords.filter(r => selectedDocIds.has(r.id));
+    if (selectedList.length === 0) return;
+    setReassignTargetDocs(selectedList);
+    setShowReassignModal(true);
+  };
+
+  const handleReassignSuccess = () => {
+    loadHistory();
+    setSelectedDocIds(new Set());
   };
 
   // Bulk Delete Execution
@@ -514,13 +580,28 @@ export default function DocumentHistoryModal({
                 <span className="text-[10px] font-mono bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 px-1.5 py-0.2 rounded-md font-bold">
                   {hideAdmissionForms && categoryCounts.admission > 0
                     ? `${categoryCounts.all} Saved (${categoryCounts.admission} Hidden)`
-                    : `${historyRecords.length} Saved`}
+                    : `${scopedRecords.length} Saved`}
                 </span>
+                {effectiveIsSuperAdmin ? (
+                  <span className="text-[9.5px] font-extrabold bg-amber-500/20 border border-amber-400/40 text-amber-200 px-1.5 py-0.2 rounded-md flex items-center gap-1">
+                    <Shield size={10} className="text-amber-300" />
+                    <span>Super Admin (All Records)</span>
+                  </span>
+                ) : (
+                  <span className="text-[9.5px] font-extrabold bg-teal-500/20 border border-teal-400/40 text-teal-200 px-1.5 py-0.2 rounded-md flex items-center gap-1">
+                    <UserCheck size={10} className="text-teal-300" />
+                    <span>My History ({effectiveEmail ? effectiveEmail.split('@')[0] : 'Admin'})</span>
+                  </span>
+                )}
               </div>
               <p className="text-[10.5px] text-indigo-200/80 font-medium">
-                {viewMode === 'catalog'
-                  ? 'Classified & chronological register across Letters, Certificates, Sanctions & ID Cards'
-                  : 'Immutable audit records for all printed, downloaded, and cloud-saved documents'}
+                {effectiveIsSuperAdmin
+                  ? (viewMode === 'catalog'
+                      ? 'Master institutional outward register across all administrative accounts'
+                      : 'Global cloud archive across all staff • Super Admin can move any document into another admin\'s history')
+                  : (viewMode === 'catalog'
+                      ? `Personal outward register for documents issued by ${effectiveEmail || 'your account'}`
+                      : `Personal audit archive for documents generated by ${effectiveEmail || 'your account'}`)}
               </p>
             </div>
           </div>
@@ -577,11 +658,21 @@ export default function DocumentHistoryModal({
         {viewMode === 'catalog' ? (
           <div className="flex-1 overflow-hidden flex flex-col">
             <OfficialDocumentCatalogView
-              records={historyRecords}
+              records={scopedRecords}
               isLoading={isLoading}
               onRefresh={loadHistory}
               onPreviewRecord={(rec) => setPreviewDoc(rec)}
               onClose={onClose}
+              currentUser={currentUser || currentUserState}
+              isSuperAdmin={effectiveIsSuperAdmin}
+              onReassignRecord={(rec) => {
+                setReassignTargetDocs([rec]);
+                setShowReassignModal(true);
+              }}
+              onBulkReassign={(recs) => {
+                setReassignTargetDocs(recs);
+                setShowReassignModal(true);
+              }}
             />
           </div>
         ) : (
@@ -812,6 +903,17 @@ export default function DocumentHistoryModal({
                 >
                   Clear Selection
                 </button>
+                {effectiveIsSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleOpenReassignBulk}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all"
+                    title="Move selected documents into another admin's history"
+                  >
+                    <ArrowRightLeft size={12} />
+                    <span>Move to Admin ({selectedDocIds.size})</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowBulkDeleteConfirm(true)}
@@ -920,10 +1022,19 @@ export default function DocumentHistoryModal({
                             <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                               {rec.title}
                             </h4>
-                            <div className="text-[10px] text-slate-500 font-semibold truncate flex items-center gap-1.5">
+                            <div className="text-[10px] text-slate-500 font-semibold truncate flex items-center gap-1.5 flex-wrap">
                               <span>Ref: <strong className="font-mono text-slate-700 dark:text-slate-300">{rec.refNo || '—'}</strong></span>
                               <span>•</span>
                               <span>{rec.dateStr}</span>
+                              {effectiveIsSuperAdmin && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-[9.5px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 px-1 py-0.2 rounded inline-flex items-center gap-0.5" title={`Assigned Admin: ${rec.userEmail || rec.author || rec.createdBy || 'Principal (Admin)'}`}>
+                                    <User size={8.5} />
+                                    <span>{rec.userEmail ? rec.userEmail.split('@')[0] : (rec.author || rec.createdBy || 'Admin')}</span>
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1054,6 +1165,19 @@ export default function DocumentHistoryModal({
                           </button>
                         )}
 
+                        {/* Super Admin: Move / Reassign Document Owner */}
+                        {effectiveIsSuperAdmin && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleOpenReassignSingle(rec, e)}
+                            className="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer border border-indigo-200 dark:border-indigo-800 transition-all"
+                            title="Move this document into another admin's history"
+                          >
+                            <ArrowRightLeft size={11} />
+                            <span>Move</span>
+                          </button>
+                        )}
+
                         {/* Delete Record Button */}
                         <button
                           type="button"
@@ -1147,6 +1271,19 @@ export default function DocumentHistoryModal({
                   >
                     <FileEdit size={12} />
                     <span>Load as Draft</span>
+                  </button>
+                )}
+                {effectiveIsSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      handleOpenReassignSingle(previewDoc, e);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Move this document into another admin's history"
+                  >
+                    <ArrowRightLeft size={12} />
+                    <span>Move to Admin</span>
                   </button>
                 )}
                 <button
@@ -1334,6 +1471,17 @@ export default function DocumentHistoryModal({
           </div>
         </div>
       )}
+
+      {/* ── Super Admin Document Owner Reassignment Modal ── */}
+      <ReassignDocOwnerModal
+        isOpen={showReassignModal}
+        onClose={() => {
+          setShowReassignModal(false);
+          setReassignTargetDocs([]);
+        }}
+        targetDocs={reassignTargetDocs}
+        onSuccess={handleReassignSuccess}
+      />
 
     </div>
   );

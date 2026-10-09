@@ -265,6 +265,8 @@ export async function saveGeneratedDocToHistory({
   actionType = 'Saved to Cloud',
   templateId = '',
   templateName = '',
+  userEmail = '',
+  author = '',
   extraData = {}
 }) {
   const nowIso = new Date().toISOString();
@@ -367,29 +369,38 @@ export async function saveGeneratedDocToHistory({
   const currentName = currentAuthUser?.displayName || (currentEmail ? currentEmail.split('@')[0] : '');
   const originalCreatedAt = existingDoc?.createdAt || nowIso;
 
-  const rawPayload = {
-    ...(existingDoc || {}),
-    id,
-    docType, // 'bonafide' | 'letter' | 'discharge'
-    title: normalizedTitle,
-    subject: resolvedSubject,
-    refNo: normalizedRefNo,
-    dateStr: normalizedDateStr,
-    recipientOrStudent: normalizedRecipient,
-    studentDetails: studentDetails && typeof studentDetails === 'object' ? studentDetails : (existingDoc?.studentDetails || null),
-    bodyHtml: String(bodyHtml || '').trim(),
-    actionType: String(actionType || 'Saved to Cloud').trim(),
-    templateId: String(templateId || existingDoc?.templateId || '').trim(),
-    templateName: String(templateName || existingDoc?.templateName || '').trim(),
-    createdBy: existingDoc?.createdBy || currentEmail || currentName || 'Principal (Admin)',
-    userEmail: existingDoc?.userEmail || currentEmail || '',
-    author: existingDoc?.author || currentName || currentEmail || 'Principal (Admin)',
-    extraData: { ...(existingDoc?.extraData || {}), ...cleanExtraData },
-    createdAt: originalCreatedAt,
-    updatedAt: nowIso,
-    lastPrintedAt: actionType.toLowerCase().includes('print') ? nowIso : (existingDoc?.lastPrintedAt || null),
-    immutable: true
-  };
+  const effectiveUserEmail = String(userEmail || existingDoc?.userEmail || currentEmail || '').trim().toLowerCase();
+  const effectiveAuthor = String(author || existingDoc?.author || currentName || currentEmail || 'Principal (Admin)').trim();
+  if (effectiveUserEmail) {
+    cleanExtraData.userEmail = cleanExtraData.userEmail || effectiveUserEmail;
+  }
+  if (effectiveAuthor) {
+    cleanExtraData.author = cleanExtraData.author || effectiveAuthor;
+  }
+
+    const rawPayload = {
+      ...(existingDoc || {}),
+      id,
+      docType, // 'bonafide' | 'letter' | 'discharge'
+      title: normalizedTitle,
+      subject: resolvedSubject,
+      refNo: normalizedRefNo,
+      dateStr: normalizedDateStr,
+      recipientOrStudent: normalizedRecipient,
+      studentDetails: studentDetails && typeof studentDetails === 'object' ? studentDetails : (existingDoc?.studentDetails || null),
+      bodyHtml: String(bodyHtml || '').trim(),
+      actionType: String(actionType || 'Saved to Cloud').trim(),
+      templateId: String(templateId || existingDoc?.templateId || '').trim(),
+      templateName: String(templateName || existingDoc?.templateName || '').trim(),
+      createdBy: existingDoc?.createdBy || effectiveUserEmail || currentName || 'Principal (Admin)',
+      userEmail: effectiveUserEmail,
+      author: effectiveAuthor,
+      extraData: { ...(existingDoc?.extraData || {}), ...cleanExtraData },
+      createdAt: originalCreatedAt,
+      updatedAt: nowIso,
+      lastPrintedAt: actionType.toLowerCase().includes('print') ? nowIso : (existingDoc?.lastPrintedAt || null),
+      immutable: true
+    };
 
   const recordPayload = sanitizeFirestoreData(rawPayload);
 
@@ -414,16 +425,56 @@ export async function saveGeneratedDocToHistory({
 }
 
 /**
+ * Checks whether an archived document record is authored by or belongs to a given user/admin.
+ * 
+ * @param {object} record
+ * @param {string} userEmail
+ * @returns {boolean}
+ */
+export function isRecordOwnedBy(record, userEmail) {
+  if (!record || !userEmail) return false;
+  const targetEmail = String(userEmail).trim().toLowerCase();
+  if (!targetEmail) return false;
+  const targetPrefix = targetEmail.includes('@') ? targetEmail.split('@')[0] : targetEmail;
+
+  const candidates = [
+    record.userEmail,
+    record.extraData?.userEmail,
+    record.createdBy,
+    record.author,
+    record.extraData?.author,
+    record.submittedByEmail,
+    record.submittedBy
+  ]
+    .filter(Boolean)
+    .map(c => String(c).trim().toLowerCase());
+
+  for (const c of candidates) {
+    if (c === targetEmail) return true;
+    if (c.includes('@') && c === targetEmail) return true;
+    if (c === targetPrefix) return true;
+  }
+
+  return false;
+}
+
+/**
  * Fetch archived documents from Cloud Firestore and local storage cache.
+ * When called for a Standard Admin, only their owned/assigned documents are returned.
+ * Super Admin receives the complete unified historical register.
  * 
  * @param {object} [options]
  * @param {'all' | 'bonafide' | 'letter' | 'certificate'} [options.docType='all']
  * @param {number} [options.limitCount=500]
+ * @param {string} [options.userEmail='']
+ * @param {boolean} [options.isSuperAdmin=false]
  * @returns {Promise<Array<object>>}
  */
 export async function fetchGeneratedDocHistory({
   docType = 'all',
-  limitCount = 500
+  limitCount = 500,
+  userEmail = '',
+  isSuperAdmin = false
 } = {}) {
   let cachedList = [];
 
@@ -499,7 +550,10 @@ export async function fetchGeneratedDocHistory({
 
       localStorage.setItem(LOCAL_HISTORY_CACHE_KEY, JSON.stringify(merged));
       
-      return filterByDocType(merged, docType);
+      const scopedList = (!isSuperAdmin && userEmail)
+        ? merged.filter(item => isRecordOwnedBy(item, userEmail))
+        : merged;
+      return filterByDocType(scopedList, docType);
     }
   } catch (err) {
     console.warn('Firestore history fetch error (using local cache):', err);
@@ -511,7 +565,10 @@ export async function fetchGeneratedDocHistory({
     return timeB - timeA;
   });
   const sanitizedCached = deduplicateSameRefAndDate(sortedCached);
-  return filterByDocType(sanitizedCached, docType);
+  const scopedCached = (!isSuperAdmin && userEmail)
+    ? sanitizedCached.filter(item => isRecordOwnedBy(item, userEmail))
+    : sanitizedCached;
+  return filterByDocType(scopedCached, docType);
 }
 
 /**
@@ -640,3 +697,151 @@ export async function deleteMultipleGeneratedDocsFromHistory(docIds) {
     return { success: false, error: err.message, deletedCount: 0 };
   }
 }
+
+/**
+ * Super Admin action: Reassign / Move an individual document record into another admin's history.
+ * 
+ * @param {string} docId - ID of document to reassign
+ * @param {string} targetAdminEmail - Target admin's email
+ * @param {string} [targetAdminName] - Target admin's display name
+ * @returns {Promise<{ success: boolean }>}
+ */
+export async function reassignGeneratedDocOwner(docId, targetAdminEmail, targetAdminName = '') {
+  if (!docId || !targetAdminEmail) {
+    throw new Error('Document ID and target admin email are required.');
+  }
+
+  const cleanEmail = String(targetAdminEmail).trim().toLowerCase();
+  const cleanName = String(targetAdminName || cleanEmail.split('@')[0]).trim();
+  const nowIso = new Date().toISOString();
+
+  // 1. Update in Cloud Firestore
+  try {
+    const docRef = doc(db, COLLECTION_DOC_HISTORY, docId);
+    await setDoc(docRef, {
+      userEmail: cleanEmail,
+      createdBy: cleanEmail,
+      author: cleanName,
+      updatedAt: nowIso,
+      extraData: {
+        userEmail: cleanEmail,
+        author: cleanName
+      }
+    }, { merge: true });
+  } catch (err) {
+    console.error('Failed to update document owner in Firestore:', err);
+    throw err;
+  }
+
+  // 2. Update local cache
+  try {
+    const raw = localStorage.getItem(LOCAL_HISTORY_CACHE_KEY);
+    if (raw) {
+      const cached = JSON.parse(raw) || [];
+      const updated = cached.map(item => {
+        if (item.id === docId) {
+          return {
+            ...item,
+            userEmail: cleanEmail,
+            createdBy: cleanEmail,
+            author: cleanName,
+            updatedAt: nowIso,
+            extraData: {
+              ...(item.extraData || {}),
+              userEmail: cleanEmail,
+              author: cleanName
+            }
+          };
+        }
+        return item;
+      });
+      localStorage.setItem(LOCAL_HISTORY_CACHE_KEY, JSON.stringify(updated));
+    }
+  } catch (e) {
+    console.warn('Local cache update error during reassignment:', e);
+  }
+
+  // 3. Dispatch global event so all open views immediately refresh
+  window.dispatchEvent(new CustomEvent('hss-doc-history-updated', {
+    detail: { docId, reallocatedTo: cleanEmail }
+  }));
+
+  return { success: true };
+}
+
+/**
+ * Super Admin action: Bulk reassign / move multiple document records into another admin's history.
+ * 
+ * @param {Array<string>} docIds - IDs of documents to reassign
+ * @param {string} targetAdminEmail - Target admin's email
+ * @param {string} [targetAdminName] - Target admin's display name
+ * @returns {Promise<{ success: boolean, count: number }>}
+ */
+export async function reassignMultipleGeneratedDocsOwner(docIds, targetAdminEmail, targetAdminName = '') {
+  if (!Array.isArray(docIds) || docIds.length === 0 || !targetAdminEmail) {
+    throw new Error('Document IDs and target admin email are required.');
+  }
+
+  const cleanEmail = String(targetAdminEmail).trim().toLowerCase();
+  const cleanName = String(targetAdminName || cleanEmail.split('@')[0]).trim();
+  const nowIso = new Date().toISOString();
+
+  // 1. Batch update in Cloud Firestore
+  try {
+    const batch = writeBatch(db);
+    docIds.forEach(id => {
+      const docRef = doc(db, COLLECTION_DOC_HISTORY, id);
+      batch.set(docRef, {
+        userEmail: cleanEmail,
+        createdBy: cleanEmail,
+        author: cleanName,
+        updatedAt: nowIso,
+        extraData: {
+          userEmail: cleanEmail,
+          author: cleanName
+        }
+      }, { merge: true });
+    });
+    await batch.commit();
+  } catch (err) {
+    console.error('Failed to batch reassign in Firestore:', err);
+    throw err;
+  }
+
+  // 2. Update local cache
+  try {
+    const raw = localStorage.getItem(LOCAL_HISTORY_CACHE_KEY);
+    if (raw) {
+      const cached = JSON.parse(raw) || [];
+      const idSet = new Set(docIds);
+      const updated = cached.map(item => {
+        if (idSet.has(item.id)) {
+          return {
+            ...item,
+            userEmail: cleanEmail,
+            createdBy: cleanEmail,
+            author: cleanName,
+            updatedAt: nowIso,
+            extraData: {
+              ...(item.extraData || {}),
+              userEmail: cleanEmail,
+              author: cleanName
+            }
+          };
+        }
+        return item;
+      });
+      localStorage.setItem(LOCAL_HISTORY_CACHE_KEY, JSON.stringify(updated));
+    }
+  } catch (e) {
+    console.warn('Local cache batch update error:', e);
+  }
+
+  // 3. Dispatch global update event
+  window.dispatchEvent(new CustomEvent('hss-doc-history-updated', {
+    detail: { docIds, reallocatedTo: cleanEmail }
+  }));
+
+  return { success: true, count: docIds.length };
+}
+

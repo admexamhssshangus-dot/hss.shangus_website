@@ -10,10 +10,15 @@ import {
   ArrowUpDown, ChevronDown, CheckCircle2, Award, FileText,
   CreditCard, Contact, RotateCcw, X, Eye, EyeOff, Download, IndianRupee,
   Layers, Check, ExternalLink, RefreshCw, FileBadge, User, Hash,
-  Clock, ShieldAlert, Sparkles, Building2, HelpCircle, CheckSquare, Square
+  Clock, ShieldAlert, Sparkles, Building2, HelpCircle, CheckSquare, Square,
+  UserCheck, ArrowRightLeft
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { auth } from '../../services/firebase';
+import { isSuperAdminEmail } from '../../utils/authRoles';
+import { isRecordOwnedBy } from '../../services/docHistoryService';
 import { showToast } from '../../components/common/GlobalToast';
+import ReassignDocOwnerModal from './ReassignDocOwnerModal';
 import {
   isDischargeDoc,
   isLetterDoc,
@@ -452,8 +457,43 @@ export default function OfficialDocumentCatalogView({
   onClose = null,
   onPreviewRecord = null,
   onRefresh = null,
-  isLoading = false
+  isLoading = false,
+  currentUser = null,
+  isSuperAdmin = false,
+  onReassignRecord = null,
+  onBulkReassign = null
 }) {
+  const authUser = auth?.currentUser;
+  const currentEmail = (currentUser?.email || authUser?.email || '').toLowerCase().trim();
+  const effectiveIsSuperAdmin = Boolean(
+    isSuperAdmin ||
+    currentUser?.role === 'SuperAdmin' ||
+    currentUser?.isSuperAdmin ||
+    isSuperAdminEmail(currentEmail)
+  );
+
+  // Standalone Reassign Modal State (for when invoked directly)
+  const [internalReassignDocs, setInternalReassignDocs] = useState([]);
+  const [isInternalReassignOpen, setIsInternalReassignOpen] = useState(false);
+
+  const handleTriggerReassign = (rec) => {
+    if (onReassignRecord) {
+      onReassignRecord(rec);
+    } else {
+      setInternalReassignDocs([rec]);
+      setIsInternalReassignOpen(true);
+    }
+  };
+
+  const handleTriggerBulkReassign = (recs) => {
+    if (onBulkReassign) {
+      onBulkReassign(recs);
+    } else {
+      setInternalReassignDocs(recs);
+      setIsInternalReassignOpen(true);
+    }
+  };
+
   // ─── Filter & View States ───
   const [timeRange, setTimeRange] = useState('all'); // 'all' (default) | academic_2025_26 | year_2026 | etc.
   const [customStartDate, setCustomStartDate] = useState('');
@@ -551,16 +591,21 @@ export default function OfficialDocumentCatalogView({
     }
   }, [timeRange, customStartDate, customEndDate]);
 
-  // ─── Pre-filtered by Time Range for Metric Counting ───
-  const timeFilteredRecords = useMemo(() => {
+  // ─── Pre-filtered by User Scope and Time Range for Metric Counting ───
+  const scopedBaseRecords = useMemo(() => {
     const list = Array.isArray(records) ? records : [];
+    if (effectiveIsSuperAdmin) return list;
+    return list.filter(r => isRecordOwnedBy(r, currentEmail));
+  }, [records, effectiveIsSuperAdmin, currentEmail]);
+
+  const timeFilteredRecords = useMemo(() => {
     const { start, end } = rangeBounds;
-    return list.filter(r => {
+    return scopedBaseRecords.filter(r => {
       const d = parseRecordDate(r);
       const t = d.getTime();
       return t >= start.getTime() && t <= end.getTime();
     });
-  }, [records, rangeBounds]);
+  }, [scopedBaseRecords, rangeBounds]);
 
   // ─── Total Admission Forms Count in Period ───
   const totalAdmissionFormsCount = useMemo(() => {
@@ -1354,19 +1399,28 @@ export default function OfficialDocumentCatalogView({
                 <User size={12} className="text-teal-600" />
                 Account:
               </span>
-              <select
-                value={accountFilter}
-                onChange={(e) => setAccountFilter(e.target.value)}
-                className="h-7 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-2xs cursor-pointer max-w-[170px] truncate"
-                title="Filter by generating staff account / issuer"
-              >
-                <option value="all">All Accounts ({activeTimeFilteredRecords.length})</option>
-                {availableAccounts.map(item => (
-                  <option key={item.account} value={item.account}>
-                    {formatAccountDisplay(item.account)} ({item.count})
-                  </option>
-                ))}
-              </select>
+              {effectiveIsSuperAdmin ? (
+                <select
+                  value={accountFilter}
+                  onChange={(e) => setAccountFilter(e.target.value)}
+                  className="h-7 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-2xs cursor-pointer max-w-[170px] truncate"
+                  title="Filter by generating staff account / issuer"
+                >
+                  <option value="all">All Accounts ({activeTimeFilteredRecords.length})</option>
+                  {availableAccounts.map(item => (
+                    <option key={item.account} value={item.account}>
+                      {formatAccountDisplay(item.account)} ({item.count})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span
+                  className="h-7 px-2 text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-lg text-indigo-700 dark:text-indigo-300 flex items-center gap-1 max-w-[170px] truncate shadow-2xs"
+                  title={`Viewing documents generated by your account: ${currentEmail}`}
+                >
+                  {formatAccountDisplay(currentEmail) || 'My Account'} ({activeTimeFilteredRecords.length})
+                </span>
+              )}
             </div>
 
             {/* 1-Click Hide/Unhide Admissions in One Go */}
@@ -1634,12 +1688,26 @@ export default function OfficialDocumentCatalogView({
 
         {/* Row 4 (Conditional): Floating Selection Banner when rows are selected */}
         {selectedDocIds.size > 0 && (
-          <div className="flex items-center justify-between gap-2 px-2.5 py-1 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 rounded-lg text-xs font-bold text-teal-900 dark:text-teal-200">
+          <div className="flex items-center justify-between gap-2 px-2.5 py-1 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 rounded-lg text-xs font-bold text-teal-900 dark:text-teal-200 flex-wrap">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 size={13} className="text-teal-600" />
               <span>{selectedDocIds.size} row{selectedDocIds.size === 1 ? '' : 's'} checked for Selective Export & Print</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 ml-auto">
+              {effectiveIsSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const selectedRecs = catalogRecords.filter((r, idx) => selectedDocIds.has(getRowId(r, idx)));
+                    handleTriggerBulkReassign(selectedRecs);
+                  }}
+                  className="px-2.5 py-0.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[10.5px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-98"
+                  title="Move all selected documents into another admin's history"
+                >
+                  <UserCheck size={12} />
+                  <span>Move to Admin ({selectedDocIds.size})</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleSelectAllVisible}
@@ -1698,6 +1766,8 @@ export default function OfficialDocumentCatalogView({
                   selectedDocIds={selectedDocIds}
                   onToggleRow={handleToggleRow}
                   onToggleSelectRecords={handleToggleSelectRecords}
+                  isSuperAdmin={effectiveIsSuperAdmin}
+                  onReassignRecord={handleTriggerReassign}
                 />
               </div>
             ))}
@@ -1714,10 +1784,25 @@ export default function OfficialDocumentCatalogView({
               isAllSelected={isAllVisibleSelected}
               isSomeSelected={isSomeVisibleSelected}
               onToggleSelectAll={handleToggleSelectAll}
+              isSuperAdmin={effectiveIsSuperAdmin}
+              onReassignRecord={handleTriggerReassign}
             />
           </div>
         )}
       </div>
+
+      {/* Reassign Document Owner Modal (Super Admin Only) */}
+      {effectiveIsSuperAdmin && (
+        <ReassignDocOwnerModal
+          isOpen={isInternalReassignOpen}
+          targetDocs={internalReassignDocs}
+          onClose={() => setIsInternalReassignOpen(false)}
+          onSuccess={() => {
+            onRefresh?.();
+            setSelectedDocIds(new Set());
+          }}
+        />
+      )}
 
       {/* ─── FOOTER BAR: SUMMARY METRICS & AUDIT INFO ─── */}
       <div className="flex-none bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 px-3 py-1.5 flex items-center justify-between text-[11px] text-slate-500 font-medium">
@@ -1748,7 +1833,9 @@ function RegisterTable({
   onToggleSelectRecords,
   isAllSelected = null,
   isSomeSelected = null,
-  onToggleSelectAll = null
+  onToggleSelectAll = null,
+  isSuperAdmin = false,
+  onReassignRecord = null
 }) {
   // If master selection props not provided (e.g. in classified mode), compute group-level selection
   const groupIds = useMemo(() => records.map((r, idx) => getRowId(r, idx)), [records]);
@@ -1789,7 +1876,7 @@ function RegisterTable({
             <th className="py-1.5 px-2.5 min-w-[170px]">Issued To / Recipient</th>
             <th className="py-1.5 px-2 w-28">Generated By</th>
             <th className="py-1.5 px-2 w-18 text-center">Status</th>
-            <th className="py-1.5 px-1.5 w-10 text-center">Action</th>
+            <th className={`py-1.5 px-1.5 ${isSuperAdmin ? 'w-16' : 'w-10'} text-center`}>Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
@@ -1912,14 +1999,26 @@ function RegisterTable({
 
                 {/* Action */}
                 <td className="py-1.5 px-1.5 text-center" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    onClick={() => onPreviewRecord?.(rec)}
-                    className="p-1 rounded hover:bg-teal-100 dark:hover:bg-slate-700 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer"
-                    title="View Document Snapshot"
-                  >
-                    <Eye size={12} />
-                  </button>
+                  <div className="flex items-center justify-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onPreviewRecord?.(rec)}
+                      className="p-1 rounded hover:bg-teal-100 dark:hover:bg-slate-700 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer"
+                      title="View Document Snapshot"
+                    >
+                      <Eye size={12} />
+                    </button>
+                    {isSuperAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => onReassignRecord?.(rec)}
+                        className="p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-950/70 text-indigo-700 dark:text-indigo-400 transition-colors cursor-pointer"
+                        title="Move document into another admin's history"
+                      >
+                        <UserCheck size={12} />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             );
