@@ -644,14 +644,14 @@ function StudioMultiSelectDropdown({
                     />
                     <span className="truncate text-slate-800 dark:text-slate-200">{opt.label}</span>
                   </div>
-                  {opt.isLoading ? (
+                  {opt.isLoaded && opt.count !== null && opt.count !== undefined ? (
+                    <span className="text-[8.5px] font-mono font-bold text-slate-400 shrink-0 ml-1">
+                      {opt.count}
+                    </span>
+                  ) : opt.isLoading ? (
                     <span className="flex items-center gap-1 text-[8px] font-bold text-teal-600 dark:text-teal-400 shrink-0 ml-1">
                       <RefreshCw size={8} className="animate-spin shrink-0" />
                       <span>Loading...</span>
-                    </span>
-                  ) : opt.count !== undefined ? (
-                    <span className="text-[8.5px] font-mono font-bold text-slate-400 shrink-0 ml-1">
-                      {opt.count}
                     </span>
                   ) : (
                     <span className="text-[7.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-tight shrink-0 ml-1">
@@ -1008,9 +1008,15 @@ export default function StudentCertificateStudioView({
   useEffect(() => {
     if (!selectedSessions || selectedSessions.length === 0) return;
 
+    const activeGlobalSession = (getCurrentAcademicSession() || '2025-26').trim().toLowerCase();
+
     const pendingSessions = selectedSessions.filter(sess => {
       if (!sess || sess === '__NONE__' || sess === 'ALL') return false;
       const clean = sess.trim().toLowerCase();
+      // Current academic session is already loaded by default across all portal modules
+      if (clean === activeGlobalSession || clean.includes(activeGlobalSession) || activeGlobalSession.includes(clean)) {
+        return false;
+      }
       const isAlreadyInDir = unifiedStudentDirectory.some(st => {
         const s = (st.session || '').trim().toLowerCase();
         return s === clean || s.includes(clean) || clean.includes(s);
@@ -1053,13 +1059,13 @@ export default function StudentCertificateStudioView({
         showToast(`Failed to load records for Session ${targetSession}`, 'error');
       } finally {
         inFlightSessionsRef.current.delete(clean);
-        if (!isCancelled) {
-          setLoadingSessions(prev => {
-            const next = new Set(prev);
-            next.delete(targetSession);
-            return next;
-          });
-        }
+        // Always clean up loading state so the session never remains stuck with a spinner
+        setLoadingSessions(prev => {
+          if (!prev.has(targetSession)) return prev;
+          const next = new Set(prev);
+          next.delete(targetSession);
+          return next;
+        });
       }
     });
 

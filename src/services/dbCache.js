@@ -605,7 +605,7 @@ export async function getAdmissionsBySession(options = {}) {
     const cachedAdm = getCachedCollectionSync('admissions');
     if (Array.isArray(cachedAdm) && cachedAdm.length > 0) {
       const sessionMatches = cachedAdm.filter(st => isStudentInSessionFast(st, cleanSession));
-      if (sessionMatches.length > 0 || isCurrentSession) {
+      if (sessionMatches.length > 0) {
         admissionsSessionCache.set(cleanSession, sessionMatches);
         fullyHydratedAdmissionSessions.add(cleanSession);
         return sessionMatches;

@@ -4104,6 +4104,17 @@ export default function PracticalsPage() {
   }, []);
 
   const handleApplyQuickFill = useCallback((targetScope = 'selected', customVal = null) => {
+    if (!isSubmissionOpen || !isSubmissionOpenForCurrentClass) {
+      triggerNotification({
+        type: 'error',
+        title: 'Submissions Locked',
+        badge: 'Admin Lock',
+        text: `Practical and internal marks submission is currently closed for Class ${selectedClass} across all sessions by administration.`,
+        primaryButtonText: 'Dismiss'
+      });
+      return;
+    }
+
     const rawVal = String(customVal !== null ? customVal : quickFillMark).trim().toUpperCase();
 
     if (targetScope !== 'clear') {
@@ -5057,13 +5068,13 @@ export default function PracticalsPage() {
                     <button
                       type="button"
                       onClick={() => handleApplyQuickFill('empty')}
-                      disabled={emptyCount === 0 || !quickFillMark.trim()}
+                      disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || emptyCount === 0 || !quickFillMark.trim()}
                       className={`portal-compact-btn !h-7 !min-h-[28px] !max-h-[28px] px-2.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
-                        emptyCount > 0 && quickFillMark.trim()
+                        isSubmissionOpen && isSubmissionOpenForCurrentClass && emptyCount > 0 && quickFillMark.trim()
                           ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer active:scale-95'
                           : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                       }`}
-                      title="Fill all students who currently have empty marks (preserves already-entered marks)"
+                      title={!isSubmissionOpen || !isSubmissionOpenForCurrentClass ? 'Submissions locked for this class' : 'Fill all students who currently have empty marks (preserves already-entered marks)'}
                     >
                       <Zap size={12} />
                       <span>Fill Empty</span>
@@ -5076,13 +5087,13 @@ export default function PracticalsPage() {
                     <button
                       type="button"
                       onClick={() => handleApplyQuickFill('selected')}
-                      disabled={selectedKeys.size === 0 || !quickFillMark.trim()}
+                      disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || selectedKeys.size === 0 || !quickFillMark.trim()}
                       className={`portal-compact-btn !h-7 !min-h-[28px] !max-h-[28px] px-2.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
-                        selectedKeys.size > 0 && quickFillMark.trim()
+                        isSubmissionOpen && isSubmissionOpenForCurrentClass && selectedKeys.size > 0 && quickFillMark.trim()
                           ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95'
                           : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                       }`}
-                      title="Fill all selected student rows"
+                      title={!isSubmissionOpen || !isSubmissionOpenForCurrentClass ? 'Submissions locked for this class' : 'Fill all selected student rows'}
                     >
                       <Check size={12} />
                       <span>Fill Selected</span>
@@ -5107,13 +5118,13 @@ export default function PracticalsPage() {
                           }
                         });
                       }}
-                      disabled={displayedStudents.length === 0 || !quickFillMark.trim()}
+                      disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || displayedStudents.length === 0 || !quickFillMark.trim()}
                       className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
-                        displayedStudents.length > 0 && quickFillMark.trim()
+                        isSubmissionOpen && isSubmissionOpenForCurrentClass && displayedStudents.length > 0 && quickFillMark.trim()
                           ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-xs cursor-pointer active:scale-95'
                           : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                       }`}
-                      title="Fill mark for every student in the current view"
+                      title={!isSubmissionOpen || !isSubmissionOpenForCurrentClass ? 'Submissions locked for this class' : 'Fill mark for every student in the current view'}
                     >
                       <Zap size={13} />
                       <span>Fill All ({displayedStudents.length})</span>
@@ -5136,8 +5147,13 @@ export default function PracticalsPage() {
                           }
                         });
                       }}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 cursor-pointer transition-colors flex items-center gap-1 active:scale-95"
-                      title="Clear marks"
+                      disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || displayedStudents.length === 0}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1 ${
+                        isSubmissionOpen && isSubmissionOpenForCurrentClass && displayedStudents.length > 0
+                          ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-800 cursor-pointer active:scale-95'
+                          : 'text-slate-400 border-slate-200 dark:border-slate-800 cursor-not-allowed opacity-60'
+                      }`}
+                      title={!isSubmissionOpen || !isSubmissionOpenForCurrentClass ? 'Submissions locked for this class' : 'Clear marks'}
                     >
                       <X size={13} />
                       <span>Clear {selectedKeys.size > 0 ? `(${selectedKeys.size})` : 'All'}</span>
@@ -5310,9 +5326,9 @@ export default function PracticalsPage() {
                         handleApplyQuickFill('empty');
                         setShowQuickFill(false);
                       }}
-                      disabled={emptyCount === 0 || !quickFillMark.trim()}
+                      disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || emptyCount === 0 || !quickFillMark.trim()}
                       className={`py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-98 ${
-                        emptyCount > 0 && quickFillMark.trim()
+                        isSubmissionOpen && isSubmissionOpenForCurrentClass && emptyCount > 0 && quickFillMark.trim()
                           ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed border border-slate-200 dark:border-slate-700'
                       }`}
@@ -5328,9 +5344,9 @@ export default function PracticalsPage() {
                         handleApplyQuickFill('selected');
                         setShowQuickFill(false);
                       }}
-                      disabled={selectedKeys.size === 0 || !quickFillMark.trim()}
+                      disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || selectedKeys.size === 0 || !quickFillMark.trim()}
                       className={`py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-98 ${
-                        selectedKeys.size > 0 && quickFillMark.trim()
+                        isSubmissionOpen && isSubmissionOpenForCurrentClass && selectedKeys.size > 0 && quickFillMark.trim()
                           ? 'bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed border border-slate-200 dark:border-slate-700'
                       }`}
@@ -5356,9 +5372,9 @@ export default function PracticalsPage() {
                           }
                         });
                       }}
-                      disabled={displayedStudents.length === 0 || !quickFillMark.trim()}
+                      disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || displayedStudents.length === 0 || !quickFillMark.trim()}
                       className={`py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-98 ${
-                        displayedStudents.length > 0 && quickFillMark.trim()
+                        isSubmissionOpen && isSubmissionOpenForCurrentClass && displayedStudents.length > 0 && quickFillMark.trim()
                           ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed border border-slate-200 dark:border-slate-700'
                       }`}
@@ -5385,7 +5401,12 @@ export default function PracticalsPage() {
                           }
                         });
                       }}
-                      className="py-2.5 px-3 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 flex items-center justify-center gap-1 active:scale-98 cursor-pointer"
+                      disabled={!isSubmissionOpen || !isSubmissionOpenForCurrentClass || displayedStudents.length === 0}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1 transition-all ${
+                        isSubmissionOpen && isSubmissionOpenForCurrentClass && displayedStudents.length > 0
+                          ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border-rose-200 dark:border-rose-800 cursor-pointer active:scale-98'
+                          : 'text-slate-400 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-60'
+                      }`}
                     >
                       <X size={14} />
                       <span>Clear {selectedKeys.size > 0 ? `(${selectedKeys.size})` : 'All'}</span>
