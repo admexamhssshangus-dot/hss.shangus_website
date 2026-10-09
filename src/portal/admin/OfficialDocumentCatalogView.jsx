@@ -4,13 +4,13 @@
 // Official Letters, Certificates, Sanction Orders & ID Cards.
 // =================================================================
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   BookOpen, Calendar, Printer, FileSpreadsheet, Search, Filter,
   ArrowUpDown, ChevronDown, CheckCircle2, Award, FileText,
   CreditCard, Contact, RotateCcw, X, Eye, Download, IndianRupee,
   Layers, Check, ExternalLink, RefreshCw, FileBadge, User, Hash,
-  Clock, ShieldAlert, Sparkles, Building2, HelpCircle
+  Clock, ShieldAlert, Sparkles, Building2, HelpCircle, CheckSquare, Square
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { showToast } from '../../components/common/GlobalToast';
@@ -126,6 +126,165 @@ export const getRecordClassification = (r) => {
     badgeBg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700',
     icon: FileText
   };
+};
+
+// ─── Section Configuration & Section Inference ───
+export const SECTION_CONFIG = {
+  all: {
+    key: 'all',
+    label: 'All Sections',
+    shortLabel: 'All Sections',
+    code: 'ALL',
+    badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+  },
+  accounts: {
+    key: 'accounts',
+    label: 'Accounts & Finance',
+    shortLabel: 'Accounts',
+    code: 'ACCT',
+    badgeClass: 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+  },
+  adms_exams: {
+    key: 'adms_exams',
+    label: 'Admissions & Examinations',
+    shortLabel: 'Adms & Exams',
+    code: 'EXAM',
+    badgeClass: 'bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+  },
+  custom: {
+    key: 'custom',
+    label: 'General / Custom Administration',
+    shortLabel: 'General / Custom',
+    code: 'ADMIN',
+    badgeClass: 'bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800'
+  }
+};
+
+/**
+ * Accurately categorizes any document into institutional sections:
+ * - accounts: Mutual Benefit Fund, Fee distribution, financial sanctions, accounts letters
+ * - adms_exams: Bonafide & Character certificates, Discharge, Admissions, ID Cards, JKBOSE Exam correspondence
+ * - custom: General administration, Directorate/CEO covering letters, authority delegations, staff orders
+ */
+export const inferRecordSection = (r) => {
+  if (!r) return 'custom';
+
+  // 1. Sanctions & MBF are always Accounts
+  if (isSanctionOrderDoc(r)) return 'accounts';
+
+  // 2. Student Certificates, Admissions, and ID Cards are always Admissions & Exams
+  if (isBonafideDoc(r) || isDischargeDoc(r) || isAdmissionFormDoc(r) || isIdCardDoc(r)) {
+    return 'adms_exams';
+  }
+
+  // 3. For letters, examine refNo, subject, title, templateId, templateName, recipient
+  const ref = (r.refNo || '').toLowerCase();
+  const title = (r.title || '').toLowerCase();
+  const sub = (resolveRecordSubject(r) || '').toLowerCase();
+  const recip = (resolveRecordRecipient(r) || r.recipientOrStudent || '').toLowerCase();
+  const tpl = ((r.templateId || '') + ' ' + (r.templateName || '')).toLowerCase();
+  const combined = `${ref} ${title} ${sub} ${recip} ${tpl}`;
+
+  // Financial / Accounts keywords
+  if (
+    combined.includes('fee-dist') ||
+    combined.includes('fee') ||
+    combined.includes('mutual benefit') ||
+    combined.includes('mbf') ||
+    combined.includes('sanction') ||
+    combined.includes('salary') ||
+    combined.includes('audit') ||
+    combined.includes('acct') ||
+    combined.includes('account') ||
+    combined.includes('grant') ||
+    combined.includes('stipend') ||
+    combined.includes('scholarship') ||
+    combined.includes('bill') ||
+    combined.includes('voucher') ||
+    combined.includes('cheque') ||
+    combined.includes('drawal') ||
+    combined.includes('disbursement') ||
+    combined.includes('treasury')
+  ) {
+    return 'accounts';
+  }
+
+  // Admissions & Exams keywords
+  if (
+    combined.includes('jkbose') ||
+    combined.includes('bose') ||
+    combined.includes('exam') ||
+    combined.includes('admission') ||
+    combined.includes('marks') ||
+    combined.includes('roll') ||
+    combined.includes('sent up') ||
+    combined.includes('sentup') ||
+    combined.includes('certificate') ||
+    combined.includes('bonafide') ||
+    combined.includes('discharge') ||
+    combined.includes('re-eval') ||
+    combined.includes('rechecking') ||
+    combined.includes('registration') ||
+    combined.includes('provisional') ||
+    combined.includes('migration') ||
+    combined.includes('golden test') ||
+    combined.includes('pre-board')
+  ) {
+    return 'adms_exams';
+  }
+
+  // General / Custom Administration
+  return 'custom';
+};
+
+/**
+ * Resolves the issuing admin account / author email or name
+ */
+export const getRecordAccount = (r) => {
+  if (!r) return 'Principal (Admin)';
+  const candidate = (
+    r.userEmail ||
+    r.extraData?.userEmail ||
+    r.createdBy ||
+    r.author ||
+    r.extraData?.author ||
+    r.extraData?.signatoryName ||
+    r.extraData?.issuedBy ||
+    r.submittedByEmail ||
+    r.submittedBy ||
+    ''
+  ).trim();
+
+  if (!candidate) return 'Principal (Admin)';
+
+  if (candidate.includes('@')) {
+    return candidate.toLowerCase();
+  }
+
+  if (/^(admin|administrator|superadmin|principal)$/i.test(candidate)) {
+    return 'Principal (Admin)';
+  }
+
+  return candidate;
+};
+
+/**
+ * Formats account for compact UI display
+ */
+export const formatAccountDisplay = (accountStr) => {
+  if (!accountStr || accountStr === 'Principal (Admin)') return 'Principal (Admin)';
+  if (accountStr.includes('@')) {
+    return accountStr.split('@')[0];
+  }
+  return accountStr;
+};
+
+/**
+ * Unique identifier helper for row-level selection
+ */
+export const getRowId = (r, idx = 0) => {
+  if (!r) return `doc_${idx}`;
+  return r.id || `${r.refNo || 'doc'}_${r.dateStr || ''}_${idx}`;
 };
 
 /**
@@ -264,6 +423,30 @@ export const extractIdentifyingInfo = (rec) => {
   };
 };
 
+/**
+ * Checkbox component supporting standard indeterminate state
+ */
+export function IndeterminateCheckbox({ isSelected, isIndeterminate, onChange, title = '', className = '' }) {
+  const checkboxRef = useRef(null);
+
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = Boolean(isIndeterminate);
+    }
+  }, [isIndeterminate]);
+
+  return (
+    <input
+      type="checkbox"
+      ref={checkboxRef}
+      checked={Boolean(isSelected)}
+      onChange={onChange}
+      title={title}
+      className={`w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-600 text-teal-600 focus:ring-teal-500 cursor-pointer accent-teal-600 transition-all ${className}`}
+    />
+  );
+}
+
 export default function OfficialDocumentCatalogView({
   records = [],
   onClose = null,
@@ -272,19 +455,21 @@ export default function OfficialDocumentCatalogView({
   isLoading = false
 }) {
   // ─── Filter & View States ───
-  const [timeRange, setTimeRange] = useState('all'); // 'all' (default: all documents) | year_2026 | academic_2025_26 | academic_2026_27 | academic_2024_25 | year_2025 | last_365 | last_180 | last_30 | custom
+  const [timeRange, setTimeRange] = useState('all'); // 'all' (default) | academic_2025_26 | year_2026 | etc.
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [sectionFilter, setSectionFilter] = useState('all'); // all | accounts | adms_exams | custom
+  const [accountFilter, setAccountFilter] = useState('all'); // all | specific account email or name
   const [moduleFilter, setModuleFilter] = useState('all'); // all | letter | cert | sanction | idcard | admission
-  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' (newest first) | 'asc' (chronological serial)
-  const [groupMode, setGroupMode] = useState('flat'); // 'flat' (continuous chronological ledger) | 'classified' (grouped by module)
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' (newest first) | 'asc'
+  const [groupMode, setGroupMode] = useState('flat'); // 'flat' (continuous chronological ledger) | 'classified'
   const [searchQuery, setSearchQuery] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedDocIds, setSelectedDocIds] = useState(new Set());
 
   // ─── Time Range Calculations ───
   const rangeBounds = useMemo(() => {
     const now = new Date();
-    const currentYear = now.getFullYear();
 
     switch (timeRange) {
       case 'all':
@@ -302,7 +487,7 @@ export default function OfficialDocumentCatalogView({
       case 'academic_2025_26':
         return {
           start: new Date(2025, 3, 1, 0, 0, 0), // 01-Apr-2025
-          end: new Date(2026, 11, 31, 23, 59, 59), // 31-Dec-2026 (covers through full session in J&K)
+          end: new Date(2026, 11, 31, 23, 59, 59), // 31-Dec-2026
           label: 'Academic Session 2025–26 (01 Apr 2025 – 31 Dec 2026)'
         };
       case 'academic_2026_27':
@@ -365,19 +550,53 @@ export default function OfficialDocumentCatalogView({
     }
   }, [timeRange, customStartDate, customEndDate]);
 
-  // ─── Filtered and Chronologically Sorted Records ───
-  const { catalogRecords, stats } = useMemo(() => {
-    let list = Array.isArray(records) ? records : [];
-
-    // 1. Time Range Filter
+  // ─── Pre-filtered by Time Range for Metric Counting ───
+  const timeFilteredRecords = useMemo(() => {
+    const list = Array.isArray(records) ? records : [];
     const { start, end } = rangeBounds;
-    list = list.filter(r => {
+    return list.filter(r => {
       const d = parseRecordDate(r);
       const t = d.getTime();
       return t >= start.getTime() && t <= end.getTime();
     });
+  }, [records, rangeBounds]);
 
-    // Compute metrics across the filtered time period (before module filter)
+  // ─── Extract Unique Accounts / Generating Users for Filter ───
+  const availableAccounts = useMemo(() => {
+    const counts = {};
+    timeFilteredRecords.forEach(r => {
+      const acct = getRecordAccount(r);
+      counts[acct] = (counts[acct] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([account, count]) => ({ account, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [timeFilteredRecords]);
+
+  // ─── Extract Section Counts for Segmented Control ───
+  const sectionCounts = useMemo(() => {
+    let accountsCount = 0;
+    let admsExamsCount = 0;
+    let customCount = 0;
+    timeFilteredRecords.forEach(r => {
+      const sec = inferRecordSection(r);
+      if (sec === 'accounts') accountsCount++;
+      else if (sec === 'adms_exams') admsExamsCount++;
+      else customCount++;
+    });
+    return {
+      all: timeFilteredRecords.length,
+      accounts: accountsCount,
+      adms_exams: admsExamsCount,
+      custom: customCount
+    };
+  }, [timeFilteredRecords]);
+
+  // ─── Filtered and Chronologically Sorted Records ───
+  const { catalogRecords, stats } = useMemo(() => {
+    let list = [...timeFilteredRecords];
+
+    // Compute metrics across the filtered time period (before secondary filters)
     let totalCount = list.length;
     let letterCount = 0;
     let certCount = 0;
@@ -398,7 +617,17 @@ export default function OfficialDocumentCatalogView({
       else if (cls.key === 'admission') admissionCount++;
     });
 
-    // 2. Module / Classification Filter
+    // 1. Section Filter (Accounts | Adms & Exams | General / Custom)
+    if (sectionFilter !== 'all') {
+      list = list.filter(r => inferRecordSection(r) === sectionFilter);
+    }
+
+    // 2. Account / Generated By Filter
+    if (accountFilter !== 'all') {
+      list = list.filter(r => getRecordAccount(r) === accountFilter);
+    }
+
+    // 3. Module / Classification Filter
     if (moduleFilter === 'letter') {
       list = list.filter(r => getRecordClassification(r).key === 'letter');
     } else if (moduleFilter === 'cert') {
@@ -414,7 +643,7 @@ export default function OfficialDocumentCatalogView({
       list = list.filter(r => getRecordClassification(r).key === 'admission');
     }
 
-    // 3. Search Query Filter
+    // 4. Search Query Filter
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       list = list.filter(r => {
@@ -426,6 +655,8 @@ export default function OfficialDocumentCatalogView({
         const infoStr = `${info.primary} ${info.secondary}`.toLowerCase();
         const date = (r.dateStr || '').toLowerCase();
         const action = (r.actionType || '').toLowerCase();
+        const acct = getRecordAccount(r).toLowerCase();
+        const sec = inferRecordSection(r).toLowerCase();
 
         return ref.includes(q) ||
                title.includes(q) ||
@@ -433,11 +664,13 @@ export default function OfficialDocumentCatalogView({
                recipient.includes(q) ||
                infoStr.includes(q) ||
                date.includes(q) ||
-               action.includes(q);
+               action.includes(q) ||
+               acct.includes(q) ||
+               sec.includes(q);
       });
     }
 
-    // 4. Chronological Sorting
+    // 5. Chronological Sorting
     list = [...list].sort((a, b) => {
       const timeA = parseRecordDate(a).getTime();
       const timeB = parseRecordDate(b).getTime();
@@ -456,7 +689,7 @@ export default function OfficialDocumentCatalogView({
         totalSanctionAmount
       }
     };
-  }, [records, rangeBounds, moduleFilter, searchQuery, sortOrder]);
+  }, [timeFilteredRecords, sectionFilter, accountFilter, moduleFilter, searchQuery, sortOrder]);
 
   // ─── Grouped by Classification (when groupMode === 'classified') ───
   const classifiedGroups = useMemo(() => {
@@ -483,15 +716,93 @@ export default function OfficialDocumentCatalogView({
     return Object.entries(groups).filter(([_, g]) => g.records.length > 0);
   }, [catalogRecords, groupMode]);
 
-  // ─── Action: Print Official Despatch Register / PDF ───
+  // ─── Selection Helpers: Row-level checking / unchecking ───
+  const visibleRowIds = useMemo(() => {
+    return catalogRecords.map((r, idx) => getRowId(r, idx));
+  }, [catalogRecords]);
+
+  const isAllVisibleSelected = visibleRowIds.length > 0 && visibleRowIds.every(id => selectedDocIds.has(id));
+  const isSomeVisibleSelected = visibleRowIds.some(id => selectedDocIds.has(id)) && !isAllVisibleSelected;
+
+  const handleToggleRow = (rowId, e) => {
+    e?.stopPropagation?.();
+    setSelectedDocIds(prev => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId);
+      else next.add(rowId);
+      return next;
+    });
+  };
+
+  const handleToggleSelectRecords = (recsToToggle) => {
+    if (!Array.isArray(recsToToggle) || recsToToggle.length === 0) return;
+    const ids = recsToToggle.map((r, idx) => getRowId(r, idx));
+    const allSelected = ids.every(id => selectedDocIds.has(id));
+
+    setSelectedDocIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        ids.forEach(id => next.delete(id));
+      } else {
+        ids.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = (e) => {
+    e?.stopPropagation?.();
+    if (isAllVisibleSelected) {
+      setSelectedDocIds(prev => {
+        const next = new Set(prev);
+        visibleRowIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedDocIds(prev => {
+        const next = new Set(prev);
+        visibleRowIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const handleSelectAllVisible = () => {
+    setSelectedDocIds(prev => {
+      const next = new Set(prev);
+      visibleRowIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedDocIds(new Set());
+  };
+
+  // Determine records targeted by print or export (selected if any, otherwise all filtered)
+  const targetRecords = useMemo(() => {
+    if (selectedDocIds.size > 0) {
+      const filtered = catalogRecords.filter((r, idx) => selectedDocIds.has(getRowId(r, idx)));
+      if (filtered.length > 0) return filtered;
+    }
+    return catalogRecords;
+  }, [catalogRecords, selectedDocIds]);
+
+  // ─── Action: Print Official Despatch Register / PDF (Compact & Minimal) ───
   const handlePrintCatalog = () => {
-    if (catalogRecords.length === 0) {
+    if (targetRecords.length === 0) {
       showToast('No documents match current filters to print', 'warning');
       return;
     }
 
-    const tableRowsHtml = catalogRecords.map((r, idx) => {
+    const isSelective = selectedDocIds.size > 0 && targetRecords.length < catalogRecords.length;
+
+    const tableRowsHtml = targetRecords.map((r, idx) => {
       const cls = getRecordClassification(r);
+      const secKey = inferRecordSection(r);
+      const secConfig = SECTION_CONFIG[secKey] || SECTION_CONFIG.custom;
+      const acct = getRecordAccount(r);
+      const acctDisplay = formatAccountDisplay(acct);
       const parsedDate = parseRecordDate(r);
       const dateText = formatDisplayDate(parsedDate);
       const refText = r.refNo || '—';
@@ -503,28 +814,34 @@ export default function OfficialDocumentCatalogView({
 
       return `
         <tr>
-          <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
-          <td style="text-align: center; white-space: nowrap; font-family: monospace;">${dateText}</td>
-          <td style="font-weight: bold; font-family: monospace; font-size: 11px;">${refText}</td>
-          <td style="font-size: 11px;">
-            <span style="font-weight: bold; text-transform: uppercase; font-size: 10px;">${cls.code}</span> - ${cls.shortLabel}
+          <td style="text-align: center; font-weight: bold; font-size: 8pt;">${idx + 1}</td>
+          <td style="text-align: center; white-space: nowrap; font-family: monospace; font-size: 8pt;">${dateText}</td>
+          <td style="font-weight: bold; font-family: monospace; font-size: 8.5pt;">${refText}</td>
+          <td style="font-size: 7.5pt; text-align: center; font-weight: 700; text-transform: uppercase;">
+            ${secConfig.code}
           </td>
-          <td style="font-size: 11px; line-height: 1.3;">
-            <div style="font-weight: bold;">${subjectText}</div>
-            ${r.title && r.title !== subjectText ? `<div style="font-size: 9.5px; color: #555;">Title: ${cleanHtmlEntities(r.title)}</div>` : ''}
+          <td style="font-size: 8pt; white-space: nowrap;">
+            <strong style="font-size: 7.5pt;">${cls.code}</strong> - ${cls.shortLabel}
           </td>
-          <td style="font-size: 11px; line-height: 1.3;">
-            <div style="font-weight: bold;">${cleanPrimary}</div>
-            ${cleanSecondary ? `<div style="font-size: 9.5px; color: #444;">${cleanSecondary}</div>` : ''}
+          <td style="font-size: 8pt; line-height: 1.25;">
+            <div style="font-weight: 700;">${subjectText}</div>
+            ${r.title && r.title !== subjectText ? `<div style="font-size: 7pt; color: #475569;">Title: ${cleanHtmlEntities(r.title)}</div>` : ''}
           </td>
-          <td style="text-align: center; font-size: 10px;">${actionText}</td>
-          <td style="font-size: 10px; color: #777;"></td>
+          <td style="font-size: 8pt; line-height: 1.25;">
+            <div style="font-weight: 700;">${cleanPrimary}</div>
+            ${cleanSecondary ? `<div style="font-size: 7pt; color: #475569;">${cleanSecondary}</div>` : ''}
+          </td>
+          <td style="font-size: 7.5pt; font-family: monospace; color: #334155; white-space: nowrap;">
+            ${acctDisplay}
+          </td>
+          <td style="text-align: center; font-size: 7.5pt; white-space: nowrap;">${actionText}</td>
+          <td style="font-size: 7.5pt; color: #94a3b8; text-align: center;"></td>
         </tr>
       `;
     }).join('');
 
     const formattedAmount = stats.totalSanctionAmount > 0 
-      ? ` | Total Sanction Amount: ₹${stats.totalSanctionAmount.toLocaleString('en-IN')}`
+      ? ` | Total Sanctions: ₹${stats.totalSanctionAmount.toLocaleString('en-IN')}`
       : '';
 
     const htmlContent = `
@@ -536,120 +853,133 @@ export default function OfficialDocumentCatalogView({
         <style>
           @page {
             size: A4 landscape;
-            margin: 10mm 12mm 12mm 12mm;
+            margin: 7mm 8mm 7mm 8mm;
+          }
+          * {
+            box-sizing: border-box;
           }
           body {
-            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
-            color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: #0f172a;
             background: #fff;
             margin: 0;
             padding: 0;
-            font-size: 11px;
-            line-height: 1.3;
+            font-size: 8.5pt;
+            line-height: 1.25;
           }
           .header {
             text-align: center;
-            border-bottom: 2px solid #0f172a;
-            padding-bottom: 8px;
-            margin-bottom: 10px;
+            border-bottom: 1.5px solid #0f172a;
+            padding-bottom: 4px;
+            margin-bottom: 5px;
           }
           .office-title {
-            font-size: 12px;
-            font-weight: bold;
-            color: #dc2626;
+            font-size: 9pt;
+            font-weight: 800;
+            color: #b91c1c;
             letter-spacing: 0.5px;
             text-transform: uppercase;
           }
           .inst-name {
-            font-size: 18px;
+            font-size: 13.5pt;
             font-weight: 900;
             color: #0f172a;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
             text-transform: uppercase;
-            margin: 2px 0;
+            margin: 1px 0;
           }
           .inst-meta {
-            font-size: 10px;
+            font-size: 7.5pt;
             color: #475569;
           }
           .register-banner {
             background: #f1f5f9;
             border: 1px solid #cbd5e1;
-            padding: 6px 10px;
-            margin: 8px 0 12px 0;
+            padding: 4px 8px;
+            margin: 4px 0 5px 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
           }
           .register-title {
-            font-size: 13px;
-            font-weight: bold;
+            font-size: 9.5pt;
+            font-weight: 900;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
             color: #0f172a;
           }
           .register-meta {
-            font-size: 10px;
-            font-weight: bold;
+            font-size: 7.5pt;
+            font-weight: 700;
             color: #334155;
           }
           .summary-kpi {
             display: flex;
-            gap: 15px;
-            font-size: 10px;
-            margin-bottom: 8px;
-            padding: 4px 8px;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 7.5pt;
+            margin-bottom: 5px;
+            padding: 3px 6px;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
           }
           .kpi-item {
-            font-weight: bold;
+            font-weight: 700;
           }
           table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
+            margin-bottom: 6px;
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          thead {
+            display: table-header-group;
           }
           th, td {
             border: 1px solid #64748b;
-            padding: 5px 6px;
+            padding: 2.5px 4px;
             vertical-align: middle;
           }
           th {
             background-color: #e2e8f0;
-            font-weight: bold;
+            font-weight: 800;
             text-transform: uppercase;
-            font-size: 10px;
-            letter-spacing: 0.3px;
+            font-size: 7.5pt;
+            letter-spacing: 0.2px;
           }
           tr:nth-child(even) {
             background-color: #f8fafc;
           }
           .certification {
-            margin-top: 15px;
-            font-size: 10.5px;
+            margin-top: 6px;
+            font-size: 7.5pt;
             font-style: italic;
-            color: #1e293b;
+            color: #334155;
             border-top: 1px dashed #cbd5e1;
-            padding-top: 8px;
+            padding-top: 4px;
           }
           .sign-grid {
-            margin-top: 40px;
+            margin-top: 24px;
             display: flex;
             justify-content: space-between;
-            padding: 0 20px;
+            padding: 0 15px;
+            page-break-inside: avoid;
           }
           .sign-block {
             text-align: center;
-            width: 200px;
+            width: 170px;
           }
           .sign-line {
             border-top: 1px solid #000;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
           }
           .sign-title {
-            font-size: 10px;
-            font-weight: bold;
+            font-size: 7.5pt;
+            font-weight: 700;
           }
           @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -664,29 +994,37 @@ export default function OfficialDocumentCatalogView({
         </div>
 
         <div class="register-banner">
-          <div class="register-title">OFFICIAL DESPATCH & DOCUMENT ISSUE REGISTER</div>
-          <div class="register-meta">Range: ${rangeBounds.label} | Total Records: ${catalogRecords.length}</div>
+          <div class="register-title">
+            OFFICIAL DESPATCH & DOCUMENT REGISTER ${isSelective ? '(SELECTIVE AUDIT)' : ''}
+          </div>
+          <div class="register-meta">
+            Period: ${rangeBounds.label} | Records: ${targetRecords.length}${isSelective ? ` (Selected of ${catalogRecords.length})` : ''}
+          </div>
         </div>
 
         <div class="summary-kpi">
-          <div class="kpi-item">Letters & Orders: ${stats.letters}</div>
-          <div class="kpi-item">Certificates & Bonafides: ${stats.certs}</div>
-          <div class="kpi-item">Sanction Orders: ${stats.sanctions}${formattedAmount}</div>
-          <div class="kpi-item">ID Card Batches: ${stats.idCards}</div>
-          <div class="kpi-item">Generated On: ${new Date().toLocaleString('en-GB')}</div>
+          <div class="kpi-item">Section: ${SECTION_CONFIG[sectionFilter]?.label || 'All'}</div>
+          <div class="kpi-item">Account: ${accountFilter === 'all' ? 'All Accounts' : accountFilter}</div>
+          <div class="kpi-item">Letters: ${stats.letters}</div>
+          <div class="kpi-item">Certificates: ${stats.certs}</div>
+          <div class="kpi-item">Sanctions: ${stats.sanctions}${formattedAmount}</div>
+          <div class="kpi-item">ID Cards: ${stats.idCards}</div>
+          <div class="kpi-item">Printed: ${new Date().toLocaleString('en-GB')}</div>
         </div>
 
         <table>
           <thead>
             <tr>
-              <th style="width: 4%;">S.No</th>
-              <th style="width: 9%;">Date</th>
-              <th style="width: 14%;">Ref. / Despatch No</th>
-              <th style="width: 14%;">Classification</th>
-              <th style="width: 25%;">Subject / Purpose / Title</th>
-              <th style="width: 22%;">Issued To / Student / Addressee</th>
-              <th style="width: 6%;">Status</th>
-              <th style="width: 6%;">Initials</th>
+              <th style="width: 3.5%;">S.No</th>
+              <th style="width: 7.5%;">Date</th>
+              <th style="width: 12%;">Ref. / Despatch No</th>
+              <th style="width: 7.5%;">Section</th>
+              <th style="width: 8%;">Type</th>
+              <th style="width: 24.5%;">Subject / Purpose / Title</th>
+              <th style="width: 20%;">Issued To / Student / Addressee</th>
+              <th style="width: 9.5%;">Generated By</th>
+              <th style="width: 4%;">Status</th>
+              <th style="width: 3.5%;">Sign</th>
             </tr>
           </thead>
           <tbody>
@@ -695,7 +1033,7 @@ export default function OfficialDocumentCatalogView({
         </table>
 
         <div class="certification">
-          Certified that the above entries from S.No. 1 to ${catalogRecords.length} represent the authentic official record of letters, certificates, sanction orders, and identity documents issued by Govt. Higher Secondary School Shangus during the specified period.
+          Certified that the above entries from S.No. 1 to ${targetRecords.length} represent official authenticated records of letters, certificates, sanction orders, and identity documents issued by Govt. Higher Secondary School Shangus during the indicated period.
         </div>
 
         <div class="sign-grid">
@@ -717,7 +1055,7 @@ export default function OfficialDocumentCatalogView({
       </html>
     `;
 
-    // Hidden offscreen iframe for clean, single print dialog without popup tab
+    // Hidden offscreen iframe for single, non-popup print dialog
     let iframe = document.getElementById('despatch-catalog-print-frame');
     if (iframe && iframe.parentNode) {
       iframe.parentNode.removeChild(iframe);
@@ -748,7 +1086,7 @@ export default function OfficialDocumentCatalogView({
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
       } catch (err) {
-        console.warn('Iframe print note:', err);
+        console.warn('Iframe print warning:', err);
       }
     };
 
@@ -757,7 +1095,7 @@ export default function OfficialDocumentCatalogView({
 
   // ─── Action: Export Official Despatch Register to Excel (.xlsx) ───
   const handleExportExcel = () => {
-    if (catalogRecords.length === 0) {
+    if (targetRecords.length === 0) {
       showToast('No records available to export', 'warning');
       return;
     }
@@ -765,35 +1103,44 @@ export default function OfficialDocumentCatalogView({
     try {
       setIsExporting(true);
       const wb = XLSX.utils.book_new();
+      const isSelective = selectedDocIds.size > 0 && targetRecords.length < catalogRecords.length;
 
       // Sheet 1: Detailed Master Register
       const rows = [];
-      // Title rows
       rows.push(['GOVT. HIGHER SECONDARY SCHOOL SHANGUS']);
       rows.push(['OFFICE OF THE PRINCIPAL — OFFICIAL DESPATCH & DOCUMENT REGISTER']);
-      rows.push([`Time Range: ${rangeBounds.label}`]);
-      rows.push([`Generated On: ${new Date().toLocaleString('en-GB')}`, '', '', `Total Documents: ${catalogRecords.length}`]);
-      rows.push([]); // blank
+      rows.push([`Time Range: ${rangeBounds.label} | Section: ${SECTION_CONFIG[sectionFilter]?.label || 'All'} | Account: ${accountFilter === 'all' ? 'All Accounts' : accountFilter}`]);
+      rows.push([
+        `Generated On: ${new Date().toLocaleString('en-GB')}`,
+        '',
+        '',
+        `Total Exported Documents: ${targetRecords.length}${isSelective ? ` (Selected from ${catalogRecords.length})` : ''}`
+      ]);
+      rows.push([]); // blank line
 
       // Column Headers
       rows.push([
         'S.No.',
         'Issue Date',
         'Ref. / Despatch No.',
+        'Section',
         'Classification Code',
         'Module / Document Type',
         'Subject / Purpose',
         'Document Title',
         'Issued To / Recipient',
         'Identifying Details (Student / Beneficiaries / Cohort)',
+        'Generated By / Account',
         'Class Cohort',
         'Action Type',
         'Internal Document ID',
         'System Timestamp'
       ]);
 
-      catalogRecords.forEach((r, idx) => {
+      targetRecords.forEach((r, idx) => {
         const cls = getRecordClassification(r);
+        const sec = SECTION_CONFIG[inferRecordSection(r)]?.label || 'General / Custom';
+        const acct = getRecordAccount(r);
         const parsedDate = parseRecordDate(r);
         const dateText = formatDisplayDate(parsedDate);
         const refText = r.refNo || '—';
@@ -804,12 +1151,14 @@ export default function OfficialDocumentCatalogView({
           idx + 1,
           dateText,
           refText,
+          sec,
           cls.code,
           cls.label,
           subjectText,
           r.title || '',
           info.primary,
           info.secondary,
+          acct,
           r.studentDetails?.cls || r.extraData?.selectedClass || '',
           r.actionType || 'Recorded',
           r.id || '',
@@ -820,10 +1169,15 @@ export default function OfficialDocumentCatalogView({
       const wsRegister = XLSX.utils.aoa_to_sheet(rows);
       XLSX.utils.book_append_sheet(wb, wsRegister, 'Despatch Register');
 
-      // Sheet 2: Classified Summary Statistics
+      // Sheet 2: Summary Statistics
       const summaryRows = [
         ['GOVT. HIGHER SECONDARY SCHOOL SHANGUS — SUMMARY CLASSIFICATION'],
         [`Period: ${rangeBounds.label}`],
+        [],
+        ['Section Breakdown', 'Code', 'Count in Period'],
+        ['Accounts & Finance', 'ACCT', sectionCounts.accounts],
+        ['Admissions & Examinations', 'EXAM', sectionCounts.adms_exams],
+        ['General / Custom Administration', 'ADMIN', sectionCounts.custom],
         [],
         ['Document Classification', 'Code', 'Count', 'Percentage (%)', 'Financial Sanctions (₹)'],
         ['Official Institutional Letters & Orders', 'LTR', stats.letters, stats.total > 0 ? ((stats.letters / stats.total) * 100).toFixed(1) + '%' : '0%', '—'],
@@ -832,13 +1186,13 @@ export default function OfficialDocumentCatalogView({
         ['Student Identity Cards Batches', 'IDC', stats.idCards, stats.total > 0 ? ((stats.idCards / stats.total) * 100).toFixed(1) + '%' : '0%', '—'],
         ['Admission Application Forms', 'ADM', stats.admissions, stats.total > 0 ? ((stats.admissions / stats.total) * 100).toFixed(1) + '%' : '0%', '—'],
         [],
-        ['TOTAL DOCUMENTS ISSUED', 'ALL', stats.total, '100%', stats.totalSanctionAmount > 0 ? `₹ ${stats.totalSanctionAmount.toLocaleString('en-IN')}` : '—']
+        ['TOTAL DOCUMENTS IN PERIOD', 'ALL', stats.total, '100%', stats.totalSanctionAmount > 0 ? `₹ ${stats.totalSanctionAmount.toLocaleString('en-IN')}` : '—']
       ];
 
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
       XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary Statistics');
 
-      const fileName = `HSS_Shangus_Despatch_Register_${timeRange}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const fileName = `HSS_Shangus_Despatch_${sectionFilter}_${timeRange}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       XLSX.writeFile(wb, fileName);
       showToast(`Exported ${fileName} successfully!`, 'success');
     } catch (err) {
@@ -852,69 +1206,149 @@ export default function OfficialDocumentCatalogView({
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 overflow-hidden font-sans">
       
-      {/* ─── TOOLBAR & CONTROL PANEL ─── */}
-      <div className="flex-none p-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 space-y-2.5">
+      {/* ─── TOOLBAR & CONTROL PANEL (Ultra-Compact & High Density) ─── */}
+      <div className="flex-none p-2.5 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 space-y-2">
         
-        {/* Top Control Bar: Time Range Selector, Module Filter & Action Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Row 1: Time Range, Section Pills, Account Filter & Primary Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
           
-          {/* Time Range Selector */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
-              <Calendar size={13} className="text-teal-600" />
-              Time Range:
-            </span>
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="h-7 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-2xs cursor-pointer"
-            >
-              <option value="all">All Records (All-Time Archive)</option>
-              <option value="year_2026">Calendar Year 2026</option>
-              <option value="academic_2025_26">Academic Session 2025–26 (01 Apr 2025 – 31 Dec 2026)</option>
-              <option value="academic_2026_27">Academic Session 2026–27 (01 Apr 2026 – 31 Mar 2027)</option>
-              <option value="academic_2024_25">Academic Session 2024–25 (01 Apr 2024 – 31 Dec 2025)</option>
-              <option value="year_2025">Calendar Year 2025</option>
-              <option value="last_365">Past 1 Year (365 Days)</option>
-              <option value="last_180">Past 6 Months</option>
-              <option value="last_30">Past 30 Days</option>
-              <option value="custom">Custom Date Range...</option>
-            </select>
+            {/* Time Range Selector */}
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
+                <Calendar size={12} className="text-teal-600" />
+                Range:
+              </span>
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                className="h-7 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-2xs cursor-pointer max-w-[190px] truncate"
+              >
+                <option value="all">All Records (All-Time Archive)</option>
+                <option value="academic_2025_26">Academic 2025–26 (01 Apr 2025 – 31 Dec 2026)</option>
+                <option value="academic_2026_27">Academic 2026–27 (01 Apr 2026 – 31 Mar 2027)</option>
+                <option value="academic_2024_25">Academic 2024–25 (01 Apr 2024 – 31 Dec 2025)</option>
+                <option value="year_2026">Calendar Year 2026</option>
+                <option value="year_2025">Calendar Year 2025</option>
+                <option value="last_365">Past 1 Year (365 Days)</option>
+                <option value="last_180">Past 6 Months</option>
+                <option value="last_30">Past 30 Days</option>
+                <option value="custom">Custom Date Range...</option>
+              </select>
 
-            {/* Custom Date Pickers */}
-            {timeRange === 'custom' && (
-              <div className="flex items-center gap-1">
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-1.5 text-slate-700 dark:text-slate-200"
-                  title="From Date"
-                />
-                <span className="text-xs text-slate-400">to</span>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-1.5 text-slate-700 dark:text-slate-200"
-                  title="To Date"
-                />
-              </div>
-            )}
+              {/* Custom Date Pickers */}
+              {timeRange === 'custom' && (
+                <div className="flex items-center gap-1 ml-1">
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-1.5 text-slate-700 dark:text-slate-200"
+                    title="From Date"
+                  />
+                  <span className="text-xs text-slate-400">to</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="h-7 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-1.5 text-slate-700 dark:text-slate-200"
+                    title="To Date"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Section Segmented Control: (Accounts | Adms & Exams | General / Custom) */}
+            <div className="flex items-center bg-white dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-slate-700 p-0.5 text-xs shadow-2xs">
+              <span className="text-[9.5px] font-black uppercase text-slate-400 px-1 select-none">
+                Section:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSectionFilter('all')}
+                className={`px-1.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all ${
+                  sectionFilter === 'all'
+                    ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                }`}
+                title="All Sections combined"
+              >
+                All ({sectionCounts.all})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSectionFilter('accounts')}
+                className={`px-1.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all flex items-center gap-0.5 ${
+                  sectionFilter === 'accounts'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200'
+                }`}
+                title="Accounts & Finance: Mutual Benefit Fund, Fee distribution, financial sanctions & vouchers"
+              >
+                <IndianRupee size={10} />
+                <span>Accounts ({sectionCounts.accounts})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSectionFilter('adms_exams')}
+                className={`px-1.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all flex items-center gap-0.5 ${
+                  sectionFilter === 'adms_exams'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200'
+                }`}
+                title="Admissions & Examinations: Bonafides, Discharge, Admissions, ID Cards & JKBOSE Exam letters"
+              >
+                <Award size={10} />
+                <span>Adms & Exams ({sectionCounts.adms_exams})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSectionFilter('custom')}
+                className={`px-1.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all flex items-center gap-0.5 ${
+                  sectionFilter === 'custom'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-purple-700 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-200'
+                }`}
+                title="General / Custom Administration: Covering letters to Directorate/CEO, authority letters, custom orders"
+              >
+                <Building2 size={10} />
+                <span>Custom ({sectionCounts.custom})</span>
+              </button>
+            </div>
+
+            {/* Account / Generated By Filter */}
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
+                <User size={12} className="text-teal-600" />
+                Account:
+              </span>
+              <select
+                value={accountFilter}
+                onChange={(e) => setAccountFilter(e.target.value)}
+                className="h-7 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-2xs cursor-pointer max-w-[170px] truncate"
+                title="Filter by generating staff account / issuer"
+              >
+                <option value="all">All Accounts ({timeFilteredRecords.length})</option>
+                {availableAccounts.map(item => (
+                  <option key={item.account} value={item.account}>
+                    {formatAccountDisplay(item.account)} ({item.count})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* Action Buttons: Print Register & Export Excel */}
+          {/* Action Buttons: Export Excel & Print Register */}
           <div className="flex items-center gap-1.5 ml-auto">
-
             <button
               type="button"
               onClick={handleExportExcel}
               disabled={isExporting || catalogRecords.length === 0}
               className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all active:scale-98"
-              title="Export complete Despatch Register to Excel"
+              title={selectedDocIds.size > 0 ? `Export ${targetRecords.length} selected documents to Excel` : 'Export all visible documents to Excel'}
             >
               <FileSpreadsheet size={13} />
-              <span>Export Excel</span>
+              <span>{selectedDocIds.size > 0 ? `Export (${targetRecords.length})` : 'Export Excel'}</span>
             </button>
 
             <button
@@ -922,35 +1356,35 @@ export default function OfficialDocumentCatalogView({
               onClick={handlePrintCatalog}
               disabled={catalogRecords.length === 0}
               className="h-7 px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-98"
-              title="Print official letterhead issue register / save PDF"
+              title={selectedDocIds.size > 0 ? `Print ${targetRecords.length} selected documents as official register` : 'Print complete catalog / register'}
             >
               <Printer size={13} />
-              <span>Print Catalog / PDF</span>
+              <span>{selectedDocIds.size > 0 ? `Print (${targetRecords.length})` : 'Print Catalog / PDF'}</span>
             </button>
           </div>
         </div>
 
-        {/* Second Row: Module Tabs, Sort Toggle, Search Box */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800">
+        {/* Row 2: Module Tabs, Sort Toggle, Grouping, & Search Box */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-800">
           
           {/* Module Filter Tabs */}
-          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-800 flex-wrap">
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800 flex-wrap">
             <button
               type="button"
               onClick={() => setModuleFilter('all')}
-              className={`px-2 py-0.8 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
+              className={`px-2 py-0.5 rounded text-[10.5px] font-black cursor-pointer transition-all ${
                 moduleFilter === 'all'
                   ? 'bg-teal-700 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              All Documents ({stats.total})
+              All Modules ({stats.total})
             </button>
 
             <button
               type="button"
               onClick={() => setModuleFilter('letter')}
-              className={`px-2 py-0.8 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+              className={`px-2 py-0.5 rounded text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
                 moduleFilter === 'letter'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -963,7 +1397,7 @@ export default function OfficialDocumentCatalogView({
             <button
               type="button"
               onClick={() => setModuleFilter('cert')}
-              className={`px-2 py-0.8 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+              className={`px-2 py-0.5 rounded text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
                 moduleFilter === 'cert'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -976,20 +1410,20 @@ export default function OfficialDocumentCatalogView({
             <button
               type="button"
               onClick={() => setModuleFilter('sanction')}
-              className={`px-2 py-0.8 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+              className={`px-2 py-0.5 rounded text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
                 moduleFilter === 'sanction'
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
               <CreditCard size={11} />
-              <span>Sanction Orders ({stats.sanctions})</span>
+              <span>Sanctions ({stats.sanctions})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setModuleFilter('idcard')}
-              className={`px-2 py-0.8 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+              className={`px-2 py-0.5 rounded text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
                 moduleFilter === 'idcard'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -1003,7 +1437,7 @@ export default function OfficialDocumentCatalogView({
               <button
                 type="button"
                 onClick={() => setModuleFilter('admission')}
-                className={`px-2 py-0.8 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                className={`px-2 py-0.5 rounded text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
                   moduleFilter === 'admission'
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -1015,8 +1449,8 @@ export default function OfficialDocumentCatalogView({
             )}
           </div>
 
-          {/* Grouping & Sort Controls */}
-          <div className="flex items-center gap-1.5">
+          {/* Grouping, Sort & Search Controls */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             {/* View Layout Toggle */}
             <div className="flex items-center bg-white dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-slate-700 p-0.5 text-[10px]">
               <button
@@ -1053,17 +1487,17 @@ export default function OfficialDocumentCatalogView({
               title="Toggle date sorting order"
             >
               <ArrowUpDown size={11} />
-              <span>{sortOrder === 'desc' ? 'Newest First' : 'Oldest First (1..N)'}</span>
+              <span>{sortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
             </button>
 
             {/* Search Box */}
-            <div className="relative min-w-[180px] sm:min-w-[220px]">
+            <div className="relative min-w-[170px] sm:min-w-[200px]">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search ref no, student, subject..."
+                placeholder="Search ref, student, subject..."
                 className="w-full h-7 pl-7 pr-6 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
               {searchQuery && (
@@ -1079,122 +1513,164 @@ export default function OfficialDocumentCatalogView({
           </div>
         </div>
 
-        {/* Third Row: KPI Summary Banner */}
-        <div className={`grid grid-cols-2 ${stats.admissions > 0 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-800`}>
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-400 flex items-center justify-center shrink-0">
-              <BookOpen size={14} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[9px] uppercase font-bold text-slate-500">Period Total</div>
-              <div className="text-xs font-black text-slate-800 dark:text-slate-100">{stats.total} Documents</div>
-            </div>
+        {/* Row 3: High Density Compact KPI Summary Strip */}
+        <div className="flex items-center flex-wrap gap-2 text-[11px] py-1 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xs">
+          <div className="flex items-center gap-1 font-black text-slate-800 dark:text-slate-200">
+            <BookOpen size={12} className="text-teal-600" />
+            <span>Period Total:</span>
+            <span className="text-teal-700 dark:text-teal-400 font-extrabold">{stats.total} Documents</span>
+          </div>
+          <span className="text-slate-300 dark:text-slate-700">|</span>
+          <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-bold">
+            <FileText size={12} className="text-blue-600" />
+            <span>Letters:</span>
+            <span className="text-blue-600 dark:text-blue-400">{stats.letters}</span>
+          </div>
+          <span className="text-slate-300 dark:text-slate-700">|</span>
+          <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-bold">
+            <Award size={12} className="text-amber-600" />
+            <span>Certificates:</span>
+            <span className="text-amber-600 dark:text-amber-400">{stats.certs}</span>
+          </div>
+          <span className="text-slate-300 dark:text-slate-700">|</span>
+          <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-bold">
+            <CreditCard size={12} className="text-emerald-600" />
+            <span>Sanctions:</span>
+            <span className="text-emerald-600 dark:text-emerald-400">{stats.sanctions}</span>
+            {stats.totalSanctionAmount > 0 && (
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-1 rounded border border-emerald-200 dark:border-emerald-800">
+                ₹{stats.totalSanctionAmount.toLocaleString('en-IN')}
+              </span>
+            )}
+          </div>
+          <span className="text-slate-300 dark:text-slate-700">|</span>
+          <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-bold">
+            <Contact size={12} className="text-purple-600" />
+            <span>ID Cards:</span>
+            <span className="text-purple-600 dark:text-purple-400">{stats.idCards}</span>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
-              <FileText size={14} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[9px] uppercase font-bold text-slate-500">Letters Issued</div>
-              <div className="text-xs font-black text-blue-600 dark:text-blue-400">{stats.letters} Letters</div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <Award size={14} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[9px] uppercase font-bold text-slate-500">Certificates</div>
-              <div className="text-xs font-black text-amber-600 dark:text-amber-400">{stats.certs} Issued</div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <CreditCard size={14} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[9px] uppercase font-bold text-slate-500">Sanctions & MBF</div>
-              <div className="text-xs font-black text-emerald-600 dark:text-emerald-400">
-                {stats.sanctions} Orders {stats.totalSanctionAmount > 0 ? `(₹${stats.totalSanctionAmount.toLocaleString('en-IN')})` : ''}
+          {/* Active Filter Indicators */}
+          {(sectionFilter !== 'all' || accountFilter !== 'all') && (
+            <>
+              <span className="text-slate-300 dark:text-slate-700">|</span>
+              <div className="text-[10.5px] font-semibold text-slate-500">
+                Filtered: <strong className="text-slate-700 dark:text-slate-200">{catalogRecords.length}</strong> matching
               </div>
-            </div>
-          </div>
+            </>
+          )}
 
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 flex items-center justify-center shrink-0">
-              <Contact size={14} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[9px] uppercase font-bold text-slate-500">ID Card Batches</div>
-              <div className="text-xs font-black text-purple-600 dark:text-purple-400">{stats.idCards} Batches</div>
-            </div>
-          </div>
-
-          {stats.admissions > 0 && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                <Layers size={14} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[9px] uppercase font-bold text-slate-500">Admissions</div>
-                <div className="text-xs font-black text-indigo-600 dark:text-indigo-400">{stats.admissions} Forms</div>
-              </div>
+          {/* Selection indicator & quick actions */}
+          {selectedDocIds.size > 0 && (
+            <div className="ml-auto flex items-center gap-1.5 bg-teal-100 dark:bg-teal-950/80 text-teal-900 dark:text-teal-200 px-2 py-0.5 rounded-full font-black text-[10.5px] border border-teal-300 dark:border-teal-700 animate-in fade-in">
+              <Check size={11} className="stroke-[3]" />
+              <span>{selectedDocIds.size} of {catalogRecords.length} selected</span>
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="ml-1 hover:text-rose-600 text-teal-700 dark:text-teal-300 underline text-[10px] cursor-pointer"
+                title="Deselect all rows"
+              >
+                Clear
+              </button>
             </div>
           )}
         </div>
+
+        {/* Row 4 (Conditional): Floating Selection Banner when rows are selected */}
+        {selectedDocIds.size > 0 && (
+          <div className="flex items-center justify-between gap-2 px-2.5 py-1 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 rounded-lg text-xs font-bold text-teal-900 dark:text-teal-200">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 size={13} className="text-teal-600" />
+              <span>{selectedDocIds.size} row{selectedDocIds.size === 1 ? '' : 's'} checked for Selective Export & Print</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleSelectAllVisible}
+                className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-teal-300 dark:border-teal-700 text-[10.5px] hover:bg-teal-100 dark:hover:bg-teal-900/50 cursor-pointer"
+              >
+                Select All Visible ({catalogRecords.length})
+              </button>
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10.5px] text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ─── DESPATCH & ISSUE REGISTER TABLE ─── */}
-      <div className="flex-1 overflow-y-auto p-2 sm:p-3">
+      {/* ─── DESPATCH & ISSUE REGISTER TABLE CONTAINER ─── */}
+      <div className="flex-1 overflow-y-auto p-2 sm:p-2.5">
         {catalogRecords.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-slate-400 p-6 text-center space-y-2">
             <BookOpen size={36} className="text-slate-300 dark:text-slate-600" />
             <div className="font-bold text-sm text-slate-600 dark:text-slate-300">
-              No Issued Documents in this Time Range
+              No Issued Documents Match Selected Filters
             </div>
             <p className="text-xs max-w-md text-slate-500">
-              No official letters, certificates, sanction orders, or ID card batches found for the selected period ({rangeBounds.label}). Adjust the time range or filters above.
+              No official letters, certificates, sanction orders, or ID card batches found for period ({rangeBounds.label}) with current Section ({SECTION_CONFIG[sectionFilter]?.label}) and Account filters.
             </p>
           </div>
         ) : groupMode === 'classified' && classifiedGroups ? (
           /* Classified Grouped Sections */
-          <div className="space-y-4">
+          <div className="space-y-3">
             {classifiedGroups.map(([catKey, group]) => (
-              <div key={catKey} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
-                <div className="bg-slate-100 dark:bg-slate-800 px-3 py-1.5 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
+              <div key={catKey} className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-2xs">
+                <div className="bg-slate-100 dark:bg-slate-800 px-2.5 py-1 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
                   <div className="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                     <span>{group.label}</span>
                     <span className="text-[10px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.2 rounded-full font-bold">
                       {group.records.length}
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSelectRecords(group.records)}
+                    className="text-[10.5px] font-semibold text-teal-700 dark:text-teal-300 hover:underline cursor-pointer"
+                  >
+                    Select/Deselect Group
+                  </button>
                 </div>
 
                 <RegisterTable
                   records={group.records}
                   onPreviewRecord={onPreviewRecord}
+                  selectedDocIds={selectedDocIds}
+                  onToggleRow={handleToggleRow}
+                  onToggleSelectRecords={handleToggleSelectRecords}
                 />
               </div>
             ))}
           </div>
         ) : (
           /* Continuous Master Chronological Register */
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-2xs">
             <RegisterTable
               records={catalogRecords}
               onPreviewRecord={onPreviewRecord}
+              selectedDocIds={selectedDocIds}
+              onToggleRow={handleToggleRow}
+              onToggleSelectRecords={handleToggleSelectRecords}
+              isAllSelected={isAllVisibleSelected}
+              isSomeSelected={isSomeVisibleSelected}
+              onToggleSelectAll={handleToggleSelectAll}
             />
           </div>
         )}
       </div>
 
-      {/* ─── FOOTER BAR: SUMMARY METRICS & INSTRUCTIONS ─── */}
+      {/* ─── FOOTER BAR: SUMMARY METRICS & AUDIT INFO ─── */}
       <div className="flex-none bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 px-3 py-1.5 flex items-center justify-between text-[11px] text-slate-500 font-medium">
         <div className="flex items-center gap-2">
-          <span>Showing <strong>{catalogRecords.length}</strong> of {stats.total} total documents</span>
+          <span>
+            Showing <strong>{catalogRecords.length}</strong> of {stats.total} total documents
+            {selectedDocIds.size > 0 && <span className="text-teal-700 dark:text-teal-400 font-bold"> ({selectedDocIds.size} checked)</span>}
+          </span>
           <span>•</span>
           <span className="font-mono text-[10px]">{rangeBounds.label}</span>
         </div>
@@ -1207,27 +1683,69 @@ export default function OfficialDocumentCatalogView({
 }
 
 /**
- * Standard Register Data Table component
+ * Standard Register Data Table component (Compact, Minimal & Interactive)
  */
-function RegisterTable({ records, onPreviewRecord }) {
+function RegisterTable({
+  records = [],
+  onPreviewRecord,
+  selectedDocIds,
+  onToggleRow,
+  onToggleSelectRecords,
+  isAllSelected = null,
+  isSomeSelected = null,
+  onToggleSelectAll = null
+}) {
+  // If master selection props not provided (e.g. in classified mode), compute group-level selection
+  const groupIds = useMemo(() => records.map((r, idx) => getRowId(r, idx)), [records]);
+  const tableAllSelected = isAllSelected !== null 
+    ? isAllSelected 
+    : (groupIds.length > 0 && groupIds.every(id => selectedDocIds?.has(id)));
+  const tableSomeSelected = isSomeSelected !== null 
+    ? isSomeSelected 
+    : (groupIds.some(id => selectedDocIds?.has(id)) && !tableAllSelected);
+
+  const handleHeaderCheckboxToggle = () => {
+    if (onToggleSelectAll) {
+      onToggleSelectAll();
+    } else if (onToggleSelectRecords) {
+      onToggleSelectRecords(records);
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-xs border-collapse">
         <thead>
-          <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-            <th className="py-2 px-2.5 w-10 text-center">S.No</th>
-            <th className="py-2 px-2.5 w-24 text-center">Date</th>
-            <th className="py-2 px-2.5 w-40">Ref. / Despatch No</th>
-            <th className="py-2 px-2.5 w-32">Classification</th>
-            <th className="py-2 px-3">Subject / Purpose / Title</th>
-            <th className="py-2 px-3">Issued To / Student / Addressee</th>
-            <th className="py-2 px-2.5 w-20 text-center">Status</th>
-            <th className="py-2 px-2 w-14 text-center">Action</th>
+          <tr className="bg-slate-100/90 dark:bg-slate-800/90 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 select-none">
+            {/* Row Selection Master Checkbox */}
+            <th className="py-1.5 px-2 w-8 text-center" onClick={(e) => e.stopPropagation()}>
+              <IndeterminateCheckbox
+                isSelected={tableAllSelected}
+                isIndeterminate={tableSomeSelected}
+                onChange={handleHeaderCheckboxToggle}
+                title="Select or deselect all visible records in this table"
+              />
+            </th>
+            <th className="py-1.5 px-1.5 w-9 text-center">S.No</th>
+            <th className="py-1.5 px-2 w-20 text-center">Date</th>
+            <th className="py-1.5 px-2 w-36">Ref. / Despatch No</th>
+            <th className="py-1.5 px-2 w-28">Section & Type</th>
+            <th className="py-1.5 px-2.5 min-w-[200px]">Subject / Purpose / Title</th>
+            <th className="py-1.5 px-2.5 min-w-[170px]">Issued To / Recipient</th>
+            <th className="py-1.5 px-2 w-28">Generated By</th>
+            <th className="py-1.5 px-2 w-18 text-center">Status</th>
+            <th className="py-1.5 px-1.5 w-10 text-center">Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
           {records.map((rec, idx) => {
+            const rowId = getRowId(rec, idx);
+            const isRowSelected = Boolean(selectedDocIds?.has(rowId));
             const cls = getRecordClassification(rec);
+            const secKey = inferRecordSection(rec);
+            const secConfig = SECTION_CONFIG[secKey] || SECTION_CONFIG.custom;
+            const acct = getRecordAccount(rec);
+            const acctDisplay = formatAccountDisplay(acct);
             const parsedDate = parseRecordDate(rec);
             const dateText = formatDisplayDate(parsedDate);
             const refText = rec.refNo || '—';
@@ -1239,81 +1757,113 @@ function RegisterTable({ records, onPreviewRecord }) {
 
             return (
               <tr
-                key={rec.id || idx}
+                key={rowId}
                 onClick={() => onPreviewRecord?.(rec)}
-                className="hover:bg-teal-50/40 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                className={`cursor-pointer transition-colors ${
+                  isRowSelected
+                    ? 'bg-teal-50/80 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 font-medium'
+                    : 'hover:bg-teal-50/40 dark:hover:bg-slate-800/50'
+                }`}
               >
+                {/* Row Checkbox */}
+                <td 
+                  className="py-1.5 px-2 text-center" 
+                  onClick={(e) => onToggleRow?.(rowId, e)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isRowSelected}
+                    onChange={(e) => onToggleRow?.(rowId, e)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-600 text-teal-600 focus:ring-teal-500 cursor-pointer accent-teal-600"
+                    title={`Check / uncheck row: ${refText}`}
+                  />
+                </td>
+
                 {/* S.No */}
-                <td className="py-2 px-2.5 text-center font-bold text-slate-500 text-[11px]">
+                <td className="py-1.5 px-1.5 text-center font-bold text-slate-500 text-[11px]">
                   {idx + 1}
                 </td>
 
                 {/* Date */}
-                <td className="py-2 px-2.5 text-center font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                <td className="py-1.5 px-2 text-center font-mono text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                   {dateText}
                 </td>
 
                 {/* Ref / Despatch No */}
-                <td className="py-2 px-2.5">
-                  <div className="font-mono text-[11px] font-bold text-slate-900 dark:text-slate-100 break-all">
+                <td className="py-1.5 px-2">
+                  <div className="font-mono text-[11px] font-bold text-slate-900 dark:text-slate-100 break-all leading-tight">
                     {refText !== '—' ? (
-                      <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                      <span className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                         {refText}
                       </span>
                     ) : (
-                      <span className="text-slate-400 italic">Unassigned Draft</span>
+                      <span className="text-slate-400 italic text-[10px]">Unassigned Draft</span>
                     )}
                   </div>
                 </td>
 
-                {/* Classification Badge */}
-                <td className="py-2 px-2.5 whitespace-nowrap">
-                  <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md border ${cls.badgeBg}`}>
-                    <Icon size={10} className="shrink-0" />
-                    <span>{cls.shortLabel}</span>
-                  </span>
+                {/* Section & Classification Badges */}
+                <td className="py-1.5 px-2 whitespace-nowrap">
+                  <div className="flex flex-col gap-0.5">
+                    <span className={`inline-flex items-center gap-1 text-[9.5px] font-extrabold px-1.5 py-0.2 rounded border w-fit ${cls.badgeBg}`}>
+                      <Icon size={9} className="shrink-0" />
+                      <span>{cls.shortLabel}</span>
+                    </span>
+                    <span className={`text-[9px] font-bold px-1 rounded border w-fit ${secConfig.badgeClass}`}>
+                      {secConfig.shortLabel}
+                    </span>
+                  </div>
                 </td>
 
                 {/* Subject / Purpose / Title */}
-                <td className="py-2 px-3">
-                  <div className="font-bold text-slate-900 dark:text-slate-100 text-xs line-clamp-1">
+                <td className="py-1.5 px-2.5">
+                  <div className="font-bold text-slate-900 dark:text-slate-100 text-xs line-clamp-1 leading-snug">
                     {subjectText}
                   </div>
                   {rec.title && cleanHtmlEntities(rec.title) !== subjectText && (
-                    <div className="text-[10px] text-slate-500 line-clamp-1">
+                    <div className="text-[10px] text-slate-500 line-clamp-1 leading-tight">
                       {cleanHtmlEntities(rec.title)}
                     </div>
                   )}
                 </td>
 
                 {/* Issued To / Student / Addressee */}
-                <td className="py-2 px-3">
-                  <div className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                <td className="py-1.5 px-2.5">
+                  <div className="font-semibold text-slate-800 dark:text-slate-200 text-xs leading-snug">
                     {cleanPrimary}
                   </div>
                   {cleanSecondary && (
-                    <div className="text-[10px] text-slate-500 font-mono">
+                    <div className="text-[9.5px] text-slate-500 font-mono leading-tight truncate max-w-[220px]">
                       {cleanSecondary}
                     </div>
                   )}
                 </td>
 
+                {/* Generated By / Account */}
+                <td className="py-1.5 px-2 whitespace-nowrap">
+                  <div className="flex items-center gap-1 text-[10.5px] font-mono text-slate-600 dark:text-slate-400" title={`Issuer Account: ${acct}`}>
+                    <User size={10} className="text-teal-600 shrink-0" />
+                    <span className="truncate max-w-[105px]">{acctDisplay}</span>
+                  </div>
+                </td>
+
                 {/* Status */}
-                <td className="py-2 px-2.5 text-center whitespace-nowrap">
-                  <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                  <span className="text-[9.5px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded">
                     {rec.actionType || 'Recorded'}
                   </span>
                 </td>
 
                 {/* Action */}
-                <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                <td className="py-1.5 px-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
                     onClick={() => onPreviewRecord?.(rec)}
-                    className="p-1 rounded hover:bg-teal-100 dark:hover:bg-slate-700 text-teal-700 dark:text-teal-300 transition-colors"
+                    className="p-1 rounded hover:bg-teal-100 dark:hover:bg-slate-700 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer"
                     title="View Document Snapshot"
                   >
-                    <Eye size={13} />
+                    <Eye size={12} />
                   </button>
                 </td>
               </tr>

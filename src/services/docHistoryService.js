@@ -4,7 +4,7 @@
 // Certificates, and Official Letters in Firebase Firestore.
 // =================================================================
 
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import {
   collection,
   doc,
@@ -362,6 +362,9 @@ export async function saveGeneratedDocToHistory({
 
   // Reuse existing ID if document with same refNo and date already exists (no duplicate copy in history)
   const id = existingDoc?.id || `dochist_${docType}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const currentAuthUser = auth?.currentUser;
+  const currentEmail = currentAuthUser?.email || '';
+  const currentName = currentAuthUser?.displayName || (currentEmail ? currentEmail.split('@')[0] : '');
   const originalCreatedAt = existingDoc?.createdAt || nowIso;
 
   const rawPayload = {
@@ -378,6 +381,9 @@ export async function saveGeneratedDocToHistory({
     actionType: String(actionType || 'Saved to Cloud').trim(),
     templateId: String(templateId || existingDoc?.templateId || '').trim(),
     templateName: String(templateName || existingDoc?.templateName || '').trim(),
+    createdBy: existingDoc?.createdBy || currentEmail || currentName || 'Principal (Admin)',
+    userEmail: existingDoc?.userEmail || currentEmail || '',
+    author: existingDoc?.author || currentName || currentEmail || 'Principal (Admin)',
     extraData: { ...(existingDoc?.extraData || {}), ...cleanExtraData },
     createdAt: originalCreatedAt,
     updatedAt: nowIso,
