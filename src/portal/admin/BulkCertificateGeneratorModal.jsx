@@ -9,7 +9,7 @@ import {
   X, Award, Printer, Search,
   FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Unlock, Edit3, Save,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Copy,
-  ExternalLink, Check
+  ExternalLink, Check, History, Loader2
 } from 'lucide-react';
 import { getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, invalidateCollectionCache, invalidateStudentCaches } from '../../services/dbCache';
 import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
@@ -32,7 +32,8 @@ import { showToast } from '../../components/common/GlobalToast';
 import {
   extractStudentAdmissionNumber,
   extractStudentAdmissionDate,
-  extractStudentCertificateNumber
+  extractStudentCertificateNumber,
+  extractStudentResultMarks
 } from '../../utils/jkboseResultManager';
 import {
   extractStudentName,
@@ -46,14 +47,17 @@ import {
   getStudentRollNumber,
   extractAdmNo,
   extractVillage,
-  extractMobile
+  extractMobile,
+  CANONICAL_ACADEMIC_SESSIONS,
+  fetchHistoricalSessionData
 } from './CustomRosterDocumentBuilderView';
 import {
   normalizeRegistrationKey,
   areNamesCompatible,
   resolveCertificateStream,
   resolveScopedCertificateResult,
-  isExactCertificateScope
+  isExactCertificateScope,
+  normalizeCertificateClass
 } from '../../utils/certificateStudentResolution';
 const sessionStartYear = (value) => {
   const match = String(value || '').match(/(?:19|20)\d{2}/);
@@ -129,7 +133,38 @@ export default function BulkCertificateGeneratorModal({
     const cachedMaster = getCachedCollectionSync('masterRegisters');
     return Array.isArray(cachedMaster) && cachedMaster.length > 0 ? unpackMasterRegisterStudents(cachedMaster) : [];
   });
+  const [extraHistoricalStudents, setExtraHistoricalStudents] = useState([]);
+  const [isLoadingHistoricalSession, setIsLoadingHistoricalSession] = useState(false);
+  const [loadedHistoricalSessions, setLoadedHistoricalSessions] = useState(() => new Set());
   const [isRefreshingData, setIsRefreshingData] = useState(false);
+
+  // Automatically preload contemporary examination cycles (2026 APR/BIAN & 2025 APR/BIAN)
+  // so recent student results and issued certificates are immediately hydrated
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    Promise.all([
+      fetchHistoricalSessionData('2026 APR/BIAN').catch(() => ({ admissions: [], masterRegisters: [] })),
+      fetchHistoricalSessionData('2025 APR/BIAN').catch(() => ({ admissions: [], masterRegisters: [] }))
+    ]).then(([bian26, bian25]) => {
+      if (!active) return;
+      const unp26 = unpackMasterRegisterStudents(bian26.masterRegisters || []);
+      const unp25 = unpackMasterRegisterStudents(bian25.masterRegisters || []);
+      const combined = [...(bian26.admissions || []), ...unp26, ...(bian25.admissions || []), ...unp25];
+      if (combined.length > 0) {
+        setExtraHistoricalStudents(prev => {
+          const existingIds = new Set(prev.map(p => String(p.id || p._docId || '')));
+          const newOnes = combined.filter(c => {
+            const id = String(c.id || c._docId || '');
+            return id && !existingIds.has(id);
+          });
+          return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+        });
+        setLoadedHistoricalSessions(prev => new Set([...prev, '2026 APR/BIAN', '2025 APR/BIAN']));
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [isOpen]);
 
   const handleRefreshData = async () => {
     setIsRefreshingData(true);
@@ -153,6 +188,86 @@ export default function BulkCertificateGeneratorModal({
     }
   };
 
+  // On-demand loader for historical sessions
+  const handleSessionChange = async (targetSession) => {
+    setSelectedSession(targetSession);
+    if (!targetSession || targetSession === 'ALL') return;
+
+    const clean = targetSession.trim();
+    if (loadedHistoricalSessions.has(clean)) return;
+
+    const inDir = combinedStudentPool.some(st => {
+      const s = String(extractSession(st) || '').trim().toLowerCase();
+      const associated = Array.isArray(st.associatedSessions)
+        ? st.associatedSessions.map(as => String(as).trim().toLowerCase())
+        : [];
+      return s === clean.toLowerCase() || associated.includes(clean.toLowerCase());
+    });
+    if (inDir) return;
+
+    setIsLoadingHistoricalSession(true);
+    try {
+      const { admissions, masterRegisters: rawMaster } = await fetchHistoricalSessionData(clean);
+      const unpacked = unpackMasterRegisterStudents(rawMaster);
+      const combined = [...admissions, ...unpacked];
+      if (combined.length > 0) {
+        setExtraHistoricalStudents(prev => {
+          const existingIds = new Set(prev.map(p => String(p.id || p._docId || '')));
+          const newOnes = combined.filter(c => {
+            const id = String(c.id || c._docId || '');
+            return id && !existingIds.has(id);
+          });
+          return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+        });
+        setLoadedHistoricalSessions(prev => new Set([...prev, clean]));
+        if (typeof showToast === 'function') {
+          showToast(`⚡ Loaded ${combined.length} records for Session ${clean}`, 'success');
+        }
+      } else {
+        if (typeof showToast === 'function') {
+          showToast(`No student records found in database for Session ${clean}`, 'info');
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to load historical session ${clean}:`, err);
+      if (typeof showToast === 'function') {
+        showToast(`Failed to load session ${clean}: ${err.message}`, 'error');
+      }
+    } finally {
+      setIsLoadingHistoricalSession(false);
+    }
+  };
+
+  // Full archive loader for earlier sessions
+  const handleLoadAllHistoricalSessions = async () => {
+    setIsLoadingHistoricalSession(true);
+    try {
+      const fresh = await getMasterRegistersScoped({ forceAll: true, forceRefresh: true });
+      if (Array.isArray(fresh) && fresh.length > 0) {
+        const unpacked = unpackMasterRegisterStudents(fresh);
+        setExtraHistoricalStudents(prev => {
+          const existingIds = new Set(prev.map(p => String(p.id || p._docId || '')));
+          const newOnes = unpacked.filter(c => {
+            const id = String(c.id || c._docId || '');
+            return id && !existingIds.has(id);
+          });
+          return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+        });
+        CANONICAL_ACADEMIC_SESSIONS.forEach(s => setLoadedHistoricalSessions(prev => new Set([...prev, s])));
+        if (typeof showToast === 'function') {
+          showToast(`⚡ Loaded all earlier sessions (${unpacked.length} total database records)`, 'success');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load all historical sessions:', err);
+      if (typeof showToast === 'function') {
+        showToast(`Failed to load earlier sessions: ${err.message}`, 'error');
+      }
+    } finally {
+      setIsLoadingHistoricalSession(false);
+    }
+  };
+
   // Launch the dedicated Student Data & Board Ingestion Hub for mass data tasks
   const handleOpenBoardIngestionHub = () => {
     if (typeof window !== 'undefined') {
@@ -166,37 +281,87 @@ export default function BulkCertificateGeneratorModal({
     }
   };
 
-  // ─── Direct Student Pool: Preserves each enrollment/session record distinctly ───
+  // ─── Direct Student Pool: Merges and harmonizes enrollment & master register records ───
   const combinedStudentPool = useMemo(() => {
-    const pool = [];
-    const seen = new Set();
+    const rawList = [
+      ...(allStudents || []),
+      ...(liveMasterRegisters || []),
+      ...(extraHistoricalStudents || [])
+    ].filter(Boolean);
 
-    const addStudent = (st) => {
-      if (!st) return;
+    // Group records by (Registration Key + Class) to merge provisional admissions with authoritative master registers
+    const studentMap = new Map();
+    const fallbackList = [];
+
+    rawList.forEach(st => {
       const raw = st.raw || st;
-      const sess = extractSession(st) || extractSession(raw) || '';
-      const cls = extractClass(st) || extractClass(raw) || '';
-      const reg = extractBoardRegNo(st) || extractBoardRegNo(raw) || st.regNo || raw.regNo || '';
-      const roll = st.examRollNo || raw['Exam R.No. (Current)'] || raw.currExamRoll || raw.examRollNo || '';
-      const form = st.formNo || raw['Form No.'] || raw['Form Number'] || raw.formNo || '';
-      const id = String(st.id || st._id || raw.id || '');
+      const reg = normalizeRegistrationKey(extractBoardRegNo(st) || extractBoardRegNo(raw) || st.regNo || raw.regNo || '');
+      const cls = normalizeCertificateClass(extractClass(st) || extractClass(raw) || '');
+      const name = String(extractStudentName(st) || '').toLowerCase().trim();
+      const father = String(extractFatherName(st) || '').toLowerCase().trim();
 
-      // Key scoped to session so cross-session records of a student are never collapsed into an old session
-      const key = (id && !id.startsWith('chunk_'))
-        ? `${id}_${sess}`
-        : `${sess}_${cls}_${reg}_${roll}_${form}_${id}`;
+      const cohortKey = reg && cls
+        ? `${reg}__${cls}`
+        : (name && father && cls
+          ? `${name}|${father}__${cls}`
+          : null);
 
-      if (!seen.has(key)) {
-        seen.add(key);
-        pool.push(st);
+      if (!cohortKey) {
+        fallbackList.push(st);
+        return;
       }
-    };
 
-    (allStudents || []).forEach(addStudent);
-    (liveMasterRegisters || []).forEach(addStudent);
+      if (!studentMap.has(cohortKey)) {
+        studentMap.set(cohortKey, [st]);
+      } else {
+        studentMap.get(cohortKey).push(st);
+      }
+    });
 
-    return pool;
-  }, [allStudents, liveMasterRegisters]);
+    const pool = [];
+    studentMap.forEach((records) => {
+      if (records.length === 1) {
+        pool.push(records[0]);
+        return;
+      }
+
+      // Merge records for the same student in the same class tier
+      // Prefer masterRegisters for authoritative result, exam roll and certificate
+      const masterRecord = records.find(r => (r._source === 'masterRegisters' || r._srcCollection === 'masterRegisters' || (r.id && String(r.id).startsWith('mr_'))));
+      const admRecord = records.find(r => r !== masterRecord) || records[0];
+      const primary = masterRecord || admRecord;
+      const secondary = primary === masterRecord ? admRecord : masterRecord;
+
+      const primaryRaw = primary.raw || primary;
+      const secondaryRaw = secondary?.raw || secondary || {};
+
+      const mergedAssociatedSessions = Array.from(new Set(records.map(r => extractSession(r)).filter(Boolean)));
+
+      const merged = {
+        ...secondaryRaw,
+        ...primaryRaw,
+        ...secondary,
+        ...primary,
+        id: primary.id || secondary?.id,
+        _docId: primary._docId || secondary?._docId,
+        formNo: extractStudentAdmissionNumber(secondary) || extractStudentAdmissionNumber(primary) || secondary?.formNo || primary?.formNo || '',
+        admNo: extractStudentAdmissionNumber(secondary) || extractStudentAdmissionNumber(primary) || secondary?.admNo || primary?.admNo || '',
+        admDate: extractStudentAdmissionDate(secondary) || extractStudentAdmissionDate(primary) || secondary?.admDate || primary?.admDate || '',
+        associatedSessions: mergedAssociatedSessions,
+        session: extractSession(primary) || extractSession(secondary) || '',
+        className: extractClass(primary) || extractClass(secondary) || '',
+        raw: {
+          ...secondaryRaw,
+          ...primaryRaw,
+          associatedSessions: mergedAssociatedSessions
+        }
+      };
+
+      pool.push(merged);
+    });
+
+    return [...pool, ...fallbackList];
+  }, [allStudents, liveMasterRegisters, extraHistoricalStudents]);
 
   // Fast cross-session identity index by Board Reg No AND by Normalized (Name + Father Name)
   const identityIndexes = useMemo(() => {
@@ -306,7 +471,7 @@ export default function BulkCertificateGeneratorModal({
   // ─── Multi-Selection State ───
   const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
 
-  // Extract distinct Sessions scoped to current Class selection
+  // Extract distinct Sessions scoped to current Class selection (including canonical historical sessions)
   const availableSessions = useMemo(() => {
     const sessionMap = new Map();
     combinedStudentPool.forEach(st => {
@@ -318,14 +483,36 @@ export default function BulkCertificateGeneratorModal({
       if (s && s !== '—' && s.trim()) {
         sessionMap.set(s.trim(), (sessionMap.get(s.trim()) || 0) + 1);
       }
+      if (Array.isArray(st.associatedSessions)) {
+        st.associatedSessions.forEach(as => {
+          if (as && as !== '—' && as.trim() && as.trim() !== s?.trim()) {
+            sessionMap.set(as.trim(), (sessionMap.get(as.trim()) || 0) + 1);
+          }
+        });
+      }
     });
-    const sorted = Array.from(sessionMap.keys()).sort((a, b) => {
+
+    const allSessions = new Set([
+      ...Array.from(sessionMap.keys()),
+      ...CANONICAL_ACADEMIC_SESSIONS
+    ]);
+
+    const sorted = Array.from(allSessions).sort((a, b) => {
       return b.localeCompare(a, undefined, { numeric: true });
     });
-    return sorted.map(s => ({
-      value: s,
-      label: `${s} (${sessionMap.get(s)} Students)`
-    }));
+
+    return sorted.map(s => {
+      const count = sessionMap.get(s);
+      const isLoaded = count !== undefined;
+      return {
+        value: s,
+        count: count || 0,
+        isLoaded,
+        label: isLoaded
+          ? `${s} (${count} Students)`
+          : `${s} 📥 (Click to load)`
+      };
+    });
   }, [combinedStudentPool, selectedClass]);
 
   // Extract distinct Classes from live combined student pool
@@ -363,7 +550,11 @@ export default function BulkCertificateGeneratorModal({
       if (selectedSession && selectedSession !== 'ALL') {
         const s = String(extractSession(st) || '').toLowerCase().trim();
         const target = selectedSession.toLowerCase().trim();
-        const matchesSession = s === target || s.includes(target) || target.includes(s);
+        const matchesSession = s === target || s.includes(target) || target.includes(s) ||
+          (Array.isArray(st.associatedSessions) && st.associatedSessions.some(as => {
+            const asLower = String(as || '').toLowerCase().trim();
+            return asLower === target || asLower.includes(target) || target.includes(asLower);
+          }));
         if (!matchesSession) return false;
       }
       const regKey = normalizeRegistrationKey(extractBoardRegNo(st));
@@ -429,14 +620,24 @@ export default function BulkCertificateGeneratorModal({
         extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
       );
 
-      // Only look for an already locked certificate for this exact session and class scope,
-      // never inherit an older certificate from a previous academic session or class.
-      const certificateSourceRecord = [st, ...registrationLinkedRecords]
+      // Look for an already locked certificate: check exact session first,
+      // with class-tier fallback for students whose certificate was assigned in any cycle of this class
+      let certificateSourceRecord = [st, ...registrationLinkedRecords]
         .find(record =>
           isExactCertificateScope(record, session, cls) &&
           areNamesCompatible(extractStudentName(record), extractStudentName(st)) &&
           Boolean(extractStudentCertificateNumber(record))
         );
+
+      if (!certificateSourceRecord && cls) {
+        certificateSourceRecord = [st, ...registrationLinkedRecords]
+          .find(record =>
+            normalizeCertificateClass(record) === normalizeCertificateClass(cls) &&
+            areNamesCompatible(extractStudentName(record), extractStudentName(st)) &&
+            Boolean(extractStudentCertificateNumber(record))
+          );
+      }
+
       const certificateRaw = extractStudentCertificateNumber(raw) ||
         extractStudentCertificateNumber(st) ||
         extractStudentCertificateNumber(certificateSourceRecord) || '';
@@ -453,25 +654,48 @@ export default function BulkCertificateGeneratorModal({
         : (String(resolvedGender || '').toUpperCase().startsWith('M') ? 'M' : '');
       const village = (extractVillage(st) !== '—' ? extractVillage(st) : firstLinked(extractVillage)) || '—';
       const mobile = extractMobile(st) || '';
-      const withdrawalDate = raw['Date of withdrawl'] || raw['Date of Withdrawal'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || '';
+      const withdrawalDate = raw['Date of withdrawl'] || raw['Date of Withdrawal'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate ||
+        certificateSourceRecord?.['Date of withdrawl'] || certificateSourceRecord?.['Date of Withdrawal'] || certificateSourceRecord?.withdrawalDate || '';
 
-      // Result, marks, exam roll and exam mode must all come from the exact
-      // registration + session/exam cycle + class scope. Never promote an old
-      // pass over a current re-appear/awaiting record.
+      // Result, marks, exam roll and exam mode: check exact session scope first,
+      // with verified board result fallback for the same class
       const scopedResult = resolveScopedCertificateResult(
         [st, ...registrationLinkedRecords],
         session,
         cls
       );
-      const resInfo = scopedResult.resultInfo;
+      let resInfo = scopedResult.resultInfo;
+
+      // If exact session did not resolve a result, check if any linked record in the same class has a verified board result
+      if (!resInfo.hasResult && cls) {
+        const classResult = [st, ...registrationLinkedRecords]
+          .filter(record => normalizeCertificateClass(record) === normalizeCertificateClass(cls) && areNamesCompatible(extractStudentName(record), extractStudentName(st)))
+          .map(record => ({ record, res: extractStudentResultMarks(record) }))
+          .find(item => item.res.hasResult);
+        if (classResult) {
+          resInfo = classResult.res;
+        }
+      }
+
+      // If certificateSourceRecord has marks or result, ensure they are adopted
+      if (!resInfo.hasResult && certificateSourceRecord) {
+        const certResult = extractStudentResultMarks(certificateSourceRecord);
+        if (certResult.hasResult) {
+          resInfo = certResult;
+        }
+      }
+
       const scopedResultRaw = scopedResult.resultRecord?.raw || scopedResult.resultRecord || {};
-      const scopedMetadataRecord = scopedResult.resultRecord || scopedResult.scopedRecords[0] || null;
+      const scopedMetadataRecord = scopedResult.resultRecord || scopedResult.scopedRecords[0] || certificateSourceRecord || null;
       const scopedMetadataRaw = scopedMetadataRecord?.raw || scopedMetadataRecord || {};
       const examRollNo = resInfo.examRoll ||
-        scopedMetadataRaw['Exam R.No. (Current)'] || scopedMetadataRaw.currExamRoll || scopedMetadataRaw.examRollNo || '—';
+        scopedMetadataRaw['Exam R.No. (Current)'] || scopedMetadataRaw.currExamRoll || scopedMetadataRaw.examRollNo ||
+        certificateSourceRecord?.['Exam R.No. (Current)'] || certificateSourceRecord?.currExamRoll || certificateSourceRecord?.examRollNo ||
+        st.examRollNo || raw.examRollNo || '—';
       const examMode = resInfo.examMode ||
         scopedResultRaw['Exam Mode (Current)'] || scopedResultRaw.currExamMode || scopedResultRaw.examMode ||
-        scopedMetadataRaw['Exam Mode (Current)'] || scopedMetadataRaw.currExamMode || scopedMetadataRaw.examMode || 'Regular';
+        scopedMetadataRaw['Exam Mode (Current)'] || scopedMetadataRaw.currExamMode || scopedMetadataRaw.examMode ||
+        certificateSourceRecord?.['Exam Mode (Current)'] || certificateSourceRecord?.currExamMode || certificateSourceRecord?.examMode || 'Regular';
 
       const isPassed = resInfo.isPassed;
       const isReap = resInfo.isReap;
@@ -496,6 +720,7 @@ export default function BulkCertificateGeneratorModal({
         className: cls,
         stream,
         session,
+        associatedSessions: st.associatedSessions || (session ? [session] : []),
         examMode,
         rollNo,
         regNo,
@@ -552,7 +777,11 @@ export default function BulkCertificateGeneratorModal({
       if (selectedSession !== 'ALL') {
         const s = String(st.session || '').toLowerCase().trim();
         const target = selectedSession.toLowerCase().trim();
-        const matchesSession = s === target || s.includes(target) || target.includes(s);
+        const matchesSession = s === target || s.includes(target) || target.includes(s) ||
+          (Array.isArray(st.associatedSessions) && st.associatedSessions.some(as => {
+            const asLower = String(as || '').toLowerCase().trim();
+            return asLower === target || asLower.includes(target) || target.includes(asLower);
+          }));
         if (!matchesSession) return false;
       }
       if (selectedStream !== 'ALL') {
@@ -1144,6 +1373,24 @@ export default function BulkCertificateGeneratorModal({
               <ExternalLink size={10} />
             </button>
 
+            {/* Load Earlier Sessions Button */}
+            <button
+              type="button"
+              onClick={handleLoadAllHistoricalSessions}
+              disabled={isLoadingHistoricalSession}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-600/50 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
+              title="Query and load all archived historical sessions (2024-25, 2023-24, 2022-23, etc.) from Firestore registry"
+            >
+              {isLoadingHistoricalSession ? (
+                <Loader2 size={11} className="animate-spin text-teal-400" />
+              ) : (
+                <History size={11} className="text-teal-400" />
+              )}
+              <span className="hidden md:inline">
+                {isLoadingHistoricalSession ? 'Loading Archives...' : 'Load Earlier Sessions'}
+              </span>
+            </button>
+
             {/* Cloud Sync Button */}
             <button
               type="button"
@@ -1195,11 +1442,19 @@ export default function BulkCertificateGeneratorModal({
 
             {/* Session Filter */}
             <div>
-              <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Session</label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block">Session</label>
+                {isLoadingHistoricalSession && (
+                  <span className="text-[8.5px] font-bold text-teal-500 flex items-center gap-1 animate-pulse">
+                    <Loader2 size={9} className="animate-spin" /> Loading...
+                  </span>
+                )}
+              </div>
               <select
                 value={selectedSession}
-                onChange={(e) => setSelectedSession(e.target.value)}
-                className="w-full h-7.5 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                onChange={(e) => handleSessionChange(e.target.value)}
+                disabled={isLoadingHistoricalSession}
+                className="w-full h-7.5 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer disabled:opacity-60"
               >
                 <option value="ALL">All Sessions ({combinedStudentPool.length})</option>
                 {availableSessions.map(s => (

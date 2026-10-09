@@ -721,7 +721,9 @@ export function extractClass(st) {
 
 // Canonical historical academic sessions supported across official modules
 export const CANONICAL_ACADEMIC_SESSIONS = Object.freeze([
+  '2026 APR/BIAN',
   '2025-26',
+  '2025 APR/BIAN',
   '2024-25 (Oct-Nov)',
   '2024-25 (Mar-Apr)',
   '2024-25',
