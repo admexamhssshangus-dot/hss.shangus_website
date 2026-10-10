@@ -591,6 +591,37 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
       expect(isStudentEnrolledInPracticalSubject(malikaTariq, 'ES', '11th')).toBe(false);
     });
 
+    test('student who has Environmental Science in both classes matches ES and never PD in both 11th and 12th', () => {
+      const malikaBothClasses = {
+        name: 'Malika Tariq',
+        class: '12th',
+        className: '12th',
+        stream: 'Science',
+        'Subs': 'General English, Physics, Chemistry, Biology, Environmental Science',
+        'Subjects Studied in Class 11th': 'General English, Physics, Chemistry, Biology, Environmental Science',
+        'Subjects to be taken in Class 11th': 'General English, Physics, Chemistry, Biology, Environmental Science',
+        'Subjects to be taken in Class 12th': 'General English, Physics, Chemistry, Biology, Environmental Science',
+        'Subjects5': 'Environmental Science',
+        'subjects': 'GE, PH, CH, BI, ES'
+      };
+
+      // In Class 12th evaluation:
+      expect(isSubjectOrStreamMatch(malikaBothClasses, 'PD', 'Physical Education', '12th')).toBe(false);
+      expect(isSubjectOrStreamMatch(malikaBothClasses, 'ES', 'Environmental Science', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(malikaBothClasses, 'PD', '12th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(malikaBothClasses, 'ES', '12th')).toBe(true);
+      expect(getAbbreviatedSubjects(malikaBothClasses, '12th')).toContain('ES');
+      expect(getAbbreviatedSubjects(malikaBothClasses, '12th')).not.toContain('PD');
+
+      // In Class 11th evaluation:
+      expect(isSubjectOrStreamMatch(malikaBothClasses, 'PD', 'Physical Education', '11th')).toBe(false);
+      expect(isSubjectOrStreamMatch(malikaBothClasses, 'ES', 'Environmental Science', '11th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(malikaBothClasses, 'PD', '11th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(malikaBothClasses, 'ES', '11th')).toBe(true);
+      expect(getAbbreviatedSubjects(malikaBothClasses, '11th')).toContain('ES');
+      expect(getAbbreviatedSubjects(malikaBothClasses, '11th')).not.toContain('PD');
+    });
+
     test('secondary students never match higher secondary subjects and vocational electives require actual enrollment', () => {
       const secondaryCoreStudent = {
         name: 'Mohammad Shahid',

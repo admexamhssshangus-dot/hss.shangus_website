@@ -85,7 +85,7 @@ function restRequest(method, path, payload, token) {
 
 function parseFirestoreDoc(doc) {
   if (!doc || !doc.fields) return {};
-  const res = { _docId: doc.name.split('/').pop(), _createTime: doc.createTime, _updateTime: doc.updateTime };
+  const res = { _docId: doc.name ? doc.name.split('/').pop() : '', _createTime: doc.createTime, _updateTime: doc.updateTime };
   for (const [k, v] of Object.entries(doc.fields)) {
     if (v.stringValue !== undefined) res[k] = v.stringValue;
     else if (v.integerValue !== undefined) res[k] = parseInt(v.integerValue, 10);

@@ -2,35 +2,31 @@
 
 ## Commit Message
 
-`fix(practicals): resolve student subject isolation across classes and teacher award submission authorization`
+`fix(students): harmonize Malika Tariq Environmental Science enrollment across both classes, catalog and Firestore`
 
 ## Files Changed
 
-1. **[src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)**
-   - **Class-Specific Subject Isolation in `isSubjectOrStreamMatch`**: Updated `isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName, targetClass = '')` to accept and prioritize `targetClass`. For Class 12th, the student's authoritative Class 12th subject fields (`Subjects to be taken in Class 12th`, `Stream & Subjects for Class 12th`, `Subjects in Class 12th`) are evaluated first and isolated from Class 11th fields. This fixes the issue where students who changed subjects (e.g. Malika Tariq, who switched from Physical Education in 11th to Environmental Science in 12th) were erroneously matching Physical Education (`PD`) under the 12th teacher login.
-   - **Secondary School Subject Boundaries**: Fixed secondary class checks so Class 9th/10th students only match secondary curriculum subjects (`EN`, `MA`, `SC`, `SS`, `UR`, `HN`) and verified vocational electives (`HTC`, `ITE`), strictly preventing secondary students from leaking into Higher Secondary subject rosters (`PD`, `BO`, `ZO`, `CH`, `PH`, `ES`, `PS`, etc.).
-   - **Method 2 Overlay & Historical Submission Subject Guard**: Updated the Method 2 previous submission loader and final candidate filter to enforce `isSubjectOrStreamMatch` and `isSubjectMatch` with `selectedClass`, ensuring students whose subjects were corrected are immediately removed from old subject drafts and moved to their correct subject roster.
+1. **[src/data/verifiedStudentsCatalog.json](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/data/verifiedStudentsCatalog.json)**
+   - Updated Form `250271` (Malika Tariq) subject 5 from Physical Education (`PD`) to Environmental Science (`ES`).
+   - Synchronized verified student name to `"Malika Tariq"`, father's name to `"Tariq Ahmad Wani"`, board registration number to `"2301010000900057"`, and current JKBOSE exam roll number to `"301003042"`.
 
-2. **[src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)**
-   - **Class-Specific Subject Precedence in `resolveStudentSubjectsRaw`**: Moved Class 12th, 11th, 10th, and 9th subject fields to the very top of the candidate hierarchy before generic `Subs` / `subs`. This guarantees that `getAbbreviatedSubjects` and `isStudentEnrolledInPracticalSubject` resolve the student's corrected 12th subject (`ES`) rather than obsolete 11th `Subs` (`PD`).
+2. **[src/portal/teacher/PracticalsPage.test.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.test.jsx)**
+   - Added automated test verifying that a student who has Environmental Science in both Class 11th and Class 12th matches `ES` and never matches `PD` in both class evaluations (all 27 tests passing).
 
-3. **[src/portal/teacher/TeacherAssessmentsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/TeacherAssessmentsPage.jsx)**
-   - **Passed `selectedClass` to Subject Filter**: Updated `matchSubjOrAll` to call `isSubjectOrStreamMatch(st, targetSubjCode, targetSubjName, selectedClass)`, preventing secondary students and wrong-subject electives from showing up in School Based Assessment rosters.
+3. **[scripts/check_recent_firestore_edits.mjs](file:///d:/Shk_Gulfam/Projects/hss_shangus/scripts/check_recent_firestore_edits.mjs)**
+   - Added null-safety check for document name resolution during Firestore document parsing.
 
-4. **[functions/academicRecords.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/functions/academicRecords.js)**
-   - **Robust Teacher Assignment Checking (`checkTeacherAssignment`)**: Added `normalizeStaffClasses` to handle arrays, comma-delimited tokens (e.g. `11th,12th`), and prefixes.
-   - **Subject & Alias Matching (`isStaffSubjectMatch`)**: Added comprehensive alias and code matching for subjects (`PD` <-> `Physical Education`, `ES`/`EVS` <-> `Environmental Science`, `ITE`/`IT` <-> `IT and ITES`, `BI`/`BO`/`ZO` <-> `Botany`/`Zoology`/`Biology`, `SC` <-> `Science`, `SS`/`SST` <-> `Social Science`, etc.), checking `staff.subject`, `staff.assignedSubjects`, `staff.subjects`, and `staff.assignedSubjectCodes`.
-   - **Secondary Science Subject Definition Lookup**: Fixed subject definition lookup to match by code or name so `"Science"` (`SC`) and `"Social Science"` (`SS`) match `"Science (Class 10th)"` and `"Social Science (Class 10th)"`.
-   - **Cross-Subject Staged Submissions**: Allowed `isCrossSubjectAllowed` for practical submissions staged as `pending_approval` or drafts so that teacher submissions for admin approval do not throw `"This class and subject are not assigned to your account"`.
-   - **Safe Cohort Matching**: Updated cohort record lookup from `matches.length !== 1` to `matches.length === 0`, picking the primary admissions record if a student appears in both `admissions` and `masterRegisters`.
-
-5. **[functions/academicRecords.test.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/functions/academicRecords.test.js)**
-   - Added Node.js test suite verifying class normalization, subject alias matching, and teacher assignment checks (all passing).
-
-6. **[src/portal/teacher/PracticalsPage.test.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.test.jsx)**
-   - Added unit tests specifically verifying:
-     - Malika Tariq's subject change (11th Physical Education -> 12th Environmental Science) matches `ES` in 12th and `PD` in 11th, and never appears in the wrong class roster.
-     - Secondary student boundaries prevent core 9th/10th students from matching higher secondary subjects, and require actual vocational enrollment for `HTC` and `ITE` (all 26 tests passing).
+4. **Firestore Database Live Updates (Directly Synchronized)**:
+   - **`admissions/adm_250271`**:
+     - Updated `"Subjects Studied in Class 11th"` and `"Subjects to be taken in Class 11th"` from Physical Education to `"General English, Physics, Chemistry, Biology, Environmental Science"`.
+     - Confirmed both Class 11th and Class 12th subject fields now reflect Environmental Science (`ES`).
+   - **`masterRegisters/mr_2025-26_12th_reg_2301010000900057`**:
+     - Updated `Subjects5` and `subjects5` to `"Environmental Science"`, `subjects` to `"GE, PH, CH, BI, ES"`, and `Subs` to `"General English, Physics, Chemistry, Biology, Environmental Science"`.
+     - Harmonized student name to `"Malika Tariq"`, father's name to `"Tariq Ahmad Wani"`, and mother's name to `"Tanveera Banoo"`.
+   - **`practicalsData/12th_Physical Education_Pre-Board Test_2025-26`**:
+     - Removed Malika Tariq from the submitted Physical Education practicals list (records reduced from 76 to 75).
+   - **`practicalsData/12th_Environmental Science_Pre-Board Test_2025-26`**:
+     - Added Malika Tariq to the Environmental Science practicals award roll at Roll No. 7 in proper sequential order (records increased from 20 to 21).
 
 ---
 
@@ -49,7 +45,7 @@ If you wish to edit the commit message or make adjustments:
 git reset --soft HEAD~1
 # Make desired adjustments...
 git add .
-git commit -m "fix(practicals): resolve student subject isolation across classes and teacher award submission authorization"
+git commit -m "fix(students): harmonize Malika Tariq Environmental Science enrollment across both classes, catalog and Firestore"
 ```
 
 ### 3. How to Push to Remote Repository
