@@ -75,6 +75,9 @@ export const DEFAULT_MX12 = Object.fromEntries(
 export const DEFAULT_MX10 = Object.fromEntries(
   Object.entries(DEFAULT_PRACTICAL_MARKS_CONFIG['10th']?.internal || {}).map(([k, v]) => [k, v.max])
 );
+export const DEFAULT_MX9 = Object.fromEntries(
+  Object.entries(DEFAULT_PRACTICAL_MARKS_CONFIG['9th']?.internal || {}).map(([k, v]) => [k, v.max])
+);
 
 export const DEFAULT_EXCLUDED_TEACHERS = [
   'teacher@hssshangus.in',
@@ -502,6 +505,7 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
   const resolvedClass = extractCleanClassFallback(st);
   const isSecondary = resolvedClass.includes('10') || resolvedClass.includes('9');
   const stream = isSecondary ? 'General' : (getStudentStreamStr(st, resolvedClass) || 'Science');
+  const subjects9 = st['Subjects to be taken in Class 9th'] || st['Subjects in Class 9th'] || st['Subjects Studied in Class 9th'] || '';
   const subjects10 = st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th'] || '';
   const subjects11 = st['Subjects to be taken in Class 11th'] || st['Subjects'] || st['Subs'] || '';
   const subjects12 = st['Subjects to be taken in Class 12th'] || st['Subjects'] || st['Subs'] || '';
@@ -589,6 +593,7 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
     'stream': stream,
     'Stream for Class 11th': isSecondary ? 'General' : stream,
     'Stream for Class 12th': isSecondary ? 'General' : stream,
+    'Subjects to be taken in Class 9th': subjects9,
     'Subjects to be taken in Class 10th': subjects10,
     'Subjects to be taken in Class 11th': subjects11,
     'Subjects to be taken in Class 12th': subjects12,
@@ -732,6 +737,7 @@ function AdminPracticals({ isActive = true }) {
     maxMarks10: DEFAULT_MX10,
     maxMarks11: DEFAULT_MX11,
     maxMarks12: DEFAULT_MX12,
+    nonPractical9: '',
     nonPractical10: '',
     nonPractical11: '',
     nonPractical12: '',
@@ -740,6 +746,13 @@ function AdminPracticals({ isActive = true }) {
     currentPracticalType: 'internal',
     permissions: [],
     printDetails: {
+      '9th': {
+        sessionText: 'Annual Regular 2026',
+        instName: 'Govt. Higher Secondary School Shangus',
+        inchargeName: 'Mr. Majid Hassan Najar',
+        inchargeCpis: 'SHGEDU00220017',
+        inchargeMobile: '7006537425'
+      },
       '10th': {
         sessionText: 'Annual Regular 2026',
         instName: 'Govt. Higher Secondary School Shangus',
@@ -6885,7 +6898,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
         onClose={() => setIsResetModalOpen(false)}
         onConfirm={handleConfirmResetDefaults}
         title="Reset to Official JKBOSE Scheme?"
-        subtitle="This will restore official Board maximum marks and passing criteria across all 61 subjects for Class 10th, 11th, and 12th."
+        subtitle="This will restore official Board maximum marks and passing criteria across all subjects for Class 9th, 10th, 11th, and 12th."
         badgeText="2024-25 Board Scheme"
         confirmText="Reset & Save Defaults"
         confirmBtnStyle="indigo"
@@ -6998,7 +7011,7 @@ function SettingsPermissionsView({
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
               activeSettingsTab === 'windows' ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
             }`}>
-              10th, 11th, 12th
+              9th, 10th, 11th, 12th
             </span>
           </button>
 
@@ -7268,6 +7281,19 @@ function SettingsPermissionsView({
                   onChange={e => setSettings({ ...settings, absentMarker: e.target.value })}
                   className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   placeholder="AB"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                  Class 9th Non-Practical Subjects
+                </label>
+                <input
+                  type="text"
+                  value={settings.nonPractical9 || ''}
+                  onChange={e => setSettings({ ...settings, nonPractical9: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                  placeholder="Codes (e.g. HTC, ITE)"
                 />
               </div>
 

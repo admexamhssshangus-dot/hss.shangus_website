@@ -3055,6 +3055,14 @@ function ApplicableClassesDropdown({
               >
                 11th & 12th
               </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => onChange(['9th', '10th'])}
+                className="text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer font-bold"
+              >
+                9th & 10th
+              </button>
             </div>
           </div>
           {classesList.map(cls => {

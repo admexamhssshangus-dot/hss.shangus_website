@@ -143,6 +143,9 @@ export const isSubjectEnrolledByStudent = (secCode, secName, student) => {
     if (sCode === 'UR' && (c === 'UR' || n.includes('urdu'))) return true;
     if (sCode === 'AR' && (c === 'AR' || n.includes('arabic'))) return true;
     if (sCode === 'PD' && (c === 'PHE' || c === 'PED' || n.includes('physical'))) return true;
+    if (sCode === 'SC' && (c === 'SC' || c === 'SCI' || c === 'SCIENCE' || n.includes('science'))) return true;
+    if (sCode === 'SS' && (c === 'SS' || c === 'SST' || c === 'SOC' || n.includes('social'))) return true;
+    if (sCode === 'HN' && (c === 'HN' || c === 'HIN' || n.includes('hindi'))) return true;
     if (sCode === 'HTC' && (c === 'HTC' || c === 'HC' || n.includes('health'))) return true;
     if (sCode === 'ITE' && (c === 'ITE' || c === 'IT' || c === 'CS' || c === 'IP' || n.includes('information') || n.includes('ites'))) return true;
     return false;

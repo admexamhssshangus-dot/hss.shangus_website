@@ -18,7 +18,7 @@ import AdminGazetteRecordEditModal from './AdminGazetteRecordEditModal';
 import { resolveCertificateStream, streamMatches } from '../../utils/certificateStudentResolution';
 
 const SESSIONS = ['2025-26', '2024-25', '2023-24'];
-const CLASSES = ['12th', '11th', '10th'];
+const CLASSES = ['12th', '11th', '10th', '9th'];
 const STREAMS = ['All', 'Science', 'Arts', 'Commerce'];
 
 const STATUS_CATEGORIES = [
@@ -252,7 +252,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       const isClassMatched = docCls === targetClass ||
         (targetClass === '11' && (rawCls.includes('11') || rawCls.includes('xi'))) ||
         (targetClass === '12' && (rawCls.includes('12') || rawCls.includes('xii'))) ||
-        (targetClass === '10' && (rawCls.includes('10') || rawCls.includes('x')));
+        (targetClass === '10' && (rawCls.includes('10') || rawCls.includes('x'))) ||
+        (targetClass === '9' && (rawCls.includes('9') || rawCls.includes('ix')));
       if (!isClassMatched) return false;
 
       // Session matching (handles 2025-26, 2026, 2024-25, 2025)

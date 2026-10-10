@@ -2,45 +2,31 @@
 
 ## Commit Message
 
-`feat(academics): add end-to-end Class 9th support for attendance, practicals, and school assessments`
+`feat(academics): complete end-to-end Class 9th integration across Gazette, Analytics, and Practicals`
 
 ## Files Changed
 
-1. **[src/portal/admin/AdminAttendance.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminAttendance.jsx)**
-   - **Secondary Core Subjects Added**: Added `SC` (Science), `SS` (Social Studies), and `HN` (Hindi) to `MASTER_SUBJECT_NAMES` and lookup formatters.
-   - **Multi-Class Configuration State**: Added `9th` and `10th` to default `attendanceConfig` portal controls and `classCounts` summary state.
-   - **Summary Aggregation Engine**: Updated `computeAndSaveSummary` to aggregate and index logs across all classes (`9th`, `10th`, `11th`, `12th`).
-   - **Administrative Controls Panel**: Rendered individual live submission toggles for `9th`, `10th`, `11th`, and `12th`.
-   - **Overview Analytics KPI Bar**: Expanded the top analytics grid into a 6-card display presenting Total Logs, Class 9th Logs, Class 10th Logs, Class 11th Logs, Class 12th Logs, and Overall Present Rate.
-   - **Filter Toolbar**: Added Class `9th` and `10th` pills to the Overview class filter control (`['all', '9th', '10th', '11th', '12th']`).
+1. **[src/portal/admin/ConsolidatedGazetteView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/ConsolidatedGazetteView.jsx)**
+   - **Tabular Scope**: Added `'9th'` to `CLASSES = ['12th', '11th', '10th', '9th']`.
+   - **Examinee Matching**: Added `targetClass === '9' && (rawCls.includes('9') || rawCls.includes('ix'))` to the gazette document matching filter.
+   - **Secondary Curriculum Standard**: Class 9th automatically maps to the standard 7 secondary subjects (`EN`, `MA`, `SC`, `SS`, `UR`, `HTC`, `ITE`) for consolidated tabulation, ranking, export, and official printouts.
 
-2. **[src/portal/teacher/AttendancePage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/AttendancePage.jsx)**
-   - **Master Subject Definitions**: Added `Science` (`SC`), `Social Studies` (`SS`), and `Hindi` (`HN`) to `MASTER_SUBJECTS`.
-   - **Subject Code Resolution**: Enhanced `resolveTeacherSubjectCode` to resolve `Science` & `SC`, `Social Studies` & `SST` & `SS`, and `Hindi` & `HN`.
-   - **Secondary Stream & Subject Matching**: Upgraded `isSubjectMatch` to identify secondary students (Classes 9th and 10th) taking core curriculum, and removed `'sc'` from the higher-secondary stream guard so secondary Science daily roll call is never blocked.
-   - **Real-Time Administrative Gateway Synchronization**: Added listener for `systemSettings/attendanceConfig` so that if an administrator disables submissions for Class 9th, the warning banner and save button lock are enforced in real time.
+2. **[src/portal/admin/AnalyticsSuiteModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AnalyticsSuiteModal.jsx)**
+   - **Selection Sync**: Updated `useEffect` synchronization to include `'9th'` in `['9th', '10th', '11th', '12th']` when syncing examinee classes.
+   - **Subject Roll Class Tabs**: Added `{ id: '9th', label: 'Class 9th' }` to the JKBOSE Subject Roll Return class switcher.
+   - **Dropper Manager Class Bar**: Added `{ id: '9th', label: 'Class 9th' }` to the Dropper Manager class filter bar.
 
-3. **[src/portal/teacher/TeacherDashboard.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/TeacherDashboard.jsx)**
-   - **Card Subtitle Update**: Updated attendance card subtitle from "Class 11th & 12th Classroom Attendance" to "Classes 9th to 12th Daily Attendance, Leaves & Holiday Management".
+3. **[src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)**
+   - **Max Marks Export**: Exported `DEFAULT_MX9` computed from `DEFAULT_PRACTICAL_MARKS_CONFIG['9th']`.
+   - **Subject Normalization**: Added `subjects9` extraction (`'Subjects to be taken in Class 9th'`, `'Subjects in Class 9th'`, `'Subjects Studied in Class 9th'`) to `normalizeStudentFields`.
+   - **Default Settings & Print Headers**: Initialized `nonPractical9: ''` and added default Class 9th print details to the admin practicals settings state.
+   - **Settings UI**: Added dedicated "Class 9th Non-Practical Subjects" input field in the Settings panel and updated scheme reset modal description and submission windows badge to include Class 9th.
 
-4. **[src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js)**
-   - **Class 9th Practical Marks Configuration**: Added `'9th'` to `DEFAULT_PRACTICAL_MARKS_CONFIG` configured under the official secondary JKBOSE scheme (core subjects internal max 20, pass 7; vocational external max 50, pass 16).
-   - **Class Normalization**: Updated `getSubjectMarksConfig` so `normClass` explicitly checks for `9th` (`rawCls.includes('9') ? '9th' : ...`).
-   - **Default Submission Windows**: Added `'9th': true` to `DEFAULT_PRACTICAL_SUBMISSION_WINDOWS`.
+4. **[src/pages/PublicResultLookup.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/PublicResultLookup.jsx)**
+   - **Secondary Subject Aliases**: Added `SC` (Science), `SS` (Social Studies), and `HN` (Hindi) to `isSubjectEnrolledByStudent` so secondary students checking their Pre-Board or school-based assessment results match their enrolled subjects accurately.
 
-5. **[src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)**
-   - **Top Navigation Switcher**: Added Class 9th tab button to the top Class Switcher Segmented Control.
-   - **Awards Summary View Mounting**: Mounted `<AwardsSummaryView cls="9th" ... />` when `tab === 'class9'`.
-   - **Secondary Subject Recognition**: Updated `activeCodesList` and `getDefaultCheckedCodes` in `AwardsSummaryView` to recognize Class 9th alongside Class 10th for secondary core subjects (`EN, MA, SC, SS, UR, HTC, ITE`).
-   - **Submission Window Controls**: Added Class 9th card to the live practical submission windows panel with a responsive 4-column layout.
-   - **Marks Configuration Switcher**: Added Class 9th button to the Marks Configuration class switcher.
-   - **Print Headers Configuration**: Added Class 9th card to the Print Headers configuration panel.
-
-6. **[src/portal/admin/SchoolAssessmentsHub.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/SchoolAssessmentsHub.jsx)**
-   - **Fallback Classes Harmonization**: Updated fallback `classes` arrays across assessment edit modal, assessment scope pills, and paper scale override class selector to include `['9th', '10th', '11th', '12th']`.
-
-7. **[src/pages/PublicResultLookup.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/PublicResultLookup.jsx)**
-   - **Lookup Fallback Classes**: Updated fallback evaluation classes array to include `['9th', '10th', '11th', '12th']`.
+5. **[src/portal/admin/CustomRosterDocumentBuilderView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/CustomRosterDocumentBuilderView.jsx)**
+   - **Quick Filter Pills**: Added a dedicated `9th & 10th` quick preset shortcut to the Applicable Classes dropdown in the Custom Roster Document Builder.
 
 ---
 
@@ -59,7 +45,7 @@ If you wish to edit the commit message or make adjustments:
 git reset --soft HEAD~1
 # Make desired adjustments...
 git add .
-git commit -m "feat(academics): add end-to-end Class 9th support for attendance, practicals, and school assessments"
+git commit -m "feat(academics): complete end-to-end Class 9th integration across Gazette, Analytics, and Practicals"
 ```
 
 ### 3. How to Push to Remote Repository

@@ -1287,7 +1287,7 @@ export default function AnalyticsSuiteModal({
   useEffect(() => {
     if (selectedClasses.length === 1 && !selectedClasses.includes('All')) {
       const norm = normalizeExamineeClass(selectedClasses[0]);
-      if (['10th', '11th', '12th'].includes(norm)) {
+      if (['9th', '10th', '11th', '12th'].includes(norm)) {
         setJkboseSelectedClass(norm);
       }
     } else if (selectedClasses.length === 0) {
@@ -2582,6 +2582,7 @@ export default function AnalyticsSuiteModal({
                     { id: '12th', label: 'Class 12th (HSE-II)' },
                     { id: '11th', label: 'Class 11th (HSE-I)' },
                     { id: '10th', label: 'Class 10th (SSE)' },
+                    { id: '9th', label: 'Class 9th' },
                     { id: 'all', label: 'All Classes (Classwise)' },
                   ].map((tab) => {
                     const isSelected = effectiveJkboseClass === tab.id;
@@ -3158,6 +3159,7 @@ export default function AnalyticsSuiteModal({
                 {/* Dedicated Class Selector Bar for Dropper Manager Window */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar">
                   {[
+                    { id: '9th', label: 'Class 9th' },
                     { id: '10th', label: 'Class 10th (SSE)' },
                     { id: '11th', label: 'Class 11th (HSE-I)' },
                     { id: '12th', label: 'Class 12th (HSE-II)' },
