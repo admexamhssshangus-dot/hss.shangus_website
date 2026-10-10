@@ -2,31 +2,26 @@
 
 ## Commit Message
 
-`feat(academics): complete end-to-end Class 9th integration across Gazette, Analytics, and Practicals`
+`fix(practicals): resolve IT & ITES matching and enrollment showing empty across admin and teacher portals`
 
 ## Files Changed
 
-1. **[src/portal/admin/ConsolidatedGazetteView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/ConsolidatedGazetteView.jsx)**
-   - **Tabular Scope**: Added `'9th'` to `CLASSES = ['12th', '11th', '10th', '9th']`.
-   - **Examinee Matching**: Added `targetClass === '9' && (rawCls.includes('9') || rawCls.includes('ix'))` to the gazette document matching filter.
-   - **Secondary Curriculum Standard**: Class 9th automatically maps to the standard 7 secondary subjects (`EN`, `MA`, `SC`, `SS`, `UR`, `HTC`, `ITE`) for consolidated tabulation, ranking, export, and official printouts.
+1. **[src/utils/practicalsSettingsManager.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSettingsManager.js)**
+   - **`isMatchingSubjectCode` Dedicated ITE Guard**: Added strict, authoritative matching for `ITE`, `IT`, `ITES`, `IT & ITES`, `IT and ITES`, `IT&ITES`, `IT / ITES`, `Information Technology`, and underscore-delimited document IDs (e.g. `12th_26_IT_internal`, `12th_26_ITE_internal`, `12th_IT & ITES_internal_2025-26`). Prevents false negatives where awards and submissions showed as "Empty" instead of "Live".
+   - **`normalizeSubjectIdentity` Enhancement**: Explicitly catches standalone `'it'`, `'ite'`, `'ites'`, and variations before falling into fuzzy substring matching (which previously caused false-positive collisions with "Security" or "Political Science").
 
-2. **[src/portal/admin/AnalyticsSuiteModal.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AnalyticsSuiteModal.jsx)**
-   - **Selection Sync**: Updated `useEffect` synchronization to include `'9th'` in `['9th', '10th', '11th', '12th']` when syncing examinee classes.
-   - **Subject Roll Class Tabs**: Added `{ id: '9th', label: 'Class 9th' }` to the JKBOSE Subject Roll Return class switcher.
-   - **Dropper Manager Class Bar**: Added `{ id: '9th', label: 'Class 9th' }` to the Dropper Manager class filter bar.
+2. **[src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)**
+   - **Multi-Field Subject String Matching**: Updated `subjectsWithSubmissions` and `subDoc` lookup to check an array of candidate strings (`s.subjectCode`, `s.subject`, `s.subjectName`, `s.Subject`, `s.id`, `s.docId`) against `isMatchingSubjectCode`.
+   - **Vocational Enrollment Resolution in `getStudentSubjectsStr`**: Appends separate vocational fields (`Vocational Subject`, `vocationalSubject`, `Vocational`, `Vocational Trade`, `NSQF Subject`, etc.) to the student's subjects string, ensuring students with vocational trade assignments are recognized.
+   - **Secondary & Higher Secondary `isStudentEnrolledInSubject`**: Upgraded vocational matching for both `ITE` and `HTC` to check both the subjects string and dedicated vocational fields with boundary-safe regular expressions.
 
-3. **[src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)**
-   - **Max Marks Export**: Exported `DEFAULT_MX9` computed from `DEFAULT_PRACTICAL_MARKS_CONFIG['9th']`.
-   - **Subject Normalization**: Added `subjects9` extraction (`'Subjects to be taken in Class 9th'`, `'Subjects in Class 9th'`, `'Subjects Studied in Class 9th'`) to `normalizeStudentFields`.
-   - **Default Settings & Print Headers**: Initialized `nonPractical9: ''` and added default Class 9th print details to the admin practicals settings state.
-   - **Settings UI**: Added dedicated "Class 9th Non-Practical Subjects" input field in the Settings panel and updated scheme reset modal description and submission windows badge to include Class 9th.
+3. **[src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)**
+   - **Vocational Candidate Document IDs**: Added candidate document IDs for `IT`, `ITES`, and `IT & ITES` variants when `targetSubjCode === 'ITE'`.
+   - **`isStudentEligibleForSubject` Upgrades**: Aggregated vocational fields into `rawSubjStr` and enhanced `hasToken` checks for `ITE` / `IT` / `ITES`.
+   - **Unified Matching Parity**: Imported and utilized `isMatchingSubjectCode` during candidate submission evaluation.
 
-4. **[src/pages/PublicResultLookup.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/pages/PublicResultLookup.jsx)**
-   - **Secondary Subject Aliases**: Added `SC` (Science), `SS` (Social Studies), and `HN` (Hindi) to `isSubjectEnrolledByStudent` so secondary students checking their Pre-Board or school-based assessment results match their enrolled subjects accurately.
-
-5. **[src/portal/admin/CustomRosterDocumentBuilderView.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/CustomRosterDocumentBuilderView.jsx)**
-   - **Quick Filter Pills**: Added a dedicated `9th & 10th` quick preset shortcut to the Applicable Classes dropdown in the Custom Roster Document Builder.
+4. **[src/utils/practicalsSubjectMatching.test.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsSubjectMatching.test.js)**
+   - Added unit test cases for `isMatchingSubjectCode`, `normalizeSubjectIdentity`, and `isTeacherSubjectMatch` specifically covering `ITE`, `IT`, `ITES`, `IT & ITES`, and document IDs (all 10 tests passing).
 
 ---
 
@@ -45,7 +40,7 @@ If you wish to edit the commit message or make adjustments:
 git reset --soft HEAD~1
 # Make desired adjustments...
 git add .
-git commit -m "feat(academics): complete end-to-end Class 9th integration across Gazette, Analytics, and Practicals"
+git commit -m "fix(practicals): resolve IT & ITES matching and enrollment showing empty across admin and teacher portals"
 ```
 
 ### 3. How to Push to Remote Repository

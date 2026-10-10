@@ -193,7 +193,27 @@ export function getStudentSubjectsStr(st, cls) {
     (!isSameAs11(st.subjects) ? st.subjects : null) ||
     '';
 
-  return String(rawCandidate);
+  const vocSubs = [
+    st['Vocational Subject'],
+    st['vocationalSubject'],
+    st['Vocational'],
+    st['vocational'],
+    st['Vocational Trade'],
+    st['Trade'],
+    st['Vocational Elective'],
+    st['Vocational Sub'],
+    st['Vocational Course'],
+    st['NSQF Subject'],
+    st['nsqfSubject'],
+    st['Optional Subject'],
+    st['Elective'],
+    st['6th Subject'],
+    st['Additional Subject'],
+    st['6th_Subject']
+  ].filter(v => v && String(v).trim() && !isSameAs11(v)).join(', ');
+
+  const finalCandidate = [rawCandidate, vocSubs].filter(Boolean).join(', ');
+  return String(finalCandidate);
 }
 
 export function getStudentStreamStr(st, cls = '') {
@@ -276,11 +296,36 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
     }
     // 2. Vocational Elective (HTC or ITE):
     const subStr = getStudentSubjectsStr(st, cls).toUpperCase().trim();
+    const vocStr = [
+      st['Vocational Subject'],
+      st['vocationalSubject'],
+      st['Vocational'],
+      st['vocational'],
+      st['Vocational Trade'],
+      st['Trade'],
+      st['Vocational Elective'],
+      st['Vocational Sub'],
+      st['NSQF Subject'],
+      st['Optional Subject'],
+      st['Elective'],
+      st['6th Subject'],
+      st['Additional Subject']
+    ].filter(Boolean).join(' ').toUpperCase().trim();
+
     if (code === 'HTC') {
-      return /\b(HTC|HC|HEALTH|HEALTHCARE|HEALTH\s*CARE)\b/i.test(subStr) || (st.vocationalSubject && /health/i.test(st.vocationalSubject));
+      return (
+        /\b(HTC|HC|HEALTH|HEALTHCARE|HEALTH\s*CARE)\b/i.test(subStr) ||
+        /\b(HTC|HC|HEALTH|HEALTHCARE|HEALTH\s*CARE)\b/i.test(vocStr) ||
+        /health/i.test(vocStr)
+      );
     }
     if (code === 'ITE') {
-      return /\b(ITE|IT|ITES|IT\s*&\s*ITES|INFORMATION\s*TECHNOLOGY|TECH|COMPUTER)\b/i.test(subStr) || (st.vocationalSubject && /it|ites|info/i.test(st.vocationalSubject));
+      return (
+        /\b(ITE|IT|ITES|IT\s*&\s*ITES|IT\s*AND\s*ITES|IT-ITES|INFORMATION\s*TECHNOLOGY|INFO\s*TECH|COMPUTER|VOCATIONAL\s*IT)\b/i.test(subStr) ||
+        /\b(ITE|IT|ITES|IT\s*&\s*ITES|IT\s*AND\s*ITES|IT-ITES|INFORMATION\s*TECHNOLOGY|INFO\s*TECH|COMPUTER|VOCATIONAL\s*IT)\b/i.test(vocStr) ||
+        /(^|[^a-z0-9])(it|ite|ites)([^a-z0-9]|$)/i.test(vocStr) ||
+        /it|ites|info\s*tech/i.test(vocStr)
+      );
     }
     // Any other 11th/12th higher secondary subjects (PH, CH, BO, ZO, ED, HT, PS, ES, PD, EC) do NOT belong to 10th
     return false;
@@ -344,9 +389,48 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
     } else if (code === 'PD') {
       if (/\b(PD|PED|P\.ED|PHYSICAL\s*EDUCATION|PHY\s*ED|PHYSICAL|P\.E)\b/gi.test(subStr)) return true;
     } else if (code === 'HTC') {
-      if (/\b(HTC|HC|HEALTH|HEALTHCARE|HEALTH\s*CARE)\b/i.test(subStr)) return true;
+      const vocStr = [
+        st['Vocational Subject'],
+        st['vocationalSubject'],
+        st['Vocational'],
+        st['vocational'],
+        st['Vocational Trade'],
+        st['Trade'],
+        st['Vocational Elective'],
+        st['Vocational Sub'],
+        st['NSQF Subject'],
+        st['Optional Subject'],
+        st['Elective'],
+        st['6th Subject'],
+        st['Additional Subject']
+      ].filter(Boolean).join(' ').toUpperCase().trim();
+      if (
+        /\b(HTC|HC|HEALTH|HEALTHCARE|HEALTH\s*CARE)\b/i.test(subStr) ||
+        /\b(HTC|HC|HEALTH|HEALTHCARE|HEALTH\s*CARE)\b/i.test(vocStr) ||
+        /health/i.test(vocStr)
+      ) return true;
     } else if (code === 'ITE') {
-      if (/\b(ITE|IT|ITES|IT\s*&\s*ITES|INFORMATION\s*TECHNOLOGY|TECH|COMPUTER)\b/i.test(subStr)) return true;
+      const vocStr = [
+        st['Vocational Subject'],
+        st['vocationalSubject'],
+        st['Vocational'],
+        st['vocational'],
+        st['Vocational Trade'],
+        st['Trade'],
+        st['Vocational Elective'],
+        st['Vocational Sub'],
+        st['NSQF Subject'],
+        st['Optional Subject'],
+        st['Elective'],
+        st['6th Subject'],
+        st['Additional Subject']
+      ].filter(Boolean).join(' ').toUpperCase().trim();
+      if (
+        /\b(ITE|IT|ITES|IT\s*&\s*ITES|IT\s*AND\s*ITES|IT-ITES|INFORMATION\s*TECHNOLOGY|INFO\s*TECH|COMPUTER|VOCATIONAL\s*IT)\b/i.test(subStr) ||
+        /\b(ITE|IT|ITES|IT\s*&\s*ITES|IT\s*AND\s*ITES|IT-ITES|INFORMATION\s*TECHNOLOGY|INFO\s*TECH|COMPUTER|VOCATIONAL\s*IT)\b/i.test(vocStr) ||
+        /(^|[^a-z0-9])(it|ite|ites)([^a-z0-9]|$)/i.test(vocStr) ||
+        /it|ites|info\s*tech/i.test(vocStr)
+      ) return true;
     } else if (code === 'EN') {
       if (/\b(EN|GE|GEN\s*ENG|GENERAL\s*ENGLISH|ENGLISH)\b/i.test(subStr)) return true;
     } else if (code === 'PH') {
@@ -2396,9 +2480,17 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
         const sNorm = sType.includes('ext') ? 'external' : 'internal';
         if (sNorm !== targetNorm) return;
 
-        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
+        const candidateSubjStrings = [
+          s.subjectCode,
+          s.subject,
+          s.subjectName,
+          s.Subject,
+          s.id,
+          s.docId
+        ].filter(Boolean).map(x => String(x).toUpperCase());
+
         (activeCodesList || []).forEach(code => {
-          if (isMatchingSubjectCode(codeStr, code)) {
+          if (candidateSubjStrings.some(cs => isMatchingSubjectCode(cs, code))) {
             if (Array.isArray(s.records) && s.records.some(r => {
               const m = String(r?.totalMarks ?? r?.practicalMarks ?? '').trim();
               return m !== '' && m !== '—' && m !== '-';
@@ -2561,8 +2653,15 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
         const subSess = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '');
         if (querySess && querySess !== 'all' && subSess && !isSessionMatch(subSess, querySess)) return false;
 
-        const codeStr = String(s.subjectCode || s.subject || s.Subject || s.id || '').toUpperCase();
-        return isMatchingSubjectCode(codeStr, subCode);
+        const candidateSubjStrings = [
+          s.subjectCode,
+          s.subject,
+          s.subjectName,
+          s.Subject,
+          s.id,
+          s.docId
+        ].filter(Boolean).map(x => String(x).toUpperCase());
+        return candidateSubjStrings.some(cs => isMatchingSubjectCode(cs, subCode));
       });
 
       if (!subDoc || !Array.isArray(subDoc.records)) return null;

@@ -57,6 +57,24 @@ describe('Subject Matching & Healthcare vs History Strict Isolation', () => {
       expect(isMatchingSubjectCode('Zoology', 'BI')).toBe(true);
       expect(isMatchingSubjectCode('Physics', 'BI')).toBe(false);
     });
+
+    test('IT and ITES (ITE) matches IT, ITES, IT & ITES, and doc IDs', () => {
+      expect(isMatchingSubjectCode('ITE', 'ITE')).toBe(true);
+      expect(isMatchingSubjectCode('IT', 'ITE')).toBe(true);
+      expect(isMatchingSubjectCode('ITES', 'ITE')).toBe(true);
+      expect(isMatchingSubjectCode('IT & ITES', 'ITE')).toBe(true);
+      expect(isMatchingSubjectCode('IT and ITES', 'ITE')).toBe(true);
+      expect(isMatchingSubjectCode('IT&ITES', 'ITE')).toBe(true);
+      expect(isMatchingSubjectCode('Information Technology', 'ITE')).toBe(true);
+      expect(isMatchingSubjectCode('12th_26_IT_internal', 'ITE')).toBe(true);
+      expect(isMatchingSubjectCode('12th_26_ITE_internal', 'ITE')).toBe(true);
+      expect(isMatchingSubjectCode('12th_IT & ITES_internal_2025-26', 'ITE')).toBe(true);
+
+      // Must never match Computer Science or other subjects
+      expect(isMatchingSubjectCode('CS', 'ITE')).toBe(false);
+      expect(isMatchingSubjectCode('Computer Science', 'ITE')).toBe(false);
+      expect(isMatchingSubjectCode('Physics', 'ITE')).toBe(false);
+    });
   });
 
   describe('normalizeSubjectIdentity', () => {
@@ -71,6 +89,15 @@ describe('Subject Matching & Healthcare vs History Strict Isolation', () => {
       expect(normalizeSubjectIdentity('HT')?.code).toBe('HT');
       expect(normalizeSubjectIdentity('History')?.code).toBe('HT');
     });
+
+    test('correctly identifies IT and ITES variants', () => {
+      expect(normalizeSubjectIdentity('ITE')?.code).toBe('ITE');
+      expect(normalizeSubjectIdentity('IT')?.code).toBe('ITE');
+      expect(normalizeSubjectIdentity('ITES')?.code).toBe('ITE');
+      expect(normalizeSubjectIdentity('IT & ITES')?.code).toBe('ITE');
+      expect(normalizeSubjectIdentity('IT and ITES')?.code).toBe('ITE');
+      expect(normalizeSubjectIdentity('Information Technology')?.code).toBe('ITE');
+    });
   });
 
   describe('isTeacherSubjectMatch', () => {
@@ -81,6 +108,13 @@ describe('Subject Matching & Healthcare vs History Strict Isolation', () => {
       expect(isTeacherSubjectMatch('HT', 'HTC')).toBe(false);
       expect(isTeacherSubjectMatch('Healthcare', 'HTC')).toBe(true);
       expect(isTeacherSubjectMatch('History', 'HT')).toBe(true);
+    });
+
+    test('IT teacher correctly matches ITE and variants', () => {
+      expect(isTeacherSubjectMatch('IT', 'ITE')).toBe(true);
+      expect(isTeacherSubjectMatch('IT & ITES', 'ITE')).toBe(true);
+      expect(isTeacherSubjectMatch('ITE', 'IT & ITES')).toBe(true);
+      expect(isTeacherSubjectMatch('IT', 'Computer Science')).toBe(false);
     });
   });
 });

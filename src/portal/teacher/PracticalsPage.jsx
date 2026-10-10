@@ -31,7 +31,8 @@ import {
   formatPracticalDocId,
   getTeacherAssignedSubjectsForClass,
   getTeacherClassSubjectPermissions,
-  normalizeTeacherClasses
+  normalizeTeacherClasses,
+  isMatchingSubjectCode
 } from '../../utils/practicalsSettingsManager';
 import ModernLoader from '../../components/ModernLoader';
 
@@ -267,20 +268,41 @@ export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName)
   // 1. General English is COMPULSORY for 100% of students in 11th & 12th!
   if (codeUpper === 'EN' || nameUpper.includes('ENGLISH')) return true;
 
+  const vocSubs = [
+    st['Vocational Subject'],
+    st['vocationalSubject'],
+    st['Vocational'],
+    st['vocational'],
+    st['Vocational Trade'],
+    st['Trade'],
+    st['Vocational Elective'],
+    st['Vocational Sub'],
+    st['Vocational Course'],
+    st['NSQF Subject'],
+    st['nsqfSubject'],
+    st['Optional Subject'],
+    st['Elective'],
+    st['6th Subject'],
+    st['Additional Subject'],
+    st['6th_Subject']
+  ].filter(Boolean).join(' ');
+
   const rawSubjStr = String(
-    extractRawSubjectsString(st) ||
-    st.subs ||
-    st['Subs'] ||
-    st.rawSubjects ||
-    st.subjects ||
-    st.Subjects ||
-    st.subject ||
-    st['Stream / Subjects'] ||
-    st['Subject Combination'] ||
-    st['Selected Subjects'] ||
-    st['Subjects to be taken in Class 11th'] ||
-    st['Subjects to be taken in Class 12th'] ||
-    ''
+    [
+      extractRawSubjectsString(st),
+      st.subs,
+      st['Subs'],
+      st.rawSubjects,
+      st.subjects,
+      st.Subjects,
+      st.subject,
+      st['Stream / Subjects'],
+      st['Subject Combination'],
+      st['Selected Subjects'],
+      st['Subjects to be taken in Class 11th'],
+      st['Subjects to be taken in Class 12th'],
+      vocSubs
+    ].filter(Boolean).join(', ')
   ).toUpperCase();
 
   const streamStr = String(
@@ -372,12 +394,20 @@ export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName)
   }
 
   // 7. Vocational & Applied Practicals
-  if (codeUpper === 'ITE' || codeUpper === 'IT' || nameUpper.includes('IT & ITES') || nameUpper.includes('INFORMATION TECH')) {
-    if (hasToken('ITE') || hasToken('IT') || /\b(IT\s*AND\s*ITES|IT\s*&\s*ITES|INFORMATION\s*TECHNOLOGY)\b/i.test(rawSubjStr)) return true;
+  if (codeUpper === 'ITE' || codeUpper === 'IT' || codeUpper === 'ITES' || nameUpper.includes('IT & ITES') || nameUpper.includes('IT AND ITES') || nameUpper.includes('INFORMATION TECH')) {
+    if (
+      hasToken('ITE') || hasToken('IT') || hasToken('ITES') ||
+      /\b(IT\s*AND\s*ITES|IT\s*&\s*ITES|IT-ITES|INFORMATION\s*TECHNOLOGY|INFO\s*TECH|COMPUTER|VOCATIONAL\s*IT)\b/i.test(rawSubjStr) ||
+      /it|ites|info/i.test(vocSubs)
+    ) return true;
     return false;
   }
-  if (codeUpper === 'HTC' || nameUpper.includes('HEALTHCARE') || nameUpper.includes('HEALTH CARE')) {
-    if (hasToken('HTC') || /\b(HEALTHCARE|HEALTH\s*CARE)\b/i.test(rawSubjStr)) return true;
+  if (codeUpper === 'HTC' || codeUpper === 'HC' || nameUpper.includes('HEALTHCARE') || nameUpper.includes('HEALTH CARE') || nameUpper.includes('HEALTH')) {
+    if (
+      hasToken('HTC') || hasToken('HC') ||
+      /\b(HEALTHCARE|HEALTH\s*CARE|HEALTH)\b/i.test(rawSubjStr) ||
+      /health/i.test(vocSubs)
+    ) return true;
     return false;
   }
   if (codeUpper === 'CS' || nameUpper.includes('COMPUTER SCIENCE')) {
@@ -1728,7 +1758,20 @@ export default function PracticalsPage() {
           `${clsNorm}_${targetSubjCode}_internal_2024-25_(Oct-Nov)`,
           `${clsNorm}_${targetSubjCode}_external_2024-25_(Oct-Nov)`,
           `${clsNorm}_${targetSubjName}_internal_2024-25_(Oct-Nov)`,
-          `${clsNorm}_${targetSubjCode}_Internal Assessment_2024-25 (Oct-Nov)`
+          `${clsNorm}_${targetSubjCode}_Internal Assessment_2024-25 (Oct-Nov)`,
+          // IT / ITES variants if target is ITE
+          ...(targetSubjCode === 'ITE' ? [
+            `${clsNorm}_IT_internal_${cleanSessUnderscore}`,
+            `${clsNorm}_IT_internal_${cleanSess}`,
+            `${clsNorm}_ITES_internal_${cleanSessUnderscore}`,
+            `${clsNorm}_ITES_internal_${cleanSess}`,
+            `${clsNorm}_IT & ITES_internal_${cleanSessUnderscore}`,
+            `${clsNorm}_IT & ITES_internal_${cleanSess}`,
+            `${clsNorm}_IT & ITES_Internal Assessment_${cleanSess}`,
+            `${clsNorm}_IT_Internal Assessment_${cleanSess}`,
+            `${clsNorm}_IT_internal_2024-25_(Oct-Nov)`,
+            `${clsNorm}_IT & ITES_internal_2024-25_(Oct-Nov)`
+          ] : [])
         ].filter(Boolean));
 
         [...candidateDocIds].forEach(id => {
@@ -1806,8 +1849,9 @@ export default function PracticalsPage() {
           if (!isSessionMatch(docYr, yearSuffix) && dId !== docId && dId !== pendingDocId) return;
 
           // Subject Match
-          const docSubj = String(data.subjectName || data.Subject || data.subjectCode || data.subject || '').toUpperCase();
+          const docSubj = String(data.subjectName || data.Subject || data.subjectCode || data.subject || dId || '').toUpperCase();
           const matchSubj = dId === docId || dId === pendingDocId ||
+                            isMatchingSubjectCode(docSubj, targetSubjCode) ||
                             docSubj === targetSubjCode.toUpperCase() || 
                             docSubj === targetSubjName.toUpperCase() ||
                             docSubj.includes(targetSubjName.toUpperCase()) ||

@@ -901,7 +901,19 @@ export function normalizeSubjectIdentity(subjInput) {
   if (lower.includes('busi') || lower === 'bs') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'BS');
   if (lower.includes('retail') || lower === 'rt') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'RT');
   if (lower.includes('auto') || lower === 'at') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'AT');
-  if (lower.includes('it and') || lower.includes('ites') || lower.includes('information tech') || lower === 'ite') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ITE');
+  if (
+    lower === 'it' ||
+    lower === 'ite' ||
+    lower === 'ites' ||
+    lower.includes('it and') ||
+    lower.includes('it &') ||
+    lower.includes('it&') ||
+    lower.includes('ites') ||
+    lower.includes('information tech') ||
+    lower.includes('info tech') ||
+    lower === 'information technology' ||
+    /(^|[^a-z0-9])(it|ite|ites|it\s*&\s*ites)([^a-z0-9]|$)/i.test(lower)
+  ) return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ITE');
 
   // Substring match against name
   const fuzzy = SUBJECT_CONFIG_DEFS.find(s => s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase()));
@@ -942,7 +954,25 @@ export function isMatchingSubjectCode(docSubjOrCode, targetCode) {
     return str === 'HTC' || str === 'HC' || /(^|[^A-Za-z0-9])(HTC|HC|HEALTHCARE|HEALTH\s*CARE|HEALTH)([^A-Za-z0-9]|$)/i.test(str) || str.includes('HEALTH');
   }
 
-  // 3. STRICT EDUCATION ('ED') GUARD:
+  // 3. STRICT IT AND ITES ('ITE' / 'IT' / 'ITES') GUARD:
+  if (target === 'ITE' || target === 'IT' || target === 'ITES') {
+    return (
+      str === 'ITE' ||
+      str === 'IT' ||
+      str === 'ITES' ||
+      /(^|[^A-Za-z0-9])(ITE|IT|ITES|IT\s*&\s*ITES|IT\s*AND\s*ITES|IT-ITES|INFORMATION\s*TECHNOLOGY|INFO\s*TECH|VOCATIONAL\s*IT)([^A-Za-z0-9]|$)/i.test(str) ||
+      str.includes('IT & ITES') ||
+      str.includes('IT AND ITES') ||
+      str.includes('IT&ITES') ||
+      str.includes('IT / ITES') ||
+      str.includes('INFORMATION TECHNOLOGY') ||
+      str.includes('_IT_') ||
+      str.includes('_ITE_') ||
+      str.includes('_ITES_')
+    );
+  }
+
+  // 4. STRICT EDUCATION ('ED') GUARD:
   // Must NEVER match Physical Education ('PD', 'PED', or names containing 'PHYSICAL')
   if (target === 'ED') {
     if (/(^|[^A-Za-z0-9])(PD|PED|P\.ED|PHYSICAL)([^A-Za-z0-9]|$)/i.test(str) || str.includes('PHYSICAL')) return false;
