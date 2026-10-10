@@ -246,7 +246,7 @@ export default function TeacherDashboard() {
                     Mark Daily Attendance
                   </h2>
                   <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">
-                    Class 11th &amp; 12th Classroom Attendance, Leaves &amp; Holiday Management
+                    Classes 9th to 12th Daily Attendance, Leaves &amp; Holiday Management
                   </p>
                 </div>
               </div>

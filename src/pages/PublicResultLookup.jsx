@@ -1394,7 +1394,7 @@ export default function PublicResultLookup() {
         title: ev.title,
         evalType: ev.evalType,
         session: ev.session || '2025-26',
-        classes: ev.classes || ['10th', '11th', '12th'],
+        classes: ev.classes || ['9th', '10th', '11th', '12th'],
         biologyDisplayMode: ev.biologyDisplayMode || 'combined',
         maxMarks: ev.maxMarks || 50,
         minMarks: ev.minMarks || 18,

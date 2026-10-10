@@ -31,7 +31,12 @@ const MASTER_SUBJECT_NAMES = {
   'HT': 'History',
   'PS': 'Political Science',
   'EC': 'Economics',
-  'SO': 'Sociology',
+  'SC': 'Science',
+  'SCIENCE': 'Science',
+  'SS': 'Social Studies',
+  'SOCIAL STUDIES': 'Social Studies',
+  'HN': 'Hindi',
+  'HINDI': 'Hindi',
   'GENERAL': 'General / Morning Roll Call'
 };
 
@@ -102,6 +107,8 @@ export default function AdminAttendance() {
 
   // Portal Controls Settings State
   const [attendanceConfig, setAttendanceConfig] = useState({
+    '9th': { enabled: true, mode: 'daily' },
+    '10th': { enabled: true, mode: 'daily' },
     '11th': { enabled: true, mode: 'daily' },
     '12th': { enabled: true, mode: 'daily' }
   });
@@ -111,7 +118,7 @@ export default function AdminAttendance() {
     totalLogs: 0,
     totalSessions: 0,
     distinctDays: 0,
-    classCounts: { '11th': 0, '12th': 0, other: 0 },
+    classCounts: { '9th': 0, '10th': 0, '11th': 0, '12th': 0, other: 0 },
     totalPresent: 0,
     overallPresentRate: 0,
     subjectGroups: [],
@@ -141,7 +148,7 @@ export default function AdminAttendance() {
       let totalLogs = 0;
       let totalPresent = 0;
       const distinctDates = new Set();
-      const classCounts = { '11th': 0, '12th': 0, other: 0 };
+      const classCounts = { '9th': 0, '10th': 0, '11th': 0, '12th': 0, other: 0 };
       const subjectGroupsMap = {};
       const dateGroupsMap = {};
 
@@ -162,7 +169,7 @@ export default function AdminAttendance() {
           data.records.forEach(st => {
             sessionTotal++;
             totalLogs++;
-            if (cls === '11th' || cls === '12th') {
+            if (['9th', '10th', '11th', '12th'].includes(cls)) {
               classCounts[cls] = (classCounts[cls] || 0) + 1;
             } else {
               classCounts.other = (classCounts.other || 0) + 1;
@@ -176,7 +183,7 @@ export default function AdminAttendance() {
         } else if (data.status) {
           sessionTotal++;
           totalLogs++;
-          if (cls === '11th' || cls === '12th') {
+          if (['9th', '10th', '11th', '12th'].includes(cls)) {
             classCounts[cls] = (classCounts[cls] || 0) + 1;
           } else {
             classCounts.other = (classCounts.other || 0) + 1;
@@ -609,7 +616,7 @@ export default function AdminAttendance() {
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-3">
-            {['11th', '12th'].map((cls) => (
+            {['9th', '10th', '11th', '12th'].map((cls) => (
               <div key={cls} className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between">
                 <div>
                   <span className="font-black text-xs text-slate-900 dark:text-white block">Class {cls} Attendance Submissions</span>
@@ -649,18 +656,36 @@ export default function AdminAttendance() {
         <div className="space-y-3">
           
           {/* Top Analytics KPI Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-0.5">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Total Logs Logged</span>
               <div className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-1.5">
                 <CalendarCheck size={16} className="text-amber-600" />
                 <span>{summaryData.totalLogs}</span>
               </div>
-              <span className="text-[10px] font-bold text-slate-400 block">{summaryData.distinctDays} Unique Days • {summaryData.totalSessions} Registers</span>
+              <span className="text-[10px] font-bold text-slate-400 block truncate">{summaryData.distinctDays} Days • {summaryData.totalSessions} Registers</span>
+            </div>
+
+            <div className="p-2.5 rounded-xl border border-purple-200 dark:border-purple-900/50 bg-purple-50/30 dark:bg-purple-950/20 shadow-2xs space-y-0.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-400 block">Class 9th Logs</span>
+              <div className="text-lg font-black text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+                <Users size={16} />
+                <span>{summaryData.classCounts['9th'] || 0}</span>
+              </div>
+              <span className="text-[10px] font-bold text-purple-600/80 dark:text-purple-400/80 block">Active 9th Records</span>
+            </div>
+
+            <div className="p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/30 dark:bg-indigo-950/20 shadow-2xs space-y-0.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 block">Class 10th Logs</span>
+              <div className="text-lg font-black text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                <Users size={16} />
+                <span>{summaryData.classCounts['10th'] || 0}</span>
+              </div>
+              <span className="text-[10px] font-bold text-indigo-600/80 dark:text-indigo-400/80 block">Active 10th Records</span>
             </div>
 
             <div className="p-2.5 rounded-xl border border-teal-200 dark:border-teal-900/50 bg-teal-50/30 dark:bg-teal-950/20 shadow-2xs space-y-0.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 block">Class 11th Submissions</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 block">Class 11th Logs</span>
               <div className="text-lg font-black text-teal-700 dark:text-teal-300 flex items-center gap-1.5">
                 <Users size={16} />
                 <span>{summaryData.classCounts['11th'] || 0}</span>
@@ -669,7 +694,7 @@ export default function AdminAttendance() {
             </div>
 
             <div className="p-2.5 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/30 dark:bg-blue-950/20 shadow-2xs space-y-0.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-400 block">Class 12th Submissions</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-400 block">Class 12th Logs</span>
               <div className="text-lg font-black text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
                 <Users size={16} />
                 <span>{summaryData.classCounts['12th'] || 0}</span>
@@ -722,7 +747,7 @@ export default function AdminAttendance() {
 
               {/* Class Filter */}
               <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black">
-                {['all', '11th', '12th'].map(cls => (
+                {['all', '9th', '10th', '11th', '12th'].map(cls => (
                   <button
                     key={cls}
                     type="button"

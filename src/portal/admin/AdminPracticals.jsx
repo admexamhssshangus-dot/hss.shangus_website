@@ -1858,6 +1858,19 @@ function AdminPracticals({ isActive = true }) {
               <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-2xs shrink-0">
                 <button
                   type="button"
+                  onClick={() => setTab('class9')}
+                  className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                    tab === 'class9'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Award size={12} className="shrink-0" />
+                  <span className="sm:hidden">9th</span>
+                  <span className="hidden sm:inline">Class 9th</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setTab('class10')}
                   className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
                     tab === 'class10'
@@ -2022,6 +2035,18 @@ function AdminPracticals({ isActive = true }) {
         {/* Content Area */}
         <ModuleErrorBoundary resetKey={tab} sectionName={`Practicals (${tab})`}>
           <div className="min-h-[500px] space-y-3">
+            {tab === 'class9' && (
+              <AwardsSummaryView
+                cls="9th"
+                students={students}
+                submissions={submissions}
+                pendingApprovals={pendingApprovals}
+                getPD={getPD}
+                settings={settings}
+                onOpenImportModal={() => setShowImportModal(true)}
+              />
+            )}
+
             {tab === 'class10' && (
               <AwardsSummaryView
                 cls="10th"
@@ -2290,7 +2315,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
   // Calculate visible codes based on class and bioMode
   const activeCodesList = useMemo(() => {
-    if (String(cls || '').includes('10')) {
+    if (String(cls || '').includes('10') || String(cls || '').includes('9')) {
       return ['EN', 'MA', 'SC', 'SS', 'UR', 'HTC', 'ITE'];
     }
     if (bioMode === 'separate') {
@@ -2305,17 +2330,17 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
 
     // 1. External practicals (only Laboratory Science subjects have external practicals)
     if (isExternal) {
-      if (String(cls || '').includes('10')) {
+      if (String(cls || '').includes('10') || String(cls || '').includes('9')) {
         return ['SC'];
       }
       return bioMode === 'separate' ? ['PH', 'CH', 'BO', 'ZO'] : ['PH', 'CH', 'BI'];
     }
 
     // 2. Internal practicals: automatically uncheck configured non-practical subjects (e.g. HTC, ITE)
-    const is10 = String(cls || '').includes('10');
+    const is9or10 = String(cls || '').includes('10') || String(cls || '').includes('9');
     const is12 = String(cls || '').includes('12');
     const nonPracticalConfig = String(
-      (is10 ? settings?.nonPractical10 : is12 ? settings?.nonPractical12 : settings?.nonPractical11) || settings?.nonPractical || 'HTC,ITE'
+      (is9or10 ? (settings?.nonPractical9 || settings?.nonPractical10) : is12 ? settings?.nonPractical12 : settings?.nonPractical11) || settings?.nonPractical || 'HTC,ITE'
     ).toUpperCase();
 
     const excludedCodes = new Set(
@@ -6389,6 +6414,7 @@ function ClassPracticalSubmissionWindowsCard({ settings, setSettings, saveSettin
   };
 
   const classes = [
+    { key: '9th', label: 'Class 9th (Secondary)', badge: 'Secondary', desc: 'Internal Practical Assessment & Project Work' },
     { key: '10th', label: 'Class 10th (Secondary)', badge: 'Matriculation', desc: 'Internal Practical Assessment & Lab Work' },
     { key: '11th', label: 'Class 11th (Higher Secondary Part I)', badge: 'Higher Secondary', desc: 'Internal Assessment & Laboratory Evaluation' },
     { key: '12th', label: 'Class 12th (Higher Secondary Part II)', badge: 'Board Return', desc: 'Internal Assessment & External Practical Records' },
@@ -6412,7 +6438,7 @@ function ClassPracticalSubmissionWindowsCard({ settings, setSettings, saveSettin
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {classes.map(c => {
           const isEnabled = currentWindows[c.key];
           return (
@@ -6618,7 +6644,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
         <div className="flex items-center gap-1.5 flex-wrap">
           {/* Class Switcher */}
           <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            {['10th', '11th', '12th'].map(c => (
+            {['9th', '10th', '11th', '12th'].map(c => (
               <button
                 key={c}
                 type="button"
@@ -7314,8 +7340,8 @@ function SettingsPermissionsView({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 text-xs">
-              {['10th', '11th', '12th'].map(c => (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-xs">
+              {['9th', '10th', '11th', '12th'].map(c => (
                 <div key={c} className="p-4 bg-slate-50/70 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
                   <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
                     <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">

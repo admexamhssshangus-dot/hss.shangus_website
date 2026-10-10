@@ -453,6 +453,42 @@ export const DEFAULT_PRACTICAL_MARKS_CONFIG = {
       SEC: { max: 50, min: 16 },
       TEL: { max: 50, min: 16 }
     }
+  },
+  '9th': {
+    internal: {
+      EN:  { max: 20, min: 7 },
+      MA:  { max: 20, min: 7 },
+      UR:  { max: 20, min: 7 },
+      HN:  { max: 20, min: 7 },
+      SC:  { max: 20, min: 7 },
+      SS:  { max: 20, min: 7 },
+      CS:  { max: 40, min: 13 },
+      AD:  { max: 70, min: 23 },
+      HSC: { max: 40, min: 13 },
+      MU:  { max: 60, min: 20 },
+      PT:  { max: 70, min: 23 },
+      AR:  { max: 20, min: 7 },
+      SK:  { max: 20, min: 7 },
+      PB:  { max: 20, min: 7 },
+      DG:  { max: 20, min: 7 },
+      KS:  { max: 20, min: 7 },
+      PE:  { max: 20, min: 7 },
+      ITE: { max: 20, min: 7 },
+      HTC: { max: 20, min: 7 }
+    },
+    external: {
+      ITE: { max: 50, min: 16 },
+      HTC: { max: 50, min: 16 },
+      RT:  { max: 50, min: 16 },
+      AT:  { max: 50, min: 16 },
+      AG:  { max: 50, min: 16 },
+      BW:  { max: 50, min: 16 },
+      AP:  { max: 50, min: 16 },
+      ELC: { max: 50, min: 16 },
+      PLM: { max: 50, min: 16 },
+      SEC: { max: 50, min: 16 },
+      TEL: { max: 50, min: 16 }
+    }
   }
 };
 
@@ -478,7 +514,7 @@ export function getSubjectDisplayName(codeOrName, cls = '') {
  */
 export function getSubjectMarksConfig(settings, cls = '11th', evalType = 'internal', subCode = 'PH') {
   const rawCls = String(cls).toLowerCase();
-  const normClass = rawCls.includes('10') ? '10th' : rawCls.includes('12') ? '12th' : '11th';
+  const normClass = rawCls.includes('9') ? '9th' : rawCls.includes('10') ? '10th' : rawCls.includes('12') ? '12th' : '11th';
   const normType = String(evalType || '').toLowerCase().includes('ext') ? 'external' : 'internal';
   const code = String(subCode || '').toUpperCase().trim();
 
@@ -638,6 +674,7 @@ export {
 
 
 export const DEFAULT_PRACTICAL_SUBMISSION_WINDOWS = Object.freeze({
+  '9th': true,
   '10th': true,
   '11th': true,
   '12th': true

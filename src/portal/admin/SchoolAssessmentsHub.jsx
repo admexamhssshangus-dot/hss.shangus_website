@@ -267,7 +267,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
       title: evalItem.title || '',
       evalType: evalItem.evalType || 'Pre-Board Test',
       session: evalItem.session || '2025-26',
-      classes: Array.isArray(evalItem.classes) ? evalItem.classes : ['10th', '11th', '12th'],
+      classes: Array.isArray(evalItem.classes) ? evalItem.classes : ['9th', '10th', '11th', '12th'],
       allowedStatuses: Array.isArray(evalItem.allowedStatuses) ? evalItem.allowedStatuses : ['approved'],
       maxMarks: evalItem.maxMarks || 50,
       minMarks: evalItem.minMarks || 18,
@@ -607,7 +607,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                 {/* Scope: Classes, Statuses, and Marks */}
                 <div className="flex items-center gap-1 flex-wrap text-[11px] pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
                   <span className="text-[10px] text-slate-400 font-semibold mr-0.5">Classes:</span>
-                  {(Array.isArray(item.classes) ? item.classes : ['10th', '11th', '12th']).map(cls => (
+                  {(Array.isArray(item.classes) ? item.classes : ['9th', '10th', '11th', '12th']).map(cls => (
                     <span key={cls} className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-[10px] border border-slate-200 dark:border-slate-700">
                       {cls}
                     </span>
@@ -1069,7 +1069,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                           title="Target Class for this paper scale override"
                         >
                           <option value="ALL">All Classes</option>
-                          {(formState.classes || ['10th', '11th', '12th']).map(cls => (
+                          {(formState.classes || ['9th', '10th', '11th', '12th']).map(cls => (
                             <option key={cls} value={cls}>Class {cls}</option>
                           ))}
                         </select>

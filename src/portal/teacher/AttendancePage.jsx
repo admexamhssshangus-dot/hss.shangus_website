@@ -39,6 +39,9 @@ const MASTER_SUBJECTS = [
   { name: 'Business Studies', code: 'BS' },
   { name: 'Entrepreneurship', code: 'EP' },
   { name: 'Persian', code: 'PE' },
+  { name: 'Science', code: 'SC' },
+  { name: 'Social Studies', code: 'SS' },
+  { name: 'Hindi', code: 'HN' },
 ];
 
 // Helper: Strict class matching (e.g. '11th', '11th Class', 'Class 11', '11')
@@ -436,10 +439,23 @@ function isSubjectMatch(student, targetSubjectCode) {
 
   const abbr = String(student.subjectsAbbr || '').toLowerCase();
   const raw = String(student.rawSubjects || '').toLowerCase();
+  const stClass = String(student.className || student.class || student.admittedClass || '').toLowerCase();
+  const isSecondary = stClass.includes('9') || stClass.includes('10') || stClass.includes('ix') || stClass.includes('x');
 
-  // Strict Stream Guard: Science students NEVER match Arts subjects or Secondary SC
-  const isScience = abbr.includes('(s)') || raw.includes('science') || raw.includes('med') || raw.includes('physics') || raw.includes('chemistry');
-  if (isScience && ['ed', 'ht', 'ps', 'so', 'ar', 'pr', 'sc'].includes(code)) {
+  // Secondary students (Class 9th & 10th) study common core subjects
+  if (isSecondary) {
+    if (['sc', 'ss', 'en', 'ma', 'ur', 'hn'].includes(code)) {
+      if (!raw && !abbr) return true;
+      if (raw.includes(name) || abbr.includes(code)) return true;
+      if (code === 'sc' && (raw.includes('science') || abbr.includes('sc'))) return true;
+      if (code === 'ss' && (raw.includes('social') || raw.includes('sst') || abbr.includes('ss'))) return true;
+      return true; // Secondary core curriculum
+    }
+  }
+
+  // Strict Stream Guard: Science students NEVER match Arts subjects
+  const isScience = !isSecondary && (abbr.includes('(s)') || raw.includes('science') || raw.includes('med') || raw.includes('physics') || raw.includes('chemistry'));
+  if (isScience && ['ed', 'ht', 'ps', 'so', 'ar', 'pr'].includes(code)) {
     return false;
   }
 
@@ -588,6 +604,10 @@ function resolveTeacherSubjectCode(rawSubject) {
   if (lower.includes('bot')) return 'BO';
   if (lower.includes('zoo')) return 'ZO';
   if (lower.includes('bio')) return 'BI';
+  if (lower.includes('science') && !lower.includes('comp') && !lower.includes('pol') && !lower.includes('env') && !lower.includes('soc')) return 'SC';
+  if (lower === 'sc' || /\bsc\b/i.test(lower)) return 'SC';
+  if (lower.includes('social') || lower.includes('sst') || lower === 'ss' || /\bss\b/i.test(lower)) return 'SS';
+  if (lower.includes('hindi') || lower === 'hn' || /\bhn\b/i.test(lower)) return 'HN';
   if (lower.includes('eng')) return 'EN';
   if (lower.includes('env') || lower.includes('evs')) return 'ES';
   if (lower.includes('pol')) return 'PS';
@@ -617,6 +637,12 @@ export default function AttendancePage() {
   // Tab State: 'mark' | 'holidays'
   const [activeTab] = useState('mark');
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(true);
+  const [classAttendanceConfig, setClassAttendanceConfig] = useState({
+    '9th': { enabled: true },
+    '10th': { enabled: true },
+    '11th': { enabled: true },
+    '12th': { enabled: true }
+  });
 
   // Teacher registered subject resolution
   const teacherSubjectCode = useMemo(() => {
@@ -645,8 +671,20 @@ export default function AttendancePage() {
       console.warn('Real-time site settings attendance listener note:', err?.message || err);
     });
 
+    const unsubClassCfg = onSnapshot(doc(db, 'systemSettings', 'attendanceConfig'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && typeof data === 'object') {
+          setClassAttendanceConfig(prev => ({ ...prev, ...data }));
+        }
+      }
+    }, (err) => {
+      console.warn('Real-time attendanceConfig listener note:', err?.message || err);
+    });
+
     return () => {
       try { unsub(); } catch (_) {}
+      try { unsubClassCfg(); } catch (_) {}
     };
   }, []);
 
@@ -2239,10 +2277,10 @@ export default function AttendancePage() {
           )}
 
           {/* Attendance Closed Warning Banner */}
-          {!isAttendanceOpen && (
+          {(!isAttendanceOpen || classAttendanceConfig[selectedClass]?.enabled === false) && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-extrabold flex items-center gap-2 text-xs mb-2">
               <ShieldCheck size={16} className="text-amber-600 shrink-0" />
-              <span>Daily Attendance Submissions are currently <strong>CLOSED</strong> by Administration. Attendance entry is view-only.</span>
+              <span>Class {selectedClass} Daily Attendance Submissions are currently <strong>CLOSED</strong> by Administration. Attendance entry is view-only.</span>
             </div>
           )}
 
@@ -2893,8 +2931,8 @@ export default function AttendancePage() {
                 <button
                   type="button"
                   onClick={handleSaveAttendance}
-                  disabled={savingAttendance || students.length === 0 || !isAttendanceOpen}
-                  title={!isAttendanceOpen ? "Attendance Submissions are Closed by Admin" : "Save Daily Attendance"}
+                  disabled={savingAttendance || students.length === 0 || !isAttendanceOpen || classAttendanceConfig[selectedClass]?.enabled === false}
+                  title={(!isAttendanceOpen || classAttendanceConfig[selectedClass]?.enabled === false) ? `Class ${selectedClass} Attendance Submissions are Closed by Admin` : "Save Daily Attendance"}
                   className="w-full sm:w-auto px-5 py-2 rounded-lg font-bold text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-98"
                 >
                   {savingAttendance ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
