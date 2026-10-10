@@ -1125,6 +1125,10 @@ function AdminPracticals({ isActive = true }) {
             isExamDropped: isDropped,
             examStatus: isDropped ? 'dropped' : (overlayRec.examStatus || baseRec.examStatus || 'active'),
             _source: preferAdmission ? 'admissions' : (overlayRec._source || baseRec._source || source),
+            mobile: (overlayRec.mobile && overlayRec.mobile !== '—') ? overlayRec.mobile : (baseRec.mobile || overlayRec['Mobile No. (with working WhatsApp)'] || baseRec['Mobile No. (with working WhatsApp)'] || overlayRec['Mobile No.'] || baseRec['Mobile No.'] || ''),
+            parentMobile: (overlayRec.parentMobile && overlayRec.parentMobile !== '—') ? overlayRec.parentMobile : (baseRec.parentMobile || overlayRec["Parent's Mobile No. (must be working)"] || baseRec["Parent's Mobile No. (must be working)"] || overlayRec["Parent's Mobile No."] || baseRec["Parent's Mobile No."] || overlayRec.parentContact || baseRec.parentContact || ''),
+            "Mobile No. (with working WhatsApp)": overlayRec["Mobile No. (with working WhatsApp)"] || baseRec["Mobile No. (with working WhatsApp)"] || overlayRec.mobile || baseRec.mobile || '',
+            "Parent's Mobile No. (must be working)": overlayRec["Parent's Mobile No. (must be working)"] || baseRec["Parent's Mobile No. (must be working)"] || overlayRec.parentMobile || baseRec.parentMobile || '',
           };
           studentsMap.set(existingId, merged);
         } else {
@@ -3315,7 +3319,7 @@ function AwardsSummaryView({ cls, students, submissions, pendingApprovals = [], 
                               selectedSubjectCodes: targetCodes,
                               isExternal: localPrintOpts.practicalType === 'external',
                               evaluationType: localPrintOpts.practicalType,
-                              printDetails: { ...localPrintOpts, settings },
+                              printDetails: { ...localPrintOpts, settings, allStudents: students },
                               preserveOrder: true
                             });
                           } catch (err) {

@@ -2535,6 +2535,122 @@ export function printAllIndividualAwardRolls({
 }
 
 /**
+ * Clean and normalize telephone/mobile contact number.
+ */
+export function cleanContactNumber(val) {
+  if (!val) return '';
+  const str = String(val).trim();
+  if (/^(—|N\/A|null|undefined|-|none|nil)$/i.test(str)) return '';
+  const digits = str.replace(/[^\d+]/g, '');
+  if (digits.replace(/\D/g, '').length < 7) return '';
+  return digits;
+}
+
+/**
+ * Extract student contact number from student record or practical mark record.
+ */
+export function extractStudentContact(st, rec = null) {
+  const sources = [rec, st].filter(Boolean);
+  const keys = [
+    "Mobile No. (with working WhatsApp)",
+    "Student's Contact",
+    "Student Contact",
+    "Account Mobile",
+    "Mobile No.",
+    "Mobile Number",
+    "Student Mobile No",
+    "studentMobile",
+    "studentPhone",
+    "mobile",
+    "phone",
+    "Mobile",
+    "Contact No.",
+    "contact",
+    "Contact"
+  ];
+  for (const src of sources) {
+    for (const k of keys) {
+      const cleaned = cleanContactNumber(src[k]);
+      if (cleaned) return cleaned;
+    }
+  }
+  return '—';
+}
+
+/**
+ * Extract parent contact number from student record or practical mark record.
+ */
+export function extractParentContact(st, rec = null) {
+  const sources = [rec, st].filter(Boolean);
+  const keys = [
+    "Parent's Mobile No. (must be working)",
+    "Parent's Mobile No.",
+    "Parent's Mobile",
+    "Parent's Contact",
+    "Parent Contact",
+    "Father's/Guardian's Contact No.",
+    "Father's Contact",
+    "Father's Mobile No.",
+    "Father's Mobile",
+    "Guardian's Mobile No.",
+    "Guardian Contact",
+    "parentMobile",
+    "parentContact",
+    "Alternate Mobile No.",
+    "alternateMobile"
+  ];
+  for (const src of sources) {
+    for (const k of keys) {
+      const cleaned = cleanContactNumber(src[k]);
+      if (cleaned) return cleaned;
+    }
+  }
+  return '—';
+}
+
+/**
+ * Formats contact cell HTML with student and parent contact numbers.
+ */
+export function renderContactCell(studentContact, parentContact) {
+  const sMob = (studentContact && studentContact !== '—' && studentContact !== 'N/A' && studentContact !== 'null') ? String(studentContact).trim() : '';
+  const pMob = (parentContact && parentContact !== '—' && parentContact !== 'N/A' && parentContact !== 'null') ? String(parentContact).trim() : '';
+
+  if (sMob && pMob && sMob === pMob) {
+    return `
+      <div style="line-height: 1.2;">
+        <span style="font-weight: 700; color: #0f172a;">${sMob}</span>
+        <div style="font-size: 6.8pt; color: #64748b; font-family: sans-serif;">(Student / Parent)</div>
+      </div>
+    `;
+  }
+  if (sMob && pMob) {
+    return `
+      <div style="line-height: 1.25;">
+        <div><span style="color: #64748b; font-weight: 600; font-family: sans-serif;">S:</span> <strong style="color: #0f172a;">${sMob}</strong></div>
+        <div><span style="color: #64748b; font-weight: 600; font-family: sans-serif;">P:</span> <strong style="color: #0369a1;">${pMob}</strong></div>
+      </div>
+    `;
+  }
+  if (sMob) {
+    return `
+      <div style="line-height: 1.25;">
+        <div><span style="color: #64748b; font-weight: 600; font-family: sans-serif;">S:</span> <strong style="color: #0f172a;">${sMob}</strong></div>
+        <div style="color: #94a3b8; font-size: 6.8pt; font-family: sans-serif;">P: —</div>
+      </div>
+    `;
+  }
+  if (pMob) {
+    return `
+      <div style="line-height: 1.25;">
+        <div style="color: #94a3b8; font-size: 6.8pt; font-family: sans-serif;">S: —</div>
+        <div><span style="color: #64748b; font-weight: 600; font-family: sans-serif;">P:</span> <strong style="color: #0369a1;">${pMob}</strong></div>
+      </div>
+    `;
+  }
+  return `<span style="color: #94a3b8; font-style: italic;">—</span>`;
+}
+
+/**
  * 5. Print Fail / Absent Student List
  * Enhanced with accurate student subject enrollment verification, session isolation,
  * pending submission integration, and a comprehensive Institutional Pending Awards Status Overview.
@@ -2659,6 +2775,48 @@ export function printFailList({
     });
   });
 
+  // Pre-build index of available contacts from all students in cohort
+  const contactLookup = new Map();
+  const allAvailableStudents = [
+    ...(Array.isArray(students) ? students : []),
+    ...(Array.isArray(printDetails?.allStudents) ? printDetails.allStudents : [])
+  ];
+
+  allAvailableStudents.forEach(s => {
+    if (!s) return;
+    const sMob = extractStudentContact(s);
+    const pMob = extractParentContact(s);
+    if ((sMob && sMob !== '—') || (pMob && pMob !== '—')) {
+      const keys = [
+        s.classRollNo,
+        s.rollNo,
+        s['Class Roll No'],
+        s['Class Roll No.'],
+        s['Class R.No.'],
+        s.examRollNo,
+        s['Exam R.No. (Current)'],
+        s['Exam Roll No.'],
+        s['Exam Roll No'],
+        s.boardRegNo,
+        s['Board Registration Number'],
+        s['Board Reg. No.'],
+        s.formNo,
+        s['Form Number'],
+        s['Form No.'],
+        s.admissionNo,
+        s.name,
+        s.studentName,
+        s["Student's Name (as per school records)"]
+      ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+
+      keys.forEach(k => {
+        if (!contactLookup.has(k)) {
+          contactLookup.set(k, { studentContact: sMob, parentContact: pMob });
+        }
+      });
+    }
+  });
+
   let failRecords = [];
 
   students.forEach((st) => {
@@ -2703,12 +2861,39 @@ export function printFailList({
         const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim().toUpperCase();
         const subjectLabel = `${getSubjectDisplayName(sub.code, className)} (${sub.code})`;
 
+        let studentContact = extractStudentContact(st, rec);
+        let parentContact = extractParentContact(st, rec);
+
+        if ((!studentContact || studentContact === '—') && (!parentContact || parentContact === '—')) {
+          const matchKeys = [
+            classRoll,
+            examRoll,
+            st.boardRegNo,
+            st['Board Registration Number'],
+            st.formNo,
+            st['Form Number'],
+            st.admissionNo,
+            name
+          ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+
+          for (const mk of matchKeys) {
+            if (contactLookup.has(mk)) {
+              const found = contactLookup.get(mk);
+              if (!studentContact || studentContact === '—') studentContact = found.studentContact;
+              if (!parentContact || parentContact === '—') parentContact = found.parentContact;
+              break;
+            }
+          }
+        }
+
         if (rawMark === 'AB' || rawMark === 'A' || rawMark === 'ABSENT') {
           failRecords.push({
             rollNo: examRoll,
             classRoll,
             name,
             fatherName,
+            studentContact,
+            parentContact,
             subject: subjectLabel,
             status: isPending ? 'ABSENT (Award Pending Admin Approval)' : 'ABSENT',
             isPending,
@@ -2720,6 +2905,8 @@ export function printFailList({
             classRoll,
             name,
             fatherName,
+            studentContact,
+            parentContact,
             subject: subjectLabel,
             status: isPending
               ? `FAIL (${rawMark}/${markCfg.max}M, Min: ${minMarks}M — Pending Approval)`
@@ -2859,13 +3046,14 @@ export function printFailList({
         <table class="award-table" style="font-size: 8.5pt;">
           <thead>
             <tr style="background: #fee2e2;">
-              <th style="width: 5%;">S.No.</th>
-              <th style="width: 12%;">Class Roll</th>
-              <th style="width: 15%;">Exam Roll No.</th>
-              <th style="width: 25%; text-align: left; padding-left: 8px;">Student Name</th>
-              <th style="width: 20%; text-align: left; padding-left: 8px;">Parentage</th>
-              <th style="width: 18%;">Subject</th>
-              <th style="width: 15%;">Remarks / Status</th>
+              <th style="width: 4%;">S.No.</th>
+              <th style="width: 9%;">Class Roll</th>
+              <th style="width: 13%;">Exam Roll No.</th>
+              <th style="width: 19%; text-align: left; padding-left: 6px;">Student Name</th>
+              <th style="width: 15%; text-align: left; padding-left: 6px;">Parentage</th>
+              <th style="width: 13%;">Subject</th>
+              <th style="width: 15%; text-align: left; padding-left: 6px;">Contact Nos. (Student / Parent)</th>
+              <th style="width: 12%;">Remarks / Status</th>
             </tr>
           </thead>
           <tbody>
@@ -2874,7 +3062,7 @@ export function printFailList({
   if (failRecords.length === 0) {
     html += `
       <tr>
-        <td colspan="7" style="padding: 24px; text-align: center; font-weight: bold; color: #166534; background: #f0fdf4;">
+        <td colspan="8" style="padding: 24px; text-align: center; font-weight: bold; color: #166534; background: #f0fdf4;">
           <div style="font-size: 11pt; margin-bottom: 4px;">✓ Zero Absentees / Failures Recorded</div>
           <div style="font-size: 8.5pt; font-weight: normal; color: #15803d;">
             All evaluated examinees across submitted practical award rolls for Class ${className} have passed the practical examination.
@@ -2891,9 +3079,12 @@ export function printFailList({
           <td style="text-align: center;">${idx + 1}</td>
           <td style="text-align: center;"><strong>${f.classRoll}</strong></td>
           <td style="text-align: center;"><strong style="font-family: monospace;">${f.rollNo}</strong></td>
-          <td style="text-align: left; padding-left: 8px;"><strong>${f.name}</strong></td>
-          <td style="text-align: left; padding-left: 8px; color: #475569;">${f.fatherName}</td>
+          <td style="text-align: left; padding-left: 6px;"><strong>${f.name}</strong></td>
+          <td style="text-align: left; padding-left: 6px; color: #475569;">${f.fatherName}</td>
           <td style="text-align: center;">${f.subject}</td>
+          <td style="text-align: left; padding-left: 6px; font-size: 7.5pt; font-family: monospace;">
+            ${renderContactCell(f.studentContact, f.parentContact)}
+          </td>
           <td style="text-align: center; color: ${statusColor}; font-weight: bold;">${f.status}</td>
         </tr>
       `;

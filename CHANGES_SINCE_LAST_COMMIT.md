@@ -2,21 +2,23 @@
 
 ## Commit Message
 
-`fix(practicals): resolve 11th Botany roster discovery and add offline catalog fallback`
+`feat(practicals): add student and parent contact numbers to absent and fail defaulters list`
 
 ## Files Changed
 
-1. **[src/portal/teacher/PracticalsPage.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.jsx)**
-   - Added `mapCatalogStudentToRecord` helper converting verified student entries into complete practical candidate objects.
-   - Added `verifiedStudentsCatalog` fallback into `allCandidates`, `uniqueStudents`, and `subjectFiltered` pipelines.
-   - Preserved `Subs` and `Subjects1`–`Subjects5` across the `uniqueMap` de-duplication merge so subject matchers retain full column awareness.
-   - Expanded evaluation status filter allowance to explicitly include `submitted` alongside `approved`/`confirmed`, ensuring students with assigned class rolls in 11th are never dropped by status filters.
+1. **[src/utils/practicalsPdfGenerator.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsPdfGenerator.js)**
+   - Added `cleanContactNumber(val)`, `extractStudentContact(st, rec)`, `extractParentContact(st, rec)`, and `renderContactCell(studentContact, parentContact)`.
+   - Built cohort contact lookup map (`contactLookup`) to resolve student and parent mobile numbers across admissions, master registers, and marks documents.
+   - Enhanced `failRecords` generation to attach `studentContact` and `parentContact` to each absentee and failing candidate record.
+   - Added dedicated `Contact Nos. (Student / Parent)` column in the Defaulters List table (`<thead>` and `<tbody>`) with clean monospace badges (`S:` for Student, `P:` for Parent, and combined badge when identical).
+   - Adjusted table layout and empty state `colspan` to 8 columns.
 
-2. **[src/services/dbCache.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/services/dbCache.js)**
-   - Added `getCatalogFallbackStudents(session, className, stream)` ensuring `getAdmissionsBySession` and `getMasterRegistersByScope` seamlessly seed registered student records from `verifiedStudentsCatalog.json` if Firestore queries return 0 records or encounter offline/quota limits.
+2. **[src/portal/admin/AdminPracticals.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/admin/AdminPracticals.jsx)**
+   - Explicitly preserved `mobile` and `parentMobile` during `addOrMergeStudent` so student and parent contact information is never overwritten during register merges.
+   - Passed full cohort `allStudents: students` in `printDetails` when calling `printFailList` for maximum contact resolution.
 
-3. **[src/portal/teacher/PracticalsPage.test.jsx](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/portal/teacher/PracticalsPage.test.jsx)**
-   - Added automated unit tests verifying catalog mapping and Botany subject resolution for Class 11th (all 28/28 tests passing).
+3. **[src/utils/practicalsDefaultersContact.test.js](file:///d:/Shk_Gulfam/Projects/hss_shangus/src/utils/practicalsDefaultersContact.test.js)**
+   - Added 14 automated unit tests verifying contact number cleaning, multi-key extraction, combined/individual cell formatting, and contact badge rendering.
 
 ---
 
@@ -35,7 +37,7 @@ If you wish to edit the commit message or make adjustments:
 git reset --soft HEAD~1
 # Make desired adjustments...
 git add .
-git commit -m "fix(practicals): resolve 11th Botany roster discovery and add offline catalog fallback"
+git commit -m "feat(practicals): add student and parent contact numbers to absent and fail defaulters list"
 ```
 
 ### 3. How to Push to Remote Repository
