@@ -20,7 +20,9 @@ import {
   extractRawSubjectsString,
   getAbbreviatedSubjects,
   getExamRoll,
-  isSubjectOrStreamMatch
+  isSubjectOrStreamMatch,
+  mapCatalogStudentToRecord,
+  hasAssignedClassRoll
 } from './PracticalsPage';
 import { 
   getAbbreviatedSubjects as getPdfAbbreviatedSubjects,
@@ -659,4 +661,36 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
       expect(isSubjectOrStreamMatch(secondaryVocStudent, 'PD', 'Physical Education', '10th')).toBe(false);
     });
   });
+
+  describe('Catalog Fallback and 11th Botany Examination Roster Resolution', () => {
+    test('mapCatalogStudentToRecord accurately converts verified catalog students and resolves Botany for 11th', () => {
+      const catalogEntry = {
+        name: 'Aaqib Ahmad',
+        fatherName: 'Ghulam Mohammad',
+        classRollNo: '101',
+        className: '11th',
+        session: '2025-26',
+        stream: 'Science',
+        subjects: [
+          { code: 'GE', name: 'General English' },
+          { code: 'PH', name: 'Physics' },
+          { code: 'CH', name: 'Chemistry' },
+          { code: 'BI', name: 'Biology' },
+          { code: 'ES', name: 'Environmental Science' }
+        ]
+      };
+
+      const candidate = mapCatalogStudentToRecord(catalogEntry, '11th');
+      expect(candidate).toBeTruthy();
+      expect(candidate.classRollNo).toBe('101');
+      expect(candidate.studentName).toBe('Aaqib Ahmad');
+      expect(candidate.Subjects4).toBe('Biology');
+      expect(hasAssignedClassRoll(candidate)).toBe(true);
+      expect(isSubjectOrStreamMatch(candidate, 'BO', 'Botany', '11th')).toBe(true);
+      expect(isSubjectOrStreamMatch(candidate, 'ZO', 'Zoology', '11th')).toBe(true);
+      expect(isSubjectOrStreamMatch(candidate, 'CH', 'Chemistry', '11th')).toBe(true);
+      expect(isSubjectOrStreamMatch(candidate, 'MA', 'Mathematics', '11th')).toBe(false);
+    });
+  });
 });
+

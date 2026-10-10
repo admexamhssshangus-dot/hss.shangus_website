@@ -268,6 +268,22 @@ export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName,
   // 1. General English is COMPULSORY for 100% of students in 9th, 10th, 11th & 12th!
   if (codeUpper === 'EN' || nameUpper.includes('ENGLISH')) return true;
 
+  // Fast structured object array check (from verified catalog or structured admissions):
+  if (Array.isArray(st.subjects)) {
+    const hasObjMatch = st.subjects.some(sub => {
+      if (!sub || typeof sub !== 'object') return false;
+      const c = String(sub.code || '').toUpperCase().trim();
+      const n = String(sub.name || sub.subjectName || '').toUpperCase().trim();
+      if (['BO', 'ZO', 'BI', 'BIO'].includes(codeUpper)) {
+        return ['BI', 'BO', 'ZO', 'BIO'].includes(c) || n.includes('BIOLOGY') || n.includes('BOTANY') || n.includes('ZOOLOGY');
+      }
+      if (codeUpper && (c === codeUpper || isMatchingSubjectCode(c, codeUpper))) return true;
+      if (nameUpper && (n === nameUpper || n.includes(nameUpper) || nameUpper.includes(n))) return true;
+      return false;
+    });
+    if (hasObjMatch) return true;
+  }
+
   const resolvedClass = String(targetClass || extractStudentClass(st) || st?.Class || st?.class || '').trim();
   const clsNorm = resolvedClass.toLowerCase();
   const is12 = clsNorm.includes('12') || clsNorm.includes('xii');
@@ -296,7 +312,7 @@ export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName,
   ].filter(Boolean).join(' ');
 
   const SAME_AS_11_RE = /same\s+as\s+(in\s+)?class\s*(11|eleventh)/i;
-  const isInvalidPlaceholder = val => !val || SAME_AS_11_RE.test(String(val)) || String(val).trim() === '—';
+  const isInvalidPlaceholder = val => !val || (typeof val === 'string' && (SAME_AS_11_RE.test(val) || val.trim() === '—'));
 
   let primarySubjStr = '';
   if (is12) {
@@ -731,7 +747,7 @@ export function extractRawSubjectsString(rec, targetClass = '') {
   const is9 = cls.includes('9');
 
   const SAME_AS_11_RE = /same\s+as\s+(in\s+)?class\s*(11|eleventh)/i;
-  const isInvalidPlaceholder = val => !val || SAME_AS_11_RE.test(String(val)) || String(val).trim() === '—';
+  const isInvalidPlaceholder = val => !val || (typeof val === 'string' && (SAME_AS_11_RE.test(val) || val.trim() === '—'));
 
   const candidates = [
     is12 ? rec['Subjects to be taken in Class 12th'] : null,
@@ -774,7 +790,15 @@ export function extractRawSubjectsString(rec, targetClass = '') {
 
   let extracted = '';
   if (Array.isArray(subjectArrayOrStr) && subjectArrayOrStr.length > 0) {
-    const cleaned = subjectArrayOrStr.filter(s => s && String(s).trim() !== '—').map(s => String(s).trim());
+    const cleaned = subjectArrayOrStr
+      .filter(s => s && (typeof s === 'object' || String(s).trim() !== '—'))
+      .map(s => {
+        if (typeof s === 'object' && s !== null) {
+          return s.name || s.subjectName || s.title || s.code || '';
+        }
+        return String(s).trim();
+      })
+      .filter(Boolean);
     if (cleaned.length > 0) extracted = cleaned.join(', ');
   } else if (typeof subjectArrayOrStr === 'string' && subjectArrayOrStr.trim() && subjectArrayOrStr.trim() !== '—') {
     extracted = subjectArrayOrStr.trim();
@@ -817,6 +841,78 @@ export function extractRawSubjectsString(rec, targetClass = '') {
   }
 
   return extracted;
+}
+
+// Helper: Safely map catalog student to full candidate record
+export function mapCatalogStudentToRecord(st, fallbackClass = '11th') {
+  if (!st) return null;
+  const fNo = String(st.fNo || st.formNo || st['Form Number'] || st['Form No.'] || '').trim();
+  const roll = String(st.classRollNo || st['Class Roll No'] || st['Class Roll No.'] || st.rollNo || '').trim();
+  const name = String(st.name || st.studentName || st['Student Name'] || st['Candidate Name'] || '').trim();
+  const father = String(st.fatherName || st.parentName || st["Father's Name"] || st['Father Name'] || '').trim();
+  const cls = extractStudentClass(st) || fallbackClass || '11th';
+  const sess = st.session || st.Session || '2025-26';
+  const stream = st.stream || st.Stream || '';
+  const regNo = String(st.boardRegNo || st.regNo || st['Board Registration Number'] || '').trim();
+
+  const subsList = [];
+  const subsAbbr = [];
+  if (Array.isArray(st.subjects)) {
+    st.subjects.forEach(s => {
+      if (typeof s === 'object' && s !== null) {
+        subsList.push(s.name || s.subjectName || s.code || '');
+        subsAbbr.push(s.code || s.name || '');
+      } else if (typeof s === 'string') {
+        subsList.push(s);
+        subsAbbr.push(s);
+      }
+    });
+  }
+
+  const rawSubjects = subsList.filter(Boolean).join(', ');
+  const subsStr = subsAbbr.filter(Boolean).join(', ');
+
+  return {
+    ...st,
+    id: st.id || (fNo ? `cat_${sess}_${cls}_f_${fNo}` : (roll ? `cat_${sess}_${cls}_r_${roll}` : `cat_${sess}_${cls}_${Math.random()}`)),
+    fNo,
+    formNo: fNo,
+    'Form Number': fNo,
+    'Form No.': fNo,
+    name,
+    studentName: name,
+    'Student Name': name,
+    'Candidate Name': name,
+    fatherName: father,
+    parentName: father,
+    "Father's Name": father,
+    'Father Name': father,
+    class: cls,
+    Class: cls,
+    className: cls,
+    session: sess,
+    Session: sess,
+    stream,
+    Stream: stream,
+    classRollNo: roll,
+    rollNo: roll,
+    'Class Roll No': roll,
+    'Class Roll No.': roll,
+    'Class R.No.': roll,
+    boardRegNo: regNo,
+    regNo: regNo,
+    'Board Registration Number': regNo,
+    rawSubjects,
+    Subs: subsStr,
+    subjects: subsList.length > 0 ? rawSubjects : (st.subjects || ''),
+    Subjects1: subsList[0] || '',
+    Subjects2: subsList[1] || '',
+    Subjects3: subsList[2] || '',
+    Subjects4: subsList[3] || '',
+    Subjects5: subsList[4] || '',
+    Status: 'Approved',
+    status: 'Approved'
+  };
 }
 
 // Helper: Mandatory Abbreviate Subject Combinations with Stream Code (S = Science, H = Humanities, G = General)
@@ -2161,6 +2257,30 @@ export default function PracticalsPage() {
           pushAdmissionCandidates();
         }
 
+        if (allCandidates.length === 0) {
+          try {
+            const verifiedModule = await import('../../data/verifiedStudentsCatalog.json');
+            const verifiedList = verifiedModule.default || verifiedModule;
+            if (Array.isArray(verifiedList) && verifiedList.length > 0) {
+              verifiedList.forEach(st => {
+                const stCls = extractStudentClass(st);
+                if (stCls && !isClassMatch(stCls, selectedClass)) return;
+                const stSess = st.session || st.Session || '2025-26';
+                if (!isSessionMatch(stSess, yearSuffix)) return;
+                const mapped = mapCatalogStudentToRecord(st, selectedClass);
+                if (mapped) {
+                  allCandidates.push({
+                    ...mapped,
+                    session: mapped.session,
+                    class: mapped.class,
+                    _source: 'verifiedCatalog'
+                  });
+                }
+              });
+            }
+          } catch (_) {}
+        }
+
         // C. Build Rich Index Maps for Hierarchical Matching
         const richByReg   = new Map();
         const richByForm  = new Map();
@@ -2435,6 +2555,12 @@ export default function PracticalsPage() {
               rawSubjects: primary.rawSubjects || secondary.rawSubjects || '',
               subjectsAbbr: primary.subjectsAbbr || secondary.subjectsAbbr || '',
               stream: primary.stream || primary.Stream || secondary.stream || secondary.Stream || '',
+              Subs: primary.Subs || secondary.Subs || '',
+              Subjects1: primary.Subjects1 || secondary.Subjects1 || '',
+              Subjects2: primary.Subjects2 || secondary.Subjects2 || '',
+              Subjects3: primary.Subjects3 || secondary.Subjects3 || '',
+              Subjects4: primary.Subjects4 || secondary.Subjects4 || '',
+              Subjects5: primary.Subjects5 || secondary.Subjects5 || '',
               // Ensure parentage is preserved:
               parentName: primary.parentName || secondary.parentName || primary["Father's Name"] || secondary["Father's Name"] || '',
               // Preserve marks if present in either:
@@ -2448,6 +2574,27 @@ export default function PracticalsPage() {
         });
 
         uniqueStudents = Array.from(uniqueMap.values());
+        if (uniqueStudents.length === 0) {
+          try {
+            const verifiedModule = await import('../../data/verifiedStudentsCatalog.json');
+            const verifiedList = verifiedModule.default || verifiedModule;
+            if (Array.isArray(verifiedList) && verifiedList.length > 0) {
+              const fallbackCandidates = verifiedList
+                .filter(st => {
+                  const stCls = extractStudentClass(st);
+                  if (stCls && !isClassMatch(stCls, selectedClass)) return false;
+                  const stSess = st.session || st.Session || '2025-26';
+                  if (!isSessionMatch(stSess, yearSuffix)) return false;
+                  return hasAssignedClassRoll(st);
+                })
+                .map(st => mapCatalogStudentToRecord(st, selectedClass))
+                .filter(Boolean);
+              if (fallbackCandidates.length > 0) {
+                uniqueStudents = fallbackCandidates;
+              }
+            }
+          } catch (_) {}
+        }
         if (uniqueStudents.length > 0) {
           masterRosterCacheRef.current[cacheKey] = uniqueStudents;
         }
@@ -2486,6 +2633,46 @@ export default function PracticalsPage() {
             _examRollNo: getExamRoll(st, selectedClass)
           };
         });
+
+      if (subjectFiltered.length === 0 && rosterScope !== 'all_class') {
+        try {
+          const verifiedModule = await import('../../data/verifiedStudentsCatalog.json');
+          const verifiedList = verifiedModule.default || verifiedModule;
+          if (Array.isArray(verifiedList) && verifiedList.length > 0) {
+            const fallbackFiltered = verifiedList
+              .map(st => mapCatalogStudentToRecord(st, selectedClass))
+              .filter(st => {
+                if (!st || !hasAssignedClassRoll(st)) return false;
+                const stCls = extractStudentClass(st);
+                if (stCls && !isClassMatch(stCls, selectedClass)) return false;
+                const stSess = st.session || st.Session || '2025-26';
+                if (!isSessionMatch(stSess, yearSuffix)) return false;
+                const rawStr = extractRawSubjectsString(st, selectedClass);
+                const rawSubjects = Array.isArray(rawStr) ? rawStr.join(', ') : String(rawStr);
+                const enrichedSt = {
+                  ...st,
+                  rawSubjects,
+                  subjectsAbbr: getAbbreviatedSubjects(st, selectedClass)
+                };
+                return isSubjectMatch(enrichedSt, selectedSubject, selectedClass);
+              })
+              .map(st => {
+                const rawStr = extractRawSubjectsString(st, selectedClass);
+                const rawSubjects = Array.isArray(rawStr) ? rawStr.join(', ') : String(rawStr);
+                return {
+                  ...st,
+                  _rawSubjects: rawSubjects,
+                  _subjectsAbbr: getAbbreviatedSubjects(st, selectedClass),
+                  _examRollNo: getExamRoll(st, selectedClass)
+                };
+              });
+
+            if (fallbackFiltered.length > 0) {
+              subjectFiltered.push(...fallbackFiltered);
+            }
+          }
+        } catch (_) {}
+      }
 
       // Check local storage draft
       const clsNormKey = String(selectedClass).replace(/class/i, '').trim();

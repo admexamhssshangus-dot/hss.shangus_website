@@ -11,6 +11,7 @@ import { db, ensureFirestoreConnected } from './firebase';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 import { updateStudentInRegIndex } from './studentIndexService';
 import { getCachedSiteSettings } from '../utils/settingsLoader';
+import verifiedCatalog from '../data/verifiedStudentsCatalog.json';
 
 export { ensureFirestoreConnected };
 
@@ -552,6 +553,103 @@ function isStudentInSessionFast(student, targetSession) {
   return sNorm.includes(tNorm) || tNorm.includes(sNorm);
 }
 
+/**
+ * Offline / Quota Fallback Seed:
+ * Returns genuine registered students from verifiedStudentsCatalog when Firestore queries
+ * are unavailable, blocked, or quota-exhausted, guaranteeing that portals always load genuine rosters.
+ */
+function getCatalogFallbackStudents(cleanSession, cleanClass, cleanStream) {
+  try {
+    const list = Array.isArray(verifiedCatalog) ? verifiedCatalog : (verifiedCatalog?.default || []);
+    if (!Array.isArray(list) || list.length === 0) return [];
+
+    return list.filter(st => {
+      if (cleanSession && !isStudentInSessionFast(st, cleanSession)) return false;
+      const stClass = normalizeCanonicalClass(st.className || st.class || st.Class || '');
+      if (cleanClass && stClass !== cleanClass) return false;
+      if (cleanStream && String(st.stream || st.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
+      return true;
+    }).map(st => {
+      const fNo = String(st.fNo || st.formNo || st['Form Number'] || st['Form No.'] || '').trim();
+      const roll = String(st.classRollNo || st['Class Roll No'] || st['Class Roll No.'] || st.rollNo || '').trim();
+      const name = String(st.name || st.studentName || st['Student Name'] || st['Candidate Name'] || '').trim();
+      const father = String(st.fatherName || st.parentName || st["Father's Name"] || st['Father Name'] || '').trim();
+      const rawClass = st.className || st.class || st.Class || cleanClass || '';
+      const cls = normalizeCanonicalClass(rawClass) || rawClass;
+      const sess = st.session || st.Session || cleanSession || '2025-26';
+      const stream = st.stream || st.Stream || cleanStream || '';
+      const regNo = String(st.boardRegNo || st.regNo || st['Board Registration Number'] || '').trim();
+
+      const subsList = [];
+      const subsAbbr = [];
+      if (Array.isArray(st.subjects)) {
+        st.subjects.forEach(s => {
+          if (typeof s === 'object' && s !== null) {
+            subsList.push(s.name || s.subjectName || s.code || '');
+            subsAbbr.push(s.code || s.name || '');
+          } else if (typeof s === 'string') {
+            subsList.push(s);
+            subsAbbr.push(s);
+          }
+        });
+      }
+
+      const rawSubjects = subsList.filter(Boolean).join(', ');
+      const subsStr = subsAbbr.filter(Boolean).join(', ');
+
+      return {
+        ...st,
+        id: st.id || (fNo ? `mr_${sess}_${cls}_f_${fNo}` : (roll ? `mr_${sess}_${cls}_r_${roll}` : `mr_${sess}_${cls}_${Math.random()}`)),
+        _docId: fNo ? `mr_${sess}_${cls}_f_${fNo}` : (roll ? `mr_${sess}_${cls}_r_${roll}` : ''),
+        _source: 'verifiedCatalog',
+        _srcCollection: 'masterRegisters',
+        _isHistorical: false,
+        fNo,
+        formNo: fNo,
+        'Form Number': fNo,
+        'Form No.': fNo,
+        name,
+        studentName: name,
+        'Student Name': name,
+        'Candidate Name': name,
+        fatherName: father,
+        parentName: father,
+        "Father's Name": father,
+        'Father Name': father,
+        class: cls,
+        Class: cls,
+        className: cls,
+        canonicalClass: cls,
+        session: sess,
+        Session: sess,
+        stream,
+        Stream: stream,
+        classRollNo: roll,
+        rollNo: roll,
+        'Class Roll No': roll,
+        'Class Roll No.': roll,
+        'Class R.No.': roll,
+        boardRegNo: regNo,
+        regNo: regNo,
+        'Board Registration Number': regNo,
+        rawSubjects,
+        Subs: subsStr,
+        subjects: subsList.length > 0 ? rawSubjects : (st.subjects || ''),
+        Subjects1: subsList[0] || '',
+        Subjects2: subsList[1] || '',
+        Subjects3: subsList[2] || '',
+        Subjects4: subsList[3] || '',
+        Subjects5: subsList[4] || '',
+        Status: 'Approved',
+        status: 'Approved'
+      };
+    });
+  } catch (err) {
+    console.warn('[dbCache] getCatalogFallbackStudents error:', err);
+    return [];
+  }
+}
+
 function unpackAdmissionsDocument(docSnap) {
   const data = docSnap.data();
   if (!data || data.Status === 'Deleted' || data.status === 'Deleted' || data._deleted === true) return [];
@@ -624,12 +722,15 @@ export async function getAdmissionsBySession(options = {}) {
         return snapshot.docs.flatMap(unpackAdmissionsDocument);
       };
 
-      let records = await readForField('session');
+      let records = await readForField('session').catch(() => []);
       // Individual documents use lowercase canonical fields.  This small
       // fallback preserves older rows without charging a second read when the
       // canonical query already returned the cohort.
       if (records.length === 0) {
         records = await readForField('Session').catch(() => []);
+      }
+      if (records.length === 0) {
+        records = getCatalogFallbackStudents(cleanSession, '', '');
       }
 
       admissionsSessionCache.set(cleanSession, records);
@@ -642,6 +743,11 @@ export async function getAdmissionsBySession(options = {}) {
       return records;
     } catch (err) {
       console.warn('[dbCache] getAdmissionsBySession error:', err);
+      const fallback = getCatalogFallbackStudents(cleanSession, '', '');
+      if (fallback.length > 0) {
+        admissionsSessionCache.set(cleanSession, fallback);
+        return fallback;
+      }
       return admissionsSessionCache.get(cleanSession) || [];
     } finally {
       admissionsSessionInflightFetches.delete(cleanSession);
@@ -742,19 +848,32 @@ export async function getMasterRegistersByScope({ session, className, stream, fo
       if (cleanStream) constraints.push(where('stream', '==', cleanStream));
 
       if (constraints.length > 0) {
-        const snap = await getDocs(query(collection(db, 'masterRegisters'), ...constraints));
-        let results = snap.docs.flatMap(unpackMasterRegisterDoc);
+        let results = [];
+        try {
+          const snap = await getDocs(query(collection(db, 'masterRegisters'), ...constraints));
+          results = snap.docs.flatMap(unpackMasterRegisterDoc);
 
-        // Lowercase fields are canonical.  Only legacy rows need the capitalized
-        // fallback, so the normal path remains a single Firestore query.
-        if (results.length === 0 && cleanSession) {
-          const snapCap = await getDocs(query(collection(db, 'masterRegisters'), where('Session', '==', cleanSession))).catch(() => null);
-          if (snapCap && !snapCap.empty) {
-            results = snapCap.docs.flatMap(unpackMasterRegisterDoc).filter(s => {
-              if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
-              if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
-              return true;
-            });
+          // Lowercase fields are canonical.  Only legacy rows need the capitalized
+          // fallback, so the normal path remains a single Firestore query.
+          if (results.length === 0 && cleanSession) {
+            const snapCap = await getDocs(query(collection(db, 'masterRegisters'), where('Session', '==', cleanSession))).catch(() => null);
+            if (snapCap && !snapCap.empty) {
+              results = snapCap.docs.flatMap(unpackMasterRegisterDoc).filter(s => {
+                if (cleanClass && normalizeCanonicalClass(s.class || s.Class || s.canonicalClass) !== cleanClass) return false;
+                if (cleanStream && String(s.stream || s.Stream || '').toLowerCase() !== cleanStream.toLowerCase()) return false;
+                return true;
+              });
+            }
+          }
+        } catch (fetchErr) {
+          console.warn('[dbCache] getMasterRegistersByScope Firestore query error (quota/offline):', fetchErr);
+        }
+
+        // Offline / Quota Fallback Seed: Guarantee that registered cohorts are always available
+        if (results.length === 0) {
+          const fallback = getCatalogFallbackStudents(cleanSession, cleanClass, cleanStream);
+          if (fallback.length > 0) {
+            results = fallback;
           }
         }
 
@@ -773,6 +892,11 @@ export async function getMasterRegistersByScope({ session, className, stream, fo
       return [];
     } catch (err) {
       console.warn('[dbCache] getMasterRegistersByScope error:', err);
+      const fallback = getCatalogFallbackStudents(cleanSession, cleanClass, cleanStream);
+      if (fallback.length > 0) {
+        scopeMemoryCache.set(cacheKey, fallback);
+        return fallback;
+      }
       return scopeMemoryCache.get(cacheKey) || [];
     }
   })();
