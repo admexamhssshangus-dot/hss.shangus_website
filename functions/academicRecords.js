@@ -16,7 +16,110 @@ function isClassSubmissionOpen(config, className) {
     : window !== false;
 }
 
-module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCall(async (data, context) => {
+function normalizeStaffClasses(assignedClasses) {
+  if (!assignedClasses) return [];
+  const list = Array.isArray(assignedClasses) ? assignedClasses : [assignedClasses];
+  const set = new Set();
+  list.forEach(item => {
+    if (!item) return;
+    String(item).split(/[,;/|]+/).forEach(tok => {
+      const clean = tok.trim().toLowerCase();
+      if (!clean) return;
+      if (clean.includes('9')) set.add('9th');
+      else if (clean.includes('10')) set.add('10th');
+      else if (clean.includes('11')) set.add('11th');
+      else if (clean.includes('12')) set.add('12th');
+    });
+  });
+  return Array.from(set);
+}
+
+function isStaffSubjectMatch(staffSubjectCandidate, targetSubject, targetSubjectCode) {
+  if (!staffSubjectCandidate) return false;
+  const staffStr = String(staffSubjectCandidate).trim();
+  const targetSub = String(targetSubject || '').trim();
+  const targetCode = String(targetSubjectCode || '').toUpperCase().trim();
+
+  const staffKey = key(staffStr);
+  const targetKey = key(targetSub);
+  const targetCodeKey = key(targetCode);
+
+  if (staffKey === targetKey || (targetCodeKey && staffKey === targetCodeKey)) return true;
+
+  const staffUpper = staffStr.toUpperCase();
+  if (targetCode && (staffUpper === targetCode || new RegExp(`(^|[^A-Z0-9])${targetCode}(?![A-Z0-9])`, 'i').test(staffUpper))) return true;
+
+  const aliasGroups = [
+    ['PD', 'PE', 'PHE', 'PHYSICALEDUCATION', 'PHYSICALED', 'PHYED'],
+    ['ES', 'EVS', 'ENVIRONMENTALSCIENCE', 'ENVSCI'],
+    ['ITE', 'IT', 'ITES', 'ITANDITES', 'ITITES', 'INFORMATIONTECHNOLOGY'],
+    ['HTC', 'HC', 'HEALTHCARE', 'HEALTH'],
+    ['BI', 'BIO', 'BIOLOGY', 'BOTANY', 'ZOOLOGY', 'BO', 'ZO'],
+    ['BO', 'BOTANY', 'BIOLOGY', 'BI'],
+    ['ZO', 'ZOOLOGY', 'BIOLOGY', 'BI'],
+    ['PH', 'PHYSICS'],
+    ['CH', 'CHEMISTRY'],
+    ['MA', 'MATH', 'MATHS', 'MATHEMATICS'],
+    ['SC', 'SCIENCE', 'SCIENCECLASS10TH'],
+    ['SS', 'SST', 'SOCIALSCIENCE', 'SOCIALSTUDIES', 'SOCIALSCIENCECLASS10TH'],
+    ['EN', 'ENGLISH', 'GENERALENGLISH'],
+    ['UR', 'URDU'],
+    ['HN', 'HINDI'],
+    ['AR', 'ARABIC'],
+    ['PS', 'POLITICALSCIENCE'],
+    ['ED', 'EDUCATION'],
+    ['SO', 'SOCIOLOGY'],
+    ['EC', 'ECONOMICS'],
+    ['HT', 'HISTORY'],
+    ['GG', 'GEOGRAPHY'],
+    ['CS', 'COMPUTERSCIENCE'],
+    ['AY', 'ACCOUNTANCY', 'ACCOUNTS'],
+    ['BS', 'BUSINESSSTUDIES', 'BUSINESS']
+  ];
+
+  for (const group of aliasGroups) {
+    const staffMatches = group.some(alias => staffKey === key(alias));
+    const targetMatches = group.some(alias => targetKey === key(alias) || targetCodeKey === key(alias));
+    if (staffMatches && targetMatches) return true;
+  }
+
+  if (staffKey.length >= 4 && targetKey.length >= 4) {
+    if (staffKey.includes(targetKey) || targetKey.includes(staffKey)) return true;
+  }
+
+  return false;
+}
+
+function checkTeacherAssignment(staff, payload, config) {
+  const staffClasses = normalizeStaffClasses(staff.assignedClasses || staff.classes || staff.assignedClass);
+  const classMatches = staffClasses.includes(payload.className);
+
+  const staffSubjectCandidates = [];
+  if (staff.subject) staffSubjectCandidates.push(staff.subject);
+  if (Array.isArray(staff.assignedSubjects)) staffSubjectCandidates.push(...staff.assignedSubjects);
+  else if (typeof staff.assignedSubjects === 'string') staffSubjectCandidates.push(...staff.assignedSubjects.split(/[,;/]+/));
+  if (Array.isArray(staff.subjects)) staffSubjectCandidates.push(...staff.subjects);
+  else if (typeof staff.subjects === 'string') staffSubjectCandidates.push(...staff.subjects.split(/[,;/]+/));
+  if (Array.isArray(staff.assignedSubjectCodes)) staffSubjectCandidates.push(...staff.assignedSubjectCodes);
+
+  const subjectMatches = staffSubjectCandidates.some(candidate =>
+    isStaffSubjectMatch(candidate, payload.subject, payload.subjectCode)
+  );
+
+  if (classMatches && subjectMatches) return true;
+
+  const explicit = (config.permissions || []).some(permission =>
+    key(permission.email) === key(staff.email) &&
+    classKey(permission.className) === classKey(payload.className) &&
+    (isStaffSubjectMatch(permission.subject, payload.subject, payload.subjectCode) ||
+     [key(payload.subject), key(payload.subjectCode)].includes(key(permission.subject)))
+  );
+  if (explicit) return true;
+
+  return false;
+}
+
+const factory = ({ functions, admin, requireAppCheck }) => functions.https.onCall(async (data, context) => {
   requireAppCheck(context);
   try {
     const db = admin.firestore(), type = data?.type;
@@ -41,18 +144,24 @@ module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCa
       const session = sessionKey(payload.yearSuffix || payload.sessionYear || payload.sessionCanonical);
       if (!/^20\d{2}-\d{2}$/.test(session)) throw new Error('A valid academic session is required.');
       if (type === 'practicalsData') {
-        const definition = subjectDefinitions.find(subject => subject.name === payload.subject);
-        if (!definition || definition.code !== payload.subjectCode) throw new Error('Select a configured subject and its matching code.');
+        const targetSubj = String(payload.subject || '').trim();
+        const targetCode = String(payload.subjectCode || '').trim().toUpperCase();
+        const definition = subjectDefinitions.find(subject =>
+          (targetCode && subject.code.toUpperCase() === targetCode) ||
+          key(subject.name) === key(targetSubj) ||
+          (subject.code === 'SC' && key(targetSubj) === 'science') ||
+          (subject.code === 'SS' && (key(targetSubj) === 'socialscience' || key(targetSubj) === 'socialstudies' || key(targetSubj) === 'sst'))
+        );
+        if (!definition) throw new Error('Select a configured subject and its matching code.');
       }
       const canonicalId = type === 'attendance'
         ? `${payload.className}_${payload.date}_${payload.subject === 'General' ? 'general' : payload.subject}`
         : `${payload.className}_${payload.subject}_${payload.practicalType}_${payload.yearSuffix || session}`;
       const expectedId = type === 'practicalsData' ? `pending_${canonicalId}` : canonicalId;
       if (!isAdmin && data.docId !== expectedId) throw new Error('The submission ID does not match this class, subject and date or assessment.');
-      const explicitAssignment = (config.permissions || []).some(permission => key(permission.email) === key(staff.email) &&
-        classKey(permission.className) === classKey(payload.className) && [key(payload.subject), key(payload.subjectCode)].includes(key(permission.subject)));
-      const profileAssignment = Array.isArray(staff.assignedClasses) && staff.assignedClasses.includes(payload.className) && key(staff.subject) === key(payload.subject);
-      if (!isAdmin && !explicitAssignment && !profileAssignment) throw new Error('This class and subject are not assigned to your account.');
+      const isAssigned = checkTeacherAssignment(staff, payload, config);
+      const isCrossSubjectAllowed = type === 'practicalsData' && (payload.isCrossSubject === true || payload.status === 'pending_approval' || payload.isDraft === true || data.docId.startsWith('pending_'));
+      if (!isAdmin && !isAssigned && !isCrossSubjectAllowed) throw new Error('This class and subject are not assigned to your account.');
       if (!isAdmin && site.data()?.[type === 'attendance' ? 'attendanceSubmissionOpen' : 'practicalsSubmissionOpen'] === false) throw new Error('Submissions are currently closed.');
       if (!isAdmin && type === 'practicalsData' && !isClassSubmissionOpen(config, payload.className)) throw new Error(`Practical submissions are closed for ${payload.className}.`);
       if (!isAdmin && prior.exists && (prior.data().isLocked || prior.data().status === 'submitted' ||
@@ -72,8 +181,8 @@ module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCa
         const form = studentForm(row), reg = studentReg(row);
         if (!form && !reg) throw new Error('Every row needs a form or registration number.');
         const matches = roster.filter(student => (!form || studentForm(student) === form) && (!reg || studentReg(student) === reg));
-        if (matches.length !== 1) throw new Error('A student is missing from this cohort or has a duplicate identity. Refresh the roster.');
-        const rosterStudent = matches[0];
+        if (matches.length === 0) throw new Error('A student is missing from this cohort. Refresh the roster.');
+        const rosterStudent = matches.find(s => s._docId && !s._docId.startsWith('masterRegisters/')) || matches[0];
         const identity = studentForm(rosterStudent) || studentReg(rosterStudent);
         if (identities.has(identity)) throw new Error('A student appears more than once.');
         identities.add(identity);
@@ -129,3 +238,9 @@ module.exports = ({ functions, admin, requireAppCheck }) => functions.https.onCa
     });
   } catch (error) { throw new functions.https.HttpsError(error.status === 403 ? 'permission-denied' : 'failed-precondition', error.message); }
 });
+
+factory.normalizeStaffClasses = normalizeStaffClasses;
+factory.isStaffSubjectMatch = isStaffSubjectMatch;
+factory.checkTeacherAssignment = checkTeacherAssignment;
+
+module.exports = factory;

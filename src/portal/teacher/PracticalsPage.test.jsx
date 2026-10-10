@@ -19,7 +19,8 @@ import {
 import {
   extractRawSubjectsString,
   getAbbreviatedSubjects,
-  getExamRoll
+  getExamRoll,
+  isSubjectOrStreamMatch
 } from './PracticalsPage';
 import { 
   getAbbreviatedSubjects as getPdfAbbreviatedSubjects,
@@ -558,6 +559,73 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
       const st12B = { class: '12th', currExamRollNo: '301004100' };
       expect(getStudentCentreNo(st12A, '', '12th')).toBe('301003');
       expect(getStudentCentreNo(st12B, '', '12th')).toBe('301004');
+    });
+  });
+
+  describe('Class-Specific Subject Isolation & Switch Handling', () => {
+    test('student who switched from Physical Education in 11th to Environmental Science in 12th matches only ES in 12th and PD in 11th', () => {
+      const malikaTariq = {
+        name: 'Malika Tariq',
+        class: '12th',
+        className: '12th',
+        stream: 'Science',
+        'Subs': 'General English, Physics, Chemistry, Biology, Physical Education', // legacy 11th Subs
+        'Subjects to be taken in Class 11th': 'General English, Physics, Chemistry, Biology, Physical Education',
+        'Subjects to be taken in Class 12th': 'General English, Physics, Chemistry, Biology, Environmental Science'
+      };
+
+      // In Class 12th evaluation:
+      expect(isSubjectOrStreamMatch(malikaTariq, 'PD', 'Physical Education', '12th')).toBe(false);
+      expect(isSubjectOrStreamMatch(malikaTariq, 'ES', 'Environmental Science', '12th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(malikaTariq, 'PD', '12th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(malikaTariq, 'ES', '12th')).toBe(true);
+
+      const abbr12 = getAbbreviatedSubjects(malikaTariq, '12th');
+      expect(abbr12).toContain('ES');
+      expect(abbr12).not.toContain('PD');
+
+      // In Class 11th evaluation:
+      expect(isSubjectOrStreamMatch(malikaTariq, 'PD', 'Physical Education', '11th')).toBe(true);
+      expect(isSubjectOrStreamMatch(malikaTariq, 'ES', 'Environmental Science', '11th')).toBe(false);
+      expect(isStudentEnrolledInPracticalSubject(malikaTariq, 'PD', '11th')).toBe(true);
+      expect(isStudentEnrolledInPracticalSubject(malikaTariq, 'ES', '11th')).toBe(false);
+    });
+
+    test('secondary students never match higher secondary subjects and vocational electives require actual enrollment', () => {
+      const secondaryCoreStudent = {
+        name: 'Mohammad Shahid',
+        class: '10th',
+        'Subjects to be taken in Class 10th': 'English, Mathematics, Science, Social Studies, Urdu'
+      };
+
+      // Core subjects match
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'SC', 'Science', '10th')).toBe(true);
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'SS', 'Social Science', '10th')).toBe(true);
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'MA', 'Mathematics', '10th')).toBe(true);
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'EN', 'General English', '10th')).toBe(true);
+
+      // Higher secondary subjects MUST NOT match
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'PD', 'Physical Education', '10th')).toBe(false);
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'BO', 'Botany', '10th')).toBe(false);
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'ZO', 'Zoology', '10th')).toBe(false);
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'CH', 'Chemistry', '10th')).toBe(false);
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'PH', 'Physics', '10th')).toBe(false);
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'PS', 'Political Science', '10th')).toBe(false);
+
+      // Vocational subjects require enrollment
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'ITE', 'IT and ITES', '10th')).toBe(false);
+      expect(isSubjectOrStreamMatch(secondaryCoreStudent, 'HTC', 'Healthcare', '10th')).toBe(false);
+
+      const secondaryVocStudent = {
+        name: 'Zahida Bano',
+        class: '10th',
+        'Subjects to be taken in Class 10th': 'English, Mathematics, Science, Social Studies, Urdu, IT and ITES',
+        vocationalSubject: 'IT and ITES'
+      };
+
+      expect(isSubjectOrStreamMatch(secondaryVocStudent, 'ITE', 'IT and ITES', '10th')).toBe(true);
+      expect(isSubjectOrStreamMatch(secondaryVocStudent, 'HTC', 'Healthcare', '10th')).toBe(false);
+      expect(isSubjectOrStreamMatch(secondaryVocStudent, 'PD', 'Physical Education', '10th')).toBe(false);
     });
   });
 });

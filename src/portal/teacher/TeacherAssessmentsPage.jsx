@@ -552,7 +552,7 @@ export default function TeacherAssessmentsPage() {
         const stClass = extractStudentClass(st);
         const stSession = st.session || st.Session || st['Academic Session'];
 
-        const matchSubjOrAll = isSecondaryClass || rosterScope === 'all_class' || isSubjectOrStreamMatch(st, targetSubjCode, targetSubjName);
+        const matchSubjOrAll = rosterScope === 'all_class' || isSubjectOrStreamMatch(st, targetSubjCode, targetSubjName, selectedClass);
 
         if (
           hasAssignedClassRoll(st) &&

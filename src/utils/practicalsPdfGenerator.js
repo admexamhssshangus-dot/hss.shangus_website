@@ -1603,6 +1603,7 @@ function resolveStudentSubjectsRaw(st, className = '') {
   if (!st) return '';
   const clsName = String(className || st.Class || st.class || '').toLowerCase();
   const is12 = clsName.includes('12');
+  const is11 = clsName.includes('11') || (!clsName.includes('12') && !clsName.includes('10') && !clsName.includes('9'));
   const is10 = clsName.includes('10');
   const is9 = clsName.includes('9');
 
@@ -1617,21 +1618,22 @@ function resolveStudentSubjectsRaw(st, className = '') {
   const arraySelectedSubs = Array.isArray(st.selectedSubjects) ? st.selectedSubjects.filter(val => val && !SAME_AS_11_RE.test(String(val))).join(', ') : null;
   const arraySubs = Array.isArray(st.subjects) ? st.subjects.map(s => typeof s === 'string' ? s : s?.name || s?.code).filter(val => val && !SAME_AS_11_RE.test(String(val))).join(', ') : null;
 
-  // Ordered candidate fields — most authoritative first
+  // Ordered candidate fields — most authoritative class-specific first
   const candidates = [
+    is12 ? st['Subjects to be taken in Class 12th'] : null,
+    is12 ? st['Stream & Subjects for Class 12th'] : null,
+    is12 ? st['Subjects in Class 12th'] : null,
+    is11 ? (st['Subjects to be taken in Class 11th'] || st['Subjects in Class 11th'] || st['Subjects Studied in Class 11th']) : null,
+    is10 ? (st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th']) : null,
+    is9 ? (st['Subjects to be taken in Class 9th'] || st['Subjects in Class 9th']) : null,
     st.rawSubjects,
     st._rawSubjects,
-    st['Subs'],
-    st['subs'],
     st.subjectsAbbr,
     st._subjectsAbbr,
     arraySelectedSubs,
     arraySubs,
-    is12 ? st['Subjects to be taken in Class 12th'] : null,
-    is12 ? st['Subjects in Class 12th'] : null,
-    is12 ? st['Stream & Subjects for Class 12th'] : null,
-    is10 ? (st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th']) : null,
-    is9 ? (st['Subjects to be taken in Class 9th'] || st['Subjects in Class 9th']) : null,
+    st['Subs'],
+    st['subs'],
     multiSubCols || null,
     st['Subjects to be taken in Class 11th'],
     st['Subjects Studied in Class 11th'],

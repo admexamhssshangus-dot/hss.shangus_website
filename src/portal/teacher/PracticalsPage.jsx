@@ -259,14 +259,22 @@ export function isSessionMatch(stSession, targetYearSuffix) {
 }
 
 // Helper: Subject / Stream Matcher
-export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
+export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName, targetClass = '') {
   if (!targetSubjectCode && !targetSubjectName) return true;
 
   const codeUpper = String(targetSubjectCode || '').toUpperCase().trim();
   const nameUpper = String(targetSubjectName || '').toUpperCase().trim();
 
-  // 1. General English is COMPULSORY for 100% of students in 11th & 12th!
+  // 1. General English is COMPULSORY for 100% of students in 9th, 10th, 11th & 12th!
   if (codeUpper === 'EN' || nameUpper.includes('ENGLISH')) return true;
+
+  const resolvedClass = String(targetClass || extractStudentClass(st) || st?.Class || st?.class || '').trim();
+  const clsNorm = resolvedClass.toLowerCase();
+  const is12 = clsNorm.includes('12') || clsNorm.includes('xii');
+  const is11 = clsNorm.includes('11') || clsNorm.includes('xi');
+  const is10 = clsNorm.includes('10') || clsNorm.includes('x');
+  const is9 = clsNorm.includes('9') || clsNorm.includes('ix');
+  const isSecondary = is9 || is10;
 
   const vocSubs = [
     st['Vocational Subject'],
@@ -287,20 +295,35 @@ export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName)
     st['6th_Subject']
   ].filter(Boolean).join(' ');
 
+  const SAME_AS_11_RE = /same\s+as\s+(in\s+)?class\s*(11|eleventh)/i;
+  const isInvalidPlaceholder = val => !val || SAME_AS_11_RE.test(String(val)) || String(val).trim() === '—';
+
+  let primarySubjStr = '';
+  if (is12) {
+    const cand12 = st['Subjects to be taken in Class 12th'] || st['Stream & Subjects for Class 12th'] || st['Subjects in Class 12th'];
+    if (cand12 && !isInvalidPlaceholder(cand12)) {
+      primarySubjStr = Array.isArray(cand12) ? cand12.join(', ') : String(cand12);
+    }
+  } else if (is11) {
+    const cand11 = st['Subjects to be taken in Class 11th'] || st['Subjects in Class 11th'] || st['Subjects Studied in Class 11th'];
+    if (cand11 && !isInvalidPlaceholder(cand11)) {
+      primarySubjStr = Array.isArray(cand11) ? cand11.join(', ') : String(cand11);
+    }
+  } else if (is10) {
+    const cand10 = st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th'] || st['Subjects Studied in Class 9th'];
+    if (cand10 && !isInvalidPlaceholder(cand10)) {
+      primarySubjStr = Array.isArray(cand10) ? cand10.join(', ') : String(cand10);
+    }
+  } else if (is9) {
+    const cand9 = st['Subjects to be taken in Class 9th'] || st['Subjects in Class 9th'];
+    if (cand9 && !isInvalidPlaceholder(cand9)) {
+      primarySubjStr = Array.isArray(cand9) ? cand9.join(', ') : String(cand9);
+    }
+  }
+
   const rawSubjStr = String(
     [
-      extractRawSubjectsString(st),
-      st.subs,
-      st['Subs'],
-      st.rawSubjects,
-      st.subjects,
-      st.Subjects,
-      st.subject,
-      st['Stream / Subjects'],
-      st['Subject Combination'],
-      st['Selected Subjects'],
-      st['Subjects to be taken in Class 11th'],
-      st['Subjects to be taken in Class 12th'],
+      primarySubjStr || extractRawSubjectsString(st, resolvedClass) || st.rawSubjects || st._rawSubjects || (isSecondary ? null : st['Subs']) || (isSecondary ? null : st.subs) || '',
       vocSubs
     ].filter(Boolean).join(', ')
   ).toUpperCase();
@@ -308,10 +331,7 @@ export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName)
   const streamStr = String(
     st.stream ||
     st.Stream ||
-    st['Stream for Class 11th'] ||
-    st['Stream for Class 12th'] ||
-    st['Stream Studied in Class 11th'] ||
-    st['Stream opted in Class 11th'] ||
+    (is12 ? (st['Stream for Class 12th'] || st['Stream Studied in Class 11th'] || st['Stream for Class 11th']) : (st['Stream for Class 11th'] || st['Stream opted in Class 11th'])) ||
     ''
   ).toUpperCase();
 
@@ -329,26 +349,31 @@ export function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName)
     return regex.test(rawSubjStr);
   };
 
-  // Secondary Core Subjects (Classes 9th & 10th study the common curriculum)
-  const stuClass = extractStudentClass(st);
-  const isStuSecondary = stuClass === '9th' || stuClass === '10th' || stuClass === '9' || stuClass === '10';
-  if (isStuSecondary) {
-    return true;
-  }
-
-  // 1b. Science (Class 9th & 10th Core)
-  if (codeUpper === 'SC' || nameUpper === 'SCIENCE') {
-    if (isStuSecondary) return true;
-    if (hasToken('SC') || /\bSCIENCE\b/i.test(rawSubjStr)) return true;
-    if (isScienceStrict && !rawSubjStr) return true;
-    return false;
-  }
-
-  // 1c. Social Science (Class 9th & 10th Core)
-  if (codeUpper === 'SS' || nameUpper === 'SOCIAL SCIENCE' || nameUpper === 'SOCIAL STUDIES' || nameUpper === 'SST') {
-    if (isStuSecondary) return true;
-    if (hasToken('SS') || hasToken('SST') || /\b(SOCIAL\s*SCIENCE|SOCIAL\s*STUDIES|SST)\b/i.test(rawSubjStr)) return true;
-    if (isArts && !rawSubjStr) return true;
+  // Secondary School Subjects (Class 9th & 10th Core & Vocational)
+  if (isSecondary) {
+    if (codeUpper === 'SC' || nameUpper === 'SCIENCE') return true;
+    if (codeUpper === 'SS' || nameUpper === 'SOCIAL SCIENCE' || nameUpper === 'SOCIAL STUDIES' || nameUpper === 'SST') return true;
+    if (codeUpper === 'MA' || nameUpper.includes('MATH')) return true;
+    if (codeUpper === 'UR' || nameUpper.includes('URDU')) {
+      if (hasToken('HN') || /\bHINDI\b/i.test(rawSubjStr)) {
+        return hasToken('UR') || /\bURDU\b/i.test(rawSubjStr);
+      }
+      return true;
+    }
+    if (codeUpper === 'HN' || nameUpper.includes('HINDI')) {
+      return hasToken('HN') || /\bHINDI\b/i.test(rawSubjStr);
+    }
+    if (codeUpper === 'ITE' || codeUpper === 'IT' || codeUpper === 'ITES' || nameUpper.includes('IT & ITES') || nameUpper.includes('IT AND ITES') || nameUpper.includes('INFORMATION TECH')) {
+      return hasToken('ITE') || hasToken('IT') || hasToken('ITES') ||
+        /\b(IT\s*AND\s*ITES|IT\s*&\s*ITES|IT-ITES|INFORMATION\s*TECHNOLOGY|INFO\s*TECH|VOCATIONAL\s*IT)\b/i.test(rawSubjStr) ||
+        /it|ites|info/i.test(vocSubs);
+    }
+    if (codeUpper === 'HTC' || codeUpper === 'HC' || nameUpper.includes('HEALTHCARE') || nameUpper.includes('HEALTH CARE') || nameUpper.includes('HEALTH')) {
+      return hasToken('HTC') || hasToken('HC') ||
+        /\b(HEALTHCARE|HEALTH\s*CARE|HEALTH)\b/i.test(rawSubjStr) ||
+        /health/i.test(vocSubs);
+    }
+    // Secondary students NEVER take Higher Secondary subjects
     return false;
   }
 
@@ -1014,14 +1039,14 @@ export function renderSubjectsWithHighlight(subjectsStr, currentSubjObj) {
 }
 
 // Helper: Precise Subject Matcher
-function isSubjectMatch(student, targetSubjectCode) {
+function isSubjectMatch(student, targetSubjectCode, targetClass = '') {
   if (!targetSubjectCode) return true;
 
   const targetObj = SUBJECT_MAP.find(s => s.code === targetSubjectCode || s.name.toLowerCase() === targetSubjectCode.toLowerCase());
   const code = targetObj ? targetObj.code : targetSubjectCode;
   const name = targetObj ? targetObj.name : targetSubjectCode;
 
-  return isSubjectOrStreamMatch(student, code, name);
+  return isSubjectOrStreamMatch(student, code, name, targetClass);
 }
 
 // Custom Subject Dropdown (prevents native Chrome select popovers from shooting up to header)
@@ -2241,7 +2266,7 @@ export default function PracticalsPage() {
             if (!isStatusMatch) return;
           }
 
-          const matchSubjOrAll = isSecondaryClass || rosterScope === 'all_class' || isSubjectOrStreamMatch(st, targetSubjCode, targetSubjName);
+          const matchSubjOrAll = rosterScope === 'all_class' || isSubjectOrStreamMatch(st, targetSubjCode, targetSubjName, selectedClass);
 
           if (
             hasAssignedClassRoll(st) &&
@@ -2328,11 +2353,11 @@ export default function PracticalsPage() {
             }
 
             // Exclude student if they have changed subjects and are no longer enrolled in this subject (unless rosterScope === 'all_class')
-            if (!isSecondaryClass && rosterScope !== 'all_class') {
+            if (rosterScope !== 'all_class') {
               const hasEnrolledSubjects = (Array.isArray(richSt.subjects) && richSt.subjects.length > 0) ||
                 richSt['Subjects to be taken in Class 11th'] || richSt['Subjects to be taken in Class 12th'] ||
                 richSt['Subjects Studied in Class 11th'] || richSt['Subs'] || richSt.subs || richSt.rawSubjects;
-              if (hasEnrolledSubjects && !isSubjectOrStreamMatch(richSt, targetSubjCode, targetSubjName)) {
+              if (hasEnrolledSubjects && !isSubjectOrStreamMatch(richSt, targetSubjCode, targetSubjName, selectedClass)) {
                 return; // Student was transferred or changed subjects away from this subject
               }
             }
@@ -2438,9 +2463,6 @@ export default function PracticalsPage() {
           const stCls = extractStudentClass(st);
           if (stCls && !isClassMatch(stCls, selectedClass)) return false;
 
-          // Skip granular subject filtering for historical records (marks already submitted)
-          if (st.isHistorical) return true;
-
           const rawStr = extractRawSubjectsString(st, selectedClass);
           const rawSubjects = Array.isArray(rawStr) ? rawStr.join(', ') : String(rawStr);
           const enrichedSt = {
@@ -2448,8 +2470,11 @@ export default function PracticalsPage() {
             rawSubjects,
             subjectsAbbr: getAbbreviatedSubjects(st, selectedClass)
           };
-          if (isSecondaryClass || rosterScope === 'all_class') return true;
-          return isSubjectMatch(enrichedSt, selectedSubject);
+          if (rosterScope !== 'all_class') {
+            const isMatch = isSubjectMatch(enrichedSt, selectedSubject, selectedClass);
+            if (!isMatch) return false;
+          }
+          return true;
         })
         .map(st => {
           const rawStr = extractRawSubjectsString(st, selectedClass);
